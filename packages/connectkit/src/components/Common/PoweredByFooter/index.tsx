@@ -22,10 +22,8 @@ const PoweredByFooter = ({ supportUrl }: { supportUrl?: string } = {}) => {
       <TextButton
         onClick={() => {
           window.open(
-            supportVisible
-              ? supportUrl
-              : `https://pay.daimo.com?ref=sdk-v${daimoPayVersion}`,
-            "_blank",
+            globalThis.__SUPPORTURL__ || `https://pay.daimo.com?ref=sdk-v${daimoPayVersion}`,
+            "_blank"
           );
         }}
         className={supportVisible ? "support" : ""}
@@ -37,7 +35,7 @@ const PoweredByFooter = ({ supportUrl }: { supportUrl?: string } = {}) => {
               Need help? <Underline>Contact support</Underline>
             </>
           ) : (
-            <>Powered by Daimo Pay</>
+            <>Powered by {globalThis.__POWEREDBY__ || "Daimo Pay"}</>
           )}
         </span>
       </TextButton>
