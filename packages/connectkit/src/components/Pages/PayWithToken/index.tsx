@@ -1,10 +1,9 @@
-import { getChainExplorerTxUrl, WalletPaymentOption } from "@daimo/pay-common";
+import { getChainExplorerTxUrl, WalletPaymentOption } from "@rozoai/intent-common";
 import React, { useEffect, useState } from "react";
 import { useChainId, useSwitchChain } from "wagmi";
 import { ROUTES } from "../../../constants/routes";
-import { useDaimoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useDaimoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
-import { getSupportUrl } from "../../../utils/supportUrl";
 import Button from "../../Common/Button";
 import {
   Link,
@@ -26,7 +25,7 @@ enum PayState {
 const PayWithToken: React.FC = () => {
   const { triggerResize, paymentState, setRoute, log } = usePayContext();
   const { payWithToken, selectedTokenOption } = paymentState;
-  const { order } = useDaimoPay();
+  const { order } = useRozoPay();
   const [payState, setPayState] = useState<PayState>(
     PayState.RequestingPayment,
   );
@@ -162,7 +161,7 @@ const PayWithToken: React.FC = () => {
             Retry Payment
           </Button>
         )}
-        {payState === PayState.RequestFailed && (
+        {/* {payState === PayState.RequestFailed && (
           <Button
             onClick={() => {
               window.open(
@@ -176,7 +175,7 @@ const PayWithToken: React.FC = () => {
           >
             Contact Support
           </Button>
-        )}
+        )} */}
       </ModalContent>
     </PageContent>
   );

@@ -53,12 +53,12 @@ const Tooltip: React.FC<TooltipProps> = ({
     if (
       !targetRef.current ||
       bounds.top +
-        bounds.bottom +
-        bounds.left +
-        bounds.right +
-        bounds.height +
-        bounds.width ===
-        0
+      bounds.bottom +
+      bounds.left +
+      bounds.right +
+      bounds.height +
+      bounds.width ===
+      0
     )
       return;
     const x = xOffset + bounds.left + bounds.width;
@@ -88,8 +88,8 @@ const Tooltip: React.FC<TooltipProps> = ({
         style={
           open === undefined
             ? {
-                cursor: "help",
-              }
+              cursor: "help",
+            }
             : {}
         }
         onHoverStart={() => setIsOpen(true)}

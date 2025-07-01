@@ -17,9 +17,8 @@ import {
   getChainExplorerTxUrl,
   solana,
   WalletPaymentOption,
-} from "@daimo/pay-common";
-import { useDaimoPay } from "../../../../hooks/useDaimoPay";
-import { getSupportUrl } from "../../../../utils/supportUrl";
+} from "@rozoai/intent-common";
+import { useRozoPay } from "../../../../hooks/useDaimoPay";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
@@ -33,7 +32,7 @@ enum PayState {
 const PayWithSolanaToken: React.FC = () => {
   const { triggerResize, paymentState, setRoute } = usePayContext();
   const { selectedSolanaTokenOption, payWithSolanaToken } = paymentState;
-  const { order } = useDaimoPay();
+  const { order } = useRozoPay();
   const [payState, setPayState] = useState<PayState>(
     PayState.RequestingPayment,
   );
@@ -105,7 +104,7 @@ const PayWithSolanaToken: React.FC = () => {
             Retry Payment
           </Button>
         )}
-        {payState === PayState.RequestFailed && (
+        {/* {payState === PayState.RequestFailed && (
           <Button
             onClick={() => {
               window.open(
@@ -119,7 +118,7 @@ const PayWithSolanaToken: React.FC = () => {
           >
             Contact Support
           </Button>
-        )}
+        )} */}
       </ModalContent>
     </PageContent>
   );

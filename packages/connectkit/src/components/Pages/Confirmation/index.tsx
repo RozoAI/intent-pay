@@ -13,17 +13,17 @@ import {
   assert,
   getChainExplorerTxUrl,
   getOrderDestChainId,
-} from "@daimo/pay-common";
+} from "@rozoai/intent-common";
 import { motion } from "framer-motion";
 import { LoadingCircleIcon, TickIcon } from "../../../assets/icons";
-import { useDaimoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useDaimoPay";
 import styled from "../../../styles/styled";
-import { getSupportUrl } from "../../../utils/supportUrl";
 import PoweredByFooter from "../../Common/PoweredByFooter";
+import { rozoPayVersion } from "../../../utils/exports";
 
 const Confirmation: React.FC = () => {
-  const { confirmationMessage, onSuccess } = usePayContext();
-  const { order, paymentState } = useDaimoPay();
+  const { confirmationMessage, onSuccess, debugMode, log } = usePayContext();
+  const { order, paymentState } = useRozoPay();
 
   const { done, txURL } = useMemo(() => {
     if (
@@ -48,6 +48,12 @@ const Confirmation: React.FC = () => {
       onSuccess();
     }
   }, [done, onSuccess]);
+
+  useEffect(() => {
+    if (debugMode) {
+      console.log(`[ORDER] Order: `, order);
+    }
+  }, [order, debugMode]);
 
   return (
     <PageContent
@@ -88,10 +94,8 @@ const Confirmation: React.FC = () => {
         )}
 
         <PoweredByFooter
-          supportUrl={getSupportUrl(
-            order?.id?.toString() ?? "",
-            done ? "Confirmed" : "Confirming",
-          )}
+          showSupport={!done}
+          preFilledMessage={`Transaction: ${txURL}\nVersion: ${rozoPayVersion}\n\nTell us how we can help`}
         />
       </ModalContent>
     </PageContent>
@@ -122,7 +126,7 @@ const InsetContainer = styled(motion.div)`
   }
 `;
 
-const SuccessIcon = styled(TickIcon)<{ $status: boolean }>`
+const SuccessIcon = styled(TickIcon) <{ $status: boolean }>`
   color: var(--ck-body-color-valid);
   transition: all 0.2s ease-in-out;
   position: absolute;
@@ -130,7 +134,7 @@ const SuccessIcon = styled(TickIcon)<{ $status: boolean }>`
   transform: ${(props) => (props.$status ? "scale(1)" : "scale(0.5)")};
 `;
 
-const Spinner = styled(LoadingCircleIcon)<{ $status: boolean }>`
+const Spinner = styled(LoadingCircleIcon) <{ $status: boolean }>`
   position: absolute;
   transition: all 0.2s ease-in-out;
   animation: rotateSpinner 400ms linear infinite;

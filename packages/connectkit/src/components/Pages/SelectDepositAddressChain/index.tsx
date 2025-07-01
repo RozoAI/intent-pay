@@ -4,15 +4,16 @@ import { usePayContext } from "../../../hooks/usePayContext";
 
 import { ModalContent, ModalH1, PageContent } from "../../Common/Modal/styles";
 
-import { DaimoPayOrderMode } from "@daimo/pay-common";
-import { useDaimoPay } from "../../../hooks/useDaimoPay";
+import { RozoPayOrderMode } from "@rozoai/intent-common";
+import { useRozoPay } from "../../../hooks/useDaimoPay";
 import { OptionsList } from "../../Common/OptionsList";
 import { OrderHeader } from "../../Common/OrderHeader";
 import SelectAnotherMethodButton from "../../Common/SelectAnotherMethodButton";
+import PoweredByFooter from "../../Common/PoweredByFooter";
 
 const SelectDepositAddressChain: React.FC = () => {
   const { setRoute, paymentState } = usePayContext();
-  const pay = useDaimoPay();
+  const pay = useRozoPay();
   const { order } = pay;
   const {
     isDepositFlow,
@@ -22,7 +23,8 @@ const SelectDepositAddressChain: React.FC = () => {
 
   return (
     <PageContent>
-      <OrderHeader minified />
+      // TODO: Hide Tron and Ethereum from the deposit address options
+      <OrderHeader minified excludeLogos={["tron", "eth"]} />
 
       {!depositAddressOptions.loading &&
         depositAddressOptions.options?.length === 0 && (
@@ -44,14 +46,18 @@ const SelectDepositAddressChain: React.FC = () => {
         requiredSkeletons={4}
         isLoading={depositAddressOptions.loading}
         options={
-          depositAddressOptions.options?.map((option) => {
+          //TODO: Hide Tron and Ethereum from the deposit address options
+          depositAddressOptions.options?.filter(option =>
+            !option.id.toLowerCase().includes("tron") &&
+            !option.id.toLowerCase().includes("ethereum")
+          ).map((option) => {
             return {
               id: option.id,
               title: option.id,
               icons: [option.logoURI],
               disabled:
                 option.minimumUsd > 0 &&
-                order?.mode === DaimoPayOrderMode.HYDRATED &&
+                order?.mode === RozoPayOrderMode.HYDRATED &&
                 order.usdValue < option.minimumUsd,
               onClick: () => {
                 setSelectedDepositAddressOption(option);
@@ -66,6 +72,7 @@ const SelectDepositAddressChain: React.FC = () => {
           }) ?? []
         }
       />
+      <PoweredByFooter preFilledMessage={"Help"} />
     </PageContent>
   );
 };

@@ -1,23 +1,22 @@
-import type { AppRouter } from "@daimo/pay-api";
 import {
   CreateTRPCClient,
   createTRPCClient,
   httpBatchLink,
 } from "@trpc/client";
-import { daimoPayVersion } from "./exports";
 
-export type TrpcClient = CreateTRPCClient<AppRouter>;
+export type TrpcClient = CreateTRPCClient<any>;
 
 export function createTrpcClient(
   apiUrl: string,
-  sessionId: string,
+  sessionId: string
 ): TrpcClient {
-  return createTRPCClient<AppRouter>({
+  return createTRPCClient({
     links: [
       httpBatchLink({
         url: apiUrl,
         headers: {
-          "x-pay-version": daimoPayVersion,
+          // TODO: The version here must use the latest version of @daimo/pay, so that the API can function for the payment confirmation flow.
+          "x-pay-version": "1.11.6",
           "x-session-id": sessionId,
         },
       }),

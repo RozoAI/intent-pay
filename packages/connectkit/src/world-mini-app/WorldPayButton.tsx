@@ -1,12 +1,12 @@
-import { DaimoPayUserMetadata } from "@daimo/pay-common";
+import { RozoPayUserMetadata } from "@rozoai/intent-common";
 import { ReactElement, useCallback, useEffect, useState } from "react";
 import { Address, Hex } from "viem";
 import ThemedButton, {
   ThemeContainer,
 } from "../components/Common/ThemedButton";
-import { DaimoPayButtonInner } from "../components/DaimoPayButton";
+import { RozoPayButtonInner } from "../components/DaimoPayButton";
 import { ROUTES } from "../constants/routes";
-import { useDaimoPay } from "../hooks/useDaimoPay";
+import { useRozoPay } from "../hooks/useDaimoPay";
 import { usePayContext } from "../hooks/usePayContext";
 import { ResetContainer } from "../styles";
 import { CustomTheme, Mode, Theme } from "../types";
@@ -51,7 +51,7 @@ export type WorldPayButtonPaymentProps = {
   /**
    * Developer metadata. E.g. correlation ID.
    * */
-  metadata?: DaimoPayUserMetadata;
+  metadata?: RozoPayUserMetadata;
   /**
    * The address to refund to if the payment bounces.
    */
@@ -99,7 +99,7 @@ export function WorldPayButton(props: WorldPayButtonProps) {
             onClick={props.disabled || !isMiniKitReady ? undefined : show}
           >
             <ThemedButton>
-              <DaimoPayButtonInner />
+              <RozoPayButtonInner />
             </ThemedButton>
           </ThemeContainer>
         </ResetContainer>
@@ -109,7 +109,7 @@ export function WorldPayButton(props: WorldPayButtonProps) {
 }
 
 function WorldPayButtonCustom(props: WorldPayButtonCustomProps) {
-  const pay = useDaimoPay();
+  const pay = useRozoPay();
   const context = usePayContext();
   const { log } = context;
   const [isMiniKitReady, setIsMiniKitReady] = useState(false);

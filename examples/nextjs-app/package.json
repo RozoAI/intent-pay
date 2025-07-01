@@ -1,5 +1,5 @@
 {
-  "name": "@daimo/pay-nextjs-app-example",
+  "name": "@rozoai/pay-nextjs-app-example",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -8,17 +8,18 @@
     "lint": "next lint --max-warnings=0"
   },
   "dependencies": {
-    "@rozoai/intent-pay": "^0.0.8",
     "@farcaster/frame-sdk": "^0.0.26",
     "@headlessui/react": "^2.2.0",
+    "@rozoai/intent-pay": "workspace:*",
     "@tanstack/react-query": "^5.51.11",
     "autoprefixer": "^10.4.20",
+    "@rozoai/intent-common": "^0.0.1",
     "next": "^15.3.3",
     "postcss": "^8.4.49",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "tailwindcss": "^3.4.17",
-    "viem": "^2.31.2",
+    "viem": "^2.31.6",
     "wagmi": "^2.15.6"
   },
   "devDependencies": {

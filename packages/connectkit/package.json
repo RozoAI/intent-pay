@@ -1,10 +1,10 @@
 {
   "name": "@rozoai/intent-pay",
   "private": false,
-  "version": "0.0.8",
-  "author": "Daimo",
+  "version": "0.0.11",
+  "author": "RozoAI",
   "homepage": "https://github.com/RozoAI/intent-pay",
-  "license": "BSD-2-Clause license",
+  "license": "BSD-2-Clause",
   "description": "Seamless crypto payments. Onboard users from any chain, any coin into your app with one click.",
   "main": "./src/index.ts",
   "type": "module",
@@ -30,6 +30,7 @@
     "start": "rollup --config rollup.config.js -w",
     "dev": "rollup --config rollup.config.js -w",
     "build": "rollup --config rollup.config.js",
+    "prepare": "npm run build",
     "lint": "eslint 'src/**/*.{js,jsx,ts,tsx}' --max-warnings=0",
     "release": "bumpp"
   },
@@ -41,13 +42,13 @@
     "family",
     "ethereum",
     "react",
-    "daimo",
+    "rozoai",
     "pay",
     "payment",
     "crypto"
   ],
   "dependencies": {
-    "@daimo/pay-common": "1.12.0-dev",
+    "@rozoai/intent-common": "^0.0.1",
     "@rollup/plugin-typescript": "^12.1.2",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",
@@ -70,7 +71,7 @@
     "@worldcoin/minikit-js": ">=1.9.6",
     "react": "18.x || 19.x",
     "react-dom": "18.x || 19.x",
-    "viem": ">=2.22.0",
+    "viem": "2.x",
     "wagmi": "2.x"
   },
   "peerDependenciesMeta": {
@@ -92,5 +93,11 @@
     "rollup-plugin-peer-deps-external": "^2.2.4",
     "rollup-plugin-visualizer": "^5.5.4",
     "typescript-plugin-styled-components": "^3.0.0"
+  },
+  "resolutions": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "viem": "^2.23.2",
+    "wagmi": "^2.14.11"
   }
 }

@@ -4,10 +4,10 @@ import { usePayContext } from "../../../hooks/usePayContext";
 
 import { PageContent } from "../../Common/Modal/styles";
 
-import { getAddressContraction } from "@daimo/pay-common";
+import { getAddressContraction } from "@rozoai/intent-common";
 import { useWallet, Wallet } from "@solana/wallet-adapter-react";
 import { Connector, useAccount, useDisconnect } from "wagmi";
-import { Base, Ethereum, Solana, Tron } from "../../../assets/chains";
+import { Arbitrum, Base, Ethereum, Optimism, Polygon, Solana, Tron } from "../../../assets/chains";
 import {
   Coinbase,
   Phantom,
@@ -112,21 +112,21 @@ export default function SelectMethod() {
         title: `Pay with ${solWalletDisplayName}`,
         icons: solanaWallet?.adapter.icon
           ? [
-              <WalletChainLogo
-                key="sol-wallet"
-                walletIcon={solanaWallet.adapter.icon}
-                walletName={solanaWallet.adapter.name}
-                chainLogo={showChainLogo && <Solana />}
-              />,
-            ]
+            <WalletChainLogo
+              key="sol-wallet"
+              walletIcon={solanaWallet.adapter.icon}
+              walletName={solanaWallet.adapter.name}
+              chainLogo={showChainLogo && <Solana />}
+            />,
+          ]
           : [
-              <WalletChainLogo
-                key="sol-wallet"
-                walletIcon={<Solana />}
-                walletName="Default wallet icon"
-                chainLogo={null}
-              />,
-            ],
+            <WalletChainLogo
+              key="sol-wallet"
+              walletIcon={<Solana />}
+              walletName="Default wallet icon"
+              chainLogo={null}
+            />,
+          ],
         onClick: () => {
           paymentState.setTokenMode("solana");
           setRoute(ROUTES.SELECT_TOKEN, {
@@ -231,7 +231,8 @@ export default function SelectMethod() {
 
   return (
     <PageContent>
-      <OrderHeader />
+      {/* TODO: Hide Tron and Ethereum from the deposit address options */}
+      <OrderHeader excludeLogos={["tron", "eth"]} />
 
       <OptionsList
         requiredSkeletons={isMobile ? 4 : 3} // TODO: programmatically determine skeletons to best avoid layout shifts
@@ -303,7 +304,7 @@ function getDepositAddressOption(
   return {
     id: "depositAddress",
     title: "Pay to address",
-    icons: [<Ethereum key="eth" />, <Tron key="tron" />, <Base key="base" />],
+    icons: [<Base key="base" />, <Arbitrum key="arbitrum" />, <Optimism key="optimism" />, <Polygon key="polygon" />],
     onClick: () => {
       setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_CHAIN);
     },

@@ -6,13 +6,13 @@ import { OrDivider } from "../Common/Modal";
 import { ModalContent, PageContent } from "../Common/Modal/styles";
 
 import ScanIconWithLogos from "../../assets/ScanIconWithLogos";
-import { useDaimoPay } from "../../hooks/useDaimoPay";
+import { useRozoPay } from "../../hooks/useDaimoPay";
 import useLocales from "../../hooks/useLocales";
 import Button from "../Common/Button";
 import CopyToClipboard from "../Common/CopyToClipboard";
 import CustomQRCode from "../Common/CustomQRCode";
 
-import { writeDaimoPayOrderID } from "@daimo/pay-common";
+import { writeRozoPayOrderID } from "@rozoai/intent-common";
 import MobileWithLogos from "../../assets/MobileWithLogos";
 import { useWallet } from "../../wallets/useWallets";
 
@@ -20,7 +20,7 @@ const ConnectWithQRCode: React.FC<{}> = () => {
   const context = usePayContext();
   const { pendingConnectorId } = context;
   const wallet = useWallet(pendingConnectorId ?? "");
-  const pay = useDaimoPay();
+  const pay = useRozoPay();
 
   const locales = useLocales({
     CONNECTORNAME: wallet?.name,
@@ -31,8 +31,9 @@ const ConnectWithQRCode: React.FC<{}> = () => {
   const downloads = wallet?.downloadUrls;
   const hasApps = downloads && Object.keys(downloads).length !== 0;
   const showAdditionalOptions = false;
-  const payId = pay.order ? writeDaimoPayOrderID(pay.order.id) : "";
+  const payId = pay.order ? writeRozoPayOrderID(pay.order.id) : "";
 
+  // TODO: Change the URL to Rozo Pay when the APP is ready
   return (
     <PageContent>
       <ModalContent style={{ paddingBottom: 8, gap: 14 }}>

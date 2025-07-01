@@ -1,20 +1,20 @@
 import {
-  DaimoPayOrderMode,
+  RozoPayOrderMode,
   ExternalPaymentOptionMetadata,
   ExternalPaymentOptions,
   PlatformType,
-} from "@daimo/pay-common";
+} from "@rozoai/intent-common";
 import { useEffect, useState } from "react";
 import { TrpcClient } from "../utils/trpc";
 
 const DEFAULT_EXTERNAL_PAYMENT_OPTIONS = Object.values(
-  ExternalPaymentOptions,
+  ExternalPaymentOptions
 ).filter(
   (opt) =>
     // Solana and ExternalChains are handled in the SelectMethod component.
     opt !== ExternalPaymentOptions.Solana &&
     opt !== ExternalPaymentOptions.ExternalChains &&
-    opt !== ExternalPaymentOptions.Daimo,
+    opt !== ExternalPaymentOptions.Rozo
 );
 
 export function useExternalPaymentOptions({
@@ -28,7 +28,7 @@ export function useExternalPaymentOptions({
   filterIds: string[] | undefined;
   platform: PlatformType | undefined;
   usdRequired: number | undefined;
-  mode: DaimoPayOrderMode | undefined;
+  mode: RozoPayOrderMode | undefined;
 }): {
   /// Exteral options, organized by optionType
   options: Map<"external" | "zkp2p", ExternalPaymentOptionMetadata[]>;
@@ -42,7 +42,7 @@ export function useExternalPaymentOptions({
   useEffect(() => {
     const refreshExternalPaymentOptions = async (
       usd: number,
-      mode: DaimoPayOrderMode,
+      mode: RozoPayOrderMode
     ) => {
       if (!platform) return;
 
@@ -58,12 +58,12 @@ export function useExternalPaymentOptions({
         const enabledExtPaymentOptions =
           filterIds || DEFAULT_EXTERNAL_PAYMENT_OPTIONS;
         const hasAllPaymentApps = enabledExtPaymentOptions.includes(
-          ExternalPaymentOptions.AllPaymentApps,
+          ExternalPaymentOptions.AllPaymentApps
         );
         const filteredOptions = newOptions.filter(
           (option: ExternalPaymentOptionMetadata) =>
             enabledExtPaymentOptions.includes(option.id) ||
-            (hasAllPaymentApps && option.optionType === "zkp2p"),
+            (hasAllPaymentApps && option.optionType === "zkp2p")
         );
         const optionsByType: Map<
           "external" | "zkp2p",

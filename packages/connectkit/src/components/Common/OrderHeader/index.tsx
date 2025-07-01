@@ -1,4 +1,4 @@
-import { getAddressContraction } from "@daimo/pay-common";
+import { getAddressContraction } from "@rozoai/intent-common";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { motion } from "framer-motion";
 import React from "react";
@@ -10,11 +10,12 @@ import {
   Optimism,
   Polygon,
   Solana,
+  Tron,
 } from "../../../assets/chains";
 import { USDC } from "../../../assets/coins";
 import defaultTheme from "../../../constants/defaultTheme";
 import { ROUTES } from "../../../constants/routes";
-import { useDaimoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useDaimoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
 import styled from "../../../styles/styled";
 import { formatUsd } from "../../../utils/format";
@@ -25,11 +26,13 @@ export const OrderHeader = ({
   showEth = false,
   showSolana = false,
   showZKP2P = false,
+  excludeLogos = [],
 }: {
   minified?: boolean;
   showEth?: boolean;
   showSolana?: boolean;
   showZKP2P?: boolean;
+  excludeLogos?: string[];
 }) => {
   const { paymentState, route } = usePayContext();
   const { isConnected: isEthConnected, address, connector } = useAccount();
@@ -39,7 +42,7 @@ export const OrderHeader = ({
     wallet: solanaWallet,
   } = useWallet();
   const { senderEnsName } = paymentState;
-  const { order } = useDaimoPay();
+  const { order } = useRozoPay();
 
   const ethWalletDisplayName =
     senderEnsName ?? (address ? getAddressContraction(address) : "wallet");
@@ -116,7 +119,7 @@ export const OrderHeader = ({
           )}
           {!showEth && !showSolana && !showZKP2P && (
             <>
-              <CoinLogos $size={32} />
+              <CoinLogos $size={32} $exclude={excludeLogos} />
             </>
           )}
         </MinifiedContainer>
@@ -124,7 +127,7 @@ export const OrderHeader = ({
     } else {
       return (
         <MinifiedContainer>
-          <CoinLogos />
+          <CoinLogos $exclude={excludeLogos} />
           <Subtitle>1000+ tokens accepted</Subtitle>
         </MinifiedContainer>
       );
@@ -134,7 +137,7 @@ export const OrderHeader = ({
       <>
         {titleAmountContent && <TitleAmount>{titleAmountContent}</TitleAmount>}
         <AnyChainAnyCoinContainer>
-          <CoinLogos />
+          <CoinLogos $exclude={excludeLogos} />
           <Subtitle>1000+ tokens accepted</Subtitle>
         </AnyChainAnyCoinContainer>
       </>
@@ -142,9 +145,10 @@ export const OrderHeader = ({
   }
 };
 
-function CoinLogos({ $size = 24 }: { $size?: number }) {
+function CoinLogos({ $size = 24, $exclude = [] }: { $size?: number, $exclude?: string[] }) {
   const logos = [
     <Ethereum key="eth" />,
+    <Tron key="tron" />,
     <USDC key="usdc" />,
     <Optimism key="optimism" />,
     <Arbitrum key="arbitrum" />,
@@ -166,11 +170,11 @@ function CoinLogos({ $size = 24 }: { $size?: number }) {
   );
 
   return (
-    <Logos>{logos.map((element, index) => logoBlock(element, index))}</Logos>
+    <Logos>{logos.filter((element) => !$exclude.includes(element?.key ?? "")).map((element, index) => logoBlock(element, index))}</Logos>
   );
 }
 
-const TitleAmount = styled(motion.h1)<{
+const TitleAmount = styled(motion.h1) <{
   $error?: boolean;
   $valid?: boolean;
 }>`
@@ -229,7 +233,7 @@ const AnyChainAnyCoinContainer = styled(motion.div)`
   margin-bottom: 24px;
 `;
 
-const LogoContainer = styled(motion.div)<{
+const LogoContainer = styled(motion.div) <{
   $marginLeft?: number;
   $zIndex?: number;
   $size: number;
