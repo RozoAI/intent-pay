@@ -16,7 +16,7 @@ export enum ROUTES {
   SOLANA_CONNECTOR = "rozoPaySolanaConnector",
   SOLANA_SELECT_AMOUNT = "rozoPaySolanaSelectAmount",
   SOLANA_PAY_WITH_TOKEN = "rozoPaySolanaPayWithToken",
-  ERROR = "daimoPayError",
+  ERROR = "rozoPayError",
 
   // Unused routes. Kept to minimize connectkit merge conflicts.
   ONBOARDING = "onboarding",

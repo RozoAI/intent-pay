@@ -5,11 +5,12 @@ import { useAccount } from "wagmi";
 import { ROUTES } from "../../constants/routes";
 import { getAppName } from "../../defaultConfig";
 import { useChainIsSupported } from "../../hooks/useChainIsSupported";
-import { useRozoPay } from "../../hooks/useRozoPay";
+import { useRozoPay } from "../../hooks/useDaimoPay";
+import useIsMobile from "../../hooks/useIsMobile";
 import { usePayContext } from "../../hooks/usePayContext";
 import { CustomTheme, Languages, Mode, Theme } from "../../types";
 import Modal from "../Common/Modal";
-import { RozoPayThemeProvider } from "../RozoPayThemeProvider/RozoPayThemeProvider";
+import { RozoPayThemeProvider } from "../DaimoPayThemeProvider/DaimoPayThemeProvider";
 import About from "../Pages/About";
 import Confirmation from "../Pages/Confirmation";
 import Connectors from "../Pages/Connectors";
@@ -34,25 +35,35 @@ import WaitingDepositAddress from "../Pages/WaitingDepositAddress";
 import WaitingExternal from "../Pages/WaitingExternal";
 import WaitingWallet from "../Pages/WaitingWallet";
 import ConnectUsing from "./ConnectUsing";
+import ErrorPage from "../Pages/Error";
 
 export const RozoPayModal: React.FC<{
   mode: Mode;
   theme: Theme;
   customTheme: CustomTheme;
   lang: Languages;
+  disableMobileInjector: boolean;
 }> = ({
   mode,
   theme,
   customTheme,
   lang,
+  disableMobileInjector,
 }: {
   mode: Mode;
   theme: Theme;
   customTheme: CustomTheme;
   lang: Languages;
+  disableMobileInjector: boolean;
 }) => {
     const context = usePayContext();
-    const { setMode, setTheme, setCustomTheme, setLang } = context;
+    const {
+      setMode,
+      setTheme,
+      setCustomTheme,
+      setLang,
+      setDisableMobileInjector,
+    } = context;
     const paymentState = context.paymentState;
     const {
       generatePreviewOrder,
@@ -88,6 +99,7 @@ export const RozoPayModal: React.FC<{
       context.route !== ROUTES.SELECT_METHOD &&
       context.route !== ROUTES.CONFIRMATION &&
       context.route !== ROUTES.SELECT_TOKEN &&
+      context.route !== ROUTES.ERROR &&
       paymentFsmState !== "error";
 
     const onBack = () => {
@@ -171,6 +183,7 @@ export const RozoPayModal: React.FC<{
       [ROUTES.SELECT_ZKP2P]: <SelectZKP />,
       [ROUTES.WAITING_WALLET]: <WaitingWallet />,
       [ROUTES.CONFIRMATION]: <Confirmation />,
+      [ROUTES.ERROR]: <ErrorPage />,
       [ROUTES.PAY_WITH_TOKEN]: <PayWithToken />,
       [ROUTES.SOLANA_CONNECT]: <ConnectSolana />,
       [ROUTES.SOLANA_CONNECTOR]: <ConnectorSolana />,
@@ -192,6 +205,7 @@ export const RozoPayModal: React.FC<{
       }
       context.setOpen(false, { event: "click-close" });
     }
+    const { isMobile } = useIsMobile();
 
     // If the user has a wallet already connected upon opening the modal, go
     // straight to the select token screen
@@ -202,7 +216,12 @@ export const RozoPayModal: React.FC<{
       // Skip to token selection if exactly one wallet is connected. If both
       // wallets are connected, stay on the SELECT_METHOD screen to allow the
       // user to select which wallet to use
-      if (isEthConnected && !isSolanaConnected) {
+      // If mobile injector is disabled, don't show the connected wallets.
+      if (
+        isEthConnected &&
+        !isSolanaConnected &&
+        (!isMobile || !disableMobileInjector)
+      ) {
         paymentState.setTokenMode("evm");
         context.setRoute(ROUTES.SELECT_TOKEN, {
           event: "eth_connected_on_open",
@@ -213,7 +232,8 @@ export const RozoPayModal: React.FC<{
       } else if (
         isSolanaConnected &&
         !isEthConnected &&
-        showSolanaPaymentMethod
+        showSolanaPaymentMethod &&
+        !disableMobileInjector
       ) {
         paymentState.setTokenMode("solana");
         context.setRoute(ROUTES.SELECT_TOKEN, {
@@ -258,6 +278,10 @@ export const RozoPayModal: React.FC<{
     useEffect(() => setTheme(theme), [theme, setTheme]);
     useEffect(() => setCustomTheme(customTheme), [customTheme, setCustomTheme]);
     useEffect(() => setLang(lang), [lang, setLang]);
+    useEffect(
+      () => setDisableMobileInjector(disableMobileInjector),
+      [disableMobileInjector, setDisableMobileInjector],
+    );
 
     useEffect(() => {
       const appName = getAppName();

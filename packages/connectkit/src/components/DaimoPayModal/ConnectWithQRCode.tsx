@@ -6,7 +6,7 @@ import { OrDivider } from "../Common/Modal";
 import { ModalContent, PageContent } from "../Common/Modal/styles";
 
 import ScanIconWithLogos from "../../assets/ScanIconWithLogos";
-import { useRozoPay } from "../../hooks/useRozoPay";
+import { useRozoPay } from "../../hooks/useDaimoPay";
 import useLocales from "../../hooks/useLocales";
 import Button from "../Common/Button";
 import CopyToClipboard from "../Common/CopyToClipboard";
@@ -33,6 +33,7 @@ const ConnectWithQRCode: React.FC<{}> = () => {
   const showAdditionalOptions = false;
   const payId = pay.order ? writeRozoPayOrderID(pay.order.id) : "";
 
+  // TODO: Change the URL to Rozo Pay when the APP is ready
   return (
     <PageContent>
       <ModalContent style={{ paddingBottom: 8, gap: 14 }}>
