@@ -34,13 +34,13 @@ import { useTransition } from "react-transition-state";
 import { useAccount, useSwitchChain } from "wagmi";
 import { AuthIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
-import { useRozoPay } from "../../../hooks/useRozoPay";
+import { useRozoPay } from "../../../hooks/useDaimoPay";
 import FocusTrap from "../../../hooks/useFocusTrap";
 import useLocales from "../../../hooks/useLocales";
 import usePrevious from "../../../hooks/usePrevious";
 import { CustomTheme } from "../../../types";
 import { useWallet } from "../../../wallets/useWallets";
-import { useThemeContext } from "../../RozoPayThemeProvider/RozoPayThemeProvider";
+import { useThemeContext } from "../../DaimoPayThemeProvider/DaimoPayThemeProvider";
 import FitText from "../FitText";
 
 const ProfileIcon = ({ isSignedIn }: { isSignedIn?: boolean }) => (
