@@ -12,7 +12,7 @@ import { formatUsd, roundTokenAmount } from "../utils/format";
 import { usePayContext } from "./usePayContext";
 
 /// and Solana tokens. See OptionsList.
-export function useTokenOptions(mode: "evm" | "solana" | "all"): {
+export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   optionsList: Option[];
   isLoading: boolean;
 } {
@@ -21,8 +21,10 @@ export function useTokenOptions(mode: "evm" | "solana" | "all"): {
     isDepositFlow,
     walletPaymentOptions,
     solanaPaymentOptions,
+    stellarPaymentOptions,
     setSelectedTokenOption,
     setSelectedSolanaTokenOption,
+    setSelectedStellarTokenOption,
   } = paymentState;
 
   let optionsList: Option[] = [];
@@ -48,6 +50,16 @@ export function useTokenOptions(mode: "evm" | "solana" | "all"): {
       ),
     );
     isLoading ||= solanaPaymentOptions.isLoading;
+  }
+  if ("stellar".includes(mode)) {
+    optionsList.push(
+      ...getStellarTokenOptions(
+        stellarPaymentOptions.options ?? [],
+        setSelectedStellarTokenOption,
+        setRoute,
+      ),
+    );
+    isLoading ||= stellarPaymentOptions.isLoading;
   }
   optionsList.sort((a, b) => {
     const dDisabled = (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0);
@@ -147,6 +159,45 @@ function getSolanaTokenOptions(
         } else {
           setRoute(ROUTES.SOLANA_PAY_WITH_TOKEN, meta);
         }
+      },
+      disabled,
+    };
+  });
+}
+
+function getStellarTokenOptions(
+  options: WalletPaymentOption[],
+  setSelectedStellarTokenOption: (option: WalletPaymentOption) => void,
+  setRoute: (route: ROUTES, meta?: any) => void,
+) {
+  return options.map((option) => {
+    const titlePrice = roundTokenAmount(option.required.amount, option.required.token);
+    const title = `${titlePrice} ${option.balance.token.symbol} on Stellar`;
+    const balanceStr = `${roundTokenAmount(option.balance.amount, option.balance.token)} ${option.balance.token.symbol}`;
+    const subtitle =
+      option.disabledReason ??
+      `Balance: ${balanceStr}`;
+    const disabled = option.disabledReason != null;
+
+    return {
+      id: getRozoTokenKey(option.balance.token),
+      sortValue: option.balance.usd,
+      title,
+      subtitle,
+      icons: [
+        <TokenChainLogo
+          key={getRozoTokenKey(option.balance.token)}
+          token={option.balance.token}
+        />,
+      ],
+      onClick: () => {
+        setSelectedStellarTokenOption(option);
+        const meta = {
+          event: "click-stellar-token",
+          tokenSymbol: option.balance.token.symbol,
+          chainId: option.balance.token.chainId,
+        };
+        setRoute(ROUTES.STELLAR_PAY_WITH_TOKEN, meta);
       },
       disabled,
     };

@@ -1,5 +1,5 @@
 // hooks/useRozoPay.ts
-import { RozoPayOrderID, SolanaPublicKey } from "@rozoai/intent-common";
+import { RozoPayOrderID, SolanaPublicKey, StellarPublicKey } from "@rozoai/intent-common";
 import { useCallback, useContext, useMemo, useSyncExternalStore } from "react";
 import { Address, Hex } from "viem";
 import { PaymentEvent, PaymentState, PayParams } from "../payment/paymentFsm";
@@ -76,6 +76,22 @@ type RozoPayFunctions = {
   paySolanaSource: (args: {
     paymentTxHash: string;
     sourceToken: SolanaPublicKey;
+  }) => Promise<
+    Extract<
+      PaymentState,
+      { type: "payment_started" | "payment_completed" | "payment_bounced" }
+    >
+  >;
+
+  /**
+   * Register a Stellar payment source for the current order.
+   * Call this after the user has submitted a Stellar payment transaction.
+   *
+   * @param args - Details about the Stellar payment transaction.
+   */
+  payStellarSource: (args: {
+    paymentTxHash: string;
+    sourceToken: StellarPublicKey;
   }) => Promise<
     Extract<
       PaymentState,
@@ -248,6 +264,23 @@ export function useRozoPay(): UseRozoPay {
     [dispatch, store],
   );
 
+  const payStellarSource = useCallback(
+    async (args: { paymentTxHash: string; sourceToken: StellarPublicKey }) => {
+      dispatch({ type: "pay_stellar_source", ...args });
+
+      // Will throw if the payment is not verified by the server.
+      const paidState = await waitForPaymentState(
+        store,
+        "payment_started",
+        "payment_completed",
+        "payment_bounced",
+      );
+
+      return paidState;
+    },
+    [dispatch, store],
+  );
+
   const reset = useCallback(() => dispatch({ type: "reset" }), [dispatch]);
 
   const setChosenUsd = useCallback(
@@ -265,6 +298,7 @@ export function useRozoPay(): UseRozoPay {
     paySource,
     payEthSource,
     paySolanaSource,
+    payStellarSource,
     reset,
     setChosenUsd,
   } as UseRozoPay;

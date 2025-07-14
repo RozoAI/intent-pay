@@ -10,6 +10,7 @@ import {
   ExternalPaymentOptionsString,
   isHydrated,
   SolanaPublicKey,
+  StellarPublicKey,
 } from "@rozoai/intent-common";
 import { Address, Hex, parseUnits } from "viem";
 
@@ -98,6 +99,11 @@ export type PaymentEvent =
       type: "pay_solana_source";
       paymentTxHash: string;
       sourceToken: SolanaPublicKey;
+    }
+  | {
+      type: "pay_stellar_source";
+      paymentTxHash: string;
+      sourceToken: StellarPublicKey;
     }
   /* result events (effect finished) */
   | {

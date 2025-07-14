@@ -14,6 +14,7 @@ import {
   PlatformType,
   readRozoPayOrderID,
   SolanaPublicKey,
+  StellarPublicKey,
   WalletPaymentOption,
   writeRozoPayOrderID,
 } from "@rozoai/intent-common";
@@ -40,7 +41,9 @@ import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
 import useIsMobile from "./useIsMobile";
 import { useOrderUsdLimits } from "./useOrderUsdLimits";
 import { useSolanaPaymentOptions } from "./useSolanaPaymentOptions";
+import { useStellarPaymentOptions } from "./useStellarPaymentOptions";
 import { useWalletPaymentOptions } from "./useWalletPaymentOptions";
+import { useStellar } from "../provider/StellarContextProvider";
 
 /** Wallet payment details, sent to processSourcePayment after submitting tx. */
 export type SourcePayment = Parameters<
@@ -70,17 +73,20 @@ export interface PaymentState {
   selectedWallet: WalletConfigProps | undefined;
   selectedWalletDeepLink: string | undefined;
   showSolanaPaymentMethod: boolean;
+  showStellarPaymentMethod: boolean;
   walletPaymentOptions: ReturnType<typeof useWalletPaymentOptions>;
   solanaPaymentOptions: ReturnType<typeof useSolanaPaymentOptions>;
+  stellarPaymentOptions: ReturnType<typeof useStellarPaymentOptions>;
   depositAddressOptions: ReturnType<typeof useDepositAddressOptions>;
   selectedExternalOption: ExternalPaymentOptionMetadata | undefined;
   selectedTokenOption: WalletPaymentOption | undefined;
   selectedSolanaTokenOption: WalletPaymentOption | undefined;
+  selectedStellarTokenOption: WalletPaymentOption | undefined;
   selectedDepositAddressOption: DepositAddressPaymentOptionMetadata | undefined;
   getOrderUsdLimit: () => number;
   setPaymentWaitingMessage: (message: string | undefined) => void;
-  tokenMode: "evm" | "solana" | "all";
-  setTokenMode: (mode: "evm" | "solana" | "all") => void;
+  tokenMode: "evm" | "solana" | "stellar" | "all";
+  setTokenMode: (mode: "evm" | "solana" | "stellar" | "all") => void;
   setSelectedWallet: (wallet: WalletConfigProps | undefined) => void;
   setSelectedWalletDeepLink: (deepLink: string | undefined) => void;
   setSelectedExternalOption: (
@@ -88,6 +94,9 @@ export interface PaymentState {
   ) => void;
   setSelectedTokenOption: (option: WalletPaymentOption | undefined) => void;
   setSelectedSolanaTokenOption: (
+    option: WalletPaymentOption | undefined
+  ) => void;
+  setSelectedStellarTokenOption: (
     option: WalletPaymentOption | undefined
   ) => void;
   setSelectedDepositAddressOption: (
@@ -103,6 +112,9 @@ export interface PaymentState {
   ) => Promise<DepositAddressPaymentOptionData | null>;
   payWithSolanaToken: (
     inputToken: SolanaPublicKey
+  ) => Promise<{ txHash: string; success: boolean }>;
+  payWithStellarToken: (
+    inputToken: StellarPublicKey
   ) => Promise<{ txHash: string; success: boolean }>;
   openInWalletBrowser: (wallet: WalletConfigProps, amountUsd?: number) => void;
   senderEnsName: string | undefined;
@@ -143,6 +155,10 @@ export function usePaymentState({
   const { connection } = useConnection();
   const solanaPubKey = solanaWallet.publicKey?.toBase58();
 
+  // Stellar wallet state.
+  const { publicKey: stellarPublicKey } = useStellar();
+  const stellarPubKey = stellarPublicKey;
+
   // TODO: backend should determine whether to show solana payment method
   const paymentOptions = pay.order?.metadata.payer?.paymentOptions;
   // Include by default if paymentOptions not provided. Solana bridging is only
@@ -152,6 +168,11 @@ export function usePaymentState({
       paymentOptions.includes(ExternalPaymentOptions.Solana)) &&
     pay.order != null &&
     isCCTPV1Chain(getOrderDestChainId(pay.order));
+
+  const showStellarPaymentMethod =
+    (paymentOptions == null ||
+      paymentOptions.includes(ExternalPaymentOptions.Stellar)) &&
+    pay.order != null;
 
   // From RozoPayButton props
   const [buttonProps, setButtonProps] = useState<PayButtonPaymentProps>();
@@ -187,6 +208,10 @@ export function usePaymentState({
     usdRequired: pay.order?.destFinalCallTokenAmount.usd,
     isDepositFlow,
   });
+  const stellarPaymentOptions = useStellarPaymentOptions({
+    address: stellarPubKey,
+    usdRequired: pay.order?.destFinalCallTokenAmount.usd,
+  });
   const depositAddressOptions = useDepositAddressOptions({
     trpc,
     usdRequired: pay.order?.destFinalCallTokenAmount.usd,
@@ -202,6 +227,9 @@ export function usePaymentState({
     useState<WalletPaymentOption>();
 
   const [selectedSolanaTokenOption, setSelectedSolanaTokenOption] =
+    useState<WalletPaymentOption>();
+
+  const [selectedStellarTokenOption, setSelectedStellarTokenOption] =
     useState<WalletPaymentOption>();
 
   const [selectedDepositAddressOption, setSelectedDepositAddressOption] =
@@ -365,6 +393,81 @@ export function usePaymentState({
     }
   };
 
+  // Stellar payment
+  const payWithStellarToken = async (
+    inputToken: StellarPublicKey
+  ): Promise<{ txHash: string; success: boolean }> => {
+    const payerPublicKey = stellarPublicKey;
+    assert(
+      payerPublicKey != null,
+      "[PAY STELLAR] null payerPublicKey when paying on stellar"
+    );
+
+    // Create Order using Rozo API
+    const destinationAddress =
+      "GC6XX3QMCPFE6WTCG6QQKRKT47UB6C53RPN4RA47IISEUC5N5CRANSIJ";
+
+    // Use destination address from rozo APU
+    /* assert(
+      pay.order?.id != null,
+      "[PAY STELLAR] null orderId when paying on stellar"
+    );
+    assert(
+      pay.paymentState === "preview" ||
+        pay.paymentState === "unhydrated" ||
+        pay.paymentState === "payment_unpaid",
+      `[PAY STELLAR] paymentState is ${pay.paymentState}, must be preview or unhydrated or payment_unpaid`
+    );
+
+    let hydratedOrder: RozoPayHydratedOrderWithOrg;
+    if (pay.paymentState !== "payment_unpaid") {
+      const res = await pay.hydrateOrder();
+      hydratedOrder = res.order;
+
+      log(
+        `[PAY STELLAR] Hydrated order: ${JSON.stringify(
+          hydratedOrder
+        )}, checking out with Stellar ${inputToken}`
+      );
+    } else {
+      hydratedOrder = pay.order;
+    } */
+
+    return { txHash: "", success: false };
+
+    /* const paymentTxHash = await (async () => {
+      try {
+        const serializedTx = await trpc.getStellarSwapAndBurnTx.query({
+          orderId: pay.order.id.toString(),
+          userPublicKey: assertNotNull(
+            payerPublicKey,
+            "[PAY STELLAR] wallet.publicKey cannot be null"
+          ).toString(),
+          inputTokenMint: inputToken,
+        });
+        const tx = VersionedTransaction.deserialize(hexToBytes(serializedTx));
+        const txHash = await solanaWallet.sendTransaction(tx, connection);
+        return txHash;
+      } catch (e) {
+        console.error(e);
+        throw e;
+      }
+    })();
+
+    try {
+      await pay.payStellarSource({
+        paymentTxHash: paymentTxHash,
+        sourceToken: inputToken,
+      });
+      return { txHash: paymentTxHash, success: true };
+    } catch {
+      console.error(
+        `[PAY STELLAR] could not verify payment tx on chain: ${paymentTxHash}`
+      );
+      return { txHash: paymentTxHash, success: false };
+    } */
+  };
+
   const payWithExternal = async (option: ExternalPaymentOptions) => {
     assert(pay.order != null, "[PAY EXTERNAL] order cannot be null");
     assert(platform != null, "[PAY EXTERNAL] platform cannot be null");
@@ -500,6 +603,7 @@ export function usePaymentState({
       setSelectedExternalOption(undefined);
       setSelectedTokenOption(undefined);
       setSelectedSolanaTokenOption(undefined);
+      setSelectedStellarTokenOption(undefined);
       setSelectedDepositAddressOption(undefined);
       setSelectedWallet(undefined);
       setSelectedWalletDeepLink(undefined);
@@ -517,7 +621,9 @@ export function usePaymentState({
     [setRoute, pay, currPayParams]
   );
 
-  const [tokenMode, setTokenMode] = useState<"evm" | "solana" | "all">("evm");
+  const [tokenMode, setTokenMode] = useState<
+    "evm" | "solana" | "stellar" | "all"
+  >("evm");
 
   return {
     buttonProps,
@@ -532,12 +638,15 @@ export function usePaymentState({
     selectedExternalOption,
     selectedTokenOption,
     selectedSolanaTokenOption,
+    selectedStellarTokenOption,
     externalPaymentOptions,
     showSolanaPaymentMethod,
+    showStellarPaymentMethod,
     selectedWallet,
     selectedWalletDeepLink,
     walletPaymentOptions,
     solanaPaymentOptions,
+    stellarPaymentOptions,
     depositAddressOptions,
     selectedDepositAddressOption,
     getOrderUsdLimit,
@@ -548,12 +657,14 @@ export function usePaymentState({
     setSelectedExternalOption,
     setSelectedTokenOption,
     setSelectedSolanaTokenOption,
+    setSelectedStellarTokenOption,
     setSelectedDepositAddressOption,
     setChosenUsd,
     payWithToken,
     payWithExternal,
     payWithDepositAddress,
     payWithSolanaToken,
+    payWithStellarToken,
     openInWalletBrowser,
     senderEnsName: senderEnsName ?? undefined,
   };
