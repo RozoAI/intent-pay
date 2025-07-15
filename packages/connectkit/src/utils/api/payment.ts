@@ -36,7 +36,7 @@ export interface PaymentSource {
 export interface PaymentRequestData {
   display: PaymentDisplay;
   destination: PaymentDestination;
-  externalId: string;
+  externalId?: string;
   metadata?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -163,7 +163,7 @@ export const useCreatePayment = (
         isError: !!response.error,
         isSuccess: !response.error && !!response.data,
       });
-      
+
       return response;
     } catch (error) {
       const errorObj =
@@ -200,7 +200,10 @@ export const useCreatePayment = (
 export const usePayment = (
   paymentId: string,
   enabled = true
-): [RequestState<PaymentResponseData>, () => Promise<ApiResponse<PaymentResponseData> | void>] => {
+): [
+  RequestState<PaymentResponseData>,
+  () => Promise<ApiResponse<PaymentResponseData> | void>
+] => {
   const [state, setState] = useState<RequestState<PaymentResponseData>>({
     data: null,
     error: null,
@@ -226,7 +229,7 @@ export const usePayment = (
         isError: !!response.error,
         isSuccess: !response.error && !!response.data,
       });
-      
+
       return response;
     } catch (error) {
       setState({
@@ -258,7 +261,10 @@ export const usePayment = (
 export const usePaymentByExternalId = (
   externalId: string,
   enabled = true
-): [RequestState<PaymentResponseData>, () => Promise<ApiResponse<PaymentResponseData> | void>] => {
+): [
+  RequestState<PaymentResponseData>,
+  () => Promise<ApiResponse<PaymentResponseData> | void>
+] => {
   const [state, setState] = useState<RequestState<PaymentResponseData>>({
     data: null,
     error: null,
@@ -284,7 +290,7 @@ export const usePaymentByExternalId = (
         isError: !!response.error,
         isSuccess: !response.error && !!response.data,
       });
-      
+
       return response;
     } catch (error) {
       setState({
@@ -316,7 +322,10 @@ export const usePaymentByExternalId = (
 export const usePayments = (
   params?: Record<string, string>,
   enabled = true
-): [RequestState<PaymentResponseData[]>, () => Promise<ApiResponse<PaymentResponseData[]> | void>] => {
+): [
+  RequestState<PaymentResponseData[]>,
+  () => Promise<ApiResponse<PaymentResponseData[]> | void>
+] => {
   const [state, setState] = useState<RequestState<PaymentResponseData[]>>({
     data: null,
     error: null,
@@ -340,7 +349,7 @@ export const usePayments = (
         isError: !!response.error,
         isSuccess: !response.error && !!response.data,
       });
-      
+
       return response;
     } catch (error) {
       setState({
@@ -377,7 +386,7 @@ export const createPaymentRequest = (options: {
   amountUnits: string;
   tokenSymbol: string;
   tokenAddress?: string;
-  externalId: string;
+  externalId?: string;
   metadata?: Record<string, unknown>;
 }): PaymentRequestData => {
   const {

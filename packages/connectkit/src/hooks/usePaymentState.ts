@@ -17,6 +17,9 @@ import {
   StellarPublicKey,
   WalletPaymentOption,
   writeRozoPayOrderID,
+  stellar,
+  RozoPayToken,
+  RozoPayTokenAmount,
 } from "@rozoai/intent-common";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { VersionedTransaction } from "@solana/web3.js";
@@ -43,7 +46,20 @@ import { useOrderUsdLimits } from "./useOrderUsdLimits";
 import { useSolanaPaymentOptions } from "./useSolanaPaymentOptions";
 import { useStellarPaymentOptions } from "./useStellarPaymentOptions";
 import { useWalletPaymentOptions } from "./useWalletPaymentOptions";
-import { useStellar } from "../provider/StellarContextProvider";
+import {
+  STELLAR_USDC_ASSET_CODE,
+  STELLAR_USDC_ISSUER_PK,
+  useStellar,
+} from "../provider/StellarContextProvider";
+import { createPayment, createPaymentRequest } from "../utils/api";
+import { FREIGHTER_ID } from "@creit.tech/stellar-wallets-kit";
+import {
+  Asset,
+  Networks,
+  Operation,
+  TransactionBuilder,
+} from "@stellar/stellar-sdk";
+import { roundTokenAmount } from "../utils/format";
 
 /** Wallet payment details, sent to processSourcePayment after submitting tx. */
 export type SourcePayment = Parameters<
@@ -114,7 +130,8 @@ export interface PaymentState {
     inputToken: SolanaPublicKey
   ) => Promise<{ txHash: string; success: boolean }>;
   payWithStellarToken: (
-    inputToken: StellarPublicKey
+    inputToken: RozoPayTokenAmount,
+    rozoPayment: { destAddress: string; amount: string }
   ) => Promise<{ txHash: string; success: boolean }>;
   openInWalletBrowser: (wallet: WalletConfigProps, amountUsd?: number) => void;
   senderEnsName: string | undefined;
@@ -156,7 +173,13 @@ export function usePaymentState({
   const solanaPubKey = solanaWallet.publicKey?.toBase58();
 
   // Stellar wallet state.
-  const { publicKey: stellarPublicKey } = useStellar();
+  const {
+    publicKey: stellarPublicKey,
+    account: stellarAccount,
+    kit: stellarKit,
+    connector: stellarConnector,
+    server: stellarServer,
+  } = useStellar();
   const stellarPubKey = stellarPublicKey;
 
   // TODO: backend should determine whether to show solana payment method
@@ -394,78 +417,123 @@ export function usePaymentState({
   };
 
   // Stellar payment
+  /**
+   * Execute a payment using Stellar token
+   * @param payToken - The token amount to pay
+   * @returns Transaction hash and success status
+   */
   const payWithStellarToken = async (
-    inputToken: StellarPublicKey
+    payToken: RozoPayTokenAmount,
+    rozoPayment: { destAddress: string; amount: string }
   ): Promise<{ txHash: string; success: boolean }> => {
-    const payerPublicKey = stellarPublicKey;
-    assert(
-      payerPublicKey != null,
-      "[PAY STELLAR] null payerPublicKey when paying on stellar"
-    );
-
-    // Create Order using Rozo API
-    const destinationAddress =
-      "GC6XX3QMCPFE6WTCG6QQKRKT47UB6C53RPN4RA47IISEUC5N5CRANSIJ";
-
-    // Use destination address from rozo APU
-    /* assert(
-      pay.order?.id != null,
-      "[PAY STELLAR] null orderId when paying on stellar"
-    );
-    assert(
-      pay.paymentState === "preview" ||
-        pay.paymentState === "unhydrated" ||
-        pay.paymentState === "payment_unpaid",
-      `[PAY STELLAR] paymentState is ${pay.paymentState}, must be preview or unhydrated or payment_unpaid`
-    );
-
-    let hydratedOrder: RozoPayHydratedOrderWithOrg;
-    if (pay.paymentState !== "payment_unpaid") {
-      const res = await pay.hydrateOrder();
-      hydratedOrder = res.order;
-
-      log(
-        `[PAY STELLAR] Hydrated order: ${JSON.stringify(
-          hydratedOrder
-        )}, checking out with Stellar ${inputToken}`
-      );
-    } else {
-      hydratedOrder = pay.order;
-    } */
-
-    return { txHash: "", success: false };
-
-    /* const paymentTxHash = await (async () => {
-      try {
-        const serializedTx = await trpc.getStellarSwapAndBurnTx.query({
-          orderId: pay.order.id.toString(),
-          userPublicKey: assertNotNull(
-            payerPublicKey,
-            "[PAY STELLAR] wallet.publicKey cannot be null"
-          ).toString(),
-          inputTokenMint: inputToken,
-        });
-        const tx = VersionedTransaction.deserialize(hexToBytes(serializedTx));
-        const txHash = await solanaWallet.sendTransaction(tx, connection);
-        return txHash;
-      } catch (e) {
-        console.error(e);
-        throw e;
-      }
-    })();
-
     try {
-      await pay.payStellarSource({
-        paymentTxHash: paymentTxHash,
-        sourceToken: inputToken,
-      });
-      return { txHash: paymentTxHash, success: true };
-    } catch {
-      console.error(
-        `[PAY STELLAR] could not verify payment tx on chain: ${paymentTxHash}`
+      // Initial validation
+      if (!stellarPublicKey) {
+        throw new Error("Stellar Public key is null");
+      }
+
+      if (!stellarAccount) {
+        throw new Error("Stellar Account is null");
+      }
+
+      if (!stellarServer || !stellarKit) {
+        throw new Error("Stellar services not initialized");
+      }
+
+      const token = payToken.token;
+
+      // TODO: Get destination address and amount from Rozo API
+      const destinationAddress = rozoPayment.destAddress;
+      const amount = rozoPayment.amount;
+
+      // Setup Stellar payment
+      await stellarKit.setWallet(String(stellarConnector?.id ?? FREIGHTER_ID));
+      const sourceAccount = await stellarServer.loadAccount(stellarPublicKey);
+      const destAsset = new Asset(
+        STELLAR_USDC_ASSET_CODE,
+        STELLAR_USDC_ISSUER_PK
       );
-      return { txHash: paymentTxHash, success: false };
-    } */
+      const fee = String(await stellarServer.fetchBaseFee());
+
+      // Build transaction based on token type
+      let transaction;
+      const isXlmToken = token.symbol === "XLM";
+
+      if (isXlmToken) {
+        // For XLM, use path payment to swap to USDC
+        const pathResults = await stellarServer
+          .strictSendPaths(Asset.native(), amount, [destAsset])
+          .call();
+
+        if (!pathResults?.records?.length) {
+          throw new Error("No exchange rate found for XLM swap");
+        }
+
+        // Apply 0.5% slippage tolerance
+        const bestPath = pathResults.records[0];
+        const estimatedDestMinAmount = (
+          parseFloat(bestPath.destination_amount) * 0.995
+        ).toFixed(2);
+
+        transaction = new TransactionBuilder(sourceAccount, {
+          fee,
+          networkPassphrase: Networks.PUBLIC,
+        })
+          .addOperation(
+            Operation.pathPaymentStrictSend({
+              sendAsset: Asset.native(),
+              sendAmount: String(amount),
+              destination: destinationAddress,
+              destAsset,
+              destMin: estimatedDestMinAmount,
+              path: [],
+            })
+          )
+          .setTimeout(180)
+          .build();
+      } else {
+        // For other tokens, use direct payment
+        transaction = new TransactionBuilder(sourceAccount, {
+          fee,
+          networkPassphrase: Networks.PUBLIC,
+        })
+          .addOperation(
+            Operation.payment({
+              destination: destinationAddress,
+              asset: destAsset,
+              amount: String(amount),
+            })
+          )
+          .setTimeout(180)
+          .build();
+      }
+
+      // Sign and submit transaction
+      const signedTx = await stellarKit.signTransaction(transaction.toXDR(), {
+        address: stellarPublicKey,
+        networkPassphrase: Networks.PUBLIC,
+      });
+
+      if (!signedTx?.signedTxXdr) {
+        throw new Error("Failed to sign transaction");
+      }
+
+      const tx = TransactionBuilder.fromXDR(
+        signedTx.signedTxXdr,
+        Networks.PUBLIC
+      );
+      const submittedTx = await stellarServer.submitTransaction(tx);
+
+      if (!submittedTx?.successful) {
+        throw new Error(
+          `Transaction failed: ${submittedTx?.result_xdr ?? "Unknown error"}`
+        );
+      }
+
+      return { txHash: submittedTx.hash, success: true };
+    } catch (error: any) {
+      throw new Error(error.message);
+    }
   };
 
   const payWithExternal = async (option: ExternalPaymentOptions) => {

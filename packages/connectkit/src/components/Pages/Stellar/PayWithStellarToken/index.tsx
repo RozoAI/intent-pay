@@ -15,6 +15,7 @@ import {
 
 import {
   getChainExplorerTxUrl,
+  RozoPayTokenAmount,
   stellar,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
@@ -23,7 +24,10 @@ import { getSupportUrl } from "../../../../utils/supportUrl";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
+import { roundTokenAmount } from "../../../../utils/format";
+import { createPayment, createPaymentRequest, PaymentResponseData } from "../../../../utils/api";
 enum PayState {
+  CreatingPayment = "Creating Payment",
   RequestingPayment = "Waiting For Payment",
   RequestCancelled = "Payment Cancelled",
   RequestFailed = "Payment Failed",
@@ -35,15 +39,63 @@ const PayWithStellarToken: React.FC = () => {
   const { selectedStellarTokenOption, payWithStellarToken } = paymentState;
   const { order } = useRozoPay();
   const [payState, setPayState] = useState<PayState>(
-    PayState.RequestingPayment,
+    PayState.CreatingPayment,
   );
   const [txURL, setTxURL] = useState<string | undefined>();
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeRozoPayment, setActiveRozoPayment] = useState<PaymentResponseData | undefined>();
+
+  const handleCreatePayment = async (payToken: RozoPayTokenAmount) => {
+    setPayState(PayState.CreatingPayment);
+    // Create Order using Rozo API
+    const token = payToken.token;
+    const destinationAddress =
+      "GC6XX3QMCPFE6WTCG6QQKRKT47UB6C53RPN4RA47IISEUC5N5CRANSIJ";
+
+    const amount = roundTokenAmount(payToken?.amount, payToken.token);
+
+    const paymentData = createPaymentRequest({
+      intent: order?.metadata?.intent ?? "",
+      paymentValue: String(payToken.usd),
+      currency: "USD",
+      destinationAddress,
+      chainId: String(token.chainId),
+      amountUnits: String(amount) ?? "",
+      tokenSymbol: token.symbol,
+      externalId: order?.externalId ?? "",
+      metadata: {
+        daimoOrderId: order?.id ?? "",
+        ...(order?.metadata ?? {}),
+      },
+    });
+
+    // API Call
+    const response = await createPayment(paymentData);
+    if (!response?.data?.id) {
+      throw new Error(response?.error?.message ?? "Payment creation failed");
+    }
+
+    setActiveRozoPayment(response.data);
+    return response.data;
+  }
 
   const handleTransfer = async (option: WalletPaymentOption) => {
-    setPayState(PayState.RequestingPayment);
+    setIsLoading(true);
     try {
-      const result = await payWithStellarToken(option.required.token.token);
+      let payment: PaymentResponseData | undefined = activeRozoPayment;
+      if (!payment) {
+        payment = await handleCreatePayment(option.required);
+      }
+
+      setPayState(PayState.RequestingPayment);
+
+      const result = await payWithStellarToken(option.required, {
+        destAddress: 'GC6XX3QMCPFE6WTCG6QQKRKT47UB6C53RPN4RA47IISEUC5N5CRANSIJ',
+        amount: payment?.destination?.amountUnits,
+      });
+
       setTxURL(getChainExplorerTxUrl(stellar.chainId, result.txHash));
+
       if (result.success) {
         setPayState(PayState.RequestSuccessful);
         setTimeout(() => {
@@ -53,15 +105,15 @@ const PayWithStellarToken: React.FC = () => {
         setPayState(PayState.RequestFailed);
       }
     } catch (error) {
-      console.error(error);
       if (
-        error instanceof WalletSignTransactionError ||
-        error instanceof WalletSendTransactionError
+        error instanceof Error && error.message.includes("declined")
       ) {
         setPayState(PayState.RequestCancelled);
       } else {
         setPayState(PayState.RequestFailed);
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -87,7 +139,7 @@ const PayWithStellarToken: React.FC = () => {
   return (
     <PageContent>
       {selectedStellarTokenOption && (
-        <TokenLogoSpinner token={selectedStellarTokenOption.required.token} />
+        <TokenLogoSpinner token={selectedStellarTokenOption.required.token} loading={isLoading} />
       )}
       <ModalContent style={{ paddingBottom: 0 }}>
         {txURL ? (
