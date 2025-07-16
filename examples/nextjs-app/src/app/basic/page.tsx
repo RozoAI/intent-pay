@@ -15,6 +15,7 @@ import { APP_ID, Container, printEvent, usePersistedConfig } from "../shared";
 
 type Config = {
   recipientAddress: string;
+  recipientStellarAddress?: string;
   chainId: number;
   tokenAddress: string;
   amount: string;
@@ -24,6 +25,7 @@ export default function DemoBasic() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [config, setConfig] = usePersistedConfig("rozo-basic-config", {
     recipientAddress: "",
+    recipientStellarAddress: "",
     chainId: 0,
     tokenAddress: "",
     amount: "",
@@ -36,6 +38,7 @@ export default function DemoBasic() {
     resetPayment({
       toChain: config.chainId,
       toAddress: getAddress(config.recipientAddress),
+      toStellarAddress: config.recipientStellarAddress,
       toUnits: config.amount,
       toToken: getAddress(config.tokenAddress),
     });
@@ -82,6 +85,7 @@ export default function DemoBasic() {
   appId="${APP_ID}"
   toChain={${tokenVarName}.chainId}
   toAddress={getAddress("${config.recipientAddress}")}
+  toStellarAddress={"${config.recipientStellarAddress || ""}"}
   toUnits={"${config.amount}"}
   toToken={getAddress(${tokenVarName}.token)}
 />`;
@@ -106,6 +110,7 @@ export default function DemoBasic() {
   appId="${APP_ID}"
   toChain={${tokenVarName}.chainId}
   toAddress={getAddress("${config.recipientAddress}")}
+  toStellarAddress={"${config.recipientStellarAddress || ""}"}
   toUnits={"${config.amount}"}
   toToken={getAddress(${tokenVarName}.token)}
 />`;
@@ -126,6 +131,7 @@ export default function DemoBasic() {
               appId={APP_ID}
               toChain={config.chainId}
               toAddress={getAddress(config.recipientAddress)}
+              toStellarAddress={config.recipientStellarAddress}
               toUnits={config.amount}
               toToken={getAddress(config.tokenAddress)}
               onPaymentStarted={printEvent}

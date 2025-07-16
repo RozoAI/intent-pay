@@ -29,6 +29,8 @@ export interface PayParams {
   toUnits?: string;
   /** The final address to transfer to or contract to call. */
   toAddress: Address;
+  /** The final stellar address to transfer to. */
+  toStellarAddress?: string;
   /** Calldata for final call, or empty data for transfer. */
   toCallData?: Hex;
   /** The intent verb, such as Pay, Deposit, or Purchase. Default: Pay */
@@ -141,6 +143,8 @@ export function paymentReducer(
   state: PaymentState,
   event: PaymentEvent
 ): PaymentState {
+  console.log(state);
+  console.log(event);
   switch (state.type) {
     case "idle":
       return reduceIdle(state, event);

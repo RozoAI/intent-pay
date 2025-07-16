@@ -113,13 +113,13 @@ export function attachPaymentEffectHandlers(
         log(`[EFFECT] invalid event ${event.type} on state ${prev.type}`);
         break;
       }
-      case "pay_stellar_source": {
-        if (prev.type === "payment_unpaid") {
-          runPayStellarSourceEffects(store, trpc, prev, event);
-        }
-        log(`[EFFECT] invalid event ${event.type} on state ${prev.type}`);
-        break;
-      }
+      // case "pay_stellar_source": {
+      //   if (prev.type === "payment_unpaid") {
+      //     runPayStellarSourceEffects(store, prev, event);
+      //   }
+      //   log(`[EFFECT] invalid event ${event.type} on state ${prev.type}`);
+      //   break;
+      // }
       default:
         break;
     }
@@ -371,26 +371,6 @@ async function runPaySolanaSourceEffects(
   trpc: TrpcClient,
   prev: Extract<PaymentState, { type: "payment_unpaid" }>,
   event: Extract<PaymentEvent, { type: "pay_solana_source" }>
-) {
-  const orderId = prev.order.id;
-
-  try {
-    const order = await trpc.processSolanaSourcePayment.mutate({
-      orderId: orderId.toString(),
-      startIntentTxHash: event.paymentTxHash,
-      token: event.sourceToken,
-    });
-    store.dispatch({ type: "payment_verified", order });
-  } catch (e: any) {
-    store.dispatch({ type: "error", order: prev.order, message: e.message });
-  }
-}
-
-async function runPayStellarSourceEffects(
-  store: PaymentStore,
-  trpc: TrpcClient,
-  prev: Extract<PaymentState, { type: "payment_unpaid" }>,
-  event: Extract<PaymentEvent, { type: "pay_stellar_source" }>
 ) {
   const orderId = prev.order.id;
 

@@ -27,8 +27,8 @@ import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
 import { roundTokenAmount } from "../../../../utils/format";
 import { createPayment, createPaymentRequest, PaymentResponseData } from "../../../../utils/api";
 enum PayState {
-  CreatingPayment = "Creating Payment",
-  RequestingPayment = "Waiting For Payment",
+  CreatingPayment = "Creating Payment Record...",
+  RequestingPayment = "Waiting for Payment",
   RequestCancelled = "Payment Cancelled",
   RequestFailed = "Payment Failed",
   RequestSuccessful = "Payment Successful",
@@ -36,7 +36,7 @@ enum PayState {
 
 const PayWithStellarToken: React.FC = () => {
   const { triggerResize, paymentState, setRoute } = usePayContext();
-  const { selectedStellarTokenOption, payWithStellarToken } = paymentState;
+  const { selectedStellarTokenOption, payWithStellarToken, setTxHash, payParams } = paymentState;
   const { order } = useRozoPay();
   const [payState, setPayState] = useState<PayState>(
     PayState.CreatingPayment,
@@ -45,13 +45,11 @@ const PayWithStellarToken: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeRozoPayment, setActiveRozoPayment] = useState<PaymentResponseData | undefined>();
 
-  const handleCreatePayment = async (payToken: RozoPayTokenAmount) => {
+  // FOR API CALL
+  const handleCreatePayment = async (payToken: RozoPayTokenAmount, destinationAddress: string) => {
     setPayState(PayState.CreatingPayment);
-    // Create Order using Rozo API
-    const token = payToken.token;
-    const destinationAddress =
-      "GC6XX3QMCPFE6WTCG6QQKRKT47UB6C53RPN4RA47IISEUC5N5CRANSIJ";
 
+    const token = payToken.token;
     const amount = roundTokenAmount(payToken?.amount, payToken.token);
 
     const paymentData = createPaymentRequest({
@@ -79,26 +77,35 @@ const PayWithStellarToken: React.FC = () => {
     return response.data;
   }
 
+  // FOR TRANSFER ACTION
   const handleTransfer = async (option: WalletPaymentOption) => {
     setIsLoading(true);
     try {
+      const destinationAddress = payParams?.toStellarAddress;
+
+      if (!destinationAddress) {
+        throw new Error("Stellar destination address is required");
+      }
+
       let payment: PaymentResponseData | undefined = activeRozoPayment;
       if (!payment) {
-        payment = await handleCreatePayment(option.required);
+        payment = await handleCreatePayment(option.required, destinationAddress);
       }
 
       setPayState(PayState.RequestingPayment);
 
       const result = await payWithStellarToken(option.required, {
-        destAddress: 'GC6XX3QMCPFE6WTCG6QQKRKT47UB6C53RPN4RA47IISEUC5N5CRANSIJ',
-        amount: payment?.destination?.amountUnits,
+        destAddress: destinationAddress,
+        amount: payment.destination.amountUnits,
       });
 
       setTxURL(getChainExplorerTxUrl(stellar.chainId, result.txHash));
 
       if (result.success) {
         setPayState(PayState.RequestSuccessful);
+        setTxHash(result.txHash);
         setTimeout(() => {
+          setActiveRozoPayment(undefined);
           setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
         }, 200);
       } else {

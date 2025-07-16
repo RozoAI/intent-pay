@@ -23,7 +23,7 @@ import {
 } from "@rozoai/intent-common";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { VersionedTransaction } from "@solana/web3.js";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { erc20Abi, getAddress, Hex, hexToBytes, zeroAddress } from "viem";
 import {
   useAccount,
@@ -79,6 +79,7 @@ export interface PaymentState {
   setPayId: (id: string | undefined) => void;
   /// Pay params for creating an order on the fly,
   setPayParams: (payParams: PayParams | undefined) => Promise<void>;
+  payParams: PayParams | undefined;
 
   /// True if the user is entering an amount (deposit) vs preset (checkout).
   isDepositFlow: boolean;
@@ -135,6 +136,8 @@ export interface PaymentState {
   ) => Promise<{ txHash: string; success: boolean }>;
   openInWalletBrowser: (wallet: WalletConfigProps, amountUsd?: number) => void;
   senderEnsName: string | undefined;
+  setTxHash: (txHash: string) => void;
+  txHash: string | undefined;
 }
 
 export function usePaymentState({
@@ -186,16 +189,14 @@ export function usePaymentState({
   const paymentOptions = pay.order?.metadata.payer?.paymentOptions;
   // Include by default if paymentOptions not provided. Solana bridging is only
   // supported on CCTP v1 chains.
-  const showSolanaPaymentMethod =
-    (paymentOptions == null ||
-      paymentOptions.includes(ExternalPaymentOptions.Solana)) &&
-    pay.order != null &&
-    isCCTPV1Chain(getOrderDestChainId(pay.order));
-
-  const showStellarPaymentMethod =
-    (paymentOptions == null ||
-      paymentOptions.includes(ExternalPaymentOptions.Stellar)) &&
-    pay.order != null;
+  const showSolanaPaymentMethod = useMemo(() => {
+    return (
+      (paymentOptions == null ||
+        paymentOptions.includes(ExternalPaymentOptions.Solana)) &&
+      pay.order != null &&
+      isCCTPV1Chain(getOrderDestChainId(pay.order))
+    );
+  }, [paymentOptions, pay.order]);
 
   // From RozoPayButton props
   const [buttonProps, setButtonProps] = useState<PayButtonPaymentProps>();
@@ -203,6 +204,16 @@ export function usePaymentState({
 
   const [paymentWaitingMessage, setPaymentWaitingMessage] = useState<string>();
   const [isDepositFlow, setIsDepositFlow] = useState<boolean>(false);
+
+  const showStellarPaymentMethod = useMemo(() => {
+    return (
+      (paymentOptions == null ||
+        paymentOptions.includes(ExternalPaymentOptions.Stellar)) &&
+      pay.order != null &&
+      (currPayParams?.toStellarAddress !== undefined ||
+        currPayParams?.toStellarAddress !== null)
+    );
+  }, [paymentOptions, pay.order, currPayParams]);
 
   // UI state. Selection for external payment (Binance, etc) vs wallet payment.
   const externalPaymentOptions = useExternalPaymentOptions({
@@ -442,7 +453,6 @@ export function usePaymentState({
 
       const token = payToken.token;
 
-      // TODO: Get destination address and amount from Rozo API
       const destinationAddress = rozoPayment.destAddress;
       const amount = rozoPayment.amount;
 
@@ -469,10 +479,10 @@ export function usePaymentState({
           throw new Error("No exchange rate found for XLM swap");
         }
 
-        // Apply 0.5% slippage tolerance
+        // Apply 5% slippage tolerance
         const bestPath = pathResults.records[0];
         const estimatedDestMinAmount = (
-          parseFloat(bestPath.destination_amount) * 0.995
+          parseFloat(bestPath.destination_amount) * 0.94
         ).toFixed(2);
 
         transaction = new TransactionBuilder(sourceAccount, {
@@ -530,7 +540,7 @@ export function usePaymentState({
         );
       }
 
-      return { txHash: submittedTx.hash, success: true };
+      return { txHash: submittedTx?.hash ?? "", success: true };
     } catch (error: any) {
       throw new Error(error.message);
     }
@@ -693,11 +703,14 @@ export function usePaymentState({
     "evm" | "solana" | "stellar" | "all"
   >("evm");
 
+  const [txHash, setTxHash] = useState<string | undefined>(undefined);
+
   return {
     buttonProps,
     setButtonProps,
     setPayId,
     setPayParams,
+    payParams: currPayParams,
     tokenMode,
     setTokenMode,
     generatePreviewOrder,
@@ -735,5 +748,7 @@ export function usePaymentState({
     payWithStellarToken,
     openInWalletBrowser,
     senderEnsName: senderEnsName ?? undefined,
+    txHash,
+    setTxHash,
   };
 }

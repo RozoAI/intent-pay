@@ -1,6 +1,12 @@
 // hooks/useRozoPay.ts
-import { RozoPayOrderID, SolanaPublicKey, StellarPublicKey } from "@rozoai/intent-common";
-import { useCallback, useContext, useMemo, useSyncExternalStore } from "react";
+import {
+  RozoPayOrderID,
+  SolanaPublicKey,
+  StellarPublicKey,
+  RozoPayHydratedOrderWithOrg,
+  RozoPayOrderStatusSource
+} from "@rozoai/intent-common";
+import { useCallback, useContext, useMemo, useState, useSyncExternalStore } from "react";
 import { Address, Hex } from "viem";
 import { PaymentEvent, PaymentState, PayParams } from "../payment/paymentFsm";
 import { waitForPaymentState } from "../payment/paymentStore";
@@ -92,12 +98,16 @@ type RozoPayFunctions = {
   payStellarSource: (args: {
     paymentTxHash: string;
     sourceToken: StellarPublicKey;
-  }) => Promise<
-    Extract<
-      PaymentState,
-      { type: "payment_started" | "payment_completed" | "payment_bounced" }
-    >
-  >;
+    rozoOrderId: string;
+  }) => Promise<Extract<PaymentState, { type: "payment_completed" }>>;
+
+  /**
+   * Directly set the payment state to completed.
+   * Use this to mark a payment as completed without going through the normal flow.
+   * 
+   * @param txHash - The transaction hash to associate with the completed payment.
+   */
+  setPaymentCompleted: (txHash: string) => Promise<Extract<PaymentState, { type: "payment_completed" }>>;
 
   /**
    * Reset the current payment state and clear the active order.
@@ -162,6 +172,7 @@ export function useRozoPay(): UseRozoPay {
   const paymentState = paymentFsmState.type;
   const paymentErrorMessage =
     paymentFsmState.type === "error" ? paymentFsmState.message : null;
+
 
   /* --------------------------------------------------
      Order event dispatch helpers
@@ -265,15 +276,39 @@ export function useRozoPay(): UseRozoPay {
   );
 
   const payStellarSource = useCallback(
-    async (args: { paymentTxHash: string; sourceToken: StellarPublicKey }) => {
+    async (args: { paymentTxHash: string; sourceToken: StellarPublicKey; rozoOrderId: string }) => {
+      // Get the current order from the state
+      const currentState = store.getState();
+
+      if (currentState.type === "idle" || !currentState.order) {
+        throw new Error("Cannot complete Stellar payment: No active order");
+      }
+
+      // First dispatch the pay_stellar_source event to record the payment attempt
       dispatch({ type: "pay_stellar_source", ...args });
 
-      // Will throw if the payment is not verified by the server.
+      // Then immediately mark the payment as completed by updating the order
+      // with the transaction hash and setting the state to completed
+      const hydratedOrder = currentState.order as RozoPayHydratedOrderWithOrg;
+
+      // Update the order with the transaction hash
+      const updatedOrder = {
+        ...hydratedOrder,
+        sourceStartTxHash: args.paymentTxHash as Hex,
+        // Set source status to completed
+        sourceStatus: RozoPayOrderStatusSource.PROCESSED
+      };
+
+      // Directly dispatch a payment_verified event to set the state to completed
+      dispatch({
+        type: "payment_verified",
+        order: updatedOrder
+      });
+
+      // Wait for the state to change to payment_completed
       const paidState = await waitForPaymentState(
         store,
-        "payment_started",
-        "payment_completed",
-        "payment_bounced",
+        "payment_completed"
       );
 
       return paidState;
@@ -288,6 +323,53 @@ export function useRozoPay(): UseRozoPay {
     [dispatch],
   );
 
+  const setPaymentCompleted = useCallback(
+    async (txHash: string) => {
+      // Get the current order from the state
+      const currentState = store.getState();
+
+      if (currentState.type === "idle" || !currentState.order) {
+        throw new Error("Cannot complete payment: No active order");
+      }
+
+      // Check if the order is already hydrated
+      if (currentState.type !== "payment_unpaid" &&
+        currentState.type !== "payment_started" &&
+        currentState.type !== "unhydrated") {
+        throw new Error(`Cannot complete payment: Invalid state ${currentState.type}`);
+      }
+
+      // For TypeScript safety, we need to ensure the order is treated as hydrated
+      // This is safe because the payment_verified handler will validate the order
+      const hydratedOrder = currentState.order as RozoPayHydratedOrderWithOrg;
+
+      // Since we can't directly add txHash to the metadata (it's not in the schema),
+      // we'll just use the existing order and let the payment state machine
+      // handle the transition to completed state
+
+      // Store the transaction hash in sourceStartTxHash if possible
+      const updatedOrder = {
+        ...hydratedOrder,
+        sourceStartTxHash: txHash as Hex, // Cast to Hex as required by the type
+      };
+
+      // Directly dispatch a payment_verified event to set the state to completed
+      dispatch({
+        type: "payment_verified",
+        order: updatedOrder
+      });
+
+      // Wait for the state to change to payment_completed
+      const completedState = await waitForPaymentState(
+        store,
+        "payment_completed"
+      );
+
+      return completedState;
+    },
+    [dispatch, store],
+  );
+
   return {
     order,
     paymentState,
@@ -299,6 +381,7 @@ export function useRozoPay(): UseRozoPay {
     payEthSource,
     paySolanaSource,
     payStellarSource,
+    setPaymentCompleted,
     reset,
     setChosenUsd,
   } as UseRozoPay;
