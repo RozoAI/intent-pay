@@ -2,6 +2,7 @@ import {
   ethereum,
   knownTokens,
   solana,
+  stellar,
   supportedChains,
   Token,
 } from "@rozoai/intent-common";
@@ -85,7 +86,7 @@ export function ConfigPanel({
   // Extract unique chains
   const chains = supportedChains.filter(
     (chain) =>
-      chain.chainId !== solana.chainId && chain.chainId !== ethereum.chainId,
+      chain.chainId !== solana.chainId && chain.chainId !== ethereum.chainId && chain.chainId !== stellar.chainId,
   ); // Exclude Solana and Ethereum
 
   // Get tokens for selected chain
