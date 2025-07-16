@@ -1,12 +1,12 @@
 import { WalletPaymentOption } from "@rozoai/intent-common";
 import { useCallback, useEffect, useState } from "react";
+import { useStellar } from "../provider/StellarContextProvider";
 import {
+  STELLAR_XLM_TOKEN_INFO,
+  STELLAR_USDC_TOKEN_INFO,
   STELLAR_USDC_ASSET_CODE,
   STELLAR_USDC_ISSUER_PK,
-  STELLAR_USDC_TOKEN_INFO,
-  STELLAR_XLM_TOKEN_INFO,
-  useStellar,
-} from "../provider/StellarContextProvider";
+} from "../constants/rozoConfig";
 
 // Define the BigIntStr type to match the common package
 type BigIntStr = `${bigint}`;

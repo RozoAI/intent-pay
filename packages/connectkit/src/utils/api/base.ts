@@ -1,10 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-
-// Base API URL
-const BASE_API_URL = 'https://rozoai-api-proxy.xyuhje.easypanel.host/api';
+import { useState, useEffect, useCallback } from "react";
+import { ROZO_API_URL } from "../../constants/rozoConfig";
 
 // HTTP methods type
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 // Request options type
 export interface RequestOptions {
@@ -36,17 +34,19 @@ export interface RequestState<T = any> extends ApiResponse<T> {
  * @returns Full URL with query parameters
  */
 const createUrl = (url: string, params?: Record<string, string>): string => {
-  const fullUrl = url.startsWith('/') ? `${BASE_API_URL}${url}` : `${BASE_API_URL}/${url}`;
-  
+  const fullUrl = url.startsWith("/")
+    ? `${ROZO_API_URL}${url}`
+    : `${ROZO_API_URL}/${url}`;
+
   if (!params) return fullUrl;
-  
+
   const queryParams = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
       queryParams.append(key, value);
     }
   });
-  
+
   const queryString = queryParams.toString();
   return queryString ? `${fullUrl}?${queryString}` : fullUrl;
 };
@@ -61,43 +61,43 @@ export const fetchApi = async <T = any>(
   url: string,
   options: RequestOptions = {}
 ): Promise<ApiResponse<T>> => {
-  const { method = 'GET', headers = {}, body, params, signal } = options;
-  
+  const { method = "GET", headers = {}, body, params, signal } = options;
+
   try {
     const fullUrl = createUrl(url, params);
-    
+
     const requestHeaders: HeadersInit = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...headers,
     };
-    
+
     const requestOptions: RequestInit = {
       method,
       headers: requestHeaders,
       signal,
     };
-    
-    if (body && method !== 'GET') {
+
+    if (body && method !== "GET") {
       requestOptions.body = JSON.stringify(body);
     }
-    
+
     const response = await fetch(fullUrl, requestOptions);
     const status = response.status;
-    
+
     // Handle non-JSON responses
-    const contentType = response.headers.get('content-type');
+    const contentType = response.headers.get("content-type");
     let data: T | null = null;
-    
-    if (contentType && contentType.includes('application/json')) {
+
+    if (contentType && contentType.includes("application/json")) {
       data = await response.json();
-    } else if (contentType && contentType.includes('text/')) {
-      data = await response.text() as unknown as T;
+    } else if (contentType && contentType.includes("text/")) {
+      data = (await response.text()) as unknown as T;
     }
-    
+
     if (!response.ok) {
       throw new Error(data ? JSON.stringify(data) : response.statusText);
     }
-    
+
     return { data, error: null, status };
   } catch (error) {
     return {
@@ -118,9 +118,11 @@ export const apiClient = {
    * @param options - Request options
    * @returns Promise with response data
    */
-  get: <T = any>(url: string, options: Omit<RequestOptions, 'method' | 'body'> = {}) => 
-    fetchApi<T>(url, { ...options, method: 'GET' }),
-  
+  get: <T = any>(
+    url: string,
+    options: Omit<RequestOptions, "method" | "body"> = {}
+  ) => fetchApi<T>(url, { ...options, method: "GET" }),
+
   /**
    * POST request
    * @param url - API endpoint path
@@ -128,9 +130,12 @@ export const apiClient = {
    * @param options - Additional request options
    * @returns Promise with response data
    */
-  post: <T = any>(url: string, body: any, options: Omit<RequestOptions, 'method' | 'body'> = {}) => 
-    fetchApi<T>(url, { ...options, method: 'POST', body }),
-  
+  post: <T = any>(
+    url: string,
+    body: any,
+    options: Omit<RequestOptions, "method" | "body"> = {}
+  ) => fetchApi<T>(url, { ...options, method: "POST", body }),
+
   /**
    * PUT request
    * @param url - API endpoint path
@@ -138,9 +143,12 @@ export const apiClient = {
    * @param options - Additional request options
    * @returns Promise with response data
    */
-  put: <T = any>(url: string, body: any, options: Omit<RequestOptions, 'method' | 'body'> = {}) => 
-    fetchApi<T>(url, { ...options, method: 'PUT', body }),
-  
+  put: <T = any>(
+    url: string,
+    body: any,
+    options: Omit<RequestOptions, "method" | "body"> = {}
+  ) => fetchApi<T>(url, { ...options, method: "PUT", body }),
+
   /**
    * PATCH request
    * @param url - API endpoint path
@@ -148,17 +156,22 @@ export const apiClient = {
    * @param options - Additional request options
    * @returns Promise with response data
    */
-  patch: <T = any>(url: string, body: any, options: Omit<RequestOptions, 'method' | 'body'> = {}) => 
-    fetchApi<T>(url, { ...options, method: 'PATCH', body }),
-  
+  patch: <T = any>(
+    url: string,
+    body: any,
+    options: Omit<RequestOptions, "method" | "body"> = {}
+  ) => fetchApi<T>(url, { ...options, method: "PATCH", body }),
+
   /**
    * DELETE request
    * @param url - API endpoint path
    * @param options - Request options
    * @returns Promise with response data
    */
-  delete: <T = any>(url: string, options: Omit<RequestOptions, 'method'> = {}) => 
-    fetchApi<T>(url, { ...options, method: 'DELETE' }),
+  delete: <T = any>(
+    url: string,
+    options: Omit<RequestOptions, "method"> = {}
+  ) => fetchApi<T>(url, { ...options, method: "DELETE" }),
 };
 
 /**
@@ -181,42 +194,45 @@ export const useApiRequest = <T = any>(
     isError: false,
     isSuccess: false,
   });
-  
-  const fetchData = useCallback(async (newOptions?: RequestOptions) => {
-    setState(prev => ({ ...prev, isLoading: true }));
-    
-    try {
-      const mergedOptions = { ...options, ...newOptions };
-      const response = await fetchApi<T>(url, mergedOptions);
-      
-      setState({
-        data: response.data,
-        error: response.error,
-        status: response.status,
-        isLoading: false,
-        isError: !!response.error,
-        isSuccess: !response.error && !!response.data,
-      });
-    } catch (error) {
-      setState({
-        data: null,
-        error: error instanceof Error ? error : new Error(String(error)),
-        status: null,
-        isLoading: false,
-        isError: true,
-        isSuccess: false,
-      });
-    }
-  }, [url, JSON.stringify(options)]);
-  
+
+  const fetchData = useCallback(
+    async (newOptions?: RequestOptions) => {
+      setState((prev) => ({ ...prev, isLoading: true }));
+
+      try {
+        const mergedOptions = { ...options, ...newOptions };
+        const response = await fetchApi<T>(url, mergedOptions);
+
+        setState({
+          data: response.data,
+          error: response.error,
+          status: response.status,
+          isLoading: false,
+          isError: !!response.error,
+          isSuccess: !response.error && !!response.data,
+        });
+      } catch (error) {
+        setState({
+          data: null,
+          error: error instanceof Error ? error : new Error(String(error)),
+          status: null,
+          isLoading: false,
+          isError: true,
+          isSuccess: false,
+        });
+      }
+    },
+    [url, JSON.stringify(options)]
+  );
+
   useEffect(() => {
     const controller = new AbortController();
     fetchData({ ...options, signal: controller.signal });
-    
+
     return () => {
       controller.abort();
     };
   }, [fetchData, ...dependencies]);
-  
+
   return [state, fetchData];
 };

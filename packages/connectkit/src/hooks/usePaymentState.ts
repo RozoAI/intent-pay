@@ -46,12 +46,7 @@ import { useOrderUsdLimits } from "./useOrderUsdLimits";
 import { useSolanaPaymentOptions } from "./useSolanaPaymentOptions";
 import { useStellarPaymentOptions } from "./useStellarPaymentOptions";
 import { useWalletPaymentOptions } from "./useWalletPaymentOptions";
-import {
-  STELLAR_USDC_ASSET_CODE,
-  STELLAR_USDC_ISSUER_PK,
-  useStellar,
-} from "../provider/StellarContextProvider";
-import { createPayment, createPaymentRequest } from "../utils/api";
+import { useStellar } from "../provider/StellarContextProvider";
 import { FREIGHTER_ID } from "@creit.tech/stellar-wallets-kit";
 import {
   Asset,
@@ -60,6 +55,10 @@ import {
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
 import { roundTokenAmount } from "../utils/format";
+import {
+  STELLAR_USDC_ASSET_CODE,
+  STELLAR_USDC_ISSUER_PK,
+} from "../constants/rozoConfig";
 
 /** Wallet payment details, sent to processSourcePayment after submitting tx. */
 export type SourcePayment = Parameters<
