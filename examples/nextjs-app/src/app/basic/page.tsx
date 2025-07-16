@@ -136,6 +136,7 @@ export default function DemoBasic() {
               toToken={getAddress(config.tokenAddress)}
               onPaymentStarted={printEvent}
               onPaymentCompleted={printEvent}
+              resetOnSuccess={true}
             />
             <button
               onClick={() => setIsConfigOpen(true)}
