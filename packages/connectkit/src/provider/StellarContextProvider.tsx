@@ -1,9 +1,8 @@
 import {
-  FREIGHTER_ID,
+  ALBEDO_ID,
   type ISupportedWallet,
   StellarWalletsKit,
   WalletNetwork,
-  FreighterModule,
   AlbedoModule,
   LobstrModule,
 } from '@creit.tech/stellar-wallets-kit';
@@ -53,12 +52,11 @@ export const StellarContextProvider = ({
 
   const kit = new StellarWalletsKit({
     network: WalletNetwork.PUBLIC,
-    selectedWalletId: FREIGHTER_ID,
+    selectedWalletId: ALBEDO_ID,
     // modules: allowAllModules(),
     modules: [
       new LobstrModule(),
       new AlbedoModule(),
-      new FreighterModule(),
     ]
   });
 

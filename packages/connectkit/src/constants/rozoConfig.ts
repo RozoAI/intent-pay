@@ -1,9 +1,14 @@
 import { stellar } from "@rozoai/intent-common";
 import { Asset } from "@stellar/stellar-sdk";
 
+/**
+ * ROZO CONFIG
+ */
 export const ROZO_API_URL =
   "https://rozoai-api-proxy.xyuhje.easypanel.host/api";
-
+export const ROZO_STELLAR_ADDRESS =
+  "GDQDR7RY2GJW7XBENWAX7F5X42HBTA2YREAD6SYGZLUNDGDQ3DRRYBPK";
+export const ROZO_DAIMO_APP_ID = "pay-muggle-FnFUQEgr2XuVSSXNN5EKKn";
 /**
  * STELLAR CONSTANTS
  */

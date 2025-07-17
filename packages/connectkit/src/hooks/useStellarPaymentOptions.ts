@@ -23,9 +23,11 @@ interface StellarBalance {
 export function useStellarPaymentOptions({
   address,
   usdRequired,
+  isDepositFlow,
 }: {
   address: string | undefined;
   usdRequired: number | undefined;
+  isDepositFlow: boolean;
 }) {
   const [options, setOptions] = useState<WalletPaymentOption[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -129,7 +131,7 @@ export function useStellarPaymentOptions({
     return createPaymentOption({
       token: xlmTokenInfo,
       balance: amount,
-      minimumRequired: 1.5, // Minimum required for XLM
+      minimumRequired: 0, // Minimum required for XLM
       fees: 0.00001, // Standard XLM transaction fee
       usdRequired,
     });

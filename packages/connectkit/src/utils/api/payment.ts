@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { apiClient, ApiResponse, RequestState } from "./base";
+import { ROZO_DAIMO_APP_ID } from "../../constants/rozoConfig";
 
 /**
  * Payment display information
@@ -34,6 +35,7 @@ export interface PaymentSource {
  * Payment request data type
  */
 export interface PaymentRequestData {
+  appId: string;
   display: PaymentDisplay;
   destination: PaymentDestination;
   externalId?: string;
@@ -388,6 +390,7 @@ export const createPaymentRequest = (options: {
   tokenAddress?: string;
   externalId?: string;
   metadata?: Record<string, unknown>;
+  appId: string;
 }): PaymentRequestData => {
   const {
     intent,
@@ -400,9 +403,11 @@ export const createPaymentRequest = (options: {
     tokenAddress = "",
     externalId,
     metadata = {},
+    appId,
   } = options;
 
   return {
+    appId,
     display: {
       intent,
       paymentValue,

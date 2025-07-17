@@ -55,6 +55,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     optionsList.push(
       ...getStellarTokenOptions(
         stellarPaymentOptions.options ?? [],
+        isDepositFlow,
         setSelectedStellarTokenOption,
         setRoute,
       ),
@@ -167,16 +168,18 @@ function getSolanaTokenOptions(
 
 function getStellarTokenOptions(
   options: WalletPaymentOption[],
+  isDepositFlow: boolean,
   setSelectedStellarTokenOption: (option: WalletPaymentOption) => void,
   setRoute: (route: ROUTES, meta?: any) => void,
 ) {
   return options.map((option) => {
-    const titlePrice = roundTokenAmount(option.required.amount, option.required.token);
+    const titlePrice = isDepositFlow
+      ? formatUsd(option.balance.usd) : roundTokenAmount(option.required.amount, option.required.token);
     const title = `${titlePrice} ${option.balance.token.symbol} on Stellar`;
     const balanceStr = `${roundTokenAmount(option.balance.amount, option.balance.token)} ${option.balance.token.symbol}`;
     const subtitle =
       option.disabledReason ??
-      `Balance: ${balanceStr}`;
+      `${isDepositFlow ? "" : "Balance: "}${balanceStr}`;
     const disabled = option.disabledReason != null;
 
     return {
@@ -197,7 +200,12 @@ function getStellarTokenOptions(
           tokenSymbol: option.balance.token.symbol,
           chainId: option.balance.token.chainId,
         };
-        setRoute(ROUTES.STELLAR_PAY_WITH_TOKEN, meta);
+
+        if (isDepositFlow) {
+          setRoute(ROUTES.STELLAR_SELECT_AMOUNT, meta);
+        } else {
+          setRoute(ROUTES.STELLAR_PAY_WITH_TOKEN, meta);
+        }
       },
       disabled,
     };

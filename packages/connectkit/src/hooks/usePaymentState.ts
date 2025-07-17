@@ -47,7 +47,7 @@ import { useSolanaPaymentOptions } from "./useSolanaPaymentOptions";
 import { useStellarPaymentOptions } from "./useStellarPaymentOptions";
 import { useWalletPaymentOptions } from "./useWalletPaymentOptions";
 import { useStellar } from "../provider/StellarContextProvider";
-import { FREIGHTER_ID } from "@creit.tech/stellar-wallets-kit";
+import { ALBEDO_ID } from "@creit.tech/stellar-wallets-kit";
 import {
   Asset,
   Networks,
@@ -208,11 +208,9 @@ export function usePaymentState({
     return (
       (paymentOptions == null ||
         paymentOptions.includes(ExternalPaymentOptions.Stellar)) &&
-      pay.order != null &&
-      (currPayParams?.toStellarAddress !== undefined ||
-        currPayParams?.toStellarAddress !== null)
+      pay.order != null
     );
-  }, [paymentOptions, pay.order, currPayParams]);
+  }, [paymentOptions, pay.order]);
 
   // UI state. Selection for external payment (Binance, etc) vs wallet payment.
   const externalPaymentOptions = useExternalPaymentOptions({
@@ -244,6 +242,7 @@ export function usePaymentState({
   const stellarPaymentOptions = useStellarPaymentOptions({
     address: stellarPubKey,
     usdRequired: pay.order?.destFinalCallTokenAmount.usd,
+    isDepositFlow,
   });
   const depositAddressOptions = useDepositAddressOptions({
     trpc,
@@ -456,7 +455,7 @@ export function usePaymentState({
       const amount = rozoPayment.amount;
 
       // Setup Stellar payment
-      await stellarKit.setWallet(String(stellarConnector?.id ?? FREIGHTER_ID));
+      await stellarKit.setWallet(String(stellarConnector?.id ?? ALBEDO_ID));
       const sourceAccount = await stellarServer.loadAccount(stellarPublicKey);
       const destAsset = new Asset(
         STELLAR_USDC_ASSET_CODE,

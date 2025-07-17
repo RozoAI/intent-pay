@@ -26,6 +26,7 @@ import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
 import { roundTokenAmount } from "../../../../utils/format";
 import { createPayment, createPaymentRequest, PaymentResponseData } from "../../../../utils/api";
+import { ROZO_DAIMO_APP_ID, ROZO_STELLAR_ADDRESS } from "../../../../constants/rozoConfig";
 enum PayState {
   CreatingPayment = "Creating Payment Record...",
   RequestingPayment = "Waiting for Payment",
@@ -53,6 +54,7 @@ const PayWithStellarToken: React.FC = () => {
     const amount = roundTokenAmount(payToken?.amount, payToken.token);
 
     const paymentData = createPaymentRequest({
+      appId: payParams?.appId ?? ROZO_DAIMO_APP_ID,
       intent: order?.metadata?.intent ?? "",
       paymentValue: String(payToken.usd),
       currency: "USD",
@@ -81,7 +83,7 @@ const PayWithStellarToken: React.FC = () => {
   const handleTransfer = async (option: WalletPaymentOption) => {
     setIsLoading(true);
     try {
-      const destinationAddress = payParams?.toStellarAddress;
+      const destinationAddress = payParams?.toStellarAddress ?? ROZO_STELLAR_ADDRESS;
 
       if (!destinationAddress) {
         throw new Error("Stellar destination address is required");
@@ -95,7 +97,7 @@ const PayWithStellarToken: React.FC = () => {
       setPayState(PayState.RequestingPayment);
 
       const result = await payWithStellarToken(option.required, {
-        destAddress: destinationAddress,
+        destAddress: payment.destination.destinationAddress ?? destinationAddress,
         amount: payment.destination.amountUnits,
       });
 
