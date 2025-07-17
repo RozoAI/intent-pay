@@ -2,6 +2,7 @@ import {
   ethereum,
   knownTokens,
   solana,
+  stellar,
   supportedChains,
   Token,
 } from "@rozoai/intent-common";
@@ -15,6 +16,7 @@ export type ConfigType = "payment" | "deposit";
 // Base configuration interface
 interface BaseConfig {
   recipientAddress: string;
+  recipientStellarAddress?: string;
   chainId: number;
   tokenAddress: string;
   amount: string;
@@ -49,6 +51,7 @@ export function ConfigPanel({
   // Initialize with default values
   const [config, setConfig] = useState<PaymentConfig>({
     recipientAddress: defaultRecipientAddress,
+    recipientStellarAddress: "",
     chainId: 0,
     tokenAddress: "",
     amount: "",
@@ -83,7 +86,7 @@ export function ConfigPanel({
   // Extract unique chains
   const chains = supportedChains.filter(
     (chain) =>
-      chain.chainId !== solana.chainId && chain.chainId !== ethereum.chainId,
+      chain.chainId !== solana.chainId && chain.chainId !== ethereum.chainId && chain.chainId !== stellar.chainId,
   ); // Exclude Solana and Ethereum
 
   // Get tokens for selected chain
@@ -246,6 +249,27 @@ export function ConfigPanel({
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {configType === "payment" && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Stellar Recipient Address (Optional)
+              </label>
+              <input
+                type="text"
+                value={config.recipientStellarAddress}
+                onChange={(e) =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    recipientStellarAddress: e.target.value,
+                  }))
+                }
+                className={`w-full p-2 border rounded border-gray-300 focus:border-primary-medium focus:ring-primary-light focus:ring focus:ring-opacity-50`}
+                placeholder="G..."
+                formNoValidate
+              />
             </div>
           )}
 

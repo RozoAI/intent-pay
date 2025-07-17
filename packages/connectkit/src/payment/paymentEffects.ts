@@ -10,6 +10,7 @@ import { PollHandle, startPolling } from "../utils/polling";
 import { TrpcClient } from "../utils/trpc";
 import { PaymentEvent, PaymentState } from "./paymentFsm";
 import { PaymentStore } from "./paymentStore";
+import { ROZO_DAIMO_APP_ID } from "../constants/rozoConfig";
 
 // Maps poller identifier to poll handle which terminates the poller
 // key = `${type}:${orderId}`
@@ -113,6 +114,13 @@ export function attachPaymentEffectHandlers(
         log(`[EFFECT] invalid event ${event.type} on state ${prev.type}`);
         break;
       }
+      // case "pay_stellar_source": {
+      //   if (prev.type === "payment_unpaid") {
+      //     runPayStellarSourceEffects(store, prev, event);
+      //   }
+      //   log(`[EFFECT] invalid event ${event.type} on state ${prev.type}`);
+      //   break;
+      // }
       default:
         break;
     }
@@ -200,7 +208,8 @@ async function runSetPayParamsEffects(
 
   try {
     const orderPreview = await trpc.previewOrder.query({
-      appId: payParams.appId,
+      // appId: payParams.appId,
+      appId: ROZO_DAIMO_APP_ID,
       toChain: payParams.toChain,
       toToken: payParams.toToken,
       toUnits,
@@ -227,7 +236,8 @@ async function runSetPayParamsEffects(
       // TODO: Properly type this and fix hacky type casting
       order: orderPreview as unknown as RozoPayOrderWithOrg,
       payParamsData: {
-        appId: payParams.appId,
+        // appId: payParams.appId,
+        appId: ROZO_DAIMO_APP_ID,
       },
     });
   } catch (e: any) {
@@ -268,7 +278,8 @@ async function runHydratePayParamsEffects(
   );
   try {
     const { hydratedOrder } = await trpc.createOrder.mutate({
-      appId: prev.payParamsData.appId,
+      // appId: prev.payParamsData.appId,
+      appId: ROZO_DAIMO_APP_ID,
       paymentInput: {
         id: order.id.toString(),
         toChain: getOrderDestChainId(order),

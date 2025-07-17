@@ -65,6 +65,8 @@ export type WalletConfigProps = {
   showInMobileConnectors?: boolean;
   // Used to filter wallets that only support solana in mobile mode to not show in the connector options when the payID doesn't support solana
   isSolanaOnly?: boolean;
+  // Used to filter wallets that only support stellar in mobile mode to not show in the connector options when the payID doesn't support stellar
+  isStellarOnly?: boolean;
 };
 
 // Organised in alphabetical order by key
@@ -279,6 +281,7 @@ export const walletConfigs: {
     },
     isSolanaOnly: true,
   },
+
   // ledger: {
   //   name: "Ledger Live",
   //   shortName: "Ledger",
