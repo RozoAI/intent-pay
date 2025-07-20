@@ -15,7 +15,7 @@ export interface PaymentDisplay {
  * Payment destination information
  */
 export interface PaymentDestination {
-  destinationAddress: string;
+  destinationAddress?: string;
   chainId: string;
   amountUnits: string;
   tokenSymbol: string;
@@ -66,7 +66,7 @@ export interface PaymentResponseData {
 export const createPayment = (
   paymentData: PaymentRequestData
 ): Promise<ApiResponse<PaymentResponseData>> => {
-  return apiClient.post<PaymentResponseData>("/payment", paymentData);
+  return apiClient.post<PaymentResponseData>("/payment-api", paymentData);
 };
 
 /**
@@ -77,7 +77,7 @@ export const createPayment = (
 export const getPayment = (
   paymentId: string
 ): Promise<ApiResponse<PaymentResponseData>> => {
-  return apiClient.get<PaymentResponseData>(`/payment/${paymentId}`);
+  return apiClient.get<PaymentResponseData>(`/payment-api/${paymentId}`);
 };
 
 /**
@@ -88,7 +88,9 @@ export const getPayment = (
 export const getPaymentByExternalId = (
   externalId: string
 ): Promise<ApiResponse<PaymentResponseData>> => {
-  return apiClient.get<PaymentResponseData>(`/payment/external/${externalId}`);
+  return apiClient.get<PaymentResponseData>(
+    `/payment-api/external/${externalId}`
+  );
 };
 
 /**
@@ -102,7 +104,7 @@ export const updatePayment = (
   paymentData: Partial<PaymentRequestData>
 ): Promise<ApiResponse<PaymentResponseData>> => {
   return apiClient.patch<PaymentResponseData>(
-    `/payment/${paymentId}`,
+    `/payment-api/${paymentId}`,
     paymentData
   );
 };
@@ -115,7 +117,7 @@ export const updatePayment = (
 export const cancelPayment = (
   paymentId: string
 ): Promise<ApiResponse<PaymentResponseData>> => {
-  return apiClient.delete<PaymentResponseData>(`/payment/${paymentId}`);
+  return apiClient.delete<PaymentResponseData>(`/payment-api/${paymentId}`);
 };
 
 /**
@@ -126,7 +128,7 @@ export const cancelPayment = (
 export const listPayments = (
   params?: Record<string, string>
 ): Promise<ApiResponse<PaymentResponseData[]>> => {
-  return apiClient.get<PaymentResponseData[]>("/payment", { params });
+  return apiClient.get<PaymentResponseData[]>("/payment-api", { params });
 };
 
 /**
@@ -383,7 +385,7 @@ export const createPaymentRequest = (options: {
   intent: string;
   paymentValue: string;
   currency: string;
-  destinationAddress: string;
+  destinationAddress?: string;
   chainId: string;
   amountUnits: string;
   tokenSymbol: string;

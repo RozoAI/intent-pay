@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ROZO_API_URL } from "../../constants/rozoConfig";
+import { ROZO_API_TOKEN, ROZO_API_URL } from "../../constants/rozoConfig";
 
 // HTTP methods type
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
@@ -69,6 +69,7 @@ export const fetchApi = async <T = any>(
     const requestHeaders: HeadersInit = {
       "Content-Type": "application/json",
       ...headers,
+      Authorization: `Bearer ${ROZO_API_TOKEN}`,
     };
 
     const requestOptions: RequestInit = {

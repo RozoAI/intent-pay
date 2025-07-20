@@ -20,6 +20,7 @@ import {
   stellar,
   RozoPayToken,
   RozoPayTokenAmount,
+  baseUSDC,
 } from "@rozoai/intent-common";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { VersionedTransaction } from "@solana/web3.js";
@@ -205,6 +206,14 @@ export function usePaymentState({
   const [isDepositFlow, setIsDepositFlow] = useState<boolean>(false);
 
   const showStellarPaymentMethod = useMemo(() => {
+    // return (
+    //   (paymentOptions == null ||
+    //     paymentOptions.includes(ExternalPaymentOptions.Stellar)) &&
+    //   pay.order != null &&
+    //   (currPayParams?.toStellarAddress != undefined ||
+    //     currPayParams?.toStellarAddress != null ||
+    //     currPayParams?.toChain === baseUSDC.chainId)
+    // );
     return (
       (paymentOptions == null ||
         paymentOptions.includes(ExternalPaymentOptions.Stellar)) &&

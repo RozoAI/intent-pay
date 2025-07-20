@@ -14,6 +14,7 @@ import {
 } from "../../../Common/Modal/styles";
 
 import {
+  baseUSDC,
   getChainExplorerTxUrl,
   RozoPayTokenAmount,
   stellar,
@@ -47,7 +48,7 @@ const PayWithStellarToken: React.FC = () => {
   const [activeRozoPayment, setActiveRozoPayment] = useState<PaymentResponseData | undefined>();
 
   // FOR API CALL
-  const handleCreatePayment = async (payToken: RozoPayTokenAmount, destinationAddress: string) => {
+  const handleCreatePayment = async (payToken: RozoPayTokenAmount, destinationAddress?: string) => {
     setPayState(PayState.CreatingPayment);
 
     const token = payToken.token;
@@ -83,11 +84,16 @@ const PayWithStellarToken: React.FC = () => {
   const handleTransfer = async (option: WalletPaymentOption) => {
     setIsLoading(true);
     try {
-      const destinationAddress = payParams?.toStellarAddress ?? ROZO_STELLAR_ADDRESS;
+      let destinationAddress: string | undefined = undefined;
 
-      if (!destinationAddress) {
-        throw new Error("Stellar destination address is required");
+      // If the destination is Stellar, use the toStellarAddress
+      if (payParams?.toStellarAddress) {
+        destinationAddress = payParams?.toStellarAddress;
       }
+
+      // if (!destinationAddress) {
+      //   throw new Error("Stellar destination address is required");
+      // }
 
       let payment: PaymentResponseData | undefined = activeRozoPayment;
       if (!payment) {
@@ -97,7 +103,7 @@ const PayWithStellarToken: React.FC = () => {
       setPayState(PayState.RequestingPayment);
 
       const result = await payWithStellarToken(option.required, {
-        destAddress: payment.destination.destinationAddress ?? destinationAddress,
+        destAddress: payment.destination.destinationAddress ?? destinationAddress ?? ROZO_STELLAR_ADDRESS,
         amount: payment.destination.amountUnits,
       });
 
