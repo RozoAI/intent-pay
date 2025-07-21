@@ -382,46 +382,28 @@ export const usePayments = (
  * @returns Payment request data
  */
 export const createPaymentRequest = (options: {
-  intent: string;
-  paymentValue: string;
-  currency: string;
-  destinationAddress?: string;
-  chainId: string;
-  amountUnits: string;
-  tokenSymbol: string;
-  tokenAddress?: string;
+  display: {
+    intent: string;
+    paymentValue: string;
+    currency: string;
+  };
+  destination: {
+    destinationAddress?: string;
+    chainId: string;
+    amountUnits: string;
+    tokenSymbol: string;
+    tokenAddress?: string;
+  };
   externalId?: string;
   metadata?: Record<string, unknown>;
   appId: string;
 }): PaymentRequestData => {
-  const {
-    intent,
-    paymentValue,
-    currency,
-    destinationAddress,
-    chainId,
-    amountUnits,
-    tokenSymbol,
-    tokenAddress = "",
-    externalId,
-    metadata = {},
-    appId,
-  } = options;
+  const { display, destination, externalId, metadata = {}, appId } = options;
 
   return {
     appId,
-    display: {
-      intent,
-      paymentValue,
-      currency,
-    },
-    destination: {
-      destinationAddress,
-      chainId,
-      amountUnits,
-      tokenSymbol,
-      tokenAddress,
-    },
+    display,
+    destination,
     externalId,
     metadata,
   };

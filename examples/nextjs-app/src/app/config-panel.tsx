@@ -86,7 +86,7 @@ export function ConfigPanel({
   // Extract unique chains
   const chains = supportedChains.filter(
     (chain) =>
-      chain.chainId !== solana.chainId && chain.chainId !== ethereum.chainId && chain.chainId !== stellar.chainId,
+      chain.chainId !== solana.chainId && chain.chainId !== ethereum.chainId
   ); // Exclude Solana and Ethereum
 
   // Get tokens for selected chain
@@ -180,7 +180,7 @@ export function ConfigPanel({
         <form onSubmit={handleSubmit} autoComplete="off" className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Recipient Address
+              EVM Recipient Address
             </label>
             <input
               type="text"
@@ -191,10 +191,11 @@ export function ConfigPanel({
                   recipientAddress: e.target.value,
                 }))
               }
-              className={`w-full p-2 border rounded ${addressError
-                ? "border-red-500 focus:border-red-500 focus:ring-red-200"
-                : "border-gray-300 focus:border-primary-medium focus:ring-primary-light"
-                } focus:ring focus:ring-opacity-50`}
+              className={`w-full p-2 border rounded ${
+                addressError
+                  ? "border-red-500 focus:border-red-500 focus:ring-red-200"
+                  : "border-gray-300 focus:border-primary-medium focus:ring-primary-light"
+              } focus:ring focus:ring-opacity-50`}
               placeholder="0x..."
               formNoValidate
             />
@@ -227,7 +228,7 @@ export function ConfigPanel({
             </select>
           </div>
 
-          {config.chainId > 0 && (
+          {config.chainId > 0 && config.chainId !== stellar.chainId && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Receiving Token
@@ -252,7 +253,7 @@ export function ConfigPanel({
             </div>
           )}
 
-          {configType === "payment" && (
+          {configType === "payment" && config.chainId === stellar.chainId && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Stellar Recipient Address (Optional)

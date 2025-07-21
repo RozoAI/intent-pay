@@ -85,7 +85,11 @@ export default function DemoBasic() {
   appId="${APP_ID}"
   toChain={${tokenVarName}.chainId}
   toAddress={getAddress("${config.recipientAddress}")}
-  toStellarAddress={"${config.recipientStellarAddress || ""}"}
+  ${
+    config.recipientStellarAddress
+      ? `toStellarAddress={"${config.recipientStellarAddress}"}`
+      : ""
+  }
   toUnits={"${config.amount}"}
   toToken={getAddress(${tokenVarName}.token)}
 />`;
@@ -96,7 +100,7 @@ export default function DemoBasic() {
 
     // For non-native tokens
     const token = knownTokens.find(
-      (t) => t.token === config.tokenAddress && t.chainId === config.chainId,
+      (t) => t.token === config.tokenAddress && t.chainId === config.chainId
     );
     if (!token) return;
 
@@ -110,9 +114,14 @@ export default function DemoBasic() {
   appId="${APP_ID}"
   toChain={${tokenVarName}.chainId}
   toAddress={getAddress("${config.recipientAddress}")}
-  toStellarAddress={"${config.recipientStellarAddress || ""}"}
-  toUnits={"${config.amount}"}
-  toToken={getAddress(${tokenVarName}.token)}
+  ${
+    config.recipientStellarAddress
+      ? `toStellarAddress={"${config.recipientStellarAddress}"}
+      toUnits={"${config.amount}"}
+  toToken={getAddress(${tokenVarName}.token)}`
+      : `toUnits={"${config.amount}"}
+  toToken={getAddress(${tokenVarName}.token)}`
+  }
 />`;
     setCodeSnippet(snippet);
   }, [config, hasValidConfig]);

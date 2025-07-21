@@ -47,6 +47,7 @@ import { useOrderUsdLimits } from "./useOrderUsdLimits";
 import { useSolanaPaymentOptions } from "./useSolanaPaymentOptions";
 import { useStellarPaymentOptions } from "./useStellarPaymentOptions";
 import { useWalletPaymentOptions } from "./useWalletPaymentOptions";
+import { useStellarDestination } from "./useStellarDestination";
 import { useStellar } from "../provider/StellarContextProvider";
 import { ALBEDO_ID } from "@creit.tech/stellar-wallets-kit";
 import {
@@ -205,21 +206,17 @@ export function usePaymentState({
   const [paymentWaitingMessage, setPaymentWaitingMessage] = useState<string>();
   const [isDepositFlow, setIsDepositFlow] = useState<boolean>(false);
 
+  // Use our custom hook to determine if this is a Stellar payment and its direction
+  const { isStellarPayment } = useStellarDestination(currPayParams);
+
   const showStellarPaymentMethod = useMemo(() => {
-    // return (
-    //   (paymentOptions == null ||
-    //     paymentOptions.includes(ExternalPaymentOptions.Stellar)) &&
-    //   pay.order != null &&
-    //   (currPayParams?.toStellarAddress != undefined ||
-    //     currPayParams?.toStellarAddress != null ||
-    //     currPayParams?.toChain === baseUSDC.chainId)
-    // );
     return (
       (paymentOptions == null ||
         paymentOptions.includes(ExternalPaymentOptions.Stellar)) &&
-      pay.order != null
+      pay.order != null &&
+      isStellarPayment
     );
-  }, [paymentOptions, pay.order]);
+  }, [paymentOptions, pay.order, isStellarPayment]);
 
   // UI state. Selection for external payment (Binance, etc) vs wallet payment.
   const externalPaymentOptions = useExternalPaymentOptions({
