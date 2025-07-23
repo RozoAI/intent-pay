@@ -6,10 +6,10 @@ import {
   AlbedoModule,
   LobstrModule,
 } from '@creit.tech/stellar-wallets-kit';
-import { Horizon } from '@stellar/stellar-sdk';
+import { Asset, Horizon } from '@stellar/stellar-sdk';
 import type { ReactNode } from 'react';
 import { createContext, useContext, useEffect, useState } from 'react';
-import { DEFAULT_STELLAR_RPC_URL } from '../constants/rozoConfig';
+import { DEFAULT_STELLAR_RPC_URL, STELLAR_USDC_ASSET_CODE, STELLAR_USDC_ISSUER_PK } from '../constants/rozoConfig';
 
 type StellarContextProvider = { children: ReactNode; stellarRpcUrl?: string };
 
@@ -23,6 +23,7 @@ type StellarContextProviderValue = {
   connector: ISupportedWallet | undefined;
   setConnector: (connector: ISupportedWallet) => void;
   disconnect: () => void;
+  convertXlmToUsdc: (amount: string) => Promise<string>;
 };
 
 
@@ -38,6 +39,7 @@ const initialContext = {
   connector: undefined,
   setConnector: () => { },
   disconnect: () => { },
+  convertXlmToUsdc: () => Promise.resolve(''),
 };
 
 export const StellarContext = createContext<StellarContextProviderValue>(initialContext);
@@ -72,6 +74,32 @@ export const StellarContextProvider = ({
     }
   };
 
+  const convertXlmToUsdc = async (amount: string) => {
+    try {
+      const destAsset = new Asset(
+        STELLAR_USDC_ASSET_CODE,
+        STELLAR_USDC_ISSUER_PK
+      );
+      const pathResults = await server
+        .strictSendPaths(Asset.native(), amount, [destAsset])
+        .call();
+
+      if (!pathResults?.records?.length) {
+        throw new Error("No exchange rate found for XLM swap");
+      }
+
+      // Apply 5% slippage tolerance
+      const bestPath = pathResults.records[0];
+      const estimatedDestMinAmount = (
+        parseFloat(bestPath.destination_amount) * 0.94
+      ).toFixed(2);
+
+      return estimatedDestMinAmount;
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
   const disconnect = async () => {
     try {
       setPublicKey(undefined);
@@ -101,6 +129,7 @@ export const StellarContextProvider = ({
         connector,
         setConnector,
         disconnect,
+        convertXlmToUsdc,
       }}
     >
       {children}

@@ -27,7 +27,7 @@ import { getSupportUrl } from "../../../../utils/supportUrl";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
-import { roundTokenAmount } from "../../../../utils/format";
+import { roundTokenAmount, tokenAmountToRoundedUsd } from "../../../../utils/format";
 import {
   createPayment,
   createPaymentRequest,
@@ -36,7 +36,11 @@ import {
 import {
   ROZO_DAIMO_APP_ID,
   ROZO_STELLAR_ADDRESS,
+  STELLAR_USDC_ASSET_CODE,
+  STELLAR_USDC_ISSUER_PK,
+  STELLAR_USDC_TOKEN_INFO,
 } from "../../../../constants/rozoConfig";
+import { useStellar } from "../../../../provider/StellarContextProvider";
 enum PayState {
   CreatingPayment = "Creating Payment Record...",
   RequestingPayment = "Waiting for Payment",
@@ -62,8 +66,14 @@ const PayWithStellarToken: React.FC = () => {
   >();
 
   // Get the destination address and payment direction using our custom hook
-  const { destinationAddress, isInBaseOutStellar } =
-    useStellarDestination(payParams);
+  const {
+    destinationAddress,
+    isPayInStellarOutStellar,
+    isPayInStellarOutBase,
+    isStellarPayment,
+  } = useStellarDestination(payParams);
+
+  const { convertXlmToUsdc } = useStellar();
 
   // FOR API CALL
   const handleCreatePayment = async (
@@ -72,9 +82,12 @@ const PayWithStellarToken: React.FC = () => {
   ) => {
     setPayState(PayState.CreatingPayment);
 
-    console.log(isInBaseOutStellar);
+    let amount: any = roundTokenAmount(payToken.amount, payToken.token);
 
-    const amount = roundTokenAmount(payToken?.amount, payToken.token);
+    // Convert XLM to USDC for Pay In Stellar, Pay Out Stellar scenarios
+    if (payToken.token.symbol === "XLM") {
+      amount = await convertXlmToUsdc(amount);
+    }
 
     const paymentData = createPaymentRequest({
       appId: payParams?.appId ?? ROZO_DAIMO_APP_ID,
@@ -85,12 +98,16 @@ const PayWithStellarToken: React.FC = () => {
       },
       destination: {
         destinationAddress,
-        chainId: isInBaseOutStellar
+        chainId: isPayInStellarOutStellar
           ? String(stellar.chainId)
           : String(base.chainId),
-        amountUnits: String(amount) ?? "",
-        tokenSymbol: baseUSDC.symbol,
-        tokenAddress: isInBaseOutStellar ? undefined : baseUSDC.token,
+        amountUnits: amount,
+        tokenSymbol: isPayInStellarOutStellar
+          ? `${STELLAR_USDC_ASSET_CODE}_XLM`
+          : baseUSDC.symbol,
+        tokenAddress: isPayInStellarOutStellar
+          ? STELLAR_USDC_ISSUER_PK
+          : baseUSDC.token,
       },
       externalId: order?.externalId ?? "",
       metadata: {
@@ -119,21 +136,25 @@ const PayWithStellarToken: React.FC = () => {
 
       let payment: PaymentResponseData | undefined = activeRozoPayment;
       if (!payment) {
-        payment = await handleCreatePayment(
-          option.required,
-          destinationAddress
-        );
+        // Use destinationAddress directly as it's now the middleware address
+        payment = await handleCreatePayment(option.required, destinationAddress);
       }
 
       setPayState(PayState.RequestingPayment);
 
       const result = await payWithStellarToken(option.required, {
-        destAddress:
-          payment.destination.destinationAddress ?? destinationAddress,
-        amount: payment.destination.amountUnits,
+        /**
+         * TODO: Discuss with API team related with middleware address.
+         * currently it's using destinationAddress from API Payment.
+         */
+        destAddress: payment.destination.destinationAddress ?? destinationAddress,
+        usdcAmount: payment.destination.amountUnits,
+        stellarAmount: roundTokenAmount(option.required.amount, option.required.token),
       });
 
       setTxURL(getChainExplorerTxUrl(stellar.chainId, result.txHash));
+
+      // const result = { success: false, txHash: "" }
 
       if (result.success) {
         setPayState(PayState.RequestSuccessful);
@@ -146,6 +167,7 @@ const PayWithStellarToken: React.FC = () => {
         setPayState(PayState.RequestFailed);
       }
     } catch (error) {
+      console.error(error);
       if (error instanceof Error && error.message.includes("declined")) {
         setPayState(PayState.RequestCancelled);
       } else {

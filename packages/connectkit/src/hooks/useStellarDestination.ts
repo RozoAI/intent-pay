@@ -1,69 +1,74 @@
-import { baseUSDC } from "@rozoai/intent-common";
 import { useMemo } from "react";
+import { baseUSDC } from "@rozoai/intent-common";
 import { PayParams } from "../payment/paymentFsm";
+import { ROZO_STELLAR_ADDRESS } from "../constants/rozoConfig";
 
 /**
- * Hook to determine the correct destination address for Stellar transactions
- * Handles both payment scenarios:
- * 1. Pay in Stellar, Pay Out to Base USDC - use toAddress if destination is Base USDC
- * 2. Pay in Base USDC, Pay Out to Stellar - use toStellarAddress
+ * Return type for the useStellarDestination hook
  */
-export function useStellarDestination(payParams?: PayParams) {
-  /**
-   * Case 1: Pay in Base USDC, Pay Out to Stellar (inBaseOutStellar)
-   * SDK needs to know toStellarAddress
-   */
-  const isInBaseOutStellar = useMemo(() => {
-    return (
-      payParams?.toStellarAddress !== undefined &&
-      payParams?.toStellarAddress !== null &&
-      payParams?.toStellarAddress !== ""
-    );
+interface StellarDestinationResult {
+  /** The middleware address to use for the transaction */
+  readonly destinationAddress: string | undefined;
+  /** Whether this is a Stellar payment (Pay In Stellar scenarios) */
+  readonly isStellarPayment: boolean;
+  /** Pay In Stellar, Pay out Stellar scenario */
+  readonly isPayInStellarOutStellar: boolean;
+  /** Pay In Stellar, Pay Out Base scenario */
+  readonly isPayInStellarOutBase: boolean;
+  /** Whether toStellarAddress is provided and not empty */
+  readonly hasToStellarAddress: boolean;
+  /** Whether the payout destination is Base USDC */
+  readonly isPayOutToBase: boolean;
+}
+
+/**
+ * Hook to determine the correct destination address for Stellar transactions.
+ * 
+ * Handles Pay In Stellar scenarios:
+ * 1. Pay In Stellar, Pay out Stellar - use toStellarAddress
+ * 2. Pay In Stellar, Pay Out Base - use ROZO_STELLAR_ADDRESS (when toChain is Base and toStellarAddress is empty)
+ * 
+ * @param payParams - Payment parameters containing transaction details
+ * @returns Object with destination address and payment scenario flags
+ */
+export function useStellarDestination(payParams?: PayParams): StellarDestinationResult {
+  const hasToStellarAddress = useMemo((): boolean => {
+    const address = payParams?.toStellarAddress;
+    return Boolean(address && address.trim() !== "");
   }, [payParams?.toStellarAddress]);
 
-  /**
-   * Case 2: Pay in Stellar, Pay Out to Base USDC (inStellarOutBase)
-   * SDK needs to know toChain
-   */
-  const isInStellarOutBase = useMemo(() => {
+  const isPayOutToBase = useMemo((): boolean => {
     return payParams?.toChain === baseUSDC.chainId;
   }, [payParams?.toChain]);
 
-  /**
-   * Checks if the payment involves Stellar (either as source or destination)
-   */
-  const isStellarPayment = useMemo(() => {
-    return isInBaseOutStellar || isInStellarOutBase;
-  }, [isInBaseOutStellar, isInStellarOutBase]);
+  const isPayInStellarOutStellar = useMemo((): boolean => {
+    return hasToStellarAddress;
+  }, [hasToStellarAddress]);
 
-  /**
-   * Determines the correct destination address based on payment direction
-   */
-  const destinationAddress = useMemo(() => {
-    let address: string | undefined = undefined;
+  const isPayInStellarOutBase = useMemo((): boolean => {
+    return isPayOutToBase && !hasToStellarAddress;
+  }, [isPayOutToBase, hasToStellarAddress]);
 
-    // Case 1: Pay in Stellar, Pay Out to Base USDC - use toAddress if destination is Base USDC
-    if (isInStellarOutBase && payParams?.toAddress) {
-      address = payParams.toAddress;
+  const isStellarPayment = useMemo((): boolean => {
+    return isPayInStellarOutStellar || isPayInStellarOutBase;
+  }, [isPayInStellarOutStellar, isPayInStellarOutBase]);
+
+  const destinationAddress = useMemo((): string | undefined => {
+    if (isPayInStellarOutStellar && payParams?.toStellarAddress) {
+      return payParams.toStellarAddress;
     }
-
-    // Case 2: Pay in Base USDC, Pay Out to Stellar - use toStellarAddress
-    if (isInBaseOutStellar && payParams?.toStellarAddress) {
-      address = payParams.toStellarAddress;
+    if (isPayInStellarOutBase) {
+      return ROZO_STELLAR_ADDRESS;
     }
-
-    return address;
-  }, [
-    isInStellarOutBase,
-    isInBaseOutStellar,
-    payParams?.toAddress,
-    payParams?.toStellarAddress,
-  ]);
+    return undefined;
+  }, [isPayInStellarOutStellar, isPayInStellarOutBase, payParams?.toStellarAddress]);
 
   return {
     destinationAddress,
     isStellarPayment,
-    isInBaseOutStellar,
-    isInStellarOutBase,
-  };
+    isPayInStellarOutStellar,
+    isPayInStellarOutBase,
+    hasToStellarAddress,
+    isPayOutToBase,
+  } as const;
 }

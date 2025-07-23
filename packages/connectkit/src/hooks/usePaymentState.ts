@@ -133,7 +133,11 @@ export interface PaymentState {
   ) => Promise<{ txHash: string; success: boolean }>;
   payWithStellarToken: (
     inputToken: RozoPayTokenAmount,
-    rozoPayment: { destAddress: string; amount: string }
+    rozoPayment: {
+      destAddress: string;
+      usdcAmount: string;
+      stellarAmount: string;
+    }
   ) => Promise<{ txHash: string; success: boolean }>;
   openInWalletBrowser: (wallet: WalletConfigProps, amountUsd?: number) => void;
   senderEnsName: string | undefined;
@@ -183,6 +187,7 @@ export function usePaymentState({
     kit: stellarKit,
     connector: stellarConnector,
     server: stellarServer,
+    convertXlmToUsdc,
   } = useStellar();
   const stellarPubKey = stellarPublicKey;
 
@@ -439,7 +444,11 @@ export function usePaymentState({
    */
   const payWithStellarToken = async (
     payToken: RozoPayTokenAmount,
-    rozoPayment: { destAddress: string; amount: string }
+    rozoPayment: {
+      destAddress: string;
+      usdcAmount: string;
+      stellarAmount: string;
+    }
   ): Promise<{ txHash: string; success: boolean }> => {
     try {
       // Initial validation
@@ -458,7 +467,7 @@ export function usePaymentState({
       const token = payToken.token;
 
       const destinationAddress = rozoPayment.destAddress;
-      const amount = rozoPayment.amount;
+      // const amount = rozoPayment.amount;
 
       // Setup Stellar payment
       await stellarKit.setWallet(String(stellarConnector?.id ?? ALBEDO_ID));
@@ -474,21 +483,7 @@ export function usePaymentState({
       const isXlmToken = token.symbol === "XLM";
 
       if (isXlmToken) {
-        // For XLM, use path payment to swap to USDC
-        const pathResults = await stellarServer
-          .strictSendPaths(Asset.native(), amount, [destAsset])
-          .call();
-
-        if (!pathResults?.records?.length) {
-          throw new Error("No exchange rate found for XLM swap");
-        }
-
-        // Apply 5% slippage tolerance
-        const bestPath = pathResults.records[0];
-        const estimatedDestMinAmount = (
-          parseFloat(bestPath.destination_amount) * 0.94
-        ).toFixed(2);
-
+        // const estimatedDestMinAmount = await convertXlmToUsdc(amount);
         transaction = new TransactionBuilder(sourceAccount, {
           fee,
           networkPassphrase: Networks.PUBLIC,
@@ -496,10 +491,10 @@ export function usePaymentState({
           .addOperation(
             Operation.pathPaymentStrictSend({
               sendAsset: Asset.native(),
-              sendAmount: String(amount),
+              sendAmount: String(rozoPayment.stellarAmount),
               destination: destinationAddress,
               destAsset,
-              destMin: estimatedDestMinAmount,
+              destMin: rozoPayment.usdcAmount,
               path: [],
             })
           )
@@ -515,7 +510,7 @@ export function usePaymentState({
             Operation.payment({
               destination: destinationAddress,
               asset: destAsset,
-              amount: String(amount),
+              amount: String(rozoPayment.usdcAmount),
             })
           )
           .setTimeout(180)

@@ -14,8 +14,6 @@ const SelectStellarAmount: React.FC = () => {
     return <PageContent></PageContent>;
   }
 
-  console.log(selectedStellarTokenOption);
-
   return (
     <MultiCurrencySelectAmount
       selectedTokenOption={selectedStellarTokenOption}

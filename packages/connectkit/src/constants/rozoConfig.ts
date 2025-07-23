@@ -9,14 +9,13 @@ export const ROZO_API_URL =
 export const ROZO_API_TOKEN =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4Y3Zmb2xobmNtdXZmYXp1cXViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI4Mzg2NjYsImV4cCI6MjA2ODQxNDY2Nn0.B4dV5y_-zCMKSNm3_qyCbAvCPJmoOGv_xB783LfAVUA";
 export const ROZO_DAIMO_APP_ID = "pay-muggle-FnFUQEgr2XuVSSXNN5EKKn";
-/**
- * STELLAR CONSTANTS
- */
+
 export const ROZO_STELLAR_ADDRESS =
   "GDQDR7RY2GJW7XBENWAX7F5X42HBTA2YREAD6SYGZLUNDGDQ3DRRYBPK";
-export const DEFAULT_STELLAR_RPC_URL = "https://horizon.stellar.org";
+export const ROZO_BASE_ADDRESS = "0x5772FBe7a7817ef7F586215CA8b23b8dD22C8897";
 
 // --- Define the Assets for the Swap ---
+export const DEFAULT_STELLAR_RPC_URL = "https://horizon.stellar.org";
 export const STELLAR_NATIVE_ASSET = Asset.native();
 export const STELLAR_USDC_ASSET_CODE = "USDC";
 export const STELLAR_USDC_ISSUER_PK =

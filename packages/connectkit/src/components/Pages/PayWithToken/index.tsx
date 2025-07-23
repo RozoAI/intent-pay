@@ -1,4 +1,4 @@
-import { getChainExplorerTxUrl, WalletPaymentOption } from "@rozoai/intent-common";
+import { getChainById, getChainExplorerTxUrl, RozoPayTokenAmount, WalletPaymentOption } from "@rozoai/intent-common";
 import React, { useEffect, useState } from "react";
 import { useChainId, useSwitchChain } from "wagmi";
 import { ROUTES } from "../../../constants/routes";
@@ -14,9 +14,13 @@ import {
 } from "../../Common/Modal/styles";
 import PaymentBreakdown from "../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../Spinners/TokenLogoSpinner";
+import { roundTokenAmount } from "../../../utils/format";
+import { createPayment, createPaymentRequest, PaymentResponseData } from "../../../utils/api";
+import { ROZO_DAIMO_APP_ID } from "../../../constants/rozoConfig";
 
 enum PayState {
   RequestingPayment = "Waiting For Payment",
+  CreatingPayment = "Creating Payment Record...",
   SwitchingChain = "Switching Chain",
   RequestCancelled = "Payment Cancelled",
   RequestSuccessful = "Payment Successful",
@@ -25,11 +29,14 @@ enum PayState {
 
 const PayWithToken: React.FC = () => {
   const { triggerResize, paymentState, setRoute, log, trpc } = usePayContext();
-  const { payWithToken, selectedTokenOption } = paymentState;
+  const { payWithToken, selectedTokenOption, payParams } = paymentState;
   const { order } = useRozoPay();
   const [payState, setPayStateInner] = useState<PayState>(
     PayState.RequestingPayment,
   );
+  const [activeRozoPayment, setActiveRozoPayment] = useState<
+    PaymentResponseData | undefined
+  >();
   const setPayState = (state: PayState) => {
     if (state === payState) return;
     setPayStateInner(state);
@@ -68,6 +75,44 @@ const PayWithToken: React.FC = () => {
     return true;
   };
 
+  // FOR API CALL
+  const handleCreatePayment = async (payToken: RozoPayTokenAmount,
+    destinationAddress?: string) => {
+    setPayState(PayState.CreatingPayment);
+
+    const amount: any = roundTokenAmount(payToken.amount, payToken.token);
+
+    const paymentData = createPaymentRequest({
+      appId: payParams?.appId ?? ROZO_DAIMO_APP_ID,
+      display: {
+        intent: order?.metadata?.intent ?? "",
+        paymentValue: String(payToken.usd),
+        currency: "USD",
+      },
+      destination: {
+        destinationAddress,
+        chainId: String(payToken.token.chainId),
+        amountUnits: amount,
+        tokenSymbol: payToken.token.symbol,
+        tokenAddress: payToken.token.token,
+      },
+      externalId: order?.externalId ?? "",
+      metadata: {
+        daimoOrderId: order?.id ?? "",
+        ...(order?.metadata ?? {}),
+      },
+    });
+
+    // API Call
+    const response = await createPayment(paymentData);
+    if (!response?.data?.id) {
+      throw new Error(response?.error?.message ?? "Payment creation failed");
+    }
+
+    setActiveRozoPayment(response.data);
+    return response.data;
+  }
+
   const handleTransfer = async (option: WalletPaymentOption) => {
     // Switch chain if necessary
     setPayState(PayState.SwitchingChain);
@@ -77,58 +122,63 @@ const PayWithToken: React.FC = () => {
       console.error("Switching chain failed");
       setPayState(PayState.RequestCancelled);
       return;
-    }
+    } else {
+      try {
+        // TODO: it's still for harcoded flow. for production, we need middleware address from the API. and then update it to the daimo flow
+        await handleCreatePayment(option.required, payParams?.toAddress);
 
-    setPayState(PayState.RequestingPayment);
-    try {
-      const result = await payWithToken(option);
-      setTxURL(
-        getChainExplorerTxUrl(option.required.token.chainId, result.txHash),
-      );
-      if (result.success) {
-        setPayState(PayState.RequestSuccessful);
-        setTimeout(() => {
-          setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-token" });
-        }, 200);
-      } else {
-        setPayState(PayState.RequestFailed);
-      }
-    } catch (e: any) {
-      if (e?.name === "ConnectorChainMismatchError") {
-        // Workaround for Rainbow wallet bug -- user is able to switch chain without
-        // the wallet updating the chain ID for wagmi.
-        log("Chain mismatch detected, attempting to switch and retry");
-        const switchSuccessful = await trySwitchingChain(option, true);
-        if (switchSuccessful) {
-          try {
-            const retryResult = await payWithToken(option);
-            setTxURL(
-              getChainExplorerTxUrl(
-                option.required.token.chainId,
-                retryResult.txHash,
-              ),
-            );
-            if (retryResult.success) {
-              setPayState(PayState.RequestSuccessful);
-              setTimeout(() => {
-                setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-token" });
-              }, 200);
-            } else {
-              setPayState(PayState.RequestFailed);
+        setPayState(PayState.RequestingPayment);
+        const result = await payWithToken(option);
+        setTxURL(
+          getChainExplorerTxUrl(option.required.token.chainId, result.txHash),
+        );
+        if (result.success) {
+          setPayState(PayState.RequestSuccessful);
+          setTimeout(() => {
+            setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-token" });
+          }, 200);
+        } else {
+          setPayState(PayState.RequestFailed);
+        }
+      } catch (e: any) {
+        if (e?.name === "ConnectorChainMismatchError") {
+          // Workaround for Rainbow wallet bug -- user is able to switch chain without
+          // the wallet updating the chain ID for wagmi.
+          log("Chain mismatch detected, attempting to switch and retry");
+          const switchSuccessful = await trySwitchingChain(option, true);
+          if (switchSuccessful) {
+            try {
+              const retryResult = await payWithToken(option);
+              setTxURL(
+                getChainExplorerTxUrl(
+                  option.required.token.chainId,
+                  retryResult.txHash,
+                ),
+              );
+              if (retryResult.success) {
+                setPayState(PayState.RequestSuccessful);
+                setTimeout(() => {
+                  setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-token" });
+                }, 200);
+              } else {
+                setPayState(PayState.RequestFailed);
+              }
+              return; // Payment handled after switching chain
+            } catch (retryError) {
+              console.error(
+                "Failed to pay with token after switching chain",
+                retryError,
+              );
+              throw retryError;
             }
-            return; // Payment handled after switching chain
-          } catch (retryError) {
-            console.error(
-              "Failed to pay with token after switching chain",
-              retryError,
-            );
-            throw retryError;
           }
         }
+        setPayState(PayState.RequestCancelled);
+        console.error("Failed to pay with token", e);
       }
-      setPayState(PayState.RequestCancelled);
-      console.error("Failed to pay with token", e);
     }
+
+
   };
 
   useEffect(() => {

@@ -1,4 +1,6 @@
 import {
+  base,
+  baseUSDC,
   ethereum,
   knownTokens,
   solana,
@@ -86,7 +88,9 @@ export function ConfigPanel({
   // Extract unique chains
   const chains = supportedChains.filter(
     (chain) =>
-      chain.chainId !== solana.chainId && chain.chainId !== ethereum.chainId
+      chain.chainId !== solana.chainId &&
+      chain.chainId !== ethereum.chainId &&
+      chain.chainId !== stellar.chainId
   ); // Exclude Solana and Ethereum
 
   // Get tokens for selected chain
@@ -191,11 +195,10 @@ export function ConfigPanel({
                   recipientAddress: e.target.value,
                 }))
               }
-              className={`w-full p-2 border rounded ${
-                addressError
-                  ? "border-red-500 focus:border-red-500 focus:ring-red-200"
-                  : "border-gray-300 focus:border-primary-medium focus:ring-primary-light"
-              } focus:ring focus:ring-opacity-50`}
+              className={`w-full p-2 border rounded ${addressError
+                ? "border-red-500 focus:border-red-500 focus:ring-red-200"
+                : "border-gray-300 focus:border-primary-medium focus:ring-primary-light"
+                } focus:ring focus:ring-opacity-50`}
               placeholder="0x..."
               formNoValidate
             />
@@ -228,7 +231,7 @@ export function ConfigPanel({
             </select>
           </div>
 
-          {config.chainId > 0 && config.chainId !== stellar.chainId && (
+          {config.chainId > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Receiving Token
@@ -253,26 +256,30 @@ export function ConfigPanel({
             </div>
           )}
 
-          {configType === "payment" && config.chainId === stellar.chainId && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Stellar Recipient Address (Optional)
-              </label>
-              <input
-                type="text"
-                value={config.recipientStellarAddress}
-                onChange={(e) =>
-                  setConfig((prev) => ({
-                    ...prev,
-                    recipientStellarAddress: e.target.value,
-                  }))
-                }
-                className={`w-full p-2 border rounded border-gray-300 focus:border-primary-medium focus:ring-primary-light focus:ring focus:ring-opacity-50`}
-                placeholder="G..."
-                formNoValidate
-              />
-            </div>
-          )}
+          {configType === "payment" &&
+            (config.chainId === base.chainId && config.tokenAddress === baseUSDC.token) && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Stellar Recipient Address (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={config.recipientStellarAddress}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      recipientStellarAddress: e.target.value,
+                    }))
+                  }
+                  className={`w-full p-2 border rounded border-gray-300 focus:border-primary-medium focus:ring-primary-light focus:ring focus:ring-opacity-50`}
+                  placeholder="G..."
+                  formNoValidate
+                />
+                <span className="text-xs text-gray-500 leading-[10px]">
+                  This field is optional. Enter this only if you want the recipient to receive funds on Stellar (bridged from Base USDC to Stellar USDC).
+                </span>
+              </div>
+            )}
 
           {/* Amount field only shown for payment config */}
           {configType === "payment" && (
