@@ -336,7 +336,7 @@ export function usePaymentState({
       try {
         if (required.token.token === zeroAddress) {
           return await sendTransactionAsync({
-            to: hydratedOrder.intentAddr,
+            to: hydratedOrder.intentAddr, // TODO: Change this to middleware address from API, if it's ready
             value: paymentAmount,
           });
         } else {
@@ -344,7 +344,7 @@ export function usePaymentState({
             abi: erc20Abi,
             address: getAddress(required.token.token),
             functionName: "transfer",
-            args: [hydratedOrder.intentAddr, paymentAmount],
+            args: [hydratedOrder.intentAddr, paymentAmount], // TODO: Change this to middleware address from API, if it's ready
           });
         }
       } catch (e) {
