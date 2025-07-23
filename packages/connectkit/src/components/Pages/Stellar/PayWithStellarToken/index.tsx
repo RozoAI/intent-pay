@@ -34,6 +34,7 @@ import {
   PaymentResponseData,
 } from "../../../../utils/api";
 import {
+  ROZO_BASE_ADDRESS,
   ROZO_DAIMO_APP_ID,
   ROZO_STELLAR_ADDRESS,
   STELLAR_USDC_ASSET_CODE,
@@ -97,7 +98,7 @@ const PayWithStellarToken: React.FC = () => {
         currency: "USD",
       },
       destination: {
-        destinationAddress,
+        destinationAddress: isPayInStellarOutStellar ? destinationAddress : payParams?.toAddress,
         chainId: isPayInStellarOutStellar
           ? String(stellar.chainId)
           : String(base.chainId),
@@ -145,9 +146,9 @@ const PayWithStellarToken: React.FC = () => {
       const result = await payWithStellarToken(option.required, {
         /**
          * TODO: Discuss with API team related with middleware address.
-         * currently it's using destinationAddress from API Payment.
+         * currently it's using destinationAddress from API Payment or ROZO_STELLAR_ADDRESS.
          */
-        destAddress: payment.destination.destinationAddress ?? destinationAddress,
+        destAddress: isPayInStellarOutStellar ? payment.destination.destinationAddress ?? destinationAddress : ROZO_STELLAR_ADDRESS,
         usdcAmount: payment.destination.amountUnits,
         stellarAmount: roundTokenAmount(option.required.amount, option.required.token),
       });

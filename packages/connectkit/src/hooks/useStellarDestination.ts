@@ -23,15 +23,17 @@ interface StellarDestinationResult {
 
 /**
  * Hook to determine the correct destination address for Stellar transactions.
- * 
+ *
  * Handles Pay In Stellar scenarios:
  * 1. Pay In Stellar, Pay out Stellar - use toStellarAddress
  * 2. Pay In Stellar, Pay Out Base - use ROZO_STELLAR_ADDRESS (when toChain is Base and toStellarAddress is empty)
- * 
+ *
  * @param payParams - Payment parameters containing transaction details
  * @returns Object with destination address and payment scenario flags
  */
-export function useStellarDestination(payParams?: PayParams): StellarDestinationResult {
+export function useStellarDestination(
+  payParams?: PayParams
+): StellarDestinationResult {
   const hasToStellarAddress = useMemo((): boolean => {
     const address = payParams?.toStellarAddress;
     return Boolean(address && address.trim() !== "");
@@ -61,7 +63,11 @@ export function useStellarDestination(payParams?: PayParams): StellarDestination
       return ROZO_STELLAR_ADDRESS;
     }
     return undefined;
-  }, [isPayInStellarOutStellar, isPayInStellarOutBase, payParams?.toStellarAddress]);
+  }, [
+    isPayInStellarOutStellar,
+    isPayInStellarOutBase,
+    payParams?.toStellarAddress,
+  ]);
 
   return {
     destinationAddress,
