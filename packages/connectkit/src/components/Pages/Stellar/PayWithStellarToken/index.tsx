@@ -3,10 +3,6 @@ import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
 
 import {
-  WalletSendTransactionError,
-  WalletSignTransactionError,
-} from "@solana/wallet-adapter-base";
-import {
   Link,
   ModalContent,
   ModalH1,
@@ -27,19 +23,17 @@ import { getSupportUrl } from "../../../../utils/supportUrl";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
-import { roundTokenAmount, tokenAmountToRoundedUsd } from "../../../../utils/format";
+import { roundTokenAmount } from "../../../../utils/format";
 import {
   createPayment,
   createPaymentRequest,
   PaymentResponseData,
 } from "../../../../utils/api";
 import {
-  ROZO_BASE_ADDRESS,
   ROZO_DAIMO_APP_ID,
   ROZO_STELLAR_ADDRESS,
   STELLAR_USDC_ASSET_CODE,
-  STELLAR_USDC_ISSUER_PK,
-  STELLAR_USDC_TOKEN_INFO,
+  STELLAR_USDC_ISSUER_PK
 } from "../../../../constants/rozoConfig";
 import { useStellar } from "../../../../provider/StellarContextProvider";
 enum PayState {
@@ -69,14 +63,12 @@ const PayWithStellarToken: React.FC = () => {
   // Get the destination address and payment direction using our custom hook
   const {
     destinationAddress,
-    isPayInStellarOutStellar,
     isPayInStellarOutBase,
-    isStellarPayment,
   } = useStellarDestination(payParams);
 
   const { convertXlmToUsdc } = useStellar();
 
-  // FOR API CALL
+  // ROZO API CALL
   const handleCreatePayment = async (
     payToken: RozoPayTokenAmount,
     destinationAddress?: string
@@ -100,17 +92,17 @@ const PayWithStellarToken: React.FC = () => {
       preferredChain: String(stellar.chainId),
       preferredToken: "USDC_XLM",
       destination: {
-        destinationAddress: isPayInStellarOutStellar ? destinationAddress : payParams?.toAddress,
-        chainId: isPayInStellarOutStellar
-          ? String(stellar.chainId)
-          : String(base.chainId),
+        destinationAddress: isPayInStellarOutBase ? payParams?.toAddress : destinationAddress,
+        chainId: isPayInStellarOutBase
+          ? String(base.chainId)
+          : String(stellar.chainId),
         amountUnits: amount,
-        tokenSymbol: isPayInStellarOutStellar
-          ? `${STELLAR_USDC_ASSET_CODE}_XLM`
-          : baseUSDC.symbol,
-        tokenAddress: isPayInStellarOutStellar
-          ? STELLAR_USDC_ISSUER_PK
-          : baseUSDC.token,
+        tokenSymbol: isPayInStellarOutBase
+          ? baseUSDC.symbol
+          : `${STELLAR_USDC_ASSET_CODE}_XLM`,
+        tokenAddress: isPayInStellarOutBase
+          ? baseUSDC.token
+          : STELLAR_USDC_ISSUER_PK,
       },
       externalId: order?.externalId ?? "",
       metadata: {

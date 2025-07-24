@@ -134,6 +134,9 @@ export type PaymentEvent =
 
 type PayParamsData = {
   appId: string;
+  toStellarAddress?: string;
+  toAddress?: string;
+  rozoAppId?: string;
 };
 
 /**

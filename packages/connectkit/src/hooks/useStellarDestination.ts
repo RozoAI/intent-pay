@@ -19,6 +19,8 @@ interface StellarDestinationResult {
   readonly hasToStellarAddress: boolean;
   /** Whether the payout destination is Base USDC */
   readonly isPayOutToBase: boolean;
+  /** Pay In Base, Pay Out Stellar scenario */
+  readonly isPayInBaseOutStellar: boolean;
 }
 
 /**
@@ -42,6 +44,10 @@ export function useStellarDestination(
   const isPayOutToBase = useMemo((): boolean => {
     return payParams?.toChain === baseUSDC.chainId;
   }, [payParams?.toChain]);
+
+  const isPayInBaseOutStellar = useMemo((): boolean => {
+    return payParams?.toChain === baseUSDC.chainId && hasToStellarAddress;
+  }, [isPayOutToBase, hasToStellarAddress]);
 
   const isPayInStellarOutStellar = useMemo((): boolean => {
     return hasToStellarAddress;
@@ -76,5 +82,6 @@ export function useStellarDestination(
     isPayInStellarOutBase,
     hasToStellarAddress,
     isPayOutToBase,
+    isPayInBaseOutStellar,
   } as const;
 }

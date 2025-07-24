@@ -75,44 +75,6 @@ const PayWithToken: React.FC = () => {
     return true;
   };
 
-  // FOR API CALL
-  const handleCreatePayment = async (payToken: RozoPayTokenAmount,
-    destinationAddress?: string) => {
-    setPayState(PayState.CreatingPayment);
-
-    const amount: any = roundTokenAmount(payToken.amount, payToken.token);
-
-    const paymentData = createPaymentRequest({
-      appId: payParams?.appId ?? ROZO_DAIMO_APP_ID,
-      display: {
-        intent: order?.metadata?.intent ?? "",
-        paymentValue: String(payToken.usd),
-        currency: "USD",
-      },
-      destination: {
-        destinationAddress,
-        chainId: String(payToken.token.chainId),
-        amountUnits: amount,
-        tokenSymbol: payToken.token.symbol,
-        tokenAddress: payToken.token.token,
-      },
-      externalId: order?.externalId ?? "",
-      metadata: {
-        daimoOrderId: order?.id ?? "",
-        ...(order?.metadata ?? {}),
-      },
-    });
-
-    // API Call
-    const response = await createPayment(paymentData);
-    if (!response?.data?.id) {
-      throw new Error(response?.error?.message ?? "Payment creation failed");
-    }
-
-    setActiveRozoPayment(response.data);
-    return response.data;
-  }
-
   const handleTransfer = async (option: WalletPaymentOption) => {
     // Switch chain if necessary
     setPayState(PayState.SwitchingChain);
@@ -124,8 +86,6 @@ const PayWithToken: React.FC = () => {
       return;
     } else {
       try {
-        // TODO: it's still for harcoded flow. for production, we need middleware address from the API. and then update it to the daimo flow
-        await handleCreatePayment(option.required, payParams?.toAddress);
 
         setPayState(PayState.RequestingPayment);
         const result = await payWithToken(option);
