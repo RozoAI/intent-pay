@@ -6,6 +6,7 @@ import {
   readRozoPayOrderID,
   stellar,
   base,
+  baseUSDC,
 } from "@rozoai/intent-common";
 import { formatUnits, getAddress } from "viem";
 import { PollHandle, startPolling } from "../utils/polling";
@@ -288,12 +289,17 @@ async function runHydratePayParamsEffects(
   );
 
   const toChain = getOrderDestChainId(order);
+  const toToken = getAddress(order.destFinalCallTokenAmount.token.token);
   let toAddress = getAddress(order.destFinalCall.to);
 
   // ROZO API CALL
-  // Pay In Base, Pay Out Stellar scenario
+  // Pay In USDC Base, Pay Out USDC Stellar scenario
   let rozoPaymentId: string | undefined = order?.externalId ?? undefined;
-  if (payParams?.toStellarAddress && toChain === base.chainId) {
+  if (
+    payParams?.toStellarAddress &&
+    toChain === base.chainId &&
+    toToken === baseUSDC.token
+  ) {
     const paymentData = createPaymentRequest({
       appId: payParams?.rozoAppId ?? ROZO_DAIMO_APP_ID,
       display: {
@@ -335,7 +341,7 @@ async function runHydratePayParamsEffects(
       paymentInput: {
         id: order.id.toString(),
         toChain: toChain,
-        toToken: getAddress(order.destFinalCallTokenAmount.token.token),
+        toToken,
         toUnits,
         toAddress,
         toCallData: order.destFinalCall.data,
