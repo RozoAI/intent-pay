@@ -292,6 +292,7 @@ async function runHydratePayParamsEffects(
 
   // ROZO API CALL
   // Pay In Base, Pay Out Stellar scenario
+  let rozoPaymentId: string | undefined = order?.externalId ?? undefined;
   if (payParams?.toStellarAddress && toChain === base.chainId) {
     const paymentData = createPaymentRequest({
       appId: payParams?.rozoAppId ?? ROZO_DAIMO_APP_ID,
@@ -322,6 +323,7 @@ async function runHydratePayParamsEffects(
     }
 
     toAddress = response.data.destination.destinationAddress as `0x${string}`;
+    rozoPaymentId = response.data.id;
   }
 
   // END ROZO API CALL
@@ -340,7 +342,8 @@ async function runHydratePayParamsEffects(
         isAmountEditable: order.mode === RozoPayOrderMode.CHOOSE_AMOUNT,
         metadata: order.metadata,
         userMetadata: order.userMetadata,
-        externalId: order.externalId ?? undefined,
+        // externalId: order.externalId ?? undefined,
+        externalId: rozoPaymentId,
       },
       // Prefer the refund address passed to this function, if specified. This
       // is for cases where the user pays from an EOA. Otherwise, use the refund
