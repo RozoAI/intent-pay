@@ -33,11 +33,11 @@ importers:
         specifier: ^2.2.0
         version: 2.2.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@rozoai/intent-common':
-        specifier: 0.0.16-beta.11
-        version: 0.0.16-beta.11(bufferutil@4.0.9)(typescript@5.5.2)(utf-8-validate@5.0.10)
+        specifier: 0.0.16-beta.12
+        version: 0.0.16-beta.12(bufferutil@4.0.9)(typescript@5.5.2)(utf-8-validate@5.0.10)
       '@rozoai/intent-pay':
-        specifier: 0.0.16-beta.11
-        version: 0.0.16-beta.11(3d54025a480d66968518c8671582838d)
+        specifier: 0.0.16-beta.12
+        version: 0.0.16-beta.12(3d54025a480d66968518c8671582838d)
       '@tanstack/react-query':
         specifier: ^5.51.11
         version: 5.81.5(react@18.2.0)
@@ -91,8 +91,8 @@ importers:
         specifier: ^12.1.2
         version: 12.1.4(rollup@3.29.5)(tslib@2.8.1)(typescript@5.5.2)
       '@rozoai/intent-common':
-        specifier: 0.0.16-beta.11
-        version: 0.0.16-beta.11(bufferutil@4.0.9)(typescript@5.5.2)(utf-8-validate@5.0.10)
+        specifier: 0.0.16-beta.12
+        version: 0.0.16-beta.12(bufferutil@4.0.9)(typescript@5.5.2)(utf-8-validate@5.0.10)
       '@solana/wallet-adapter-base':
         specifier: ^0.9.23
         version: 0.9.27(@solana/web3.js@1.98.2(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.5.2)(utf-8-validate@5.0.10))
@@ -1247,11 +1247,11 @@ packages:
       rollup:
         optional: true
 
-  '@rozoai/intent-common@0.0.16-beta.11':
-    resolution: {integrity: sha512-+UG2K27RGzp5sspcZhyyYXX/r6FAi0QMjVBu4nI6q2Qf8aTn2QpcARWpIbJfHaxhKzeK/VmPMt9AGGYJMD0/hQ==}
+  '@rozoai/intent-common@0.0.16-beta.12':
+    resolution: {integrity: sha512-N/Y9swDt0kVuDgCUhVm3qKjJYCN0r3BaVMDDSzjg02k4NnvPAEM3j8Ji3co+CEsqB5j7oDC7inPGKTr0LA/JDA==}
 
-  '@rozoai/intent-pay@0.0.16-beta.11':
-    resolution: {integrity: sha512-Ki32Ul+35h4KjASgfGNf/PMkCEc5ks5kqN/KfuYRVfK97Vjjd27lcoIzNGfDYG6ra49dprYynfiVfvjJxDas1A==}
+  '@rozoai/intent-pay@0.0.16-beta.12':
+    resolution: {integrity: sha512-gEG0TzPqtBQMt92djeJ4V58Z3+5A8LhcMKFUQDfmJrkN368jmRuPzh1R+1ZorAOAzW1HPqFCInVLPfyuoJl5Hw==}
     engines: {node: '>=12.4'}
     peerDependencies:
       '@tanstack/react-query': '>=5.0.0'
@@ -7748,7 +7748,7 @@ snapshots:
     optionalDependencies:
       rollup: 3.29.5
 
-  '@rozoai/intent-common@0.0.16-beta.11(bufferutil@4.0.9)(typescript@5.5.2)(utf-8-validate@5.0.10)':
+  '@rozoai/intent-common@0.0.16-beta.12(bufferutil@4.0.9)(typescript@5.5.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@scure/base': 1.2.6
       viem: 2.31.6(bufferutil@4.0.9)(typescript@5.5.2)(utf-8-validate@5.0.10)(zod@3.25.67)
@@ -7758,11 +7758,11 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@rozoai/intent-pay@0.0.16-beta.11(3d54025a480d66968518c8671582838d)':
+  '@rozoai/intent-pay@0.0.16-beta.12(3d54025a480d66968518c8671582838d)':
     dependencies:
       '@creit.tech/stellar-wallets-kit': 1.7.6(@react-native-async-storage/async-storage@1.24.0(react-native@0.80.1(@babel/core@7.27.7)(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.2.0)(utf-8-validate@5.0.10)))(@stellar/stellar-base@13.1.0)(@stellar/stellar-sdk@13.3.0)(@trezor/connect@9.5.1(bufferutil@4.0.9)(encoding@0.1.13)(fastestsmallesttextencoderdecoder@1.0.22)(react-native@0.80.1(@babel/core@7.27.7)(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.2.0)(utf-8-validate@5.0.10))(tslib@2.8.1)(typescript@5.5.2)(utf-8-validate@5.0.10)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)))(@types/react@18.3.23)(bufferutil@4.0.9)(encoding@0.1.13)(fastestsmallesttextencoderdecoder@1.0.22)(near-api-js@5.1.1(encoding@0.1.13))(react-native@0.80.1(@babel/core@7.27.7)(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.2.0)(utf-8-validate@5.0.10))(react@18.2.0)(tslib@2.8.1)(typescript@5.5.2)(utf-8-validate@5.0.10)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@rollup/plugin-typescript': 12.1.4(rollup@3.29.5)(tslib@2.8.1)(typescript@5.5.2)
-      '@rozoai/intent-common': 0.0.16-beta.11(bufferutil@4.0.9)(typescript@5.5.2)(utf-8-validate@5.0.10)
+      '@rozoai/intent-common': 0.0.16-beta.12(bufferutil@4.0.9)(typescript@5.5.2)(utf-8-validate@5.0.10)
       '@solana/wallet-adapter-base': 0.9.27(@solana/web3.js@1.98.2(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.5.2)(utf-8-validate@5.0.10))
       '@solana/wallet-adapter-react': 0.15.39(@solana/web3.js@1.98.2(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.5.2)(utf-8-validate@5.0.10))(bs58@6.0.0)(react-native@0.80.1(@babel/core@7.27.7)(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.2.0)(utf-8-validate@5.0.10))(react@18.2.0)
       '@solana/web3.js': 1.98.2(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.5.2)(utf-8-validate@5.0.10)
