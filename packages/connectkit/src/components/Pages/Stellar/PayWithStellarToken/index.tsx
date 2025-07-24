@@ -97,6 +97,8 @@ const PayWithStellarToken: React.FC = () => {
         paymentValue: String(payToken.usd),
         currency: "USD",
       },
+      preferredChain: String(stellar.chainId),
+      preferredToken: "USDC_XLM",
       destination: {
         destinationAddress: isPayInStellarOutStellar ? destinationAddress : payParams?.toAddress,
         chainId: isPayInStellarOutStellar
@@ -144,11 +146,7 @@ const PayWithStellarToken: React.FC = () => {
       setPayState(PayState.RequestingPayment);
 
       const result = await payWithStellarToken(option.required, {
-        /**
-         * TODO: Discuss with API team related with middleware address.
-         * currently it's using destinationAddress from API Payment or ROZO_STELLAR_ADDRESS.
-         */
-        destAddress: isPayInStellarOutStellar ? payment.destination.destinationAddress ?? destinationAddress : ROZO_STELLAR_ADDRESS,
+        destAddress: isPayInStellarOutBase ? payment.destination.destinationAddress ?? ROZO_STELLAR_ADDRESS : destinationAddress,
         usdcAmount: payment.destination.amountUnits,
         stellarAmount: roundTokenAmount(option.required.amount, option.required.token),
       });

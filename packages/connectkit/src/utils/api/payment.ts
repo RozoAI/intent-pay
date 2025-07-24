@@ -387,6 +387,8 @@ export const createPaymentRequest = (options: {
     paymentValue: string;
     currency: string;
   };
+  preferredChain?: string;
+  preferredToken?: string;
   destination: {
     destinationAddress?: string;
     chainId: string;
@@ -398,7 +400,15 @@ export const createPaymentRequest = (options: {
   metadata?: Record<string, unknown>;
   appId: string;
 }): PaymentRequestData => {
-  const { display, destination, externalId, metadata = {}, appId } = options;
+  const {
+    display,
+    destination,
+    externalId,
+    metadata = {},
+    appId,
+    preferredChain,
+    preferredToken,
+  } = options;
 
   return {
     appId,
@@ -406,5 +416,7 @@ export const createPaymentRequest = (options: {
     destination,
     externalId,
     metadata,
+    preferredChain,
+    preferredToken,
   };
 };
