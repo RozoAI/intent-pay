@@ -2,7 +2,7 @@ import Logos from "../assets/logos";
 
 // TODO: Change the URL to Rozo Pay when the APP is ready
 // Infer in-wallet payment URL from environment.
-let rozoPayHost = "https://pay.daimo.com";
+let rozoPayHost = "https://invoice.daimo.com";
 
 export function setInWalletPaymentUrlFromApiUrl(apiUrl: string) {
   if (apiUrl.startsWith("http://localhost")) {
@@ -10,12 +10,12 @@ export function setInWalletPaymentUrlFromApiUrl(apiUrl: string) {
   } else if (apiUrl.startsWith("https://pay-api-stage.rozo.xyz")) {
     rozoPayHost = "https://pay.stage.rozo.xyz";
   } else {
-    rozoPayHost = "https://pay.daimo.com";
+    rozoPayHost = "https://invoice.daimo.com";
   }
 }
 
 function getRozoPayUrl(payId: string) {
-  return rozoPayHost + "/pay?id=" + payId;
+  return rozoPayHost + "/checkout?id=" + payId;
 }
 
 function getEncodedRozoPayUrl(payId: string) {
