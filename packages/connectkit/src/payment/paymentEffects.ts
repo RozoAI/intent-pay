@@ -295,11 +295,8 @@ async function runHydratePayParamsEffects(
   // ROZO API CALL
   // Pay In USDC Base, Pay Out USDC Stellar scenario
   let rozoPaymentId: string | undefined = order?.externalId ?? undefined;
-  if (
-    payParams?.toStellarAddress &&
-    toChain === base.chainId &&
-    toToken === baseUSDC.token
-  ) {
+
+  if (payParams?.toStellarAddress) {
     const paymentData = createPaymentRequest({
       appId: payParams?.rozoAppId ?? ROZO_DAIMO_APP_ID,
       display: {
@@ -323,13 +320,16 @@ async function runHydratePayParamsEffects(
       },
     });
 
-    const response = await createPayment(paymentData);
-    if (!response?.data?.id) {
-      throw new Error(response?.error?.message ?? "Payment creation failed");
+    const rozoPayment = await createPayment(paymentData);
+    if (!rozoPayment?.data?.id) {
+      throw new Error(rozoPayment?.error?.message ?? "Payment creation failed");
     }
+    rozoPaymentId = rozoPayment.data.id;
 
-    toAddress = response.data.destination.destinationAddress as `0x${string}`;
-    rozoPaymentId = response.data.id;
+    if (toChain === base.chainId && toToken === baseUSDC.token) {
+      toAddress = rozoPayment.data.destination
+        .destinationAddress as `0x${string}`;
+    }
   }
 
   // END ROZO API CALL
