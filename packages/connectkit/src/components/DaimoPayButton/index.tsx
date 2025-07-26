@@ -54,6 +54,10 @@ export type PayButtonPaymentProps =
      */
     toAddress: Address;
     /**
+     * The destination stellar address to transfer to.
+     */
+    toStellarAddress?: string;
+    /**
      * Optional calldata to call an arbitrary function on `toAddress`.
      */
     toCallData?: Hex;
@@ -185,6 +189,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         appId: props.appId,
         toChain: props.toChain,
         toAddress: props.toAddress,
+        toStellarAddress: props.toStellarAddress,
         toToken: props.toToken,
         toUnits: props.toUnits,
         toCallData: props.toCallData,
