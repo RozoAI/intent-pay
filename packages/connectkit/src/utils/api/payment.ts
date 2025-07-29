@@ -63,7 +63,7 @@ export interface PaymentResponseData {
  * @param paymentData - Payment data to send
  * @returns Promise with payment response
  */
-export const createPayment = (
+export const createRozoPayment = (
   paymentData: PaymentRequestData
 ): Promise<ApiResponse<PaymentResponseData>> => {
   return apiClient.post<PaymentResponseData>("/payment-api", paymentData);
@@ -74,7 +74,7 @@ export const createPayment = (
  * @param paymentId - Payment ID
  * @returns Promise with payment response
  */
-export const getPayment = (
+export const getRozoPayment = (
   paymentId: string
 ): Promise<ApiResponse<PaymentResponseData>> => {
   return apiClient.get<PaymentResponseData>(`/payment-api/${paymentId}`);
@@ -85,11 +85,11 @@ export const getPayment = (
  * @param externalId - External payment ID
  * @returns Promise with payment response
  */
-export const getPaymentByExternalId = (
+export const getRozoPaymentByExternalId = (
   externalId: string
 ): Promise<ApiResponse<PaymentResponseData>> => {
   return apiClient.get<PaymentResponseData>(
-    `/payment-api/external/${externalId}`
+    `/payment-api/external-id/${externalId}`
   );
 };
 
@@ -99,7 +99,7 @@ export const getPaymentByExternalId = (
  * @param paymentData - Updated payment data
  * @returns Promise with payment response
  */
-export const updatePayment = (
+export const updateRozoPayment = (
   paymentId: string,
   paymentData: Partial<PaymentRequestData>
 ): Promise<ApiResponse<PaymentResponseData>> => {
@@ -114,7 +114,7 @@ export const updatePayment = (
  * @param paymentId - Payment ID
  * @returns Promise with payment response
  */
-export const cancelPayment = (
+export const cancelRozoPayment = (
   paymentId: string
 ): Promise<ApiResponse<PaymentResponseData>> => {
   return apiClient.delete<PaymentResponseData>(`/payment-api/${paymentId}`);
@@ -125,7 +125,7 @@ export const cancelPayment = (
  * @param params - Query parameters for filtering
  * @returns Promise with payment list response
  */
-export const listPayments = (
+export const listRozoPayments = (
   params?: Record<string, string>
 ): Promise<ApiResponse<PaymentResponseData[]>> => {
   return apiClient.get<PaymentResponseData[]>("/payment-api", { params });
@@ -137,7 +137,7 @@ export const listPayments = (
  * @param autoSubmit - Whether to submit automatically
  * @returns Request state and submit function
  */
-export const useCreatePayment = (
+export const useCreateRozoPayment = (
   paymentData?: PaymentRequestData,
   autoSubmit = false
 ): [
@@ -157,7 +157,7 @@ export const useCreatePayment = (
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      const response = await createPayment(data);
+      const response = await createRozoPayment(data);
 
       setState({
         data: response.data,
@@ -201,7 +201,7 @@ export const useCreatePayment = (
  * @param enabled - Whether to enable the fetch
  * @returns Request state and refetch function
  */
-export const usePayment = (
+export const useRozoPayment = (
   paymentId: string,
   enabled = true
 ): [
@@ -223,7 +223,7 @@ export const usePayment = (
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      const response = await getPayment(paymentId);
+      const response = await getRozoPayment(paymentId);
 
       setState({
         data: response.data,
@@ -262,7 +262,7 @@ export const usePayment = (
  * @param enabled - Whether to enable the fetch
  * @returns Request state and refetch function
  */
-export const usePaymentByExternalId = (
+export const useRozoPaymentByExternalId = (
   externalId: string,
   enabled = true
 ): [
@@ -284,7 +284,7 @@ export const usePaymentByExternalId = (
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      const response = await getPaymentByExternalId(externalId);
+      const response = await getRozoPaymentByExternalId(externalId);
 
       setState({
         data: response.data,
@@ -323,7 +323,7 @@ export const usePaymentByExternalId = (
  * @param enabled - Whether to enable the fetch
  * @returns Request state and refetch function
  */
-export const usePayments = (
+export const useRozoPayments = (
   params?: Record<string, string>,
   enabled = true
 ): [
@@ -343,7 +343,7 @@ export const usePayments = (
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      const response = await listPayments(params);
+      const response = await listRozoPayments(params);
 
       setState({
         data: response.data,
@@ -381,7 +381,7 @@ export const usePayments = (
  * @param options Payment options
  * @returns Payment request data
  */
-export const createPaymentRequest = (options: {
+export const createRozoPaymentRequest = (options: {
   display: {
     intent: string;
     paymentValue: string;

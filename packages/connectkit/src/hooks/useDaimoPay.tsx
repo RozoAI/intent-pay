@@ -4,9 +4,16 @@ import {
   SolanaPublicKey,
   StellarPublicKey,
   RozoPayHydratedOrderWithOrg,
-  RozoPayOrderStatusSource
+  RozoPayOrderStatusSource,
+  RozoPayIntentStatus,
 } from "@rozoai/intent-common";
-import { useCallback, useContext, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { Address, Hex } from "viem";
 import { PaymentEvent, PaymentState, PayParams } from "../payment/paymentFsm";
 import { waitForPaymentState } from "../payment/paymentStore";
@@ -20,7 +27,7 @@ type RozoPayFunctions = {
    * @param params - Parameters describing the payment to be created.
    */
   createPreviewOrder: (
-    params: PayParams,
+    params: PayParams
   ) => Promise<Extract<PaymentState, { type: "preview" }>>;
 
   /**
@@ -34,11 +41,11 @@ type RozoPayFunctions = {
       PaymentState,
       {
         type:
-        | "unhydrated"
-        | "payment_unpaid"
-        | "payment_started"
-        | "payment_completed"
-        | "payment_bounced";
+          | "unhydrated"
+          | "payment_unpaid"
+          | "payment_started"
+          | "payment_completed"
+          | "payment_bounced";
       }
     >
   >;
@@ -48,7 +55,7 @@ type RozoPayFunctions = {
    * token swap prices.
    */
   hydrateOrder: (
-    refundAddress?: Address,
+    refundAddress?: Address
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
   /** Trigger search for payment on the current order. */
@@ -104,10 +111,13 @@ type RozoPayFunctions = {
   /**
    * Directly set the payment state to completed.
    * Use this to mark a payment as completed without going through the normal flow.
-   * 
+   *
    * @param txHash - The transaction hash to associate with the completed payment.
    */
-  setPaymentCompleted: (txHash: string) => Promise<Extract<PaymentState, { type: "payment_completed" }>>;
+  setPaymentCompleted: (
+    txHash: string,
+    rozoPaymentId?: string
+  ) => Promise<Extract<PaymentState, { type: "payment_completed" }>>;
 
   /**
    * Reset the current payment state and clear the active order.
@@ -121,6 +131,10 @@ type RozoPayFunctions = {
    * @deprecated
    */
   setChosenUsd: (usd: number) => void;
+  setRozoPaymentId: (id: string | null) => void;
+
+  setPaymentRozoCompleted: (completed: boolean) => void;
+  paymentRozoCompleted: boolean;
 };
 
 // Enforce that order is typed correctly based on paymentState.
@@ -131,7 +145,9 @@ type RozoPayState = {
     order: S extends { order: infer O } ? O : null;
     paymentErrorMessage: S extends { message: infer M } ? M : null;
   };
-}[PaymentState["type"]];
+}[PaymentState["type"]] & {
+  rozoPaymentId: string | null;
+};
 
 export type UseRozoPay = RozoPayFunctions & RozoPayState;
 
@@ -146,6 +162,8 @@ export type UseRozoPay = RozoPayFunctions & RozoPayState;
  * manage Rozo Pay orders and payments.
  */
 export function useRozoPay(): UseRozoPay {
+  const [rozoPaymentId, setRozoPaymentId] = useState<string | null>(null);
+  const [paymentRozoCompleted, setPaymentRozoCompleted] = useState(false);
   const store = useContext(PaymentContext);
   if (!store) {
     throw new Error("useRozoPay must be used within <PaymentProvider>");
@@ -159,7 +177,7 @@ export function useRozoPay(): UseRozoPay {
   const paymentFsmState = useSyncExternalStore(
     store.subscribe,
     store.getState,
-    store.getState,
+    store.getState
   );
 
   // Wrap `order` in `useMemo` for reference stability. This allows downstream
@@ -172,7 +190,6 @@ export function useRozoPay(): UseRozoPay {
   const paymentState = paymentFsmState.type;
   const paymentErrorMessage =
     paymentFsmState.type === "error" ? paymentFsmState.message : null;
-
 
   /* --------------------------------------------------
      Order event dispatch helpers
@@ -191,7 +208,7 @@ export function useRozoPay(): UseRozoPay {
 
       return previewOrderState;
     },
-    [dispatch, store],
+    [dispatch, store]
   );
 
   const setPayId = useCallback(
@@ -206,12 +223,12 @@ export function useRozoPay(): UseRozoPay {
         "payment_unpaid",
         "payment_started",
         "payment_completed",
-        "payment_bounced",
+        "payment_bounced"
       );
 
       return previewOrderState;
     },
-    [dispatch, store],
+    [dispatch, store]
   );
 
   const hydrateOrder = useCallback(
@@ -222,17 +239,17 @@ export function useRozoPay(): UseRozoPay {
       // has been successfully hydrated.
       const hydratedOrderState = await waitForPaymentState(
         store,
-        "payment_unpaid",
+        "payment_unpaid"
       );
 
       return hydratedOrderState;
     },
-    [dispatch, store],
+    [dispatch, store]
   );
 
   const paySource = useCallback(
     () => dispatch({ type: "pay_source" }),
-    [dispatch],
+    [dispatch]
   );
 
   const payEthSource = useCallback(
@@ -250,12 +267,12 @@ export function useRozoPay(): UseRozoPay {
         store,
         "payment_started",
         "payment_completed",
-        "payment_bounced",
+        "payment_bounced"
       );
 
       return paidState;
     },
-    [dispatch, store],
+    [dispatch, store]
   );
 
   const paySolanaSource = useCallback(
@@ -267,16 +284,20 @@ export function useRozoPay(): UseRozoPay {
         store,
         "payment_started",
         "payment_completed",
-        "payment_bounced",
+        "payment_bounced"
       );
 
       return paidState;
     },
-    [dispatch, store],
+    [dispatch, store]
   );
 
   const payStellarSource = useCallback(
-    async (args: { paymentTxHash: string; sourceToken: StellarPublicKey; rozoOrderId: string }) => {
+    async (args: {
+      paymentTxHash: string;
+      sourceToken: StellarPublicKey;
+      rozoOrderId: string;
+    }) => {
       // Get the current order from the state
       const currentState = store.getState();
 
@@ -296,35 +317,32 @@ export function useRozoPay(): UseRozoPay {
         ...hydratedOrder,
         sourceStartTxHash: args.paymentTxHash as Hex,
         // Set source status to completed
-        sourceStatus: RozoPayOrderStatusSource.PROCESSED
+        sourceStatus: RozoPayOrderStatusSource.PROCESSED,
       };
 
       // Directly dispatch a payment_verified event to set the state to completed
       dispatch({
         type: "payment_verified",
-        order: updatedOrder
+        order: updatedOrder,
       });
 
       // Wait for the state to change to payment_completed
-      const paidState = await waitForPaymentState(
-        store,
-        "payment_completed"
-      );
+      const paidState = await waitForPaymentState(store, "payment_completed");
 
       return paidState;
     },
-    [dispatch, store],
+    [dispatch, store]
   );
 
   const reset = useCallback(() => dispatch({ type: "reset" }), [dispatch]);
 
   const setChosenUsd = useCallback(
     (usd: number) => dispatch({ type: "set_chosen_usd", usd }),
-    [dispatch],
+    [dispatch]
   );
 
   const setPaymentCompleted = useCallback(
-    async (txHash: string) => {
+    async (txHash: string, rozoPaymentId?: string) => {
       // Get the current order from the state
       const currentState = store.getState();
 
@@ -333,11 +351,15 @@ export function useRozoPay(): UseRozoPay {
       }
 
       // Check if the order is already hydrated
-      if (currentState.type !== "payment_unpaid" &&
+      /* if (
+        currentState.type !== "payment_unpaid" &&
         currentState.type !== "payment_started" &&
-        currentState.type !== "unhydrated") {
-        throw new Error(`Cannot complete payment: Invalid state ${currentState.type}`);
-      }
+        currentState.type !== "unhydrated"
+      ) {
+        throw new Error(
+          `Cannot complete payment: Invalid state ${currentState.type}`
+        );
+      } */
 
       // For TypeScript safety, we need to ensure the order is treated as hydrated
       // This is safe because the payment_verified handler will validate the order
@@ -354,9 +376,19 @@ export function useRozoPay(): UseRozoPay {
       };
 
       // Directly dispatch a payment_verified event to set the state to completed
+      // dispatch({
+      //   type: "payment_verified",
+      //   order: updatedOrder,
+      // });
+
       dispatch({
-        type: "payment_verified",
-        order: updatedOrder
+        type: "order_refreshed",
+        order: {
+          ...updatedOrder,
+          externalId: rozoPaymentId ?? updatedOrder?.externalId ?? "",
+          destFastFinishTxHash: txHash as any,
+          intentStatus: RozoPayIntentStatus.COMPLETED,
+        },
       });
 
       // Wait for the state to change to payment_completed
@@ -367,7 +399,7 @@ export function useRozoPay(): UseRozoPay {
 
       return completedState;
     },
-    [dispatch, store],
+    [dispatch, store]
   );
 
   return {
@@ -384,5 +416,9 @@ export function useRozoPay(): UseRozoPay {
     setPaymentCompleted,
     reset,
     setChosenUsd,
+    rozoPaymentId,
+    setRozoPaymentId,
+    setPaymentRozoCompleted,
+    paymentRozoCompleted,
   } as UseRozoPay;
 }

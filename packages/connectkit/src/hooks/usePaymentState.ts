@@ -143,6 +143,8 @@ export interface PaymentState {
   senderEnsName: string | undefined;
   setTxHash: (txHash: string) => void;
   txHash: string | undefined;
+  setRozoPaymentId: (paymentId: string) => void;
+  rozoPaymentId: string | undefined;
 }
 
 export function usePaymentState({
@@ -703,6 +705,9 @@ export function usePaymentState({
   >("evm");
 
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
+  const [rozoPaymentId, setRozoPaymentId] = useState<string | undefined>(
+    undefined
+  );
 
   return {
     buttonProps,
@@ -749,5 +754,7 @@ export function usePaymentState({
     senderEnsName: senderEnsName ?? undefined,
     txHash,
     setTxHash,
+    setRozoPaymentId,
+    rozoPaymentId,
   };
 }

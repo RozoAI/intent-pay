@@ -58,12 +58,15 @@ export function useStellarDestination(
   }, [isPayOutToBase, hasToStellarAddress]);
 
   const isStellarPayment = useMemo((): boolean => {
-    return isPayInStellarOutStellar || isPayInStellarOutBase;
+    return (
+      (isPayInStellarOutStellar || isPayInStellarOutBase) &&
+      (payParams?.appId ?? "rozoDemo")?.toLowerCase().includes("stellar")
+    );
   }, [isPayInStellarOutStellar, isPayInStellarOutBase]);
 
   const destinationAddress = useMemo((): string | undefined => {
-    if (isPayInStellarOutStellar && payParams?.toStellarAddress) {
-      return payParams.toStellarAddress;
+    if (isPayInStellarOutStellar) {
+      return payParams?.toStellarAddress;
     }
     if (isPayInStellarOutBase) {
       return ROZO_STELLAR_ADDRESS;

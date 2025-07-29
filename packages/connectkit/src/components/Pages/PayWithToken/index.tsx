@@ -1,8 +1,10 @@
-import { getChainById, getChainExplorerTxUrl, RozoPayTokenAmount, WalletPaymentOption } from "@rozoai/intent-common";
+import {
+  getChainExplorerTxUrl,
+  WalletPaymentOption,
+} from "@rozoai/intent-common";
 import React, { useEffect, useState } from "react";
 import { useChainId, useSwitchChain } from "wagmi";
 import { ROUTES } from "../../../constants/routes";
-import { useRozoPay } from "../../../hooks/useDaimoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
 import { TrpcClient } from "../../../utils/trpc";
 import Button from "../../Common/Button";
@@ -14,9 +16,6 @@ import {
 } from "../../Common/Modal/styles";
 import PaymentBreakdown from "../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../Spinners/TokenLogoSpinner";
-import { roundTokenAmount } from "../../../utils/format";
-import { createPayment, createPaymentRequest, PaymentResponseData } from "../../../utils/api";
-import { ROZO_DAIMO_APP_ID } from "../../../constants/rozoConfig";
 
 enum PayState {
   RequestingPayment = "Waiting For Payment",
@@ -29,14 +28,10 @@ enum PayState {
 
 const PayWithToken: React.FC = () => {
   const { triggerResize, paymentState, setRoute, log, trpc } = usePayContext();
-  const { payWithToken, selectedTokenOption, payParams } = paymentState;
-  const { order } = useRozoPay();
+  const { payWithToken, selectedTokenOption } = paymentState;
   const [payState, setPayStateInner] = useState<PayState>(
-    PayState.RequestingPayment,
+    PayState.RequestingPayment
   );
-  const [activeRozoPayment, setActiveRozoPayment] = useState<
-    PaymentResponseData | undefined
-  >();
   const setPayState = (state: PayState) => {
     if (state === payState) return;
     setPayStateInner(state);
@@ -53,7 +48,7 @@ const PayWithToken: React.FC = () => {
 
   const trySwitchingChain = async (
     option: WalletPaymentOption,
-    forceSwitch: boolean = false,
+    forceSwitch: boolean = false
   ): Promise<boolean> => {
     if (walletChainId !== option.required.token.chainId || forceSwitch) {
       const resultChain = await (async () => {
@@ -86,11 +81,10 @@ const PayWithToken: React.FC = () => {
       return;
     } else {
       try {
-
         setPayState(PayState.RequestingPayment);
         const result = await payWithToken(option);
         setTxURL(
-          getChainExplorerTxUrl(option.required.token.chainId, result.txHash),
+          getChainExplorerTxUrl(option.required.token.chainId, result.txHash)
         );
         if (result.success) {
           setPayState(PayState.RequestSuccessful);
@@ -112,13 +106,15 @@ const PayWithToken: React.FC = () => {
               setTxURL(
                 getChainExplorerTxUrl(
                   option.required.token.chainId,
-                  retryResult.txHash,
-                ),
+                  retryResult.txHash
+                )
               );
               if (retryResult.success) {
                 setPayState(PayState.RequestSuccessful);
                 setTimeout(() => {
-                  setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-token" });
+                  setRoute(ROUTES.CONFIRMATION, {
+                    event: "wait-pay-with-token",
+                  });
                 }, 200);
               } else {
                 setPayState(PayState.RequestFailed);
@@ -127,7 +123,7 @@ const PayWithToken: React.FC = () => {
             } catch (retryError) {
               console.error(
                 "Failed to pay with token after switching chain",
-                retryError,
+                retryError
               );
               throw retryError;
             }
@@ -137,8 +133,6 @@ const PayWithToken: React.FC = () => {
         console.error("Failed to pay with token", e);
       }
     }
-
-
   };
 
   useEffect(() => {

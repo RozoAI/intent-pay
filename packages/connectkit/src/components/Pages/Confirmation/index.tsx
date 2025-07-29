@@ -22,21 +22,26 @@ import styled from "../../../styles/styled";
 import PoweredByFooter from "../../Common/PoweredByFooter";
 
 const Confirmation: React.FC = () => {
-  const { confirmationMessage, onSuccess, debugMode, paymentState: paymentStateContext } = usePayContext();
-  const { order, paymentState, setPaymentCompleted } = useRozoPay();
-
+  const {
+    confirmationMessage,
+    onSuccess,
+    debugMode,
+    paymentState: paymentStateContext,
+  } = usePayContext();
+  const { order, paymentState, setPaymentCompleted, setPaymentRozoCompleted } =
+    useRozoPay();
 
   const [isConfirming, setIsConfirming] = useState<boolean>(true);
 
   const { done, txURL } = useMemo(() => {
-    const { tokenMode, txHash } = paymentStateContext;
-    if (tokenMode === 'stellar' && txHash) {
+    const { tokenMode, txHash, rozoPaymentId } = paymentStateContext;
+    if (tokenMode === "stellar" && txHash) {
       // Add delay before setting payment completed to show confirming state
       if (isConfirming) {
         setTimeout(() => {
-          setPaymentCompleted(txHash);
+          setPaymentCompleted(txHash, rozoPaymentId);
           setIsConfirming(false);
-        }, 2000);
+        }, 1000);
         return { done: false, txURL: undefined };
       }
 
@@ -51,7 +56,7 @@ const Confirmation: React.FC = () => {
         const destChainId = getOrderDestChainId(order);
         assert(
           txHash != null,
-          `[CONFIRMATION] paymentState: ${paymentState}, but missing txHash`,
+          `[CONFIRMATION] paymentState: ${paymentState}, but missing txHash`
         );
         const txURL = getChainExplorerTxUrl(destChainId, txHash);
 
@@ -59,15 +64,17 @@ const Confirmation: React.FC = () => {
       }
     }
 
-
     return { done: false, txURL: undefined };
   }, [paymentState, order, paymentStateContext, isConfirming]);
 
   useEffect(() => {
     if (done) {
+      if (paymentStateContext.tokenMode === "stellar") {
+        setPaymentRozoCompleted(true);
+      }
       onSuccess();
     }
-  }, [done, onSuccess]);
+  }, [done, onSuccess, paymentStateContext]);
 
   useEffect(() => {
     if (debugMode) {
@@ -146,7 +153,7 @@ const InsetContainer = styled(motion.div)`
   }
 `;
 
-const SuccessIcon = styled(TickIcon) <{ $status: boolean }>`
+const SuccessIcon = styled(TickIcon)<{ $status: boolean }>`
   color: var(--ck-body-color-valid);
   transition: all 0.2s ease-in-out;
   position: absolute;
@@ -154,7 +161,7 @@ const SuccessIcon = styled(TickIcon) <{ $status: boolean }>`
   transform: ${(props) => (props.$status ? "scale(1)" : "scale(0.5)")};
 `;
 
-const Spinner = styled(LoadingCircleIcon) <{ $status: boolean }>`
+const Spinner = styled(LoadingCircleIcon)<{ $status: boolean }>`
   position: absolute;
   transition: all 0.2s ease-in-out;
   animation: rotateSpinner 400ms linear infinite;

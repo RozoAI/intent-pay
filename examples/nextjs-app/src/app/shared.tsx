@@ -31,7 +31,7 @@ export function printEvent(e: RozoPayEvent) {
 // Type-safe localStorage hook for configs
 export function usePersistedConfig<T>(
   key: string,
-  initialConfig: T,
+  initialConfig: T
 ): [T, (config: T) => void] {
   // Start with initialConfig
   const [config, setConfigState] = useState<T>(initialConfig);

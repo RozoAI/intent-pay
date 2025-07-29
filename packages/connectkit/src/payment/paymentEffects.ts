@@ -17,7 +17,7 @@ import {
   ROZO_DAIMO_APP_ID,
   STELLAR_USDC_ISSUER_PK,
 } from "../constants/rozoConfig";
-import { createPayment, createPaymentRequest } from "../utils/api";
+import { createRozoPayment, createRozoPaymentRequest } from "../utils/api";
 
 // Maps poller identifier to poll handle which terminates the poller
 // key = `${type}:${orderId}`
@@ -297,7 +297,7 @@ async function runHydratePayParamsEffects(
   let rozoPaymentId: string | undefined = order?.externalId ?? undefined;
 
   if (payParams?.toStellarAddress) {
-    const paymentData = createPaymentRequest({
+    const paymentData = createRozoPaymentRequest({
       appId: payParams?.rozoAppId ?? ROZO_DAIMO_APP_ID,
       display: {
         intent: order?.metadata?.intent ?? "",
@@ -320,7 +320,7 @@ async function runHydratePayParamsEffects(
       },
     });
 
-    const rozoPayment = await createPayment(paymentData);
+    const rozoPayment = await createRozoPayment(paymentData);
     if (!rozoPayment?.data?.id) {
       throw new Error(rozoPayment?.error?.message ?? "Payment creation failed");
     }
