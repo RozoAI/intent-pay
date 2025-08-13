@@ -11,6 +11,7 @@ import {
   isHydrated,
   SolanaPublicKey,
   StellarPublicKey,
+  WalletPaymentOption,
 } from "@rozoai/intent-common";
 import { Address, Hex, parseUnits } from "viem";
 
@@ -85,7 +86,7 @@ export type PaymentEvent =
   | { type: "set_pay_id"; payId: RozoPayOrderID }
   // HACK: edit the order in-memory to change the amount in deposit flow
   | { type: "set_chosen_usd"; usd: number }
-  | { type: "hydrate_order"; refundAddress?: Address }
+  | { type: "hydrate_order"; refundAddress?: Address; walletPaymentOption?: WalletPaymentOption;  }
   | {
       type: "pay_source";
     }

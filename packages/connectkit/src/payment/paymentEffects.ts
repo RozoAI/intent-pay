@@ -1,23 +1,24 @@
 import {
   assert,
-  RozoPayOrderMode,
-  RozoPayOrderWithOrg,
-  getOrderDestChainId,
-  readRozoPayOrderID,
-  stellar,
   base,
   baseUSDC,
+  getOrderDestChainId,
+  polygonUSDC,
+  readRozoPayOrderID,
+  RozoPayOrderMode,
+  RozoPayOrderWithOrg,
+  stellar,
 } from "@rozoai/intent-common";
 import { formatUnits, getAddress } from "viem";
-import { PollHandle, startPolling } from "../utils/polling";
-import { TrpcClient } from "../utils/trpc";
-import { PaymentEvent, PaymentState } from "./paymentFsm";
-import { PaymentStore } from "./paymentStore";
 import {
   ROZO_DAIMO_APP_ID,
   STELLAR_USDC_ISSUER_PK,
 } from "../constants/rozoConfig";
 import { createRozoPayment, createRozoPaymentRequest } from "../utils/api";
+import { PollHandle, startPolling } from "../utils/polling";
+import { TrpcClient } from "../utils/trpc";
+import { PaymentEvent, PaymentState } from "./paymentFsm";
+import { PaymentStore } from "./paymentStore";
 
 // Maps poller identifier to poll handle which terminates the poller
 // key = `${type}:${orderId}`
@@ -282,6 +283,7 @@ async function runHydratePayParamsEffects(
 ) {
   const order = prev.order;
   const payParams = prev.payParamsData;
+  const walletPaymentOption = event.walletPaymentOption;
 
   const toUnits = formatUnits(
     BigInt(order.destFinalCallTokenAmount.amount),
@@ -293,10 +295,50 @@ async function runHydratePayParamsEffects(
   let toAddress = getAddress(order.destFinalCall.to);
 
   // ROZO API CALL
-  // Pay In USDC Base, Pay Out USDC Stellar scenario
   let rozoPaymentId: string | undefined = order?.externalId ?? undefined;
 
-  if (payParams?.toStellarAddress) {
+  // Pay In USDC Polygon, Pay Out USDC Base scenario
+  if (
+    walletPaymentOption &&
+    walletPaymentOption.required.token.token === polygonUSDC.token &&
+    toChain === base.chainId &&
+    toToken === baseUSDC.token
+  ) {
+    console.log("[EFFECT] Pay In Polygon, Pay Out USDC Base scenario");
+    const paymentData = createRozoPaymentRequest({
+      appId: payParams?.rozoAppId ?? ROZO_DAIMO_APP_ID,
+      display: {
+        intent: order?.metadata?.intent ?? "",
+        paymentValue: String(toUnits),
+        currency: "USD",
+      },
+      preferredChain: String(polygonUSDC.chainId),
+      preferredToken: "USDC",
+      preferredTokenAddress: polygonUSDC.token,
+      destination: {
+        destinationAddress: payParams?.toAddress,
+        chainId: String(toChain),
+        amountUnits: toUnits,
+        tokenSymbol: "USDC",
+        tokenAddress: toToken,
+      },
+      externalId: order?.externalId ?? "",
+      metadata: {
+        daimoOrderId: order?.id ?? "",
+        ...(order?.metadata ?? {}),
+      },
+    });
+
+    const rozoPayment = await createRozoPayment(paymentData);
+
+    if (!rozoPayment?.data?.id) {
+      throw new Error(rozoPayment?.error?.message ?? "Payment creation failed");
+    }
+    rozoPaymentId = rozoPayment.data.id;
+    toAddress = rozoPayment.data.destination
+      .destinationAddress as `0x${string}`;
+  } else if (payParams?.toStellarAddress) {
+    // Pay In USDC Base, Pay Out USDC Stellar scenario
     const paymentData = createRozoPaymentRequest({
       appId: payParams?.rozoAppId ?? ROZO_DAIMO_APP_ID,
       display: {

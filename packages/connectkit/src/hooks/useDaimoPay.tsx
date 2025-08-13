@@ -6,6 +6,7 @@ import {
   RozoPayHydratedOrderWithOrg,
   RozoPayOrderStatusSource,
   RozoPayIntentStatus,
+  WalletPaymentOption,
 } from "@rozoai/intent-common";
 import {
   useCallback,
@@ -55,7 +56,8 @@ type RozoPayFunctions = {
    * token swap prices.
    */
   hydrateOrder: (
-    refundAddress?: Address
+    refundAddress?: Address,
+    walletPaymentOption?: WalletPaymentOption
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
   /** Trigger search for payment on the current order. */
@@ -232,8 +234,8 @@ export function useRozoPay(): UseRozoPay {
   );
 
   const hydrateOrder = useCallback(
-    async (refundAddress?: Address) => {
-      dispatch({ type: "hydrate_order", refundAddress });
+    async (refundAddress?: Address, walletPaymentOption?: WalletPaymentOption) => {
+      dispatch({ type: "hydrate_order", refundAddress, walletPaymentOption });
 
       // Wait for the order to enter the "payment_unpaid" state, which means it
       // has been successfully hydrated.
