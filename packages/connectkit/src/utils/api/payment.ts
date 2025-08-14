@@ -54,6 +54,7 @@ export interface PaymentResponseData {
   destination: PaymentDestination;
   externalId: string;
   metadata: Record<string, unknown>;
+  memo?: string;
   [key: string]: unknown;
 }
 

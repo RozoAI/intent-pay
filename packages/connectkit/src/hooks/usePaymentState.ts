@@ -1,7 +1,6 @@
 import {
   assert,
   assertNotNull,
-  RozoPayHydratedOrderWithOrg,
   debugJson,
   DepositAddressPaymentOptionData,
   DepositAddressPaymentOptionMetadata,
@@ -13,14 +12,11 @@ import {
   isCCTPV1Chain,
   PlatformType,
   readRozoPayOrderID,
+  RozoPayHydratedOrderWithOrg,
+  RozoPayTokenAmount,
   SolanaPublicKey,
-  StellarPublicKey,
   WalletPaymentOption,
   writeRozoPayOrderID,
-  stellar,
-  RozoPayToken,
-  RozoPayTokenAmount,
-  baseUSDC,
 } from "@rozoai/intent-common";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { VersionedTransaction } from "@solana/web3.js";
@@ -33,9 +29,21 @@ import {
   useWriteContract,
 } from "wagmi";
 
+import { ALBEDO_ID } from "@creit.tech/stellar-wallets-kit";
+import {
+  Asset,
+  Networks,
+  Operation,
+  TransactionBuilder,
+} from "@stellar/stellar-sdk";
 import { PayButtonPaymentProps } from "../components/DaimoPayButton";
 import { ROUTES } from "../constants/routes";
+import {
+  STELLAR_USDC_ASSET_CODE,
+  STELLAR_USDC_ISSUER_PK,
+} from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
+import { useStellar } from "../provider/StellarContextProvider";
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
 import { WalletConfigProps } from "../wallets/walletConfigs";
@@ -45,22 +53,9 @@ import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
 import useIsMobile from "./useIsMobile";
 import { useOrderUsdLimits } from "./useOrderUsdLimits";
 import { useSolanaPaymentOptions } from "./useSolanaPaymentOptions";
+import { useStellarDestination } from "./useStellarDestination";
 import { useStellarPaymentOptions } from "./useStellarPaymentOptions";
 import { useWalletPaymentOptions } from "./useWalletPaymentOptions";
-import { useStellarDestination } from "./useStellarDestination";
-import { useStellar } from "../provider/StellarContextProvider";
-import { ALBEDO_ID } from "@creit.tech/stellar-wallets-kit";
-import {
-  Asset,
-  Networks,
-  Operation,
-  TransactionBuilder,
-} from "@stellar/stellar-sdk";
-import { roundTokenAmount } from "../utils/format";
-import {
-  STELLAR_USDC_ASSET_CODE,
-  STELLAR_USDC_ISSUER_PK,
-} from "../constants/rozoConfig";
 
 /** Wallet payment details, sent to processSourcePayment after submitting tx. */
 export type SourcePayment = Parameters<
@@ -129,7 +124,8 @@ export interface PaymentState {
     option: DepositAddressPaymentOptions
   ) => Promise<DepositAddressPaymentOptionData | null>;
   payWithSolanaToken: (
-    inputToken: SolanaPublicKey
+    inputToken: SolanaPublicKey,
+    walletPaymentOption?: WalletPaymentOption
   ) => Promise<{ txHash: string; success: boolean }>;
   payWithStellarToken: (
     inputToken: RozoPayTokenAmount,
@@ -374,7 +370,8 @@ export function usePaymentState({
   };
 
   const payWithSolanaToken = async (
-    inputToken: SolanaPublicKey
+    inputToken: SolanaPublicKey,
+    walletPaymentOption?: WalletPaymentOption
   ): Promise<{ txHash: string; success: boolean }> => {
     const payerPublicKey = solanaWallet.publicKey;
     assert(
@@ -394,7 +391,11 @@ export function usePaymentState({
 
     let hydratedOrder: RozoPayHydratedOrderWithOrg;
     if (pay.paymentState !== "payment_unpaid") {
-      const res = await pay.hydrateOrder();
+      const res = await pay.hydrateOrder(
+        // @TODO: Revalidate this
+        undefined, // refundAddress
+        walletPaymentOption
+      );
       hydratedOrder = res.order;
 
       log(

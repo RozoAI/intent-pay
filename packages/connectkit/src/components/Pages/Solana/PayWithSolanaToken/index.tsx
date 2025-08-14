@@ -51,7 +51,10 @@ const PayWithSolanaToken: React.FC = () => {
   const handleTransfer = async (option: WalletPaymentOption) => {
     setPayState(PayState.RequestingPayment);
     try {
-      const result = await payWithSolanaToken(option.required.token.token);
+      const result = await payWithSolanaToken(
+        option.required.token.token,
+        option,
+      );
       setTxURL(getChainExplorerTxUrl(solana.chainId, result.txHash));
       if (result.success) {
         setPayState(PayState.RequestSuccessful);

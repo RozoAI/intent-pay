@@ -7,6 +7,7 @@ import {
   readRozoPayOrderID,
   RozoPayOrderMode,
   RozoPayOrderWithOrg,
+  solanaUSDC,
   stellar,
 } from "@rozoai/intent-common";
 import { formatUnits, getAddress } from "viem";
@@ -317,13 +318,23 @@ async function runHydratePayParamsEffects(
       walletPaymentOption &&
       walletPaymentOption.required.token.token === polygonUSDC.token
     ) {
-      console.log("[runHydratePayParamsEffects] Pay In Polygon");
+      console.log("[runHydratePayParamsEffects] Pay In USDC Polygon");
       preferred.preferredChain = String(polygonUSDC.chainId);
       preferred.preferredToken = "USDC";
 
       Object.assign(preferred, {
         preferredTokenAddress: polygonUSDC.token as `0x${string}`,
       });
+    }
+
+    // Pay In USDC Solana scenario
+    if (
+      walletPaymentOption &&
+      walletPaymentOption.required.token.token === solanaUSDC.token
+    ) {
+      console.log("[runHydratePayParamsEffects] Pay In USDC Solana");
+      preferred.preferredChain = String(solanaUSDC.chainId);
+      preferred.preferredToken = "USDC";
     }
 
     // Pay Out USDC Stellar scenario
@@ -356,8 +367,14 @@ async function runHydratePayParamsEffects(
       throw new Error(rozoPayment?.error?.message ?? "Payment creation failed");
     }
     rozoPaymentId = rozoPayment.data.id;
-    toAddress = rozoPayment.data.destination
-      .destinationAddress as `0x${string}`;
+    if (rozoPayment.data.destination.destinationAddress) {
+      toAddress = rozoPayment.data.destination
+        .destinationAddress as `0x${string}`;
+    } else {
+      console.log(
+        "[runHydratePayParamsEffects] toAddress is not set, nothing changes"
+      );
+    }
   }
 
   // Pay In USDC Base, Pay Out USDC Stellar scenario
