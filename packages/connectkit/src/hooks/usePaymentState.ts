@@ -321,7 +321,7 @@ export function usePaymentState({
         )} does not match fees token ${debugJson(fees)}`
       );
 
-            // Will refund to ethWalletAddress if refundAddress was not set in payParams
+      // Will refund to ethWalletAddress if refundAddress was not set in payParams
       // and provide walletOption to hydrateOrder
       const res = await pay.hydrateOrder(ethWalletAddress, walletOption);
       hydratedOrder = res.order;
