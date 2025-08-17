@@ -37,6 +37,8 @@ const PayWithSolanaToken: React.FC = () => {
   const [payState, setPayStateInner] = useState<PayState>(
     PayState.RequestingPayment,
   );
+  const [txURL, setTxURL] = useState<string | undefined>();
+  
   const setPayState = (state: PayState) => {
     if (state === payState) return;
     setPayStateInner(state);
@@ -46,15 +48,11 @@ const PayWithSolanaToken: React.FC = () => {
       data: { state },
     });
   };
-  const [txURL, setTxURL] = useState<string | undefined>();
 
   const handleTransfer = async (option: WalletPaymentOption) => {
     setPayState(PayState.RequestingPayment);
     try {
-      const result = await payWithSolanaToken(
-        option.required.token.token,
-        option,
-      );
+      const result = await payWithSolanaToken(option);
       setTxURL(getChainExplorerTxUrl(solana.chainId, result.txHash));
       if (result.success) {
         setPayState(PayState.RequestSuccessful);

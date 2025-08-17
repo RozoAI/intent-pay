@@ -1,4 +1,4 @@
-import { stellar } from "@rozoai/intent-common";
+import { rozoStellar } from "@rozoai/intent-common";
 import { Asset } from "@stellar/stellar-sdk";
 
 /**
@@ -23,12 +23,12 @@ export const STELLAR_USDC_ISSUER_PK =
 
 // --- ⭐️ Updated Static Token Information to match JSON structure ---
 export const STELLAR_XLM_TOKEN_INFO = {
-  chainId: stellar.chainId,
+  chainId: rozoStellar.chainId,
   token: "native",
   name: "Stellar Lumens",
   symbol: "XLM",
   decimals: 7,
-  logoSourceURI: "https://invoice.rozo.ai//tokens/stellar.svg", // Placeholder
+  logoSourceURI: "https://invoice.rozo.ai/tokens/stellar.svg", // Placeholder
   logoURI: "https://invoice.rozo.ai/tokens/stellar.svg", // Placeholder
   usd: 0.1, // Default/fallback price
   priceFromUsd: 10,
@@ -39,7 +39,7 @@ export const STELLAR_XLM_TOKEN_INFO = {
 };
 
 export const STELLAR_USDC_TOKEN_INFO = {
-  chainId: stellar.chainId, // Placeholder for Stellar Mainnet
+  chainId: rozoStellar.chainId, // Placeholder for Stellar Mainnet
   token: STELLAR_USDC_ISSUER_PK,
   name: "USD Coin",
   symbol: "USDC",

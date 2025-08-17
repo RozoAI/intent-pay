@@ -7,7 +7,7 @@ import {
   readRozoPayOrderID,
   RozoPayOrderMode,
   RozoPayOrderWithOrg,
-  solanaUSDC,
+  rozoSolanaUSDC,
   stellar,
 } from "@rozoai/intent-common";
 import { formatUnits, getAddress } from "viem";
@@ -311,108 +311,78 @@ async function runHydratePayParamsEffects(
 
   // Pay Out USDC Base scenario
   if (toChain === base.chainId && toToken === baseUSDC.token) {
-    console.log("[runHydratePayParamsEffects] Pay Out USDC Base");
+    try {
+      console.log("[runHydratePayParamsEffects] Pay Out USDC Base");
 
-    // Pay In USDC Polygon
-    if (
-      walletPaymentOption &&
-      walletPaymentOption.required.token.token === polygonUSDC.token
-    ) {
-      console.log("[runHydratePayParamsEffects] Pay In USDC Polygon");
-      preferred.preferredChain = String(polygonUSDC.chainId);
-      preferred.preferredToken = "USDC";
+      // Pay In USDC Polygon
+      if (
+        walletPaymentOption &&
+        walletPaymentOption.required.token.token === polygonUSDC.token
+      ) {
+        console.log("[runHydratePayParamsEffects] Pay In USDC Polygon");
+        preferred.preferredChain = String(polygonUSDC.chainId);
+        preferred.preferredToken = "USDC";
 
-      Object.assign(preferred, {
-        preferredTokenAddress: polygonUSDC.token as `0x${string}`,
+        Object.assign(preferred, {
+          preferredTokenAddress: polygonUSDC.token as `0x${string}`,
+        });
+      }
+
+      // Pay In USDC Solana scenario
+      if (
+        walletPaymentOption &&
+        walletPaymentOption.required.token.token === rozoSolanaUSDC.token
+      ) {
+        console.log("[runHydratePayParamsEffects] Pay In USDC Solana");
+        preferred.preferredChain = String(rozoSolanaUSDC.chainId);
+        preferred.preferredToken = "USDC";
+      }
+
+      // Pay Out USDC Stellar scenario
+      if (payParams?.toStellarAddress) {
+        console.log(
+          "[runHydratePayParamsEffects] Pay Out USDC Stellar scenario"
+        );
+        destination.destinationAddress = payParams?.toStellarAddress;
+        destination.chainId = String(stellar.chainId);
+        destination.tokenSymbol = "USDC_XLM";
+        destination.tokenAddress = STELLAR_USDC_ISSUER_PK;
+      }
+
+      const paymentData = createRozoPaymentRequest({
+        appId: payParams?.rozoAppId ?? ROZO_DAIMO_APP_ID,
+        display: {
+          intent: order?.metadata?.intent ?? "",
+          paymentValue: String(toUnits),
+          currency: "USD",
+        },
+        ...preferred,
+        destination,
+        externalId: order?.externalId ?? "",
+        metadata: {
+          daimoOrderId: order?.id ?? "",
+          ...(order?.metadata ?? {}),
+        },
       });
-    }
 
-    // Pay In USDC Solana scenario
-    if (
-      walletPaymentOption &&
-      walletPaymentOption.required.token.token === solanaUSDC.token
-    ) {
-      console.log("[runHydratePayParamsEffects] Pay In USDC Solana");
-      preferred.preferredChain = String(solanaUSDC.chainId);
-      preferred.preferredToken = "USDC";
-    }
-
-    // Pay Out USDC Stellar scenario
-    if (payParams?.toStellarAddress) {
-      console.log("[runHydratePayParamsEffects] Pay Out USDC Stellar scenario");
-      destination.destinationAddress = payParams?.toStellarAddress;
-      destination.chainId = String(stellar.chainId);
-      destination.tokenSymbol = "USDC_XLM";
-      destination.tokenAddress = STELLAR_USDC_ISSUER_PK;
-    }
-
-    const paymentData = createRozoPaymentRequest({
-      appId: payParams?.rozoAppId ?? ROZO_DAIMO_APP_ID,
-      display: {
-        intent: order?.metadata?.intent ?? "",
-        paymentValue: String(toUnits),
-        currency: "USD",
-      },
-      ...preferred,
-      destination,
-      externalId: order?.externalId ?? "",
-      metadata: {
-        daimoOrderId: order?.id ?? "",
-        ...(order?.metadata ?? {}),
-      },
-    });
-
-    const rozoPayment = await createRozoPayment(paymentData);
-    if (!rozoPayment?.data?.id) {
-      throw new Error(rozoPayment?.error?.message ?? "Payment creation failed");
-    }
-    rozoPaymentId = rozoPayment.data.id;
-    if (rozoPayment.data.destination.destinationAddress) {
-      toAddress = rozoPayment.data.destination
-        .destinationAddress as `0x${string}`;
-    } else {
-      console.log(
-        "[runHydratePayParamsEffects] toAddress is not set, nothing changes"
-      );
+      const rozoPayment = await createRozoPayment(paymentData);
+      if (!rozoPayment?.data?.id) {
+        throw new Error(
+          rozoPayment?.error?.message ?? "Payment creation failed"
+        );
+      }
+      rozoPaymentId = rozoPayment.data.id;
+      if (rozoPayment.data.metadata.receivingAddress) {
+        toAddress = rozoPayment.data.metadata.receivingAddress as `0x${string}`;
+      } else {
+        console.log(
+          "[runHydratePayParamsEffects] toAddress is not set, nothing changes"
+        );
+      }
+    } catch (e) {
+      console.error(e);
     }
   }
-
-  // Pay In USDC Base, Pay Out USDC Stellar scenario
-  // if (payParams?.toStellarAddress) {
-  //   const paymentData = createRozoPaymentRequest({
-  //     appId: payParams?.rozoAppId ?? ROZO_DAIMO_APP_ID,
-  //     display: {
-  //       intent: order?.metadata?.intent ?? "",
-  //       paymentValue: String(toUnits),
-  //       currency: "USD",
-  //     },
-  //     preferredChain: String(toChain),
-  //     preferredToken: "USDC",
-  //     destination: {
-  //       destinationAddress: payParams?.toStellarAddress,
-  //       chainId: String(stellar.chainId),
-  //       amountUnits: toUnits,
-  //       tokenSymbol: "USDC_XLM",
-  //       tokenAddress: STELLAR_USDC_ISSUER_PK,
-  //     },
-  //     externalId: order?.externalId ?? "",
-  //     metadata: {
-  //       daimoOrderId: order?.id ?? "",
-  //       ...(order?.metadata ?? {}),
-  //     },
-  //   });
-
-  //   const rozoPayment = await createRozoPayment(paymentData);
-  //   if (!rozoPayment?.data?.id) {
-  //     throw new Error(rozoPayment?.error?.message ?? "Payment creation failed");
-  //   }
-  //   rozoPaymentId = rozoPayment.data.id;
-
-  //   if (toChain === base.chainId && toToken === baseUSDC.token) {
-  //     toAddress = rozoPayment.data.destination
-  //       .destinationAddress as `0x${string}`;
-  //   }
-  // }
 
   // END ROZO API CALL
 

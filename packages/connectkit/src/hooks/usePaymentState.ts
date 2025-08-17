@@ -14,7 +14,6 @@ import {
   readRozoPayOrderID,
   RozoPayHydratedOrderWithOrg,
   RozoPayTokenAmount,
-  SolanaPublicKey,
   WalletPaymentOption,
   writeRozoPayOrderID,
 } from "@rozoai/intent-common";
@@ -32,6 +31,7 @@ import {
 import { ALBEDO_ID } from "@creit.tech/stellar-wallets-kit";
 import {
   Asset,
+  Memo,
   Networks,
   Operation,
   TransactionBuilder,
@@ -124,8 +124,7 @@ export interface PaymentState {
     option: DepositAddressPaymentOptions
   ) => Promise<DepositAddressPaymentOptionData | null>;
   payWithSolanaToken: (
-    inputToken: SolanaPublicKey,
-    walletPaymentOption?: WalletPaymentOption
+    walletPaymentOption: WalletPaymentOption
   ) => Promise<{ txHash: string; success: boolean }>;
   payWithStellarToken: (
     inputToken: RozoPayTokenAmount,
@@ -133,6 +132,7 @@ export interface PaymentState {
       destAddress: string;
       usdcAmount: string;
       stellarAmount: string;
+      memo?: string;
     }
   ) => Promise<{ txHash: string; success: boolean }>;
   openInWalletBrowser: (wallet: WalletConfigProps, amountUsd?: number) => void;
@@ -356,7 +356,7 @@ export function usePaymentState({
       await pay.payEthSource({
         paymentTxHash,
         sourceChainId: required.token.chainId,
-        payerAddress: ethWalletAddress,
+        payerAddress: ethWalletAddress as `0x${string}`,
         sourceToken: getAddress(required.token.token),
         sourceAmount: paymentAmount,
       });
@@ -370,9 +370,9 @@ export function usePaymentState({
   };
 
   const payWithSolanaToken = async (
-    inputToken: SolanaPublicKey,
-    walletPaymentOption?: WalletPaymentOption
+    walletPaymentOption: WalletPaymentOption
   ): Promise<{ txHash: string; success: boolean }> => {
+    const inputToken = walletPaymentOption.required.token.token;
     const payerPublicKey = solanaWallet.publicKey;
     assert(
       payerPublicKey != null,
@@ -421,7 +421,6 @@ export function usePaymentState({
         const txHash = await solanaWallet.sendTransaction(tx, connection);
         return txHash;
       } catch (e) {
-        console.error(e);
         throw e;
       }
     })();
@@ -452,6 +451,7 @@ export function usePaymentState({
       destAddress: string;
       usdcAmount: string;
       stellarAmount: string;
+      memo?: string;
     }
   ): Promise<{ txHash: string; success: boolean }> => {
     try {
@@ -483,7 +483,7 @@ export function usePaymentState({
       const fee = String(await stellarServer.fetchBaseFee());
 
       // Build transaction based on token type
-      let transaction;
+      let transaction: TransactionBuilder;
       const isXlmToken = token.symbol === "XLM";
 
       if (isXlmToken) {
@@ -502,8 +502,7 @@ export function usePaymentState({
               path: [],
             })
           )
-          .setTimeout(180)
-          .build();
+          .setTimeout(180);
       } else {
         // For other tokens, use direct payment
         transaction = new TransactionBuilder(sourceAccount, {
@@ -517,15 +516,23 @@ export function usePaymentState({
               amount: String(rozoPayment.usdcAmount),
             })
           )
-          .setTimeout(180)
-          .build();
+          .setTimeout(180);
       }
 
+      if (rozoPayment.memo) {
+        transaction.addMemo(Memo.text(String(rozoPayment.memo)));
+      }
+
+      const transactionBuilder = transaction.build();
+
       // Sign and submit transaction
-      const signedTx = await stellarKit.signTransaction(transaction.toXDR(), {
-        address: stellarPublicKey,
-        networkPassphrase: Networks.PUBLIC,
-      });
+      const signedTx = await stellarKit.signTransaction(
+        transactionBuilder.toXDR(),
+        {
+          address: stellarPublicKey,
+          networkPassphrase: Networks.PUBLIC,
+        }
+      );
 
       if (!signedTx?.signedTxXdr) {
         throw new Error("Failed to sign transaction");
@@ -535,6 +542,7 @@ export function usePaymentState({
         signedTx.signedTxXdr,
         Networks.PUBLIC
       );
+
       const submittedTx = await stellarServer.submitTransaction(tx);
 
       if (!submittedTx?.successful) {

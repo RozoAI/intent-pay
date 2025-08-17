@@ -109,10 +109,13 @@ const Confirmation: React.FC = () => {
           <ModalH1>Confirming...</ModalH1>
         ) : (
           <>
-            <ModalH1>
-              <Link href={txURL} target="_blank" rel="noopener noreferrer">
-                Payment Completed
-              </Link>
+            <ModalH1 style={{ display: "flex", alignItems: "center", gap: 3, flexDirection: "column" }}>
+              Payment Completed
+              {txURL && (
+                <Link href={txURL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, fontWeight: 400 }}>
+                  See transaction details
+                </Link>
+              )}
             </ModalH1>
             {confirmationMessage && (
               <ModalBody>{confirmationMessage}</ModalBody>
