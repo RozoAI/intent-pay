@@ -13,6 +13,7 @@ import {
   assert,
   getChainExplorerTxUrl,
   getOrderDestChainId,
+  rozoSolana,
   stellar,
 } from "@rozoai/intent-common";
 import { motion } from "framer-motion";
@@ -35,7 +36,10 @@ const Confirmation: React.FC = () => {
 
   const { done, txURL } = useMemo(() => {
     const { tokenMode, txHash, rozoPaymentId } = paymentStateContext;
-    if (tokenMode === "stellar" && txHash) {
+
+    console.log("[CONFIRMATION] tokenMode", {tokenMode, txHash, rozoPaymentId, paymentState, order, paymentStateContext, isConfirming});
+
+    if ((tokenMode === "stellar" || tokenMode === "solana") && txHash) {
       // Add delay before setting payment completed to show confirming state
       if (isConfirming) {
         setTimeout(() => {
@@ -45,7 +49,7 @@ const Confirmation: React.FC = () => {
         return { done: false, txURL: undefined };
       }
 
-      const txURL = getChainExplorerTxUrl(stellar.chainId, txHash);
+      const txURL = getChainExplorerTxUrl(tokenMode === "stellar" ? stellar.chainId : rozoSolana.chainId, txHash);
       return { done: true, txURL };
     } else {
       if (
@@ -69,7 +73,7 @@ const Confirmation: React.FC = () => {
 
   useEffect(() => {
     if (done) {
-      if (paymentStateContext.tokenMode === "stellar") {
+      if (paymentStateContext.tokenMode === "stellar" || paymentStateContext.tokenMode === "solana") {
         setPaymentRozoCompleted(true);
       }
       onSuccess();

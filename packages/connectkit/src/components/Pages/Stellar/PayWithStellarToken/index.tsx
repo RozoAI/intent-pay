@@ -36,6 +36,7 @@ import { getSupportUrl } from "../../../../utils/supportUrl";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
+
 enum PayState {
   CreatingPayment = "Creating Payment Record...",
   RequestingPayment = "Waiting for Payment",
@@ -195,11 +196,11 @@ const PayWithStellarToken: React.FC = () => {
       100
     );
     return () => clearTimeout(transferTimeout);
-  }, [selectedStellarTokenOption]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedStellarTokenOption]);
 
   useEffect(() => {
     triggerResize();
-  }, [payState]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [payState]);
 
   if (selectedStellarTokenOption == null) {
     return <PageContent></PageContent>;

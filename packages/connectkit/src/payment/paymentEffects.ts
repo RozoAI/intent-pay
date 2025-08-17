@@ -116,13 +116,13 @@ export function attachPaymentEffectHandlers(
         }
         break;
       }
-      case "pay_solana_source": {
-        if (prev.type === "payment_unpaid") {
-          runPaySolanaSourceEffects(store, trpc, prev, event);
-        }
-        log(`[EFFECT] invalid event ${event.type} on state ${prev.type}`);
-        break;
-      }
+      // case "pay_solana_source": {
+      //   if (prev.type === "payment_unpaid") {
+      //     runPaySolanaSourceEffects(store, trpc, prev, event);
+      //   }
+      //   log(`[EFFECT] invalid event ${event.type} on state ${prev.type}`);
+      //   break;
+      // }
       // case "pay_stellar_source": {
       //   if (prev.type === "payment_unpaid") {
       //     runPayStellarSourceEffects(store, prev, event);
