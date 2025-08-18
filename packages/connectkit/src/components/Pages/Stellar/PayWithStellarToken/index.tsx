@@ -14,6 +14,7 @@ import {
   baseUSDC,
   getChainExplorerTxUrl,
   RozoPayTokenAmount,
+  rozoStellar,
   stellar,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
@@ -89,8 +90,8 @@ const PayWithStellarToken: React.FC = () => {
         paymentValue: String(payToken.usd),
         currency: "USD",
       },
-      preferredChain: String(stellar.chainId),
-      preferredToken: "USDC_XLM",
+      preferredChain: String(rozoStellar.chainId),
+      preferredToken: "USDC",
       destination: {
         destinationAddress: isPayInStellarOutBase
           ? payParams?.toAddress
@@ -101,7 +102,7 @@ const PayWithStellarToken: React.FC = () => {
         amountUnits: amount,
         tokenSymbol: isPayInStellarOutBase
           ? baseUSDC.symbol
-          : `${STELLAR_USDC_ASSET_CODE}_XLM`,
+          : STELLAR_USDC_ASSET_CODE,
         tokenAddress: isPayInStellarOutBase
           ? baseUSDC.token
           : STELLAR_USDC_ISSUER_PK,

@@ -1,11 +1,11 @@
 "use client";
-import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
 import * as Tokens from "@rozoai/intent-common";
 import {
   getChainName,
   getChainNativeToken,
   knownTokens,
 } from "@rozoai/intent-common";
+import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
 import { useEffect, useState } from "react";
 import { getAddress } from "viem";
 import { Text } from "../../shared/tailwind-catalyst/text";
@@ -79,20 +79,23 @@ export default function DemoBasic() {
         getChainName(config.chainId).toLowerCase() +
         getChainNativeToken(config.chainId)?.symbol;
       if (tokenVarName) {
-        const snippet = `import { ${tokenVarName} } from "@rozoai/intent-common";
+        const snippet = 
+        `
+        import { getAddress } from "viem";
+        import { ${tokenVarName} } from "@rozoai/intent-common";
 
-<RozoPayButton
-  appId="${APP_ID}"
-  toChain={${tokenVarName}.chainId}
-  toAddress={getAddress("${config.recipientAddress}")}
-  ${
-    config.recipientStellarAddress
-      ? `toStellarAddress={"${config.recipientStellarAddress}"}`
-      : ""
-  }
-  toUnits={"${config.amount}"}
-  toToken={getAddress(${tokenVarName}.token)}
-/>`;
+        <RozoPayButton
+          appId="${APP_ID}"
+          toChain={${tokenVarName}.chainId}
+          toAddress={getAddress("${config.recipientAddress}")}
+          ${
+            config.recipientStellarAddress
+              ? `toStellarAddress={"${config.recipientStellarAddress}"}`
+              : ""
+          }
+          toUnits={"${config.amount}"}
+          toToken={getAddress(${tokenVarName}.token)}
+        />`;
         setCodeSnippet(snippet);
         return;
       }
@@ -108,21 +111,24 @@ export default function DemoBasic() {
     const tokenVarName =
       Object.entries(Tokens).find(([_, t]) => t === token)?.[0] || token.symbol;
 
-    const snippet = `import { ${tokenVarName} } from "@rozoai/intent-common";
+    const snippet = 
+    `
+    import { getAddress} from "viem";
+    import { ${tokenVarName}} from "@rozoai/intent-common";
 
 <RozoPayButton
-  appId="${APP_ID}"
-  toChain={${tokenVarName}.chainId}
-  toAddress={getAddress("${config.recipientAddress}")}
-  ${
-    config.recipientStellarAddress
-      ? `toStellarAddress={"${config.recipientStellarAddress}"}
-      toUnits={"${config.amount}"}
-  toToken={getAddress(${tokenVarName}.token)}`
-      : `toUnits={"${config.amount}"}
-  toToken={getAddress(${tokenVarName}.token)}`
-  }
-/>`;
+     appId="${APP_ID}"
+     toChain={${tokenVarName}.chainId}
+     toAddress={getAddress("${config.recipientAddress}")}
+ ${
+  config.recipientStellarAddress
+ ?    `toStellarAddress={"${config.recipientStellarAddress}"}
+     toUnits={"${config.amount}"}
+     toToken={getAddress(${tokenVarName}.token)}`
+ :    `toUnits={"${config.amount}"}
+     toToken={getAddress(${tokenVarName}.token)}`
+ }
+ />`;
     setCodeSnippet(snippet);
   }, [config, hasValidConfig]);
 

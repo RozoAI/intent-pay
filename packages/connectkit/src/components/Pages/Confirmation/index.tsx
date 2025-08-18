@@ -11,6 +11,7 @@ import {
 
 import {
   assert,
+  baseUSDC,
   getChainExplorerTxUrl,
   getOrderDestChainId,
   rozoSolana,
@@ -39,7 +40,10 @@ const Confirmation: React.FC = () => {
 
     console.log("[CONFIRMATION] tokenMode", {tokenMode, txHash, rozoPaymentId, paymentState, order, paymentStateContext, isConfirming});
 
-    if ((tokenMode === "stellar" || tokenMode === "solana") && txHash) {
+    const isRozoPayment = tokenMode === "stellar" || tokenMode === "solana" || 
+      (tokenMode === "evm" && order && order.destFinalCallTokenAmount?.token.token === baseUSDC.token);
+    
+    if (isRozoPayment && txHash) {
       // Add delay before setting payment completed to show confirming state
       if (isConfirming) {
         setTimeout(() => {
@@ -49,7 +53,17 @@ const Confirmation: React.FC = () => {
         return { done: false, txURL: undefined };
       }
 
-      const txURL = getChainExplorerTxUrl(tokenMode === "stellar" ? stellar.chainId : rozoSolana.chainId, txHash);
+      // Determine chain ID based on token mode
+      let chainId: number;
+      if (tokenMode === "stellar") {
+        chainId = stellar.chainId;
+      } else if (tokenMode === "solana") {
+        chainId = rozoSolana.chainId;
+      } else {
+        chainId = Number(paymentStateContext.selectedTokenOption?.required.token.chainId);
+      }
+
+      const txURL = getChainExplorerTxUrl(chainId, txHash);
       return { done: true, txURL };
     } else {
       if (

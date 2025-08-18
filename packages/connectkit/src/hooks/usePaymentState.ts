@@ -354,9 +354,15 @@ export function usePaymentState({
 
     const paymentTxHash = await (async () => {
       try {
+        console.log("[PAY TOKEN] sending token", {
+          required,
+          hydratedOrder,
+          paymentAmount,
+        });
+
         if (required.token.token === zeroAddress) {
           return await sendTransactionAsync({
-            to: hydratedOrder.intentAddr, // TODO: Change this to middleware address from API, if it's ready
+            to: hydratedOrder.destFinalCall.to,
             value: paymentAmount,
           });
         } else {
@@ -364,7 +370,7 @@ export function usePaymentState({
             abi: erc20Abi,
             address: getAddress(required.token.token),
             functionName: "transfer",
-            args: [hydratedOrder.intentAddr, paymentAmount], // TODO: Change this to middleware address from API, if it's ready
+            args: [hydratedOrder.destFinalCall.to, paymentAmount],
           });
         }
       } catch (e) {
@@ -374,13 +380,14 @@ export function usePaymentState({
     })();
 
     try {
-      await pay.payEthSource({
-        paymentTxHash,
-        sourceChainId: required.token.chainId,
-        payerAddress: ethWalletAddress as `0x${string}`,
-        sourceToken: getAddress(required.token.token),
-        sourceAmount: paymentAmount,
-      });
+      //   await pay.payEthSource({
+      //     paymentTxHash,
+      //     sourceChainId: required.token.chainId,
+      //     payerAddress: ethWalletAddress as `0x${string}`,
+      //     sourceToken: getAddress(required.token.token),
+      //     sourceAmount: paymentAmount,
+      //   });
+      setTxHash(paymentTxHash);
       return { txHash: paymentTxHash, success: true };
     } catch {
       console.error(

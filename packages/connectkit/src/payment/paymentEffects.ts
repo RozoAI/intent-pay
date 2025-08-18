@@ -8,7 +8,7 @@ import {
   RozoPayOrderMode,
   RozoPayOrderWithOrg,
   rozoSolanaUSDC,
-  stellar,
+  rozoStellar,
 } from "@rozoai/intent-common";
 import { formatUnits, getAddress } from "viem";
 import {
@@ -309,7 +309,11 @@ async function runHydratePayParamsEffects(
     tokenAddress: toToken as string,
   };
 
-  // Pay Out USDC Base scenario
+  /**
+   * Pay Out USDC Base scenario
+   *
+   * @link https://github.com/RozoAI/rozo-payment-manager/tree/staging?tab=readme-ov-file#supported-chains-and-tokens
+   */
   if (toChain === base.chainId && toToken === baseUSDC.token) {
     try {
       console.log("[runHydratePayParamsEffects] Pay Out USDC Base");
@@ -328,7 +332,7 @@ async function runHydratePayParamsEffects(
         });
       }
 
-      // Pay In USDC Solana scenario
+      // Pay In USDC Solana
       if (
         walletPaymentOption &&
         walletPaymentOption.required.token.token === rozoSolanaUSDC.token
@@ -338,15 +342,13 @@ async function runHydratePayParamsEffects(
         preferred.preferredToken = "USDC";
       }
 
-      // Pay Out USDC Stellar scenario
+      // Pay Out USDC Stellar
       if (payParams?.toStellarAddress) {
-        console.log(
-          "[runHydratePayParamsEffects] Pay Out USDC Stellar scenario"
-        );
+        console.log("[runHydratePayParamsEffects] Pay Out USDC Stellar");
         destination.destinationAddress = payParams?.toStellarAddress;
-        destination.chainId = String(stellar.chainId);
-        destination.tokenSymbol = "USDC_XLM";
-        destination.tokenAddress = STELLAR_USDC_ISSUER_PK;
+        destination.chainId = String(rozoStellar.chainId);
+        destination.tokenSymbol = "USDC";
+        destination.tokenAddress = `USDC:${STELLAR_USDC_ISSUER_PK}`;
       }
 
       const paymentData = createRozoPaymentRequest({
@@ -387,6 +389,13 @@ async function runHydratePayParamsEffects(
   // END ROZO API CALL
 
   try {
+    console.log("[runHydratePayParamsEffects] creating order", {
+      order,
+      toAddress,
+      toChain,
+      toToken,
+      toUnits,
+    });
     const { hydratedOrder } = await trpc.createOrder.mutate({
       // appId: prev.payParamsData.appId,
       appId: ROZO_DAIMO_APP_ID,
