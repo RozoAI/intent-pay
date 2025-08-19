@@ -13,7 +13,6 @@ import {
   PlatformType,
   readRozoPayOrderID,
   RozoPayHydratedOrderWithOrg,
-  RozoPayTokenAmount,
   WalletPaymentOption,
   writeRozoPayOrderID,
 } from "@rozoai/intent-common";
@@ -148,14 +147,14 @@ export interface PaymentState {
     }
   ) => Promise<{ txHash: string; success: boolean }>;
   payWithStellarToken: (
-    inputToken: RozoPayTokenAmount,
+    option: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
       usdcAmount: string;
       stellarAmount: string;
       memo?: string;
     }
-  ) => Promise<{ txHash: string; success: boolean }>;
+  ) => Promise<{ signedTx: string; success: boolean }>;
   openInWalletBrowser: (wallet: WalletConfigProps, amountUsd?: number) => void;
   senderEnsName: string | undefined;
   setTxHash: (txHash: string) => void;
@@ -605,14 +604,14 @@ export function usePaymentState({
    * @returns Transaction hash and success status
    */
   const payWithStellarToken = async (
-    payToken: RozoPayTokenAmount,
+    walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
       usdcAmount: string;
       stellarAmount: string;
       memo?: string;
     }
-  ): Promise<{ txHash: string; success: boolean }> => {
+  ): Promise<{ signedTx: string; success: boolean }> => {
     try {
       // Initial validation
       if (!stellarPublicKey) {
@@ -627,7 +626,7 @@ export function usePaymentState({
         throw new Error("Stellar services not initialized");
       }
 
-      const token = payToken.token;
+      const token = walletPaymentOption.required.token;
 
       const destinationAddress = rozoPayment.destAddress;
       // const amount = rozoPayment.amount;
@@ -684,34 +683,23 @@ export function usePaymentState({
 
       const transactionBuilder = transaction.build();
 
-      // Sign and submit transaction
-      const signedTx = await stellarKit.signTransaction(
-        transactionBuilder.toXDR(),
-        {
-          address: stellarPublicKey,
-          networkPassphrase: Networks.PUBLIC,
-        }
+      console.log(
+        "[PAY STELLAR] Transaction built",
+        transactionBuilder.toXDR()
       );
+      return { signedTx: transactionBuilder.toXDR(), success: true };
 
-      if (!signedTx?.signedTxXdr) {
-        throw new Error("Failed to sign transaction");
-      }
+      // const submittedTx = await stellarServer.submitTransaction(tx);
 
-      const tx = TransactionBuilder.fromXDR(
-        signedTx.signedTxXdr,
-        Networks.PUBLIC
-      );
+      // if (!submittedTx?.successful) {
+      //   throw new Error(
+      //     `Transaction failed: ${submittedTx?.result_xdr ?? "Unknown error"}`
+      //   );
+      // }
 
-      const submittedTx = await stellarServer.submitTransaction(tx);
-
-      if (!submittedTx?.successful) {
-        throw new Error(
-          `Transaction failed: ${submittedTx?.result_xdr ?? "Unknown error"}`
-        );
-      }
-
-      return { txHash: submittedTx?.hash ?? "", success: true };
+      // return { txHash: submittedTx?.hash ?? "", success: true };
     } catch (error: any) {
+      console.log("[PAY STELLAR] Error", error);
       throw new Error(error.message);
     }
   };

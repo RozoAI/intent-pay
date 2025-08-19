@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
 
@@ -12,12 +12,17 @@ import {
 import {
   base,
   baseUSDC,
-  getChainExplorerTxUrl,
   RozoPayTokenAmount,
   rozoStellar,
   stellar,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
+import {
+  FeeBumpTransaction,
+  Networks,
+  Transaction,
+  TransactionBuilder,
+} from "@stellar/stellar-sdk";
 import {
   ROZO_DAIMO_APP_ID,
   ROZO_STELLAR_ADDRESS,
@@ -41,6 +46,7 @@ import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
 enum PayState {
   CreatingPayment = "Creating Payment Record...",
   RequestingPayment = "Waiting for Payment",
+  WaitingForConfirmation = "Waiting for Confirmation",
   RequestCancelled = "Payment Cancelled",
   RequestFailed = "Payment Failed",
   RequestSuccessful = "Payment Successful",
@@ -56,18 +62,26 @@ const PayWithStellarToken: React.FC = () => {
     setRozoPaymentId,
   } = paymentState;
   const { order, setPaymentRozoCompleted, hydrateOrder } = useRozoPay();
+
   const [payState, setPayState] = useState<PayState>(PayState.CreatingPayment);
   const [txURL, setTxURL] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
   const [activeRozoPayment, setActiveRozoPayment] = useState<
     PaymentResponseData | undefined
   >();
+  const [signedTx, setSignedTx] = useState<string | undefined>();
+  const submitButtonRef = useRef<HTMLButtonElement>(null);
 
   // Get the destination address and payment direction using our custom hook
   const { destinationAddress, isPayInStellarOutBase } =
     useStellarDestination(payParams);
 
-  const { convertXlmToUsdc } = useStellar();
+  const {
+    convertXlmToUsdc,
+    server: stellarServer,
+    publicKey: stellarPublicKey,
+    kit: stellarKit,
+  } = useStellar();
 
   // ROZO API CALL
   const handleCreatePayment = async (
@@ -148,34 +162,24 @@ const PayWithStellarToken: React.FC = () => {
 
       const paymentData = {
         destAddress: isPayInStellarOutBase
-          ? payment.metadata.receivingAddress as string ?? ROZO_STELLAR_ADDRESS
+          ? (payment.metadata.receivingAddress as string) ??
+            ROZO_STELLAR_ADDRESS
           : destinationAddress,
         usdcAmount: payment.destination.amountUnits,
         stellarAmount: roundTokenAmount(
           option.required.amount,
           option.required.token
         ),
-      }
+      };
 
       if (payment.metadata?.memo) {
         Object.assign(paymentData, { memo: payment.metadata.memo as string });
       }
 
-      const result = await payWithStellarTokenImpl(option.required, paymentData);
-
-      setTxURL(getChainExplorerTxUrl(stellar.chainId, result.txHash));
-
-      if (result.success) {
-        setPayState(PayState.RequestSuccessful);
-        setTxHash(result.txHash);
-        setTimeout(() => {
-          setActiveRozoPayment(undefined);
-          setPaymentRozoCompleted(true);
-          setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
-        }, 200);
-      } else {
-        setPayState(PayState.RequestFailed);
-      }
+      console.log("[PAY STELLAR] Payment data", paymentData);
+      const result = await payWithStellarTokenImpl(option, paymentData);
+      setSignedTx(result.signedTx);
+      setPayState(PayState.WaitingForConfirmation);
     } catch (error) {
       console.error(error);
       if (error instanceof Error && error.message.includes("declined")) {
@@ -187,6 +191,41 @@ const PayWithStellarToken: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  const handleSubmitTx = async () => {
+    console.log("[PAY STELLAR] Submitting transaction", signedTx);
+    if (signedTx && stellarServer && stellarKit) {
+      // Sign and submit transaction
+      const signedTransaction = await stellarKit.signTransaction(signedTx, {
+        address: stellarPublicKey,
+        networkPassphrase: Networks.PUBLIC,
+      });
+      const tx = TransactionBuilder.fromXDR(signedTransaction.signedTxXdr, Networks.PUBLIC);
+      const response = await stellarServer.submitTransaction(
+        tx as Transaction | FeeBumpTransaction
+      );
+
+      console.log("[PAY STELLAR] Transaction submitted", response);
+      if (response.successful) {
+        setPayState(PayState.RequestSuccessful);
+        setTxHash(response.hash);
+        setSignedTx(undefined);
+        setTimeout(() => {
+          setActiveRozoPayment(undefined);
+          setPaymentRozoCompleted(true);
+          setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
+        }, 200);
+      } else {
+        setPayState(PayState.RequestFailed);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (signedTx) {
+      submitButtonRef.current?.click();
+    }
+  }, [signedTx]);
 
   useEffect(() => {
     if (!selectedStellarTokenOption) return;
@@ -209,6 +248,11 @@ const PayWithStellarToken: React.FC = () => {
 
   return (
     <PageContent>
+      <button
+        ref={submitButtonRef}
+        style={{ display: "none" }}
+        onClick={handleSubmitTx}
+      />
       {selectedStellarTokenOption && (
         <TokenLogoSpinner
           token={selectedStellarTokenOption.required.token}
@@ -226,6 +270,16 @@ const PayWithStellarToken: React.FC = () => {
           <ModalH1>{payState}</ModalH1>
         )}
         <PaymentBreakdown paymentOption={selectedStellarTokenOption} />
+        {payState === PayState.WaitingForConfirmation && signedTx && (
+          <Button
+            variant="primary"
+            onClick={() => {
+              handleSubmitTx();
+            }}
+          >
+            Confirm Payment
+          </Button>
+        )}
         {payState === PayState.RequestCancelled && (
           <Button onClick={() => handleTransfer(selectedStellarTokenOption)}>
             Retry Payment
