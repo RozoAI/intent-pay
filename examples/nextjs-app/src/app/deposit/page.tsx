@@ -250,11 +250,11 @@ import { ${tokenVarName}} from "@rozoai/intent-common";
               <li>
                 <code>toToken</code> to Base USDC ({baseUSDC.token})
               </li>
+              <li>
+                The <code>toAddress</code> can be any valid EVM address in this
+                case.
+              </li>
             </ul>
-            <p>
-              The <code>toAddress</code> can be any valid EVM address in this
-              case.
-            </p>
           </div>
         )}
       </div>
