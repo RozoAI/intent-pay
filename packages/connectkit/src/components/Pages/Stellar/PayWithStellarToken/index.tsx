@@ -146,7 +146,7 @@ const PayWithStellarToken: React.FC = () => {
         throw new Error("Stellar destination address is required");
       }
 
-      await hydrateOrder(undefined, option);
+      // await hydrateOrder(undefined, option);
 
       let payment: PaymentResponseData | undefined = activeRozoPayment;
       if (!payment) {
