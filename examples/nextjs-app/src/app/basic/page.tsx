@@ -17,6 +17,7 @@ import { APP_ID, Container, printEvent, usePersistedConfig } from "../shared";
 type Config = {
   recipientAddress: string;
   recipientStellarAddress?: string;
+  recipientSolanaAddress?: string;
   chainId: number;
   tokenAddress: string;
   amount: string;
@@ -29,6 +30,7 @@ export default function DemoBasic() {
   const [config, setConfig] = usePersistedConfig("rozo-basic-config", {
     recipientAddress: "",
     recipientStellarAddress: "",
+    recipientSolanaAddress: "",
     chainId: 0,
     tokenAddress: "",
     amount: "",
@@ -37,6 +39,8 @@ export default function DemoBasic() {
   const [parsedConfig, setParsedConfig] = useState<Config | null>(null);
   const { resetPayment } = useRozoPayUI();
 
+  console.log({ parsedConfig });
+
   const handleSetConfig = (config: Config) => {
     setConfig(config);
     setParsedConfig(config);
@@ -44,6 +48,7 @@ export default function DemoBasic() {
       toChain: config.chainId,
       toAddress: getAddress(config.recipientAddress),
       toStellarAddress: config.recipientStellarAddress,
+      toSolanaAddress: config.recipientSolanaAddress,
       toUnits: config.amount,
       toToken: getAddress(config.tokenAddress),
     });
@@ -131,6 +136,11 @@ export default function DemoBasic() {
               ? `toStellarAddress={"${parsedConfig.recipientStellarAddress}"}`
               : ""
           }
+          ${
+            parsedConfig.recipientSolanaAddress
+              ? `toSolanaAddress={"${parsedConfig.recipientSolanaAddress}"}`
+              : ""
+          }
           toUnits={"${parsedConfig.amount}"}
           toToken={getAddress(${tokenVarName}.token)}
         />`;
@@ -141,7 +151,7 @@ export default function DemoBasic() {
 
     // For non-native tokens
     const token = knownTokens.find(
-      (t) =>
+      (t: any) =>
         t.token === parsedConfig.tokenAddress &&
         t.chainId === parsedConfig.chainId
     );
@@ -159,14 +169,15 @@ export default function DemoBasic() {
      appId="${APP_ID}"
      toChain={${tokenVarName}.chainId}
      toAddress={getAddress("${parsedConfig.recipientAddress}")}
- ${
-   parsedConfig.recipientStellarAddress
-     ? `toStellarAddress={"${parsedConfig.recipientStellarAddress}"}
-     toUnits={"${parsedConfig.amount}"}
-     toToken={getAddress(${tokenVarName}.token)}`
-     : `toUnits={"${parsedConfig.amount}"}
-     toToken={getAddress(${tokenVarName}.token)}`
+ ${`${
+   parsedConfig.recipientStellarAddress !== ""
+     ? `toStellarAddress={"${parsedConfig.recipientStellarAddress}"}`
+     : parsedConfig.recipientSolanaAddress !== ""
+     ? `toSolanaAddress={"${parsedConfig.recipientSolanaAddress}"}`
+     : ""
  }
+     toUnits={"${parsedConfig.amount}"}
+     toToken={getAddress(${tokenVarName}.token)}`}
  />`;
     setCodeSnippet(snippet);
   }, [parsedConfig, hasValidConfig]);
@@ -186,6 +197,7 @@ export default function DemoBasic() {
               toChain={parsedConfig.chainId}
               toAddress={getAddress(parsedConfig.recipientAddress)}
               toStellarAddress={parsedConfig.recipientStellarAddress}
+              toSolanaAddress={parsedConfig.recipientSolanaAddress}
               toUnits={parsedConfig.amount}
               toToken={getAddress(config.tokenAddress)}
               onPaymentStarted={printEvent}

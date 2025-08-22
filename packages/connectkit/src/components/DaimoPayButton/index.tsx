@@ -5,16 +5,16 @@ import { TextContainer } from "./styles";
 
 import {
   assertNotNull,
-  RozoPayEventType,
-  RozoPayOrderView,
-  RozoPayUserMetadata,
   ExternalPaymentOptionsString,
-  getRozoPayOrderView,
   getOrderDestChainId,
   getOrderSourceChainId,
+  getRozoPayOrderView,
   PaymentBouncedEvent,
   PaymentCompletedEvent,
   PaymentStartedEvent,
+  RozoPayEventType,
+  RozoPayOrderView,
+  RozoPayUserMetadata,
   writeRozoPayOrderID,
 } from "@rozoai/intent-common";
 import { AnimatePresence, Variants } from "framer-motion";
@@ -57,6 +57,10 @@ export type PayButtonPaymentProps =
        * The destination stellar address to transfer to.
        */
       toStellarAddress?: string;
+      /**
+       * The destination solana address to transfer to.
+       */
+      toSolanaAddress?: string;
       /**
        * Optional calldata to call an arbitrary function on `toAddress`.
        */
@@ -190,6 +194,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
           toChain: props.toChain,
           toAddress: props.toAddress,
           toStellarAddress: props.toStellarAddress,
+          toSolanaAddress: props.toSolanaAddress,
           toToken: props.toToken,
           toUnits: props.toUnits,
           toCallData: props.toCallData,
