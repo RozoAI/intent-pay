@@ -199,7 +199,7 @@ export default function DemoBasic() {
               toStellarAddress={parsedConfig.recipientStellarAddress}
               toSolanaAddress={parsedConfig.recipientSolanaAddress}
               toUnits={parsedConfig.amount}
-              toToken={getAddress(config.tokenAddress)}
+              toToken={getAddress(parsedConfig.tokenAddress)}
               onPaymentStarted={printEvent}
               onPaymentCompleted={printEvent}
               resetOnSuccess={true}
@@ -238,13 +238,17 @@ export default function DemoBasic() {
           defaultRecipientAddress={config.recipientAddress}
         />
 
-        {parsedConfig?.recipientStellarAddress && (
+        {parsedConfig?.recipientStellarAddress ||
+        parsedConfig?.recipientSolanaAddress ? (
           <div className="text-sm text-gray-600 text-left">
             <p className="mb-2">
-              <strong>Note:</strong> When using <code>toStellarAddress</code>,
-              you must set:
+              <strong>Note:</strong>
             </p>
             <ul className="list-disc list-inside mb-2">
+              <li>
+                When using <code>toStellarAddress</code> or{" "}
+                <code>toSolanaAddress</code>, you must set:
+              </li>
               <li>
                 <code>toChain</code> to Base Chain ({baseUSDC.chainId})
               </li>
@@ -257,7 +261,7 @@ export default function DemoBasic() {
               </li>
             </ul>
           </div>
-        )}
+        ) : null}
       </div>
     </Container>
   );
