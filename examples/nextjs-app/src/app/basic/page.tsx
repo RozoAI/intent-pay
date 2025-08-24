@@ -170,9 +170,9 @@ export default function DemoBasic() {
      toChain={${tokenVarName}.chainId}
      toAddress={getAddress("${parsedConfig.recipientAddress}")}
  ${`${
-   parsedConfig.recipientStellarAddress !== ""
+   parsedConfig.recipientStellarAddress
      ? `toStellarAddress={"${parsedConfig.recipientStellarAddress}"}`
-     : parsedConfig.recipientSolanaAddress !== ""
+     : parsedConfig.recipientSolanaAddress
      ? `toSolanaAddress={"${parsedConfig.recipientSolanaAddress}"}`
      : ""
  }

@@ -799,7 +799,15 @@ export function usePaymentState({
     );
 
     const payId = writeRozoPayOrderID(pay.order.id);
-    const deeplink = wallet.getRozoPayDeeplink(payId);
+
+    let ref: string | undefined = undefined;
+
+    // Refer to: https://stackoverflow.com/a/78637988/13172178
+    if (wallet.name === "Phantom") {
+      ref = isIOS ? "1598432977" : "app.phantom";
+    }
+
+    const deeplink = wallet.getRozoPayDeeplink(payId, ref);
     // If we are in IOS, we don't open the deeplink in a new window, because it
     // will not work, the link will be opened in the page WAITING_WALLET
     if (!isIOS) {
