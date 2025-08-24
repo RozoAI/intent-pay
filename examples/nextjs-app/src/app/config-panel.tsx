@@ -87,8 +87,6 @@ export function ConfigPanel({
           });
         }
 
-        console.log({ parsedConfig });
-
         if (
           parsedConfig &&
           typeof parsedConfig === "object" &&

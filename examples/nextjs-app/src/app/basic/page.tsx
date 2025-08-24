@@ -39,8 +39,6 @@ export default function DemoBasic() {
   const [parsedConfig, setParsedConfig] = useState<Config | null>(null);
   const { resetPayment } = useRozoPayUI();
 
-  console.log({ parsedConfig });
-
   const handleSetConfig = (config: Config) => {
     setConfig(config);
     setParsedConfig(config);
