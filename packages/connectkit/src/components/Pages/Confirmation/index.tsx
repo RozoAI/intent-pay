@@ -120,22 +120,56 @@ const Confirmation: React.FC = () => {
     return { done: false, txURL: undefined, rawPayInHash: undefined };
   }, [paymentState, order, paymentStateContext, isConfirming]);
 
+  const generateReceiptUrl = useMemo(() => {
+    if (rozoPaymentId) {
+      const url = new URL(`${ROZO_INVOICE_URL}/receipt`);
+      url.searchParams.set("id", rozoPaymentId);
+      if (rawPayInHash) {
+        url.searchParams.set("payInHash", rawPayInHash);
+      }
+
+      if (payoutTxHash) {
+        url.searchParams.set("payoutHash", payoutTxHash);
+      }
+      return url.toString();
+    }
+    return undefined;
+  }, [rozoPaymentId, rawPayInHash, payoutTxHash]);
+
+  const showPayoutLink = useMemo(() => {
+    return (
+      paymentStateContext.tokenMode === "stellar" ||
+      paymentStateContext.tokenMode === "solana"
+    );
+  }, [paymentStateContext]);
+
   useEffect(() => {
-    if (txURL && order) {
+    if (txURL && order && done && rozoPaymentId) {
       console.log(
         "[CONFIRMATION] Starting payout polling for order:",
         order.externalId
       );
       setPayoutLoading(true);
-      const interval = setInterval(async () => {
-        if (rozoPaymentId) {
+
+      let isActive = true;
+      let timeoutId: NodeJS.Timeout;
+
+      const pollPayout = async () => {
+        if (!isActive || !rozoPaymentId) return;
+
+        try {
           console.log(
             "[CONFIRMATION] Polling for payout transaction:",
             rozoPaymentId
           );
           const response = await fetchApi(`payment/id/${rozoPaymentId}`);
           console.log("[CONFIRMATION] Payout polling response:", response.data);
-          if (response.data && response.data.payoutTransactionHash) {
+
+          if (
+            isActive &&
+            response.data &&
+            response.data.payoutTransactionHash
+          ) {
             const url = getChainExplorerTxUrl(
               Number(response.data.destination.chainId),
               response.data.payoutTransactionHash
@@ -149,14 +183,32 @@ const Confirmation: React.FC = () => {
             setPayoutTxHash(response.data.payoutTransactionHash);
             setPayoutTxHashUrl(url);
             setPayoutLoading(false);
-            clearInterval(interval);
+            return;
+          }
+
+          // Schedule next poll
+          if (isActive) {
+            timeoutId = setTimeout(pollPayout, 5000);
+          }
+        } catch (error) {
+          console.error("[CONFIRMATION] Payout polling error:", error);
+          if (isActive) {
+            timeoutId = setTimeout(pollPayout, 5000);
           }
         }
-      }, 3000);
+      };
 
-      return () => clearInterval(interval);
+      // Start polling
+      timeoutId = setTimeout(pollPayout, 0);
+
+      return () => {
+        isActive = false;
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      };
     }
-  }, [txURL, order]);
+  }, [txURL, order, done, rozoPaymentId]);
 
   useEffect(() => {
     if (done) {
@@ -232,28 +284,30 @@ const Confirmation: React.FC = () => {
                     </LinkContainer>
                   </ModalBody>
                 </ListItem>
-                <ListItem>
-                  <ModalBody>Receiver Hash</ModalBody>
-                  <ModalBody>
-                    {payoutLoading ? (
-                      <LoadingText>Processing payout...</LoadingText>
-                    ) : payoutTxHashUrl && payoutTxHash ? (
-                      <LinkContainer>
-                        <Link
-                          href={payoutTxHashUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ fontSize: 14, fontWeight: 400 }}
-                        >
-                          {getAddressContraction(payoutTxHash)}
-                        </Link>
-                        <ExternalIcon />
-                      </LinkContainer>
-                    ) : (
-                      <PlaceholderText>Pending...</PlaceholderText>
-                    )}
-                  </ModalBody>
-                </ListItem>
+                {showPayoutLink && (
+                  <ListItem>
+                    <ModalBody>Receiver Hash</ModalBody>
+                    <ModalBody>
+                      {payoutLoading ? (
+                        <LoadingText>Processing payout...</LoadingText>
+                      ) : payoutTxHashUrl && payoutTxHash ? (
+                        <LinkContainer>
+                          <Link
+                            href={payoutTxHashUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: 14, fontWeight: 400 }}
+                          >
+                            {getAddressContraction(payoutTxHash)}
+                          </Link>
+                          <ExternalIcon />
+                        </LinkContainer>
+                      ) : (
+                        <PlaceholderText>Pending...</PlaceholderText>
+                      )}
+                    </ModalBody>
+                  </ListItem>
+                )}
               </ListContainer>
             )}
 
@@ -263,14 +317,15 @@ const Confirmation: React.FC = () => {
           </>
         )}
 
-        <Button
-          icon={<ExternalLinkIcon />}
-          iconPosition="right"
-          href={`${ROZO_INVOICE_URL}/receipt?id=${rozoPaymentId}&payInHash=${rawPayInHash}&payoutHash=${payoutTxHash}`}
-          style={{ width: "100%" }}
-        >
-          See Receipt
-        </Button>
+        {done && generateReceiptUrl && (
+          <Button
+            iconPosition="right"
+            href={generateReceiptUrl}
+            style={{ width: "100%" }}
+          >
+            See Receipt
+          </Button>
+        )}
         <PoweredByFooter
           showSupport={!done}
           preFilledMessage={`Transaction: ${txURL}`}
@@ -357,7 +412,7 @@ const ListItem = styled.div`
 
   @media only screen and (max-width: ${defaultTheme.mobileWidth}px) {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     gap: 4px;
     width: 100%;
     max-width: 100%;
