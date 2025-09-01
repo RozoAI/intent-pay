@@ -31,6 +31,7 @@ export function useStellarPaymentOptions({
 }) {
   const [options, setOptions] = useState<WalletPaymentOption[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRequesting, setIsRequesting] = useState(false);
 
   const { server, account, isAccountExists } = useStellar();
 
@@ -162,6 +163,7 @@ export function useStellarPaymentOptions({
     async (pk: string) => {
       if (!pk || !server || usdRequired === undefined) return;
 
+      setIsRequesting(true);
       setIsLoading(true);
       try {
         const structuredBalances: WalletPaymentOption[] = [];
@@ -200,6 +202,7 @@ export function useStellarPaymentOptions({
         setOptions([]);
       } finally {
         setIsLoading(false);
+        setIsRequesting(false);
       }
     },
     [
@@ -213,11 +216,29 @@ export function useStellarPaymentOptions({
     ]
   );
 
+  // Keep loading state until we have attempted to fetch balances
   useEffect(() => {
-    if (!isAccountExists && isLoading) {
-      setIsLoading(false);
+    if (
+      address &&
+      usdRequired !== undefined &&
+      account &&
+      isAccountExists &&
+      !isRequesting
+    ) {
+      // Only set loading to false if we have options or completed a fetch attempt
+      if (options !== null) {
+        setIsLoading(false);
+      }
     }
-  }, [isAccountExists, isLoading]);
+  }, [address, usdRequired, account, isAccountExists, isRequesting, options]);
+
+  // Reset loading state when address changes (new wallet connection)
+  useEffect(() => {
+    if (address) {
+      setIsLoading(true);
+      setOptions(null);
+    }
+  }, [address]);
 
   useEffect(() => {
     if (address && usdRequired !== undefined && account && isAccountExists) {
