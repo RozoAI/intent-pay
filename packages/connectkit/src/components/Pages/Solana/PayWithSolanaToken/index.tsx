@@ -39,7 +39,6 @@ import {
 } from "../../../../utils/api";
 import { roundTokenAmount } from "../../../../utils/format";
 import { getSupportUrl } from "../../../../utils/supportUrl";
-import { TrpcClient } from "../../../../utils/trpc";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
@@ -81,10 +80,10 @@ const PayWithSolanaToken: React.FC = () => {
     if (state === payState) return;
     setPayStateInner(state);
     log(`[PayWithSolanaToken] payState: ${state}`);
-    (trpc as TrpcClient).nav.mutate({
-      action: "pay-with-solana-token-state",
-      data: { state },
-    });
+    // (trpc as TrpcClient).nav.mutate({
+    //   action: "pay-with-solana-token-state",
+    //   data: { state },
+    // });
   };
 
   // ROZO API CALL

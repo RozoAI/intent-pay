@@ -124,17 +124,10 @@ const Confirmation: React.FC = () => {
     if (rozoPaymentId) {
       const url = new URL(`${ROZO_INVOICE_URL}/receipt`);
       url.searchParams.set("id", rozoPaymentId);
-      if (rawPayInHash) {
-        url.searchParams.set("payInHash", rawPayInHash);
-      }
-
-      if (payoutTxHash) {
-        url.searchParams.set("payoutHash", payoutTxHash);
-      }
       return url.toString();
     }
     return undefined;
-  }, [rozoPaymentId, rawPayInHash, payoutTxHash]);
+  }, [rozoPaymentId]);
 
   const showPayoutLink = useMemo(() => {
     return (
@@ -284,6 +277,7 @@ const Confirmation: React.FC = () => {
                     </LinkContainer>
                   </ModalBody>
                 </ListItem>
+
                 {showPayoutLink && (
                   <ListItem>
                     <ModalBody>Receiver Hash</ModalBody>

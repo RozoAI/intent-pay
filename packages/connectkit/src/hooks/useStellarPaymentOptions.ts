@@ -1,12 +1,12 @@
 import { WalletPaymentOption } from "@rozoai/intent-common";
 import { useCallback, useEffect, useState } from "react";
-import { useStellar } from "../provider/StellarContextProvider";
 import {
-  STELLAR_XLM_TOKEN_INFO,
-  STELLAR_USDC_TOKEN_INFO,
   STELLAR_USDC_ASSET_CODE,
   STELLAR_USDC_ISSUER_PK,
+  STELLAR_USDC_TOKEN_INFO,
+  STELLAR_XLM_TOKEN_INFO,
 } from "../constants/rozoConfig";
+import { useStellar } from "../provider/StellarContextProvider";
 
 // Define the BigIntStr type to match the common package
 type BigIntStr = `${bigint}`;
@@ -32,7 +32,7 @@ export function useStellarPaymentOptions({
   const [options, setOptions] = useState<WalletPaymentOption[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { server, account } = useStellar();
+  const { server, account, isAccountExists } = useStellar();
 
   // --- ⭐️ Updated function to fetch and structure balances to match JSON format ---
   /**
@@ -206,6 +206,7 @@ export function useStellarPaymentOptions({
       server,
       usdRequired,
       account,
+      isAccountExists,
       createPaymentOption,
       processXlmBalance,
       processUsdcBalance,
@@ -213,10 +214,16 @@ export function useStellarPaymentOptions({
   );
 
   useEffect(() => {
-    if (address && usdRequired !== undefined && account) {
+    if (!isAccountExists && isLoading) {
+      setIsLoading(false);
+    }
+  }, [isAccountExists, isLoading]);
+
+  useEffect(() => {
+    if (address && usdRequired !== undefined && account && isAccountExists) {
       fetchBalances(address);
     }
-  }, [address, usdRequired, account]);
+  }, [address, usdRequired, account, isAccountExists]);
 
   return {
     options,
