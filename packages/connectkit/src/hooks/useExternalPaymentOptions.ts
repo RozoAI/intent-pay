@@ -59,11 +59,37 @@ export function useExternalPaymentOptions({
 
       setLoading(true);
       try {
-        const newOptions = await trpc.getExternalPaymentOptions.query({
-          platform,
-          mode,
-          usdRequired: usd,
-        });
+        // const newOptions = await trpc.getExternalPaymentOptions.query({
+        //   platform,
+        //   mode,
+        //   usdRequired: usd,
+        // });
+
+        const newOptions = [
+          {
+            id: "Coinbase",
+            optionType: "exchange",
+            paymentToken: {
+              chainId: 8453,
+              token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              symbol: "USDC",
+              usd: 1,
+              priceFromUsd: 1,
+              decimals: 6,
+              displayDecimals: 2,
+              logoSourceURI: "https://pay.daimo.com/coin-logos/usdc.png",
+              logoURI: "https://pay.daimo.com/coin-logos/usdc.png",
+              maxAcceptUsd: 100000,
+              maxSendUsd: 0,
+            },
+            cta: "Pay with Coinbase",
+            logoURI: "https://pay.daimo.com/wallet-logos/coinbase-logo.svg",
+            logoShape: "circle",
+            disabled: true,
+            message: "Minimum $5.00",
+            minimumUsd: 5,
+          },
+        ];
 
         // Filter out options not in options JSON
         const enabledExtPaymentOptions =

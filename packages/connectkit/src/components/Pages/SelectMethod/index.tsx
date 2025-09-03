@@ -297,8 +297,8 @@ export default function SelectMethod() {
   }
 
   // Pay with Deposit Address
-  const depositAddressOption = getDepositAddressOption(setRoute);
-  options.push(depositAddressOption);
+  // const depositAddressOption = getDepositAddressOption(setRoute);
+  // options.push(depositAddressOption);
 
   // ZKP2P is currently only available on desktop. Check if the user is on
   // desktop and if any ZKP2P options are available.

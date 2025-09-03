@@ -1,4 +1,4 @@
-import { supportedChains, WalletPaymentOption } from "@rozoai/intent-common";
+import { base, WalletPaymentOption } from "@rozoai/intent-common";
 import { useEffect, useMemo, useState } from "react";
 import { TrpcClient } from "../utils/trpc";
 
@@ -78,9 +78,11 @@ export function useWalletPaymentOptions({
           queryParams
         );
 
+        const suppChains = [base];
+
         // Filter out chains we don't support yet.
         const isSupported = (o: WalletPaymentOption) =>
-          supportedChains.some((c) => c.chainId === o.balance.token.chainId);
+          suppChains.some((c) => c.chainId === o.balance.token.chainId);
         const filteredOptions = newOptions.filter(isSupported);
         if (filteredOptions.length < newOptions.length) {
           log(
