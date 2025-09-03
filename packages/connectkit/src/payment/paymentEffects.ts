@@ -64,7 +64,7 @@ export function attachPaymentEffectHandlers(
     if (prev.type !== next.type) {
       // Start watching for source payment
       if (next.type === "payment_unpaid") {
-        pollFindPayments(store, trpc, next.order.id);
+        // pollFindPayments(store, trpc, next.order.id);
       }
 
       // Refresh the order to watch for destination processing
@@ -484,6 +484,8 @@ async function runHydratePayParamsEffects(
     //   refundAddress: event.refundAddress ?? prev.order.refundAddr ?? undefined,
     // });
 
+    const token = getKnownToken(toChain, toToken);
+
     const hydratedOrder: RozoPayHydratedOrderWithOrg = {
       id: BigInt(
         "35678265682867492506807139952345554885751794165969955665089898973517645243843"
@@ -509,7 +511,7 @@ async function runHydratePayParamsEffects(
             maxSendUsd: 0,
           },
           amount: order.destFinalCallTokenAmount.amount,
-          usd: order.destFinalCallTokenAmount.usd,
+          usd: Number(toUnits),
         },
       ],
       selectedBridgeTokenOutAddr: null,
@@ -528,10 +530,13 @@ async function runHydratePayParamsEffects(
           maxAcceptUsd: 100000,
           maxSendUsd: 0,
         },
-        amount: order.destFinalCallTokenAmount.amount,
-        usd: order.destFinalCallTokenAmount.usd,
+        amount: parseUnits(
+          toUnits,
+          token?.decimals ?? 18
+        ).toString() as `${bigint}`,
+        usd: Number(toUnits),
       },
-      usdValue: 0.1,
+      usdValue: Number(toUnits),
       destFinalCall: {
         to: toAddress,
         value: BigInt("0"),

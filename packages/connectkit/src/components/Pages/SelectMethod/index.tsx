@@ -1,4 +1,5 @@
 import React from "react";
+import Logos from "../../../assets/logos";
 import { ROUTES } from "../../../constants/routes";
 import { usePayContext } from "../../../hooks/usePayContext";
 
@@ -16,14 +17,7 @@ import {
   Solana,
   Stellar,
 } from "../../../assets/chains";
-import {
-  MetaMask,
-  Phantom,
-  Rabby,
-  Rainbow,
-  Trust,
-  WalletIcon,
-} from "../../../assets/logos";
+import { MetaMask, Phantom, Rainbow, WalletIcon } from "../../../assets/logos";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { useStellar } from "../../../provider/StellarContextProvider";
 import { walletConfigs } from "../../../wallets/walletConfigs";
@@ -279,22 +273,22 @@ export default function SelectMethod() {
   }
 
   // Pay with Exchange
-  const exchangeOptions = externalPaymentOptions.options.get("exchange") ?? [];
+  // const exchangeOptions = externalPaymentOptions.options.get("exchange") ?? [];
 
-  const showExchangePaymentMethod = exchangeOptions.length > 0;
-  if (showExchangePaymentMethod) {
-    options.push({
-      id: "exchange",
-      title: "Pay with exchange",
-      icons: exchangeOptions.slice(0, 3).map((option) => option.logoURI),
-      onClick: () => {
-        setRoute(ROUTES.SELECT_EXCHANGE, {
-          event: "click-option",
-          option: "exchange",
-        });
-      },
-    });
-  }
+  // const showExchangePaymentMethod = exchangeOptions.length > 0;
+  // if (showExchangePaymentMethod) {
+  //   options.push({
+  //     id: "exchange",
+  //     title: "Pay with exchange",
+  //     icons: exchangeOptions.slice(0, 3).map((option) => option.logoURI),
+  //     onClick: () => {
+  //       setRoute(ROUTES.SELECT_EXCHANGE, {
+  //         event: "click-option",
+  //         option: "exchange",
+  //       });
+  //     },
+  //   });
+  // }
 
   // Pay with Deposit Address
   // const depositAddressOption = getDepositAddressOption(setRoute);
@@ -340,24 +334,24 @@ function getBestUnconnectedWalletIcons(
 ) {
   const icons: JSX.Element[] = [];
   const strippedId = connector?.id.toLowerCase(); // some connector ids can have weird casing and or suffixes and prefixes
-  const [isRainbow, isTrust, isPhantom, isCoinbase, isMetamask, isRabby] = [
-    strippedId?.includes("rainbow"),
-    strippedId?.includes("trust"),
+  const [isPhantom, isCoinbase, isMetamask, isRainbow, isTrust, isRabby] = [
     strippedId?.includes("phantom"),
     strippedId?.includes("coinbase"),
     strippedId?.includes("metamask"),
+    strippedId?.includes("rainbow"),
+    strippedId?.includes("trust"),
     strippedId?.includes("rabby"),
   ];
 
   if (isMobile) {
-    if (!isTrust) icons.push(<Trust background />);
-    if (!isRainbow) icons.push(<Rainbow />);
+    if (!isCoinbase) icons.push(<Logos.Base />);
     if (!isPhantom) icons.push(<Phantom />);
+    if (!isMetamask) icons.push(<MetaMask />);
   } else {
-    if (!isRainbow) icons.push(<Rainbow />);
     if (!isPhantom) icons.push(<Phantom />);
-    if (!isRabby) icons.push(<Rabby />);
-    if (!isMetamask && icons.length < 3) icons.push(<MetaMask />);
+    if (!isCoinbase) icons.push(<Logos.Base />);
+    if (!isMetamask) icons.push(<MetaMask />);
+    if (!isRainbow && icons.length < 3) icons.push(<Rainbow />);
   }
 
   return icons;

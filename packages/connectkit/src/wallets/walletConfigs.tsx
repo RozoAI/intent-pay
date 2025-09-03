@@ -74,10 +74,10 @@ export type WalletConfigProps = {
 export const walletConfigs: {
   [rdns: string]: WalletConfigProps; // for multiple cases seperate rdns by comma
 } = {
-  "coinbaseWallet, coinbaseWalletSDK": {
+  "coinbaseWallet, coinbaseWalletSDK,com.coinbase.wallet": {
     name: "Coinbase Wallet",
     shortName: "Coinbase",
-    icon: <Logos.Coinbase />,
+    icon: <Logos.Base />,
     iconShape: "squircle",
     downloadUrls: {
       download: "https://connect.family.co/v0/download/coinbasewallet",
@@ -93,10 +93,10 @@ export const walletConfigs: {
       return "cbwallet://dapp?url=" + getEncodedRozoPayUrl(payId);
     },
   },
-  "com.coinbase.wallet": {
-    name: "Coinbase Wallet",
-    shortName: "Coinbase",
-    icon: <Logos.Coinbase />,
+  baseAccount: {
+    name: "Base App",
+    shortName: "Base",
+    icon: <Logos.Base />,
     iconShape: "squircle",
     downloadUrls: {
       download: "https://connect.family.co/v0/download/coinbasewallet",

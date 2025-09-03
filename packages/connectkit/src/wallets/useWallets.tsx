@@ -73,7 +73,7 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
     addIfNotPresent(
       "metaMask, metaMask-io, io.metamask, io.metamask.mobile, metaMaskSDK"
     );
-    addIfNotPresent("com.trustwallet.app");
+    addIfNotPresent("coinbaseWallet, coinbaseWalletSDK,com.coinbase.wallet");
 
     // Add other wallet
     mobileWallets.push({

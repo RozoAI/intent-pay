@@ -133,7 +133,8 @@ const Confirmation: React.FC = () => {
   const showPayoutLink = useMemo(() => {
     return (
       paymentStateContext.tokenMode === "stellar" ||
-      paymentStateContext.tokenMode === "solana"
+      paymentStateContext.tokenMode === "solana" ||
+      paymentStateContext.tokenMode === "evm"
     );
   }, [paymentStateContext]);
 
@@ -178,6 +179,7 @@ const Confirmation: React.FC = () => {
             setPayoutTxHash(response.data.payoutTransactionHash);
             setPayoutTxHashUrl(url);
             setPayoutLoading(false);
+            triggerResize();
             return;
           }
 
