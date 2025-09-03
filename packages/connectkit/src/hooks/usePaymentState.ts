@@ -808,7 +808,7 @@ export function usePaymentState({
     }
 
     const deeplink = wallet.getRozoPayDeeplink(
-      pay.order.externalId ?? payId,
+      pay.order.externalId ?? pay.rozoPaymentId ?? payId,
       ref
     );
 

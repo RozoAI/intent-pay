@@ -31,6 +31,7 @@ const Wallets: React.FC = () => {
 
   const { isMobile } = useIsMobile();
   const { hydrateOrder, order } = useRozoPay();
+  const { setPayId } = context.paymentState;
 
   // Track if hydration has already been attempted to prevent multiple runs
   const hasHydratedRef = useRef(false);
@@ -56,6 +57,12 @@ const Wallets: React.FC = () => {
       hydrateOrder();
     }
   }, [context.paymentState.isDepositFlow, order, isMobile, hydrateOrder]);
+
+  useEffect(() => {
+    if (order?.externalId) {
+      setPayId(order.externalId);
+    }
+  }, [order]);
 
   // Show new-user education buttons
   const showLearnMore = !context.options?.hideQuestionMarkCTA;
