@@ -207,7 +207,7 @@ export function useRozoPay(): UseRozoPay {
       // Wait for the order to enter the "preview" state, which means it
       // has been successfully created.
       const previewOrderState = await waitForPaymentState(store, "preview");
-
+      console.log("previewOrderState", previewOrderState);
       return previewOrderState;
     },
     [dispatch, store]
@@ -234,7 +234,10 @@ export function useRozoPay(): UseRozoPay {
   );
 
   const hydrateOrder = useCallback(
-    async (refundAddress?: Address, walletPaymentOption?: WalletPaymentOption) => {
+    async (
+      refundAddress?: Address,
+      walletPaymentOption?: WalletPaymentOption
+    ) => {
       dispatch({ type: "hydrate_order", refundAddress, walletPaymentOption });
 
       // Wait for the order to enter the "payment_unpaid" state, which means it

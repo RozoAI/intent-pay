@@ -2,15 +2,20 @@ import {
   assert,
   base,
   baseUSDC,
+  getKnownToken,
   getOrderDestChainId,
   polygonUSDC,
   readRozoPayOrderID,
+  RozoPayHydratedOrderWithOrg,
+  RozoPayIntentStatus,
   RozoPayOrderMode,
+  RozoPayOrderStatusDest,
+  RozoPayOrderStatusSource,
   RozoPayOrderWithOrg,
   rozoSolanaUSDC,
   rozoStellar,
 } from "@rozoai/intent-common";
-import { formatUnits, getAddress } from "viem";
+import { formatUnits, getAddress, parseUnits } from "viem";
 import {
   ROZO_DAIMO_APP_ID,
   STELLAR_USDC_ISSUER_PK,
@@ -102,7 +107,7 @@ export function attachPaymentEffectHandlers(
       }
       case "pay_source": {
         if (prev.type === "payment_unpaid") {
-          runPaySourceEffects(store, trpc, prev);
+          // runPaySourceEffects(store, trpc, prev);
         } else {
           log(`[EFFECT] invalid event ${event.type} on state ${prev.type}`);
         }
@@ -216,15 +221,64 @@ async function runSetPayParamsEffects(
   );
 
   try {
-    const orderPreview = await trpc.previewOrder.query({
-      // appId: payParams.appId,
-      appId: ROZO_DAIMO_APP_ID,
-      toChain: payParams.toChain,
-      toToken: payParams.toToken,
-      toUnits,
-      toAddress: payParams.toAddress,
-      toCallData: payParams.toCallData,
-      isAmountEditable: payParams.toUnits == null,
+    // const orderPreview = await trpc.previewOrder.query({
+    //   // appId: payParams.appId,
+    //   appId: ROZO_DAIMO_APP_ID,
+    //   toChain: payParams.toChain,
+    //   toToken: payParams.toToken,
+    //   toUnits,
+    //   toAddress: payParams.toAddress,
+    //   toCallData: payParams.toCallData,
+    //   isAmountEditable: payParams.toUnits == null,
+    //   metadata: {
+    //     intent: payParams.intent ?? "Pay",
+    //     items: [],
+    //     payer: {
+    //       paymentOptions: payParams.paymentOptions,
+    //       preferredChains: payParams.preferredChains,
+    //       preferredTokens: payParams.preferredTokens,
+    //       evmChains: payParams.evmChains,
+    //     },
+    //   },
+    //   externalId: payParams.externalId,
+    //   userMetadata: payParams.metadata,
+    //   refundAddress: payParams.refundAddress,
+    // });
+
+    const token = getKnownToken(payParams.toChain, payParams.toToken);
+
+    const orderPreview = {
+      orgId: "organization-live-099b8b4a-a4b3-42aa-b315-5bf402ed7e01",
+      mode: "sale",
+      id: "112570407236741975640520952649276643931915637279485636287844826490986734483705",
+      destFinalCallTokenAmount: {
+        token: {
+          chainId: payParams.toChain,
+          token: payParams.toToken,
+          symbol: "USDC",
+          usd: 1,
+          priceFromUsd: 1,
+          decimals: token?.decimals ?? 18,
+          displayDecimals: 2,
+          logoSourceURI: "https://pay.daimo.com/coin-logos/usdc.png",
+          logoURI: "https://pay.daimo.com/coin-logos/usdc.png",
+          maxAcceptUsd: 100000,
+          maxSendUsd: 0,
+        },
+        amount: parseUnits(toUnits, token?.decimals ?? 18).toString(),
+        usd: Number(toUnits),
+      },
+      destFinalCall: {
+        to: payParams.toAddress,
+        value: "0",
+        data: payParams.toCallData || "0x",
+      },
+      nonce:
+        "112570407236741975640520952649276643931915637279485636287844826490986734483705",
+      redirectUri: null,
+      createdAt: null,
+      lastUpdatedAt: null,
+      intentStatus: "payment_unpaid",
       metadata: {
         intent: payParams.intent ?? "Pay",
         items: [],
@@ -237,8 +291,8 @@ async function runSetPayParamsEffects(
       },
       externalId: payParams.externalId,
       userMetadata: payParams.metadata,
-      refundAddress: payParams.refundAddress,
-    });
+      refundAddr: payParams.refundAddress,
+    };
 
     store.dispatch({
       type: "preview_generated",
@@ -408,27 +462,113 @@ async function runHydratePayParamsEffects(
       toToken,
       toUnits,
     });
-    const { hydratedOrder } = await trpc.createOrder.mutate({
-      // appId: prev.payParamsData.appId,
-      appId: ROZO_DAIMO_APP_ID,
-      paymentInput: {
-        id: order.id.toString(),
-        toChain: toChain,
-        toToken,
-        toUnits,
-        toAddress,
-        toCallData: order.destFinalCall.data,
-        isAmountEditable: order.mode === RozoPayOrderMode.CHOOSE_AMOUNT,
-        metadata: order.metadata,
-        userMetadata: order.userMetadata,
-        // externalId: order.externalId ?? undefined,
-        externalId: rozoPaymentId,
+    // const { hydratedOrder } = await trpc.createOrder.mutate({
+    //   // appId: prev.payParamsData.appId,
+    //   appId: ROZO_DAIMO_APP_ID,
+    //   paymentInput: {
+    //     id: order.id.toString(),
+    //     toChain: toChain,
+    //     toToken,
+    //     toUnits,
+    //     toAddress,
+    //     toCallData: order.destFinalCall.data,
+    //     isAmountEditable: order.mode === RozoPayOrderMode.CHOOSE_AMOUNT,
+    //     metadata: order.metadata,
+    //     userMetadata: order.userMetadata,
+    //     // externalId: order.externalId ?? undefined,
+    //     externalId: rozoPaymentId,
+    //   },
+    //   // Prefer the refund address passed to this function, if specified. This
+    //   // is for cases where the user pays from an EOA. Otherwise, use the refund
+    //   // address specified by the dev.
+    //   refundAddress: event.refundAddress ?? prev.order.refundAddr ?? undefined,
+    // });
+
+    const hydratedOrder: RozoPayHydratedOrderWithOrg = {
+      id: BigInt(
+        "35678265682867492506807139952345554885751794165969955665089898973517645243843"
+      ),
+      mode: RozoPayOrderMode.HYDRATED,
+      intentAddr: toAddress,
+      handoffAddr: toAddress,
+      escrowContractAddress: toAddress,
+      bridgerContractAddress: toAddress,
+      bridgeTokenOutOptions: [
+        {
+          token: {
+            chainId: toChain,
+            token: toToken,
+            symbol: "USDC",
+            usd: 1,
+            priceFromUsd: 1,
+            decimals: order.destFinalCallTokenAmount.token.decimals,
+            displayDecimals: 2,
+            logoSourceURI: "https://pay.daimo.com/coin-logos/usdc.png",
+            logoURI: "https://pay.daimo.com/coin-logos/usdc.png",
+            maxAcceptUsd: 100000,
+            maxSendUsd: 0,
+          },
+          amount: order.destFinalCallTokenAmount.amount,
+          usd: order.destFinalCallTokenAmount.usd,
+        },
+      ],
+      selectedBridgeTokenOutAddr: null,
+      selectedBridgeTokenOutAmount: null,
+      destFinalCallTokenAmount: {
+        token: {
+          chainId: toChain,
+          token: toToken,
+          symbol: "USDC",
+          usd: 1,
+          priceFromUsd: 1,
+          decimals: order.destFinalCallTokenAmount.token.decimals,
+          displayDecimals: 2,
+          logoSourceURI: "https://pay.daimo.com/coin-logos/usdc.png",
+          logoURI: "https://pay.daimo.com/coin-logos/usdc.png",
+          maxAcceptUsd: 100000,
+          maxSendUsd: 0,
+        },
+        amount: order.destFinalCallTokenAmount.amount,
+        usd: order.destFinalCallTokenAmount.usd,
       },
-      // Prefer the refund address passed to this function, if specified. This
-      // is for cases where the user pays from an EOA. Otherwise, use the refund
-      // address specified by the dev.
-      refundAddress: event.refundAddress ?? prev.order.refundAddr ?? undefined,
-    });
+      usdValue: 0.1,
+      destFinalCall: {
+        to: toAddress,
+        value: BigInt("0"),
+        data: "0x",
+      },
+      refundAddr: "0xdC4313EfB37836615d820F38A6016EE76598887B",
+      nonce: BigInt(
+        "35678265682867492506807139952345554885751794165969955665089898973517645243843"
+      ),
+      sourceTokenAmount: null,
+      sourceFulfillerAddr: null,
+      sourceInitiateTxHash: null,
+      sourceStartTxHash: null,
+      sourceStatus: RozoPayOrderStatusSource.WAITING_PAYMENT,
+      destStatus: RozoPayOrderStatusDest.PENDING,
+      intentStatus: RozoPayIntentStatus.UNPAID,
+      destFastFinishTxHash: null,
+      destClaimTxHash: null,
+      // passedToAddress: null,
+      redirectUri: null,
+      // sourceInitiateUpdatedAt: null,
+      createdAt: 1756903744,
+      lastUpdatedAt: 1756903745,
+      orgId: "organization-live-099b8b4a-a4b3-42aa-b315-5bf402ed7e01",
+      metadata: {
+        intent: "Pay",
+        items: [],
+        payer: {},
+      },
+      externalId: null,
+      userMetadata: null,
+      expirationTs: BigInt("1756990145"),
+      org: {
+        orgId: "organization-live-099b8b4a-a4b3-42aa-b315-5bf402ed7e01",
+        name: "Pay Demo Old",
+      },
+    };
 
     store.dispatch({
       type: "order_hydrated",

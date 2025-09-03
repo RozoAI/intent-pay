@@ -61,7 +61,7 @@ const PayWithStellarToken: React.FC = () => {
     payParams,
     setRozoPaymentId,
   } = paymentState;
-  const { order, setPaymentRozoCompleted, hydrateOrder } = useRozoPay();
+  const { order, setPaymentRozoCompleted } = useRozoPay();
 
   const [payState, setPayState] = useState<PayState>(PayState.CreatingPayment);
   const [txURL, setTxURL] = useState<string | undefined>();
@@ -200,7 +200,10 @@ const PayWithStellarToken: React.FC = () => {
         address: stellarPublicKey,
         networkPassphrase: Networks.PUBLIC,
       });
-      const tx = TransactionBuilder.fromXDR(signedTransaction.signedTxXdr, Networks.PUBLIC);
+      const tx = TransactionBuilder.fromXDR(
+        signedTransaction.signedTxXdr,
+        Networks.PUBLIC
+      );
       const response = await stellarServer.submitTransaction(
         tx as Transaction | FeeBumpTransaction
       );
