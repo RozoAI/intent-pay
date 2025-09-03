@@ -52,11 +52,11 @@ export function useDepositAddressOptions({
           //   logoURI: "https://pay.daimo.com/chain-logos/optimism.svg",
           //   minimumUsd: 0,
           // },
-          // {
-          //   id: "Polygon",
-          //   logoURI: "https://pay.daimo.com/chain-logos/polygon.svg",
-          //   minimumUsd: 0,
-          // },
+          {
+            id: DepositAddressPaymentOptions.POLYGON,
+            logoURI: "https://pay.daimo.com/chain-logos/polygon.svg",
+            minimumUsd: 0,
+          },
           // {
           //   id: "Ethereum",
           //   logoURI: "https://pay.daimo.com/chain-logos/ethereum.svg",

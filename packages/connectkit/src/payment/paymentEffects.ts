@@ -537,7 +537,7 @@ async function runHydratePayParamsEffects(
         value: BigInt("0"),
         data: "0x",
       },
-      refundAddr: "0xdC4313EfB37836615d820F38A6016EE76598887B",
+      refundAddr: (order.refundAddr as `0x${string}`) || null,
       nonce: BigInt(
         "35678265682867492506807139952345554885751794165969955665089898973517645243843"
       ),
@@ -557,18 +557,21 @@ async function runHydratePayParamsEffects(
       lastUpdatedAt: 1756903745,
       orgId: "organization-live-099b8b4a-a4b3-42aa-b315-5bf402ed7e01",
       metadata: {
-        intent: "Pay",
-        items: [],
-        payer: {},
-      },
-      externalId: null,
+        daimoOrderId: order?.id ?? null,
+        ...(payParams?.metadata ?? {}),
+        ...(order?.metadata ?? {}),
+        ...(order.userMetadata ?? {}),
+      } as any,
+      externalId: rozoPaymentId ?? null,
       userMetadata: null,
       expirationTs: BigInt("1756990145"),
       org: {
         orgId: "organization-live-099b8b4a-a4b3-42aa-b315-5bf402ed7e01",
-        name: "Pay Demo Old",
+        name: "Pay Rozo",
       },
     };
+
+    console.log("hydratedOrder", hydratedOrder);
 
     store.dispatch({
       type: "order_hydrated",

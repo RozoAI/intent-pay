@@ -807,7 +807,11 @@ export function usePaymentState({
       ref = isIOS ? "1598432977" : "app.phantom";
     }
 
-    const deeplink = wallet.getRozoPayDeeplink(payId, ref);
+    const deeplink = wallet.getRozoPayDeeplink(
+      pay.order.externalId ?? payId,
+      ref
+    );
+
     // If we are in IOS, we don't open the deeplink in a new window, because it
     // will not work, the link will be opened in the page WAITING_WALLET
     if (!isIOS) {
@@ -837,7 +841,9 @@ export function usePaymentState({
   const setPayId = useCallback(
     async (payId: string | undefined) => {
       if (lockPayParams || payId == null) return;
-      const id = readRozoPayOrderID(payId).toString();
+      const paymentId = pay.order?.externalId ?? payId;
+
+      const id = readRozoPayOrderID(paymentId).toString();
 
       if (pay.order?.id && BigInt(id) == pay.order.id) {
         // Already loaded, ignore.
@@ -845,7 +851,7 @@ export function usePaymentState({
       }
 
       pay.reset();
-      pay.setPayId(payId);
+      pay.setPayId(paymentId);
     },
     [lockPayParams, pay]
   );
