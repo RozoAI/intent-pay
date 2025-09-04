@@ -14,6 +14,7 @@ import {
   RozoPayOrderWithOrg,
   rozoSolanaUSDC,
   rozoStellar,
+  rozoStellarUSDC,
 } from "@rozoai/intent-common";
 import { formatUnits, getAddress, parseUnits } from "viem";
 import {
@@ -394,6 +395,16 @@ async function runHydratePayParamsEffects(
       ) {
         console.log("[runHydratePayParamsEffects] Pay In USDC Solana");
         preferred.preferredChain = String(rozoSolanaUSDC.chainId);
+        preferred.preferredToken = "USDC";
+      }
+
+      // Pay In USDC Stellar
+      if (
+        walletPaymentOption &&
+        walletPaymentOption.required.token.token === rozoStellarUSDC.token
+      ) {
+        console.log("[runHydratePayParamsEffects] Pay In USDC Stellar");
+        preferred.preferredChain = String(rozoStellarUSDC.chainId);
         preferred.preferredToken = "USDC";
       }
 

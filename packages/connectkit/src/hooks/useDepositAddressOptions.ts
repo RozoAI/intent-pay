@@ -1,9 +1,12 @@
 import {
-  DepositAddressPaymentOptionMetadata,
+  base,
   DepositAddressPaymentOptions,
   RozoPayOrderMode,
+  solana,
+  stellar,
 } from "@rozoai/intent-common";
 import { useEffect, useState } from "react";
+import { chainToLogo } from "../assets/chains";
 import { TrpcClient } from "../utils/trpc";
 
 export function useDepositAddressOptions({
@@ -15,9 +18,13 @@ export function useDepositAddressOptions({
   usdRequired: number | undefined;
   mode: RozoPayOrderMode | undefined;
 }) {
-  const [options, setOptions] = useState<DepositAddressPaymentOptionMetadata[]>(
-    []
-  );
+  const [options, setOptions] = useState<
+    {
+      id: DepositAddressPaymentOptions;
+      logoURI: string | React.ReactNode;
+      minimumUsd: number;
+    }[]
+  >([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -31,7 +38,11 @@ export function useDepositAddressOptions({
         //   usdRequired: usd,
         //   mode,
         // });
-        const options: DepositAddressPaymentOptionMetadata[] = [
+        const options: {
+          id: DepositAddressPaymentOptions;
+          logoURI: string | React.ReactNode;
+          minimumUsd: number;
+        }[] = [
           // {
           //   id: "USDT on Tron",
           //   logoURI: "https://pay.daimo.com/chain-logos/tronusdt.svg",
@@ -44,7 +55,12 @@ export function useDepositAddressOptions({
           // },
           {
             id: DepositAddressPaymentOptions.BASE,
-            logoURI: "https://pay.daimo.com/chain-logos/base.svg",
+            logoURI: chainToLogo[base.chainId],
+            minimumUsd: 0,
+          },
+          {
+            id: DepositAddressPaymentOptions.SOLANA,
+            logoURI: chainToLogo[solana.chainId],
             minimumUsd: 0,
           },
           // {
@@ -55,6 +71,11 @@ export function useDepositAddressOptions({
           {
             id: DepositAddressPaymentOptions.POLYGON,
             logoURI: "https://pay.daimo.com/chain-logos/polygon.svg",
+            minimumUsd: 0,
+          },
+          {
+            id: DepositAddressPaymentOptions.STELLAR,
+            logoURI: chainToLogo[stellar.chainId],
             minimumUsd: 0,
           },
           // {

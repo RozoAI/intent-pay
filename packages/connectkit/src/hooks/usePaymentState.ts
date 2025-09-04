@@ -1,6 +1,7 @@
 import {
   assert,
   assertNotNull,
+  baseUSDC,
   debugJson,
   DepositAddressPaymentOptionData,
   DepositAddressPaymentOptionMetadata,
@@ -8,11 +9,16 @@ import {
   ethereum,
   ExternalPaymentOptionMetadata,
   ExternalPaymentOptions,
+  getChainById,
   getOrderDestChainId,
   isCCTPV1Chain,
   PlatformType,
+  polygonUSDC,
   readRozoPayOrderID,
   RozoPayHydratedOrderWithOrg,
+  rozoSolanaUSDC,
+  rozoStellarUSDC,
+  Token,
   WalletPaymentOption,
   writeRozoPayOrderID,
 } from "@rozoai/intent-common";
@@ -24,7 +30,7 @@ import {
   TransactionInstruction,
   VersionedTransaction,
 } from "@solana/web3.js";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { erc20Abi, getAddress, Hex, hexToBytes, zeroAddress } from "viem";
 import {
   useAccount,
@@ -134,7 +140,9 @@ export interface PaymentState {
   payWithExternal: (option: ExternalPaymentOptions) => Promise<string>;
   payWithDepositAddress: (
     option: DepositAddressPaymentOptions
-  ) => Promise<DepositAddressPaymentOptionData | null>;
+  ) => Promise<
+    (DepositAddressPaymentOptionData & { externalId: string }) | null
+  >;
   payWithSolanaToken: (
     walletPaymentOption: WalletPaymentOption
   ) => Promise<{ txHash: string; success: boolean }>;
@@ -179,6 +187,11 @@ export function usePaymentState({
   redirectReturnUrl?: string;
 }): PaymentState {
   const pay = useRozoPay();
+
+  // Track deposit address calls to prevent duplicates
+  const depositAddressCallRef = useRef<Set<DepositAddressPaymentOptions>>(
+    new Set()
+  );
 
   // Browser state.
   const [platform, setPlatform] = useState<PlatformType>();
@@ -297,6 +310,15 @@ export function usePaymentState({
 
   const [selectedDepositAddressOption, setSelectedDepositAddressOption] =
     useState<DepositAddressPaymentOptionMetadata>();
+
+  // Clear processing set when selectedDepositAddressOption changes to allow retries
+  useEffect(() => {
+    depositAddressCallRef.current.clear();
+    console.log(
+      "[PAY DEPOSIT ADDRESS] Cleared processing set for new option:",
+      selectedDepositAddressOption?.id
+    );
+  }, [selectedDepositAddressOption]);
 
   const [selectedWallet, setSelectedWallet] = useState<WalletConfigProps>();
   const [selectedWalletDeepLink, setSelectedWalletDeepLink] =
@@ -768,18 +790,66 @@ export function usePaymentState({
   const payWithDepositAddress = async (
     option: DepositAddressPaymentOptions
   ) => {
-    const { order } = await pay.hydrateOrder();
+    // Prevent duplicate calls for the same option
+    if (depositAddressCallRef.current.has(option)) {
+      console.log(
+        `[PAY DEPOSIT ADDRESS] Already processing ${option}, skipping duplicate call`
+      );
+      return null;
+    }
 
-    log(
-      `[PAY DEPOSIT ADDRESS] hydrated order ${order.id} for ${order.usdValue} USD, checking out with deposit address: ${option}`
-    );
+    // Mark this option as being processed
+    depositAddressCallRef.current.add(option);
+    console.log(`[PAY DEPOSIT ADDRESS] Starting processing for ${option}`);
 
-    const result = await trpc.getDepositAddressForOrder.query({
-      orderId: order.id.toString(),
-      option,
-    });
+    try {
+      let token: Token = baseUSDC;
 
-    return "error" in result ? null : result;
+      if (option === DepositAddressPaymentOptions.SOLANA) {
+        token = rozoSolanaUSDC;
+      } else if (option === DepositAddressPaymentOptions.STELLAR) {
+        token = rozoStellarUSDC;
+      } else if (option === DepositAddressPaymentOptions.POLYGON) {
+        token = polygonUSDC;
+      }
+
+      console.log("[PAY DEPOSIT ADDRESS] hydrating order");
+
+      const { order } = await pay.hydrateOrder(undefined, {
+        required: {
+          token: {
+            token: token.token,
+          } as any,
+        } as any,
+      } as any);
+
+      log(
+        `[PAY DEPOSIT ADDRESS] hydrated order ${order.id} for ${order.usdValue} USD, checking out with deposit address: ${option}`
+      );
+
+      // const result = await trpc.getDepositAddressForOrder.query({
+      //   orderId: order.id.toString(),
+      //   option,
+      // });
+
+      const chain = getChainById(token.chainId);
+
+      return {
+        address: order.destFinalCall.to,
+        amount: String(order.usdValue),
+        suffix: `${order.destFinalCallTokenAmount.token.symbol} ${chain.name}`,
+        uri: order.destFinalCall.to,
+        expirationS: Math.floor(Date.now() / 1000) + 300,
+        externalId: order.externalId,
+      };
+    } catch (error) {
+      console.error(`[PAY DEPOSIT ADDRESS] Error processing ${option}:`, error);
+      return null;
+    } finally {
+      // Remove from processing set when done (allow retries after completion/failure)
+      depositAddressCallRef.current.delete(option);
+      console.log(`[PAY DEPOSIT ADDRESS] Finished processing for ${option}`);
+    }
   };
 
   const { isIOS } = useIsMobile();

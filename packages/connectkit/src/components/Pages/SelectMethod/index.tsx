@@ -8,15 +8,7 @@ import { PageContent } from "../../Common/Modal/styles";
 import { getAddressContraction } from "@rozoai/intent-common";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Connector, useAccount, useDisconnect } from "wagmi";
-import {
-  Arbitrum,
-  Base,
-  Ethereum,
-  Optimism,
-  Polygon,
-  Solana,
-  Stellar,
-} from "../../../assets/chains";
+import { Ethereum, Polygon, Solana, Stellar } from "../../../assets/chains";
 import { MetaMask, Phantom, Rainbow, WalletIcon } from "../../../assets/logos";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { useStellar } from "../../../provider/StellarContextProvider";
@@ -291,8 +283,8 @@ export default function SelectMethod() {
   // }
 
   // Pay with Deposit Address
-  // const depositAddressOption = getDepositAddressOption(setRoute);
-  // options.push(depositAddressOption);
+  const depositAddressOption = getDepositAddressOption(setRoute);
+  options.push(depositAddressOption);
 
   // ZKP2P is currently only available on desktop. Check if the user is on
   // desktop and if any ZKP2P options are available.
@@ -315,7 +307,7 @@ export default function SelectMethod() {
   return (
     <PageContent>
       {/* TODO: Hide Tron and Ethereum from the deposit address options */}
-      <OrderHeader excludeLogos={["tron", "eth"]} />
+      <OrderHeader excludeLogos={["tron", "eth", "arbitrum", "optimism"]} />
 
       <OptionsList
         requiredSkeletons={isMobile ? 4 : 3} // TODO: programmatically determine skeletons to best avoid layout shifts
@@ -364,10 +356,12 @@ function getDepositAddressOption(
     id: "depositAddress",
     title: "Pay to address",
     icons: [
-      <Base key="base" />,
-      <Arbitrum key="arbitrum" />,
-      <Optimism key="optimism" />,
+      <Logos.Base key="base" />,
+      <Solana key="base" />,
       <Polygon key="polygon" />,
+      <Stellar key="stellar" />,
+      // <Arbitrum key="arbitrum" />,
+      // <Optimism key="optimism" />,
     ],
     onClick: () => {
       setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_CHAIN);

@@ -69,7 +69,10 @@ const Wallets: React.FC = () => {
 
   return (
     <PageContent>
-      <OrderHeader minified />
+      <OrderHeader
+        minified
+        excludeLogos={["tron", "eth", "arbitrum", "optimism"]}
+      />
       <ConnectorList />
 
       {isMobile ? (
