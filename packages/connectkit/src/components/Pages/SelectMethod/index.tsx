@@ -1,5 +1,4 @@
 import React from "react";
-import Logos from "../../../assets/logos";
 import { ROUTES } from "../../../constants/routes";
 import { usePayContext } from "../../../hooks/usePayContext";
 
@@ -8,8 +7,20 @@ import { PageContent } from "../../Common/Modal/styles";
 import { getAddressContraction } from "@rozoai/intent-common";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Connector, useAccount, useDisconnect } from "wagmi";
-import { Ethereum, Polygon, Solana, Stellar } from "../../../assets/chains";
-import { MetaMask, Phantom, Rainbow, WalletIcon } from "../../../assets/logos";
+import {
+  Base,
+  Ethereum,
+  Polygon,
+  Solana,
+  Stellar,
+} from "../../../assets/chains";
+import {
+  Coinbase,
+  MetaMask,
+  Phantom,
+  Rainbow,
+  WalletIcon,
+} from "../../../assets/logos";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { useStellar } from "../../../provider/StellarContextProvider";
 import { walletConfigs } from "../../../wallets/walletConfigs";
@@ -336,12 +347,12 @@ function getBestUnconnectedWalletIcons(
   ];
 
   if (isMobile) {
-    if (!isCoinbase) icons.push(<Logos.Base />);
+    if (!isCoinbase) icons.push(<Coinbase />);
     if (!isPhantom) icons.push(<Phantom />);
     if (!isMetamask) icons.push(<MetaMask />);
   } else {
+    if (!isCoinbase) icons.push(<Coinbase />);
     if (!isPhantom) icons.push(<Phantom />);
-    if (!isCoinbase) icons.push(<Logos.Base />);
     if (!isMetamask) icons.push(<MetaMask />);
     if (!isRainbow && icons.length < 3) icons.push(<Rainbow />);
   }
@@ -356,7 +367,7 @@ function getDepositAddressOption(
     id: "depositAddress",
     title: "Pay to address",
     icons: [
-      <Logos.Base key="base" />,
+      <Base key="base" />,
       <Solana key="base" />,
       <Polygon key="polygon" />,
       <Stellar key="stellar" />,

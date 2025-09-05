@@ -77,7 +77,7 @@ export const walletConfigs: {
   "coinbaseWallet, coinbaseWalletSDK,com.coinbase.wallet": {
     name: "Coinbase Wallet",
     shortName: "Coinbase",
-    icon: <Logos.Base />,
+    icon: <Logos.Coinbase />,
     iconShape: "squircle",
     downloadUrls: {
       download: "https://connect.family.co/v0/download/coinbasewallet",
@@ -93,25 +93,25 @@ export const walletConfigs: {
       return "cbwallet://dapp?url=" + getEncodedRozoPayUrl(payId);
     },
   },
-  baseAccount: {
-    name: "Base App",
-    shortName: "Base",
-    icon: <Logos.Base />,
-    iconShape: "squircle",
-    downloadUrls: {
-      download: "https://connect.family.co/v0/download/coinbasewallet",
-      website: "https://www.coinbase.com/wallet/getting-started-extension",
-      android: "https://play.google.com/store/apps/details?id=org.toshi",
-      ios: "https://apps.apple.com/app/coinbase-wallet-store-crypto/id1278383455",
-      chrome:
-        "https://chrome.google.com/webstore/detail/coinbase-wallet-extension/hnfanknocfeofbddgcijnmhnfnkdnaad",
-    },
-    showInMobileConnectors: false,
-    deeplinkScheme: "cbwallet://",
-    getRozoPayDeeplink: (payId: string) => {
-      return "cbwallet://dapp?url=" + getEncodedRozoPayUrl(payId);
-    },
-  },
+  // baseAccount: {
+  //   name: "Base App",
+  //   shortName: "Base",
+  //   icon: <Logos.Base />,
+  //   iconShape: "squircle",
+  //   downloadUrls: {
+  //     download: "https://connect.family.co/v0/download/coinbasewallet",
+  //     website: "https://www.coinbase.com/wallet/getting-started-extension",
+  //     android: "https://play.google.com/store/apps/details?id=org.toshi",
+  //     ios: "https://apps.apple.com/app/coinbase-wallet-store-crypto/id1278383455",
+  //     chrome:
+  //       "https://chrome.google.com/webstore/detail/coinbase-wallet-extension/hnfanknocfeofbddgcijnmhnfnkdnaad",
+  //   },
+  //   showInMobileConnectors: false,
+  //   deeplinkScheme: "cbwallet://",
+  //   getRozoPayDeeplink: (payId: string) => {
+  //     return "cbwallet://dapp?url=" + getEncodedRozoPayUrl(payId);
+  //   },
+  // },
   backpack: {
     name: "Backpack",
     shortName: "Backpack",

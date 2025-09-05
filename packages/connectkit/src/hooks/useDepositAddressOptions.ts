@@ -1,6 +1,7 @@
 import {
   base,
   DepositAddressPaymentOptions,
+  polygon,
   RozoPayOrderMode,
   solana,
   stellar,
@@ -70,7 +71,7 @@ export function useDepositAddressOptions({
           // },
           {
             id: DepositAddressPaymentOptions.POLYGON,
-            logoURI: "https://pay.daimo.com/chain-logos/polygon.svg",
+            logoURI: chainToLogo[polygon.chainId],
             minimumUsd: 0,
           },
           {

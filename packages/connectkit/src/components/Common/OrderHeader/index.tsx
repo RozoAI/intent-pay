@@ -5,6 +5,7 @@ import React from "react";
 import { useAccount } from "wagmi";
 import {
   Arbitrum,
+  Base,
   Ethereum,
   Optimism,
   Polygon,
@@ -12,7 +13,6 @@ import {
   Stellar,
   Tron,
 } from "../../../assets/chains";
-import LogosChain from "../../../assets/logos";
 import defaultTheme from "../../../constants/defaultTheme";
 import { ROUTES } from "../../../constants/routes";
 import { useRozoPay } from "../../../hooks/useDaimoPay";
@@ -150,21 +150,21 @@ export const OrderHeader = ({
         </MinifiedContainer>
       );
     } else {
-      return (
-        <MinifiedContainer>
-          <CoinLogos $exclude={excludeLogos} />
-          <Subtitle>1000+ tokens accepted</Subtitle>
-        </MinifiedContainer>
-      );
+      // return (
+      //   <MinifiedContainer>
+      //     <CoinLogos $exclude={excludeLogos} />
+      //     <Subtitle>1000+ tokens accepted</Subtitle>
+      //   </MinifiedContainer>
+      // );
     }
   } else {
     return (
       <>
         {titleAmountContent && <TitleAmount>{titleAmountContent}</TitleAmount>}
-        <AnyChainAnyCoinContainer>
+        {/* <AnyChainAnyCoinContainer>
           <CoinLogos $exclude={excludeLogos} />
           <Subtitle>1000+ tokens accepted</Subtitle>
-        </AnyChainAnyCoinContainer>
+        </AnyChainAnyCoinContainer> */}
       </>
     );
   }
@@ -183,7 +183,7 @@ function CoinLogos({
     // <USDC key="usdc" />,
     <Optimism key="optimism" />,
     <Arbitrum key="arbitrum" />,
-    <LogosChain.Base key="base" />,
+    <Base key="base" />,
     <Polygon key="polygon" />,
     <Solana key="solana" />,
     <Stellar key="stellar" />,

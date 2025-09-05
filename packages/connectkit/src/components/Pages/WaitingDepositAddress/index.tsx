@@ -555,13 +555,7 @@ function DepositAddressInfo({
           />
         </QRWrap>
       )}
-      <CopyableInfo
-        depAddr={depAddr}
-        remainingS={remainingS}
-        totalS={totalS}
-        payinTransactionHash={payinTransactionHash}
-        isPollingPayment={isPollingPayment}
-      />
+      <CopyableInfo depAddr={depAddr} remainingS={remainingS} totalS={totalS} />
     </ModalContent>
   );
 }
@@ -611,14 +605,10 @@ function CopyableInfo({
   depAddr,
   remainingS,
   totalS,
-  payinTransactionHash,
-  isPollingPayment,
 }: {
   depAddr?: DepositAddr;
   remainingS: number;
   totalS: number;
-  payinTransactionHash?: string | null;
-  isPollingPayment?: boolean;
 }) {
   const underpayment = depAddr?.underpayment;
   const isExpired = depAddr?.expirationS != null && remainingS === 0;
@@ -684,46 +674,6 @@ const CopyableInfoWrapper = styled.div`
   justify-content: stretch;
   gap: 0;
   margin-top: 8px;
-`;
-
-const PaymentStatusWrapper = styled.div`
-  background: var(--ck-body-background-tertiary);
-  border: 1px solid #4ade80;
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin: 0 4px 16px 4px;
-  text-align: center;
-`;
-
-const PaymentStatusHeader = styled.div`
-  font-weight: 600;
-  color: #4ade80;
-  margin-bottom: 4px;
-`;
-
-const PollingStatusWrapper = styled.div`
-  background: var(--ck-body-background-tertiary);
-  border: 1px solid #f59e0b;
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin: 0 4px 16px 4px;
-  text-align: center;
-`;
-
-const PollingIndicator = styled.div`
-  font-weight: 500;
-  color: #f59e0b;
-  animation: pulse 2s ease-in-out infinite;
-
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.6;
-    }
-  }
 `;
 
 const CountdownWrap = styled.div`
