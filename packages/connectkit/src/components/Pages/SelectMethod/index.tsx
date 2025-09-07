@@ -318,7 +318,9 @@ export default function SelectMethod() {
   return (
     <PageContent>
       {/* TODO: Hide Tron and Ethereum from the deposit address options */}
-      <OrderHeader excludeLogos={["tron", "eth", "arbitrum", "optimism"]} />
+      <OrderHeader
+        excludeLogos={["tron", "eth", "arbitrum", "optimism", "stellar"]}
+      />
 
       <OptionsList
         requiredSkeletons={isMobile ? 4 : 3} // TODO: programmatically determine skeletons to best avoid layout shifts
@@ -368,7 +370,7 @@ function getDepositAddressOption(
     title: "Pay to address",
     icons: [
       <Base key="base" />,
-      <Solana key="base" />,
+      // <Solana key="base" />,
       <Polygon key="polygon" />,
       <Stellar key="stellar" />,
       // <Arbitrum key="arbitrum" />,

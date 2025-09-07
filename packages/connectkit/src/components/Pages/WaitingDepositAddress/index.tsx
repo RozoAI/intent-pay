@@ -84,6 +84,7 @@ type DepositAddr = {
   address?: string;
   underpayment?: Underpayment;
   externalId?: string;
+  memo?: string;
 };
 
 type Underpayment = {
@@ -295,6 +296,7 @@ export default function WaitingDepositAddress() {
         uri: order.destFinalCall.to,
         displayToken: order.destFinalCallTokenAmount.token,
         logoURI: "", // Not needed for underpaid orders
+        memo: order.metadata?.memo || "",
       });
     } else {
       // Prevent multiple executions for the same deposit option
@@ -330,6 +332,7 @@ export default function WaitingDepositAddress() {
             displayToken,
             logoURI,
             externalId: details.externalId,
+            memo: details.memo || "",
           });
           setRozoPaymentId(details.externalId);
           setDepoChain(selectedDepositAddressOption.id);
@@ -454,8 +457,6 @@ export default function WaitingDepositAddress() {
             depAddr={depAddr}
             refresh={generateDepositAddress}
             triggerResize={triggerResize}
-            payinTransactionHash={payinTransactionHash}
-            isPollingPayment={isPollingPayment}
           />
         )
       )}
@@ -505,14 +506,10 @@ function DepositAddressInfo({
   depAddr,
   refresh,
   triggerResize,
-  payinTransactionHash,
-  isPollingPayment,
 }: {
   depAddr: DepositAddr;
   refresh: () => void;
   triggerResize: () => void;
-  payinTransactionHash?: string | null;
-  isPollingPayment?: boolean;
 }) {
   const { isMobile } = useIsMobile();
 
@@ -629,6 +626,14 @@ function CopyableInfo({
         valueText={depAddr?.address && getAddressContraction(depAddr.address)}
         disabled={isExpired}
       />
+      {depAddr?.memo && (
+        <CopyRowOrThrobber
+          title="Memo"
+          value={depAddr.memo}
+          valueText={depAddr.memo}
+          disabled={isExpired}
+        />
+      )}
       <CountdownWrap>
         <CountdownTimer remainingS={remainingS} totalS={totalS} />
       </CountdownWrap>

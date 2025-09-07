@@ -25,7 +25,7 @@ const SelectDepositAddressChain: React.FC = () => {
     <PageContent>
       <OrderHeader
         minified
-        excludeLogos={["tron", "eth", "arbitrum", "optimism"]}
+        excludeLogos={["tron", "eth", "arbitrum", "optimism", "solana"]}
       />
 
       {!depositAddressOptions.loading &&

@@ -144,7 +144,7 @@ export const OrderHeader = ({
           )}
           {show === "all" && (
             <>
-              <CoinLogos $size={32} $exclude={["stellar", ...excludeLogos]} />
+              <CoinLogos $size={32} $exclude={excludeLogos} />
             </>
           )}
         </MinifiedContainer>

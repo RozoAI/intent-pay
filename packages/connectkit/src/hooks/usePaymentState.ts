@@ -141,7 +141,8 @@ export interface PaymentState {
   payWithDepositAddress: (
     option: DepositAddressPaymentOptions
   ) => Promise<
-    (DepositAddressPaymentOptionData & { externalId: string }) | null
+    | (DepositAddressPaymentOptionData & { externalId: string; memo: string })
+    | null
   >;
   payWithSolanaToken: (
     walletPaymentOption: WalletPaymentOption
@@ -841,6 +842,7 @@ export function usePaymentState({
         uri: order.destFinalCall.to,
         expirationS: Math.floor(Date.now() / 1000) + 300,
         externalId: order.externalId,
+        memo: order.metadata?.memo || "",
       };
     } catch (error) {
       console.error(`[PAY DEPOSIT ADDRESS] Error processing ${option}:`, error);

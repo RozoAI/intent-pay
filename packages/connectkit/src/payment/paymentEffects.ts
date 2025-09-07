@@ -21,7 +21,11 @@ import {
   ROZO_DAIMO_APP_ID,
   STELLAR_USDC_ISSUER_PK,
 } from "../constants/rozoConfig";
-import { createRozoPayment, createRozoPaymentRequest } from "../utils/api";
+import {
+  createRozoPayment,
+  createRozoPaymentRequest,
+  PaymentResponseData,
+} from "../utils/api";
 import { PollHandle, startPolling } from "../utils/polling";
 import { TrpcClient } from "../utils/trpc";
 import { PaymentEvent, PaymentState } from "./paymentFsm";
@@ -370,6 +374,7 @@ async function runHydratePayParamsEffects(
    *
    * @link https://github.com/RozoAI/rozo-payment-manager/tree/staging?tab=readme-ov-file#supported-chains-and-tokens
    */
+  let rozoPaymentData: undefined | PaymentResponseData;
   if (toChain === base.chainId && toToken === baseUSDC.token) {
     try {
       console.log("[runHydratePayParamsEffects] Pay Out USDC Base");
@@ -450,6 +455,7 @@ async function runHydratePayParamsEffects(
           rozoPayment?.error?.message ?? "Payment creation failed"
         );
       }
+      rozoPaymentData = rozoPayment.data;
       rozoPaymentId = rozoPayment.data.id;
       if (rozoPayment.data.metadata.receivingAddress) {
         toAddress = rozoPayment.data.metadata.receivingAddress as `0x${string}`;
@@ -577,6 +583,7 @@ async function runHydratePayParamsEffects(
         ...(payParams?.metadata ?? {}),
         ...(order?.metadata ?? {}),
         ...(order.userMetadata ?? {}),
+        ...(rozoPaymentData?.metadata ?? {}),
       } as any,
       externalId: rozoPaymentId ?? null,
       userMetadata: null,

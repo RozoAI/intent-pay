@@ -32,7 +32,7 @@ export default function SelectToken() {
 
   return (
     <PageContent>
-      <OrderHeader minified show={tokenMode} />
+      <OrderHeader minified show={tokenMode} excludeLogos={["stellar"]} />
       <OptionsList
         requiredSkeletons={4}
         isLoading={isLoading}

@@ -3,7 +3,6 @@ import {
   DepositAddressPaymentOptions,
   polygon,
   RozoPayOrderMode,
-  solana,
   stellar,
 } from "@rozoai/intent-common";
 import { useEffect, useState } from "react";
@@ -59,11 +58,11 @@ export function useDepositAddressOptions({
             logoURI: chainToLogo[base.chainId],
             minimumUsd: 0,
           },
-          {
-            id: DepositAddressPaymentOptions.SOLANA,
-            logoURI: chainToLogo[solana.chainId],
-            minimumUsd: 0,
-          },
+          // {
+          //   id: DepositAddressPaymentOptions.SOLANA,
+          //   logoURI: chainToLogo[solana.chainId],
+          //   minimumUsd: 0,
+          // },
           // {
           //   id: "Optimism",
           //   logoURI: "https://pay.daimo.com/chain-logos/optimism.svg",
