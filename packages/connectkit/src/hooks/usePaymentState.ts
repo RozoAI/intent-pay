@@ -71,7 +71,6 @@ import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
 import useIsMobile from "./useIsMobile";
 import { useOrderUsdLimits } from "./useOrderUsdLimits";
 import { useSolanaPaymentOptions } from "./useSolanaPaymentOptions";
-import { useStellarDestination } from "./useStellarDestination";
 import { useStellarPaymentOptions } from "./useStellarPaymentOptions";
 import { useWalletPaymentOptions } from "./useWalletPaymentOptions";
 
@@ -245,17 +244,13 @@ export function usePaymentState({
   const [paymentWaitingMessage, setPaymentWaitingMessage] = useState<string>();
   const [isDepositFlow, setIsDepositFlow] = useState<boolean>(false);
 
-  // Use our custom hook to determine if this is a Stellar payment and its direction
-  const { isStellarPayment } = useStellarDestination(currPayParams);
-
   const showStellarPaymentMethod = useMemo(() => {
     return (
       (paymentOptions == null ||
         paymentOptions.includes(ExternalPaymentOptions.Stellar)) &&
-      pay.order != null &&
-      isStellarPayment
+      pay.order != null
     );
-  }, [paymentOptions, pay.order, isStellarPayment]);
+  }, [paymentOptions, pay.order]);
 
   // UI state. Selection for external payment (Binance, etc) vs wallet payment.
   const externalPaymentOptions = useExternalPaymentOptions({

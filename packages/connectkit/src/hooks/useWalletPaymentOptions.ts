@@ -3,10 +3,6 @@ import {
   baseUSDC,
   polygon,
   polygonUSDC,
-  rozoSolana,
-  rozoSolanaUSDC,
-  rozoStellar,
-  rozoStellarUSDC,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import { useEffect, useMemo, useState } from "react";
@@ -105,15 +101,13 @@ export function useWalletPaymentOptions({
 
         // SUPPORTED CHAINS: Only these chains are currently active in wallet payment options
         // To add more chains, add them to both arrays below and ensure they're defined in pay-common
-        const suppChains = [base, polygon, rozoSolana, rozoStellar];
+        const suppChains = [base, polygon];
 
         // SUPPORTED TOKENS: Only these specific tokens are currently active
         // Each token corresponds to its respective chain above
         const supportedTokens = [
           baseUSDC.token, // Base USDC: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
           polygonUSDC.token, // Polygon USDC: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
-          rozoSolanaUSDC.token, // Solana USDC: native Solana token
-          rozoStellarUSDC.token, // Stellar USDC: native Stellar token
         ];
 
         // Filter out chains/tokens we don't support yet in wallet payment options

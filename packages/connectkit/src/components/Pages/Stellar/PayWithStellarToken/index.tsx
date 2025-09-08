@@ -10,11 +10,10 @@ import {
 } from "../../../Common/Modal/styles";
 
 import {
-  base,
-  baseUSDC,
   RozoPayTokenAmount,
+  rozoSolana,
+  rozoSolanaUSDC,
   rozoStellar,
-  stellar,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import {
@@ -25,8 +24,6 @@ import {
 } from "@stellar/stellar-sdk";
 import {
   ROZO_DAIMO_APP_ID,
-  ROZO_STELLAR_ADDRESS,
-  STELLAR_USDC_ASSET_CODE,
   STELLAR_USDC_ISSUER_PK,
 } from "../../../../constants/rozoConfig";
 import { useRozoPay } from "../../../../hooks/useDaimoPay";
@@ -73,7 +70,7 @@ const PayWithStellarToken: React.FC = () => {
   const submitButtonRef = useRef<HTMLButtonElement>(null);
 
   // Get the destination address and payment direction using our custom hook
-  const { destinationAddress, isPayInStellarOutBase } =
+  const { destinationAddress, hasToStellarAddress } =
     useStellarDestination(payParams);
 
   const {
@@ -107,19 +104,19 @@ const PayWithStellarToken: React.FC = () => {
       preferredChain: String(rozoStellar.chainId),
       preferredToken: "USDC",
       destination: {
-        destinationAddress: isPayInStellarOutBase
-          ? payParams?.toAddress
-          : destinationAddress,
-        chainId: isPayInStellarOutBase
-          ? String(base.chainId)
-          : String(stellar.chainId),
+        destinationAddress: destinationAddress,
+        chainId: hasToStellarAddress
+          ? String(rozoStellar.chainId)
+          : payParams?.toSolanaAddress
+          ? String(rozoSolana.chainId)
+          : String(payParams?.toChain),
         amountUnits: amount,
-        tokenSymbol: isPayInStellarOutBase
-          ? baseUSDC.symbol
-          : STELLAR_USDC_ASSET_CODE,
-        tokenAddress: isPayInStellarOutBase
-          ? baseUSDC.token
-          : STELLAR_USDC_ISSUER_PK,
+        tokenSymbol: "USDC",
+        tokenAddress: hasToStellarAddress
+          ? `USDC:${STELLAR_USDC_ISSUER_PK}`
+          : payParams?.toSolanaAddress
+          ? rozoSolanaUSDC.token
+          : payParams?.toToken,
       },
       externalId: order?.externalId ?? "",
       metadata: {
@@ -161,10 +158,8 @@ const PayWithStellarToken: React.FC = () => {
       setPayState(PayState.RequestingPayment);
 
       const paymentData = {
-        destAddress: isPayInStellarOutBase
-          ? (payment.metadata.receivingAddress as string) ??
-            ROZO_STELLAR_ADDRESS
-          : destinationAddress,
+        destAddress:
+          (payment.metadata.receivingAddress as string) || destinationAddress,
         usdcAmount: payment.destination.amountUnits,
         stellarAmount: roundTokenAmount(
           option.required.amount,

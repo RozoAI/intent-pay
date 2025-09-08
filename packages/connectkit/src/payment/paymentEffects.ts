@@ -24,6 +24,7 @@ import {
 import {
   createRozoPayment,
   createRozoPaymentRequest,
+  getRozoPayment,
   PaymentResponseData,
 } from "../utils/api";
 import { PollHandle, startPolling } from "../utils/polling";
@@ -251,11 +252,30 @@ async function runSetPayParamsEffects(
     // });
 
     const token = getKnownToken(payParams.toChain, payParams.toToken);
+    const orgId = () => {
+      const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+      const segments = [8, 4, 4, 4, 12];
+      return (
+        "organization-live-" +
+        segments
+          .map((len) =>
+            Array.from(
+              { length: len },
+              () => chars[Math.floor(Math.random() * chars.length)]
+            ).join("")
+          )
+          .join("-")
+      );
+    };
+
+    const nonce = () => {
+      return Math.random().toString(36).substring(2, 15);
+    };
 
     const orderPreview = {
-      orgId: "organization-live-099b8b4a-a4b3-42aa-b315-5bf402ed7e01",
+      orgId: orgId(),
       mode: "sale",
-      id: "112570407236741975640520952649276643931915637279485636287844826490986734483705",
+      id: nonce(),
       destFinalCallTokenAmount: {
         token: {
           chainId: payParams.toChain,
@@ -278,8 +298,7 @@ async function runSetPayParamsEffects(
         value: "0",
         data: payParams.toCallData || "0x",
       },
-      nonce:
-        "112570407236741975640520952649276643931915637279485636287844826490986734483705",
+      nonce: nonce(),
       redirectUri: null,
       createdAt: null,
       lastUpdatedAt: null,
@@ -504,9 +523,7 @@ async function runHydratePayParamsEffects(
     const token = getKnownToken(toChain, toToken);
 
     const hydratedOrder: RozoPayHydratedOrderWithOrg = {
-      id: BigInt(
-        "35678265682867492506807139952345554885751794165969955665089898973517645243843"
-      ),
+      id: BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)),
       mode: RozoPayOrderMode.HYDRATED,
       intentAddr: toAddress,
       handoffAddr: toAddress,
@@ -560,9 +577,7 @@ async function runHydratePayParamsEffects(
         data: "0x",
       },
       refundAddr: (order.refundAddr as `0x${string}`) || null,
-      nonce: BigInt(
-        "35678265682867492506807139952345554885751794165969955665089898973517645243843"
-      ),
+      nonce: order.nonce,
       sourceTokenAmount: null,
       sourceFulfillerAddr: null,
       sourceInitiateTxHash: null,
@@ -575,9 +590,9 @@ async function runHydratePayParamsEffects(
       // passedToAddress: null,
       redirectUri: null,
       // sourceInitiateUpdatedAt: null,
-      createdAt: 1756903744,
-      lastUpdatedAt: 1756903745,
-      orgId: "organization-live-099b8b4a-a4b3-42aa-b315-5bf402ed7e01",
+      createdAt: Math.floor(Date.now() / 1000),
+      lastUpdatedAt: Math.floor(Date.now() / 1000),
+      orgId: order.orgId,
       metadata: {
         daimoOrderId: order?.id ?? null,
         ...(payParams?.metadata ?? {}),
@@ -589,7 +604,9 @@ async function runHydratePayParamsEffects(
       userMetadata: null,
       expirationTs: BigInt("1756990145"),
       org: {
-        orgId: "organization-live-099b8b4a-a4b3-42aa-b315-5bf402ed7e01",
+        orgId:
+          order.orgId ??
+          "organization-live-099b8b4a-a4b3-42aa-b315-5bf402ed7e01",
         name: "Pay Rozo",
       },
     };
@@ -614,10 +631,113 @@ async function runHydratePayIdEffects(
   const order = prev.order;
 
   try {
-    const { hydratedOrder } = await trpc.hydrateOrder.query({
-      id: order.id.toString(),
-      refundAddress: event.refundAddress,
-    });
+    // const { hydratedOrder } = await trpc.hydrateOrder.query({
+    //   id: order.id.toString(),
+    //   refundAddress: event.refundAddress,
+    // });
+
+    const orderData = await getRozoPayment(order.id.toString());
+    if (!orderData?.data) {
+      throw new Error("Order not found");
+    }
+
+    const token = getKnownToken(
+      order.destFinalCallTokenAmount.token.chainId,
+      order.destFinalCallTokenAmount.token.token
+    );
+
+    const hydratedOrder: RozoPayHydratedOrderWithOrg = {
+      id: BigInt(orderData.data.id),
+      mode: RozoPayOrderMode.HYDRATED,
+      intentAddr: orderData.data.metadata.receivingAddress as `0x${string}`,
+      handoffAddr: orderData.data.metadata.receivingAddress as `0x${string}`,
+      escrowContractAddress: orderData.data.metadata
+        .receivingAddress as `0x${string}`,
+      bridgerContractAddress: orderData.data.metadata
+        .receivingAddress as `0x${string}`,
+      bridgeTokenOutOptions: [
+        {
+          token: {
+            chainId: order.destFinalCallTokenAmount.token.chainId,
+            token: order.destFinalCallTokenAmount.token.token,
+            symbol: "USDC",
+            usd: 1,
+            priceFromUsd: 1,
+            decimals: token?.decimals ?? 18,
+            displayDecimals: 2,
+            logoSourceURI: "https://pay.daimo.com/coin-logos/usdc.png",
+            logoURI: "https://pay.daimo.com/coin-logos/usdc.png",
+            maxAcceptUsd: 100000,
+            maxSendUsd: 0,
+          },
+          amount: order.destFinalCallTokenAmount
+            .amount as unknown as `${bigint}`,
+          usd: Number(order.destFinalCallTokenAmount.usd),
+        },
+      ],
+      selectedBridgeTokenOutAddr: null,
+      selectedBridgeTokenOutAmount: null,
+      destFinalCallTokenAmount: {
+        token: {
+          chainId: order.destFinalCallTokenAmount.token.chainId,
+          token: order.destFinalCallTokenAmount.token.token,
+          symbol: "USDC",
+          usd: 1,
+          priceFromUsd: 1,
+          decimals: token?.decimals ?? 18,
+          displayDecimals: 2,
+          logoSourceURI: "https://pay.daimo.com/coin-logos/usdc.png",
+          logoURI: "https://pay.daimo.com/coin-logos/usdc.png",
+          maxAcceptUsd: 100000,
+          maxSendUsd: 0,
+        },
+        amount: parseUnits(
+          order.destFinalCallTokenAmount.amount as unknown as `${bigint}`,
+          token?.decimals ?? 18
+        ).toString() as `${bigint}`,
+        usd: Number(order.destFinalCallTokenAmount.usd),
+      },
+      usdValue: Number(order.destFinalCallTokenAmount.usd),
+      destFinalCall: {
+        to: orderData.data.metadata.receivingAddress as `0x${string}`,
+        value: BigInt("0"),
+        data: "0x",
+      },
+      refundAddr: (order.refundAddr as `0x${string}`) || null,
+      nonce: orderData.data.nonce as unknown as bigint,
+      sourceTokenAmount: null,
+      sourceFulfillerAddr: null,
+      sourceInitiateTxHash: null,
+      sourceStartTxHash: null,
+      sourceStatus: RozoPayOrderStatusSource.WAITING_PAYMENT,
+      destStatus: RozoPayOrderStatusDest.PENDING,
+      intentStatus: RozoPayIntentStatus.UNPAID,
+      destFastFinishTxHash: null,
+      destClaimTxHash: null,
+      // passedToAddress: null,
+      redirectUri: null,
+      // sourceInitiateUpdatedAt: null,
+      createdAt: order.createdAt,
+      lastUpdatedAt: Math.floor(Date.now() / 1000),
+      orgId:
+        orderData.data.id ??
+        "organization-live-099b8b4a-a4b3-42aa-b315-5bf402ed7e01",
+      metadata: {
+        daimoOrderId: order?.id ?? null,
+        ...(orderData.data.metadata ?? {}),
+        ...(order?.metadata ?? {}),
+        ...(order.userMetadata ?? {}),
+      } as any,
+      externalId: orderData.data.externalId ?? orderData.data.id ?? null,
+      userMetadata: null,
+      expirationTs: orderData.data.expirationTs as unknown as bigint,
+      org: {
+        orgId:
+          orderData.data.id ??
+          "organization-live-099b8b4a-a4b3-42aa-b315-5bf402ed7e01",
+        name: "Pay Rozo",
+      },
+    };
 
     store.dispatch({
       type: "order_hydrated",
