@@ -44,6 +44,7 @@ enum PayState {
   CreatingPayment = "Creating Payment Record...",
   RequestingPayment = "Waiting for Payment",
   WaitingForConfirmation = "Waiting for Confirmation",
+  ProcessingPayment = "Processing Payment",
   RequestCancelled = "Payment Cancelled",
   RequestFailed = "Payment Failed",
   RequestSuccessful = "Payment Successful",
@@ -88,7 +89,6 @@ const PayWithStellarToken: React.FC = () => {
     setPayState(PayState.CreatingPayment);
 
     let amount: any = roundTokenAmount(payToken.amount, payToken.token);
-
     // Convert XLM to USDC for Pay In Stellar, Pay Out Stellar scenarios
     if (payToken.token.symbol === "XLM") {
       amount = await convertXlmToUsdc(amount);
@@ -126,13 +126,18 @@ const PayWithStellarToken: React.FC = () => {
     });
 
     // API Call
-    const response = await createRozoPayment(paymentData);
-    if (!response?.data?.id) {
-      throw new Error(response?.error?.message ?? "Payment creation failed");
-    }
+    try {
+      const response = await createRozoPayment(paymentData);
 
-    setActiveRozoPayment(response.data);
-    return response.data;
+      if (!response?.data?.id) {
+        throw new Error(response?.error?.message ?? "Payment creation failed");
+      }
+
+      setActiveRozoPayment(response.data);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
   };
 
   // FOR TRANSFER ACTION
@@ -171,12 +176,11 @@ const PayWithStellarToken: React.FC = () => {
         Object.assign(paymentData, { memo: payment.metadata.memo as string });
       }
 
-      console.log("[PAY STELLAR] Payment data", paymentData);
       const result = await payWithStellarTokenImpl(option, paymentData);
+
       setSignedTx(result.signedTx);
       setPayState(PayState.WaitingForConfirmation);
     } catch (error) {
-      console.error(error);
       if (error instanceof Error && error.message.includes("declined")) {
         setPayState(PayState.RequestCancelled);
       } else {
@@ -188,34 +192,47 @@ const PayWithStellarToken: React.FC = () => {
   };
 
   const handleSubmitTx = async () => {
-    console.log("[PAY STELLAR] Submitting transaction", signedTx);
     if (signedTx && stellarServer && stellarKit) {
-      // Sign and submit transaction
-      const signedTransaction = await stellarKit.signTransaction(signedTx, {
-        address: stellarPublicKey,
-        networkPassphrase: Networks.PUBLIC,
-      });
-      const tx = TransactionBuilder.fromXDR(
-        signedTransaction.signedTxXdr,
-        Networks.PUBLIC
-      );
-      const response = await stellarServer.submitTransaction(
-        tx as Transaction | FeeBumpTransaction
-      );
+      try {
+        // Sign and submit transaction
+        const signedTransaction = await stellarKit.signTransaction(signedTx, {
+          address: stellarPublicKey,
+          networkPassphrase: Networks.PUBLIC,
+        });
 
-      console.log("[PAY STELLAR] Transaction submitted", response);
-      if (response.successful) {
-        setPayState(PayState.RequestSuccessful);
-        setTxHash(response.hash);
-        setSignedTx(undefined);
-        setTimeout(() => {
-          setActiveRozoPayment(undefined);
-          setPaymentRozoCompleted(true);
-          setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
-        }, 200);
-      } else {
+        setIsLoading(true);
+        setPayState(PayState.ProcessingPayment);
+
+        const tx = TransactionBuilder.fromXDR(
+          signedTransaction.signedTxXdr,
+          Networks.PUBLIC
+        );
+
+        const response = await stellarServer.submitTransaction(
+          tx as Transaction | FeeBumpTransaction
+        );
+
+        if (response.successful) {
+          setPayState(PayState.RequestSuccessful);
+          setTxHash(response.hash);
+          setSignedTx(undefined);
+          setTimeout(() => {
+            setActiveRozoPayment(undefined);
+            setPaymentRozoCompleted(true);
+            setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
+          }, 200);
+        } else {
+          setPayState(PayState.RequestFailed);
+        }
+      } catch (error) {
         setPayState(PayState.RequestFailed);
+      } finally {
+        setIsLoading(false);
       }
+    } else {
+      console.error(
+        "[PAY STELLAR] Cannot submit transaction - missing requirements"
+      );
     }
   };
 
