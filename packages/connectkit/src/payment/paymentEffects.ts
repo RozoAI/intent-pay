@@ -375,6 +375,11 @@ async function runHydratePayParamsEffects(
   let toAddress = getAddress(order.destFinalCall.to);
 
   // ROZO API CALL
+  /**
+   * Pay Out USDC Base scenario
+   *
+   * @link https://github.com/RozoAI/rozo-payment-manager/tree/staging?tab=readme-ov-file#supported-chains-and-tokens
+   */
   let rozoPaymentId: string | undefined = order?.externalId ?? undefined;
   let preferred = {
     preferredChain: String(toChain),
@@ -388,16 +393,9 @@ async function runHydratePayParamsEffects(
     tokenAddress: toToken as string,
   };
 
-  /**
-   * Pay Out USDC Base scenario
-   *
-   * @link https://github.com/RozoAI/rozo-payment-manager/tree/staging?tab=readme-ov-file#supported-chains-and-tokens
-   */
   let rozoPaymentData: undefined | PaymentResponseData;
   if (toChain === base.chainId && toToken === baseUSDC.token) {
     try {
-      console.log("[runHydratePayParamsEffects] Pay Out USDC Base");
-
       // Pay In USDC Polygon
       if (
         walletPaymentOption &&
@@ -439,15 +437,15 @@ async function runHydratePayParamsEffects(
         destination.chainId = String(rozoStellar.chainId);
         destination.tokenSymbol = "USDC";
         destination.tokenAddress = `USDC:${STELLAR_USDC_ISSUER_PK}`;
-      }
-
-      // Pay Out USDC Solana
-      if (payParams?.toSolanaAddress) {
+      } else if (payParams?.toSolanaAddress) {
+        // Pay Out USDC Solana
         console.log("[runHydratePayParamsEffects] Pay Out USDC Solana");
         destination.destinationAddress = payParams?.toSolanaAddress;
         destination.chainId = String(rozoSolanaUSDC.chainId);
         destination.tokenSymbol = "USDC";
         destination.tokenAddress = rozoSolanaUSDC.token;
+      } else {
+        console.log("[runHydratePayParamsEffects] Pay Out USDC Base");
       }
 
       const paymentData = createRozoPaymentRequest({

@@ -13,7 +13,7 @@ import {
   RozoPayTokenAmount,
   rozoSolana,
   rozoSolanaUSDC,
-  rozoStellar,
+  rozoStellarUSDC,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import {
@@ -101,12 +101,12 @@ const PayWithStellarToken: React.FC = () => {
         paymentValue: String(payToken.usd),
         currency: "USD",
       },
-      preferredChain: String(rozoStellar.chainId),
+      preferredChain: String(rozoStellarUSDC.chainId),
       preferredToken: "USDC",
       destination: {
         destinationAddress: destinationAddress,
         chainId: hasToStellarAddress
-          ? String(rozoStellar.chainId)
+          ? String(rozoStellarUSDC.chainId)
           : payParams?.toSolanaAddress
           ? String(rozoSolana.chainId)
           : String(payParams?.toChain),
