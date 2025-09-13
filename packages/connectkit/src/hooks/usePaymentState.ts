@@ -271,6 +271,7 @@ export function usePaymentState({
     preferredTokens: pay.order?.metadata.payer?.preferredTokens,
     evmChains: pay.order?.metadata.payer?.evmChains,
     isDepositFlow,
+    payParams: currPayParams,
     log,
   });
   const solanaPaymentOptions = useSolanaPaymentOptions({
