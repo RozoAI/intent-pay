@@ -1,7 +1,6 @@
 # Intent Pay
 
 Rozo Intent Pay enables seamless crypto payments for your app.
-
 Onboard users from any chain, any coin into your app with one click and maximize your conversion.
 
 ## Features
@@ -31,6 +30,7 @@ Onboard users from any chain, any coin into your app with one click and maximize
 
 - Base
 - Polygon
+- BSC
 - Solana
 - Stellar
 
@@ -45,8 +45,9 @@ Onboard users from any chain, any coin into your app with one click and maximize
 
 - Base USDC
 - Polygon USDC
+- BSC USDT
 - Solana USDC
-- Stellar USDC/XLM
+- Stellar USDC
 
 **Full Token Support Per Chain:**
 

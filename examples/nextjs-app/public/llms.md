@@ -6,20 +6,40 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18+-61dafb.svg)](https://reactjs.org/)
 
+## Table of Contents
+
+- [What RozoAI Intent Pay Does](#-what-rozoai-intent-pay-does)
+- [Requirements Checklist](#-requirements-checklist-mandatory)
+- [Complete Working Example](#-complete-working-example-copy--paste-ready)
+- [Quick Customization Patterns](#-quick-customization-patterns)
+- [Common Mistakes to Avoid](#-common-mistakes-to-avoid)
+- [Supported Chains & Tokens](#-supported-chains--tokens)
+- [Payment Methods](#-payment-methods-your-users-can-use)
+- [Single Prompt Hit to Generate](#-single-prompt-hit-to-generate)
+- [Essential API Reference](#-essential-api-reference-ai-services)
+- [Testing Checklist](#-testing-checklist)
+- [Success Examples](#-success-examples)
+- [Additional Resources](#-additional-resources-optional-reading)
+- [Advanced Configuration](#advanced-configuration)
+- [Production Checklist](#production-checklist)
+- [Support & Resources](#-support--resources)
+- [Demo Link](#-demo-link)
+- [License](#-license)
+
 ## 🤖 For AI Services: Single Prompt Implementation
 
 This guide is optimized for AI services to quickly create working examples from a single prompt. All requirements and patterns are clearly defined below.
 
 ### 🎯 What RozoAI Intent Pay Does
 
-RozoAI Intent Pay SDK is a React component that lets users pay you in crypto **from any blockchain** - whether they have Ethereum, Solana, Polygon, or dozens of other tokens. Your users can pay with their preferred wallet and token, while you receive exactly what you want.
+RozoAI Intent Pay SDK is a React component that lets users pay you in crypto from supported networks — Base, Polygon, Solana, Stellar, and BSC. Your users can pay with their preferred wallet, while you receive exactly what you want.
 
 **Key Benefits:**
 
 - ✅ **One Component** - Add `<RozoPayButton>` and you're done
-- ✅ **Any Chain** - Users can pay from 15+ blockchains
+- ✅ **Supported Chains** - Base, Polygon, Solana, Stellar, BSC
 - ✅ **Any Wallet** - MetaMask, Phantom, Coinbase Wallet, and more
-- ✅ **Any Token** - USDC, ETH, SOL, MATIC, and hundreds more
+- ✅ **Supported Tokens** - USDC on Base/Polygon/Solana/Stellar; USDT on BSC
 - ✅ **Mobile Ready** - Works perfectly on mobile apps
 - ✅ **Zero Config** - Smart defaults, easy customization
 
@@ -45,8 +65,8 @@ When creating examples, AI services MUST follow these requirements:
 ```json
 {
   "dependencies": {
-    "@rozoai/intent-pay": "^0.0.25-beta.6",
-    "@rozoai/intent-common": "^0.0.20",
+    "@rozoai/intent-pay": "latest",
+    "@rozoai/intent-common": "latest",
     "@tanstack/react-query": "^5.51.11",
     "wagmi": "^2.15.6",
     "viem": "^2.31.6",
@@ -198,8 +218,8 @@ export default function App() {
   "name": "rozoai-payment-demo",
   "private": true,
   "dependencies": {
-    "@rozoai/intent-pay": "^0.0.25-beta.6",
-    "@rozoai/intent-common": "^0.0.20",
+    "@rozoai/intent-pay": "latest",
+    "@rozoai/intent-common": "latest",
     "@tanstack/react-query": "^5.51.11",
     "wagmi": "^2.15.6",
     "viem": "^2.31.6",
@@ -247,9 +267,9 @@ export default function App() {
 <RozoPayButton
   appId="rozoDemoMP"
   // REQUIRED: Base chain config (settlement layer)
-  toChain={8453}
-  toToken={getAddress(baseUSDC.token)}
-  toAddress={getAddress("0x742d35Cc6634C0532925a3b8D454A3fE1C11C4e2")}
+  toChain={8453} // MUST be Base Chain (8453)
+  toToken={getAddress(baseUSDC.token)} // MUST be Base USDC
+  toAddress={getAddress("0x742d35Cc6634C0532925a3b8D454A3fE1C11C4e2")} // Any valid EVM address
   // Your actual destinations
   toSolanaAddress="DYw8jCTfwHNRJhhmFcbXvVDTqWMEVFBX6ZKUmG5CNSKK"
   toStellarAddress="GABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234YZ"
@@ -257,6 +277,16 @@ export default function App() {
   intent="Multi-Chain Payment"
 />
 ```
+
+**⚠️ CRITICAL: Solana/Stellar Configuration Requirements**
+
+When using `toSolanaAddress` or `toStellarAddress`, you **MUST** set:
+
+- `toChain` to Base Chain (8453)
+- `toToken` to Base USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
+- The `toAddress` can be any valid EVM address in this case
+
+This is because RozoAI uses Base chain as the settlement layer for cross-chain payments.
 
 ## ⚠️ COMMON MISTAKES TO AVOID
 
@@ -313,39 +343,54 @@ toToken={getAddress(baseUSDC.token)}
 <RozoPayButton payId="pay456" />
 ```
 
+### ❌ Wrong Solana/Stellar Configuration
+
+```tsx
+// ❌ DON'T DO THIS - Wrong chain/token for Solana/Stellar
+<RozoPayButton
+  appId="rozoDemoMP"
+  toChain={1}  // ❌ Wrong chain
+  toToken={getAddress("0xA0b86a33...")}  // ❌ Wrong token
+  toSolanaAddress="DYw8jCTf..."
+/>
+
+// ✅ DO THIS - Correct Base chain config
+<RozoPayButton
+  appId="rozoDemoMP"
+  toChain={8453}  // ✅ Base chain
+  toToken={getAddress(baseUSDC.token)}  // ✅ Base USDC
+  toAddress={getAddress("0x742d35Cc6634C0532925a3b8D454A3fE1C11C4e2")}
+  toSolanaAddress="DYw8jCTf..."
+/>
+```
+
 ## 🎯 Supported Chains & Tokens
 
 ### 🔗 Blockchains (AI Services: Use these Chain IDs)
 
-| Chain        | Chain ID | Token Examples    | Usage in Code                   |
-| ------------ | -------- | ----------------- | ------------------------------- |
-| **Ethereum** | 1        | ETH, USDC, USDT   | `toChain={1}`                   |
-| **Base**     | 8453     | ETH, USDC         | `toChain={8453}` ⭐ RECOMMENDED |
-| **Polygon**  | 137      | MATIC, USDC, USDT | `toChain={137}`                 |
-| **Arbitrum** | 42161    | ETH, USDC         | `toChain={42161}`               |
-| **Optimism** | 10       | ETH, USDC         | `toChain={10}`                  |
-| **BSC**      | 56       | BNB, USDC, USDT   | `toChain={56}`                  |
-| **Solana**   | Special  | SOL, USDC         | Use `toSolanaAddress`           |
-| **Stellar**  | Special  | XLM, USDC         | Use `toStellarAddress`          |
+| Chain       | Chain ID | Supported Token | Usage in Code          |
+| ----------- | -------- | --------------- | ---------------------- |
+| **Base**    | 8453     | USDC            | `toChain={8453}`       |
+| **Polygon** | 137      | USDC            | `toChain={137}`        |
+| **BSC**     | 56       | USDT            | `toChain={56}`         |
+| **Solana**  | Special  | USDC            | Use `toSolanaAddress`  |
+| **Stellar** | Special  | USDC            | Use `toStellarAddress` |
 
 ### 💰 Common Token Addresses (Copy-Paste Ready)
 
 ```tsx
 // Base USDC (RECOMMENDED for most use cases)
 import { baseUSDC } from "@rozoai/intent-common";
-toChain={baseUSDC.chainId}      // 8453
+toChain={baseUSDC.chainId}           // 8453
 toToken={getAddress(baseUSDC.token)} // 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
-
-// Ethereum USDC
-toChain={1}
-toToken={getAddress("0xA0b86a33E6B5A6B6B1c8C9C7B7B8C9C8C9C8C9C8")}
 
 // Polygon USDC
 toChain={137}
 toToken={getAddress("0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174")}
 
-// Native tokens (ETH, MATIC, etc.)
-toToken={getAddress("0x0000000000000000000000000000000000000000")} // Native token
+// BSC USDT
+toChain={56}
+toToken={getAddress("0x55d398326f99059fF775485246999027B3197955")}
 ```
 
 ## 💳 Payment Methods Your Users Can Use
@@ -355,6 +400,7 @@ toToken={getAddress("0x0000000000000000000000000000000000000000")} // Native tok
 - **Desktop**: MetaMask, Coinbase Wallet, Rainbow, Trust Wallet
 - **Mobile**: All wallets via deep-linking
 - **Solana**: Phantom, Backpack, Solflare
+- **Stellar**: Any Stellar wallet compatible with your `toStellarAddress`
 - **Advanced**: Hardware wallets, multisig wallets
 
 ## 🔧 AI SERVICE PROMPT TEMPLATES
@@ -383,11 +429,11 @@ Requirements:
 - Use Base USDC as the payment token
 ```
 
-### Template 3: Multi-Chain Support
+### Template 3: Multi-Chain Support (within supported networks)
 
 ```
 Create a donation component using RozoAI Intent Pay SDK that supports:
-- Base, Polygon, and Solana payments
+- Base, Polygon, Solana, Stellar, and BSC payments (USDT)
 - $20 donation amount
 - Prefer Base and Polygon chains
 - Include Solana address support
@@ -412,15 +458,15 @@ Create a donation component using RozoAI Intent Pay SDK that supports:
 ### Event Handlers (RECOMMENDED)
 
 ```tsx
-onPaymentStarted={(event) => {
+  onPaymentStarted={(event) => {
   console.log("Payment started:", event.paymentId);
   // Show loading state
-}}
-onPaymentCompleted={(event) => {
+  }}
+  onPaymentCompleted={(event) => {
   console.log("Payment completed:", event.txHash);
   // Fulfill order, show success
-}}
-onPaymentBounced={(event) => {
+  }}
+  onPaymentBounced={(event) => {
   console.log("Payment failed:", event);
   // Handle refund, show error
 }}
@@ -475,6 +521,12 @@ Before submitting code, AI services should verify:
 - [ ] `toToken` wrapped in `getAddress()`
 - [ ] `toUnits` is a string (e.g., "10" not 10)
 - [ ] `intent` prop used for button text
+
+### ✅ Solana/Stellar Support (If Used)
+
+- [ ] `toChain` set to Base Chain (8453) when using `toSolanaAddress` or `toStellarAddress`
+- [ ] `toToken` set to Base USDC when using Solana/Stellar addresses
+- [ ] `toAddress` can be any valid EVM address for Solana/Stellar payments
 
 ### ✅ Event Handlers
 
@@ -659,10 +711,87 @@ _Simplifying crypto payments, one transaction at a time._
 ## 📞 Support & Resources
 
 - 📖 **Documentation**: [docs.rozo.ai](https://docs.rozo.ai)
-- 💬 **Discord**: [discord.gg/rozoai](https://discord.gg/rozoai)
+- 💬 **Discord**: [discord.gg/rozoai](https://discord.com/invite/EfWejgTbuU)
 - 🐛 **Issues**: [GitHub Issues](https://github.com/rozoai/intent-pay/issues)
 - 📧 **Email**: support@rozo.ai
+
+## Demo Link
+
+[🔗 demo.rozo.ai](https://demo.rozo.ai/)
 
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+## 🚀 Single Prompt Hit to Generate
+
+Use this copy-ready prompt to generate a complete, production-ready Next.js 15 App Router example with TailwindCSS that can be deployed with a single command.
+
+### 📋 One-Command Prompt
+
+```text
+You are an expert Next.js + Web3 developer.
+Create a complete Next.js 15 App Router project with RozoAI Intent Pay SDK integration.
+
+Requirements:
+- Next.js 15 App Router with TypeScript
+- TailwindCSS for styling
+- Complete package.json with all dependencies and scripts
+- Payment form with Address and Amount inputs
+- Show RozoPayButton only when both fields are filled
+- "Generate Pay Button" that opens modal immediately with defaultOpen
+- Base USDC payments only (toChain=8453, baseUSDC from @rozoai/intent-common)
+- Modern, responsive UI with proper form validation
+- Production-ready error handling
+
+Output exactly these files in order:
+1. package.json (complete with dependencies and scripts)
+2. tailwind.config.js
+3. app/globals.css (with Tailwind directives)
+4. app/providers.tsx (WagmiProvider, QueryClientProvider, RozoPayProvider)
+5. app/layout.tsx (with Providers and TailwindCSS)
+6. app/page.tsx (payment form with Tailwind classes)
+
+Include:
+- All necessary dependencies (@rozoai/intent-pay, @rozoai/intent-common, wagmi, viem, etc.)
+- TailwindCSS setup
+- Proper TypeScript types
+- Form validation and UX improvements
+- Mobile-responsive design
+
+Reference: [URL of this MD]
+```
+
+### 🔗 Instant Generation with Lovable
+
+**Generate instantly with one click using Lovable's Build with URL:**
+
+[![Generate with Lovable](https://img.shields.io/badge/Generate%20with-Lovable-FF6B6B?style=for-the-badge&logo=rocket)](<https://lovable.dev/?autosubmit=true#prompt=You%20are%20an%20expert%20Next.js%20%2B%20Web3%20developer.%0ACreate%20a%20complete%20Next.js%2015%20App%20Router%20project%20with%20RozoAI%20Intent%20Pay%20SDK%20integration.%0A%0ARequirements%3A%0A-%20Next.js%2015%20App%20Router%20with%20TypeScript%0A-%20TailwindCSS%20for%20styling%0A-%20Complete%20package.json%20with%20all%20dependencies%20and%20scripts%0A-%20Payment%20form%20with%20Address%20and%20Amount%20inputs%0A-%20Show%20RozoPayButton%20only%20when%20both%20fields%20are%20filled%0A-%20%22Generate%20Pay%20Button%22%20that%20opens%20modal%20immediately%20with%20defaultOpen%0A-%20Base%20USDC%20payments%20only%20(toChain%3D8453%2C%20baseUSDC%20from%20%40rozoai%2Fintent-common)%0A-%20Modern%2C%20responsive%20UI%20with%20proper%20form%20validation%0A-%20Production-ready%20error%20handling%0A%0AOutput%20exactly%20these%20files%20in%20order%3A%0A1.%20package.json%20(complete%20with%20dependencies%20and%20scripts)%0A2.%20tailwind.config.js%0A3.%20app%2Fglobals.css%20(with%20Tailwind%20directives)%0A4.%20app%2Fproviders.tsx%20(WagmiProvider%2C%20QueryClientProvider%2C%20RozoPayProvider)%0A5.%20app%2Flayout.tsx%20(with%20Providers%20and%20TailwindCSS)%0A6.%20app%2Fpage.tsx%20(payment%20form%20with%20Tailwind%20classes)%0A%0AInclude%3A%0A-%20All%20necessary%20dependencies%20(%40rozoai%2Fintent-pay%2C%20%40rozoai%2Fintent-common%2C%20wagmi%2C%20viem%2C%20etc.)%0A-%20TailwindCSS%20setup%0A-%20Proper%20TypeScript%20types%0A-%20Form%20validation%20and%20UX%20improvements%0A-%20Mobile-responsive%20design>)
+
+**How it works:**
+
+1. Click the "Generate with Lovable" button above
+2. Sign in to Lovable (if not already logged in)
+3. The complete RozoAI payment app will be generated instantly
+4. Deploy to production with one click
+
+**Features of the generated app:**
+
+- ✅ Complete Next.js 15 setup with TypeScript
+- ✅ TailwindCSS styling and responsive design
+- ✅ Form validation with real-time feedback
+- ✅ RozoAI Intent Pay integration
+- ✅ Production-ready deployment
+
+> **Note:** The Lovable integration uses their [Build with URL feature](https://docs.lovable.dev/integrations/build-with-url) to programmatically generate applications with pre-configured prompts.
+
+### 🚀 Features Included
+
+- ✅ **Complete Setup** - All files and dependencies included
+- ✅ **TailwindCSS** - Modern, responsive styling
+- ✅ **Form Validation** - Address validation with `isAddress` from viem
+- ✅ **Error Handling** - User-friendly error messages
+- ✅ **Mobile Responsive** - Works perfectly on all devices
+- ✅ **Production Ready** - Proper TypeScript types and error boundaries
+- ✅ **UX Optimized** - Loading states, success feedback, form reset
+- ✅ **One Command Deploy** - Ready for Vercel, Netlify, or any platform

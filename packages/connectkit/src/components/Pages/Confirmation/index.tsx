@@ -53,6 +53,10 @@ const Confirmation: React.FC = () => {
     undefined
   );
 
+  const isMugglePay = useMemo(() => {
+    return paymentStateContext?.payParams?.appId.includes("MP");
+  }, [paymentStateContext]);
+
   const showProcessingPayout = useMemo(() => {
     const { payParams, selectedTokenOption } = paymentStateContext;
 
@@ -63,11 +67,7 @@ const Confirmation: React.FC = () => {
         isMugglePay
       );
     }
-  }, [paymentStateContext]);
-
-  const isMugglePay = useMemo(() => {
-    return paymentStateContext?.payParams?.appId.includes("MP");
-  }, [paymentStateContext]);
+  }, [paymentStateContext, isMugglePay]);
 
   const rozoPaymentId = useMemo(() => {
     return order?.externalId || paymentStateContext.rozoPaymentId;
