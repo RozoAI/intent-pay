@@ -64,7 +64,7 @@ const Confirmation: React.FC = () => {
       return (
         payParams.showProcessingPayout &&
         // Hide Processing Payout appId contains "MP" (MugglePay)
-        isMugglePay
+        !isMugglePay
       );
     }
   }, [paymentStateContext, isMugglePay]);
