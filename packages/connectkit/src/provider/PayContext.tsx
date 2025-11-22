@@ -36,6 +36,7 @@ export type PayContextValue = {
   open: boolean;
   setOpen: (open: boolean, meta?: Record<string, any>) => void;
   route: string;
+  routeMeta?: Record<string, any>;
   setRoute: (route: ROUTES, data?: Record<string, any>) => void;
   errorMessage: string | React.ReactNode | null;
   debugMode?: boolean;

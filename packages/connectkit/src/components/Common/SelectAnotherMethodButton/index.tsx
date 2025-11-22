@@ -45,7 +45,9 @@ export default function SelectAnotherMethodButton() {
     title: `Pay with another method`,
     icons: getBestPaymentMethodIcons(payParams?.appId ?? undefined, tokenMode),
     onClick: () => {
-      setRoute(ROUTES.SELECT_METHOD);
+      setRoute(ROUTES.SELECT_METHOD, {
+        event: "click-select-another-method",
+      });
     },
   };
 
@@ -54,7 +56,9 @@ export default function SelectAnotherMethodButton() {
     title: "Pay with another wallet",
     icons: getBestUnconnectedWalletIcons(connector),
     onClick: () => {
-      setRoute(ROUTES.SELECT_METHOD);
+      setRoute(ROUTES.SELECT_METHOD, {
+        event: "click-select-another-method",
+      });
     },
   };
 

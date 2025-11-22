@@ -26,6 +26,7 @@ import {
   rozoStellarUSDC,
   Token,
   WalletPaymentOption,
+  worldchainUSDC,
   writeRozoPayOrderID,
 } from "@rozoai/intent-common";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -937,6 +938,8 @@ export function usePaymentState({
         token = polygonUSDC;
       } else if (option === DepositAddressPaymentOptions.BSC) {
         token = bscUSDT;
+      } else if (option === DepositAddressPaymentOptions.WORLD) {
+        token = worldchainUSDC;
       }
 
       log("[PAY DEPOSIT ADDRESS] hydrating order");

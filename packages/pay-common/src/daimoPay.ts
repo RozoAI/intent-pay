@@ -427,6 +427,7 @@ export enum DepositAddressPaymentOptions {
   ETH_L1 = "Ethereum",
   SOLANA = "Solana",
   STELLAR = "Stellar",
+  WORLD = "Worldchain",
 
   /** @deprecated */
   BITCOIN = "Bitcoin",
