@@ -172,6 +172,9 @@ const RozoPayUIProvider = ({
   const [lockPayParams, setLockPayParams] = useState<boolean>(false);
   const [paymentCompleted, setPaymentCompleted] = useState<boolean>(false);
   const [route, setRouteState] = useState<ROUTES>(ROUTES.SELECT_METHOD);
+  const [routeMeta, setRouteMeta] = useState<Record<string, any> | undefined>(
+    undefined
+  );
   const [modalOptions, setModalOptions] = useState<RozoPayModalOptions>();
 
   // Rozo Pay context
@@ -259,6 +262,7 @@ const RozoPayUIProvider = ({
       //   data: data ?? {},
       // });
       setRouteState(route);
+      setRouteMeta(data);
     },
     [trpc, pay.order?.id, log]
   );
@@ -363,6 +367,7 @@ const RozoPayUIProvider = ({
     open,
     setOpen,
     route,
+    routeMeta,
     setRoute,
     // Rozo Pay context
     pendingConnectorId,

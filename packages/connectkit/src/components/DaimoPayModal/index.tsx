@@ -243,6 +243,14 @@ export const RozoPayModal: React.FC<{
     if (!context.open) return;
     if (context.route !== ROUTES.SELECT_METHOD) return;
 
+    // Only auto-navigate to SELECT_TOKEN when the modal is initially opened,
+    // not when the user explicitly navigates to SELECT_METHOD from SELECT_TOKEN.
+    // We detect explicit navigation by checking if the last route event was
+    // "click-select-another-method"
+    const isExplicitBackNavigation =
+      context.routeMeta?.event === "click-select-another-method";
+    if (isExplicitBackNavigation) return;
+
     // Skip to token selection if exactly one wallet is connected. If both
     // wallets are connected, stay on the SELECT_METHOD screen to allow the
     // user to select which wallet to use
@@ -253,7 +261,6 @@ export const RozoPayModal: React.FC<{
       !isStellarConnected &&
       (!isMobile || !disableMobileInjector)
     ) {
-      paymentState.walletPaymentOptions.refreshOptions();
       paymentState.setTokenMode("evm");
       context.setRoute(ROUTES.SELECT_TOKEN, {
         event: "eth_connected_on_open",
@@ -268,7 +275,6 @@ export const RozoPayModal: React.FC<{
       showSolanaPaymentMethod &&
       !disableMobileInjector
     ) {
-      paymentState.solanaPaymentOptions.refreshOptions();
       paymentState.setTokenMode("solana");
       context.setRoute(ROUTES.SELECT_TOKEN, {
         event: "solana_connected_on_open",
@@ -280,7 +286,6 @@ export const RozoPayModal: React.FC<{
       showStellarPaymentMethod &&
       !disableMobileInjector
     ) {
-      paymentState.stellarPaymentOptions.refreshOptions();
       paymentState.setTokenMode("stellar");
       context.setRoute(ROUTES.SELECT_TOKEN, {
         event: "stellar_connected_on_open",

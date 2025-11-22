@@ -1,15 +1,11 @@
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import {
+  base,
   baseUSDC,
-  ethereum,
-  knownTokens,
   rozoSolana,
   rozoSolanaUSDC,
   rozoStellar,
-  solana,
-  stellar,
   stellarUSDC,
-  supportedChains,
 } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Address, isAddress } from "viem";
@@ -106,28 +102,17 @@ export function ConfigPanel({
   const [addressError, setAddressError] = useState<string>("");
 
   // Extract unique chains
-  const chains = supportedChains.filter(
-    (chain) =>
-      chain.chainId !== solana.chainId &&
-      chain.chainId !== ethereum.chainId &&
-      chain.chainId !== stellar.chainId
-  ); // Exclude Solana and Ethereum
+  const chains = [base, rozoStellar]; // Exclude Solana and Ethereum
 
   // Get tokens for selected chain
   const tokens = useMemo(() => {
     if (config.chainId !== 0 && !config.recipientStellarAddress) {
-      return knownTokens.filter((t) => t.chainId === config.chainId);
+      return [baseUSDC];
     } else if (config.recipientStellarAddress) {
-      return knownTokens.filter((t) => t.chainId === rozoStellar.chainId);
-    } else if (config.recipientSolanaAddress) {
-      return knownTokens.filter((t) => t.chainId === rozoSolana.chainId);
+      return [stellarUSDC];
     }
     return [];
-  }, [
-    config.chainId,
-    config.recipientStellarAddress,
-    config.recipientSolanaAddress,
-  ]);
+  }, [config.chainId, config.recipientStellarAddress]);
 
   // Validate address on change
   const validateAddress = useCallback((address: string) => {

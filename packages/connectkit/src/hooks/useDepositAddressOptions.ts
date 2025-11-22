@@ -4,6 +4,7 @@ import {
   DepositAddressPaymentOptions,
   polygon,
   RozoPayOrderMode,
+  worldchain,
 } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { chainToLogo } from "../assets/chains";
@@ -96,6 +97,14 @@ export function useDepositAddressOptions({
       baseOptions.push({
         id: DepositAddressPaymentOptions.BSC,
         logoURI: chainToLogo[bsc.chainId],
+        minimumUsd: 0.1,
+      });
+    }
+
+    if (appId?.toLowerCase().includes("world")) {
+      baseOptions.push({
+        id: DepositAddressPaymentOptions.WORLD,
+        logoURI: chainToLogo[worldchain.chainId],
         minimumUsd: 0.1,
       });
     }

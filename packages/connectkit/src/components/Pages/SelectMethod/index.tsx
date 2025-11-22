@@ -17,6 +17,7 @@ import {
   Polygon,
   Solana,
   Stellar,
+  Worldchain,
 } from "../../../assets/chains";
 import {
   Coinbase,
@@ -140,7 +141,11 @@ export default function SelectMethod() {
         },
       };
 
-      if (paymentOptions?.includes(ExternalPaymentOptions.Ethereum)) {
+      // Include if paymentOptions is undefined (all allowed) or includes Ethereum
+      if (
+        paymentOptions == null ||
+        paymentOptions.includes(ExternalPaymentOptions.Ethereum)
+      ) {
         connectedOptions.push(connectedEthWalletOption);
       }
     }
@@ -194,7 +199,11 @@ export default function SelectMethod() {
         },
       };
 
-      if (paymentOptions?.includes(ExternalPaymentOptions.Solana)) {
+      // Include if paymentOptions is undefined (all allowed) or includes Solana
+      if (
+        paymentOptions == null ||
+        paymentOptions.includes(ExternalPaymentOptions.Solana)
+      ) {
         connectedOptions.push(connectedSolWalletOption);
       }
     }
@@ -235,7 +244,11 @@ export default function SelectMethod() {
         },
       };
 
-      if (paymentOptions?.includes(ExternalPaymentOptions.Stellar)) {
+      // Include if paymentOptions is undefined (all allowed) or includes Stellar
+      if (
+        paymentOptions == null ||
+        paymentOptions.includes(ExternalPaymentOptions.Stellar)
+      ) {
         connectedOptions.push(connectedStellarWalletOption);
       }
     }
@@ -395,6 +408,9 @@ function getDepositAddressOption(
       <Base key="base" />,
       // <Solana key="base" />,
       <Polygon key="polygon" />,
+      appId?.toLowerCase().includes("world") ? (
+        <Worldchain key="worldchain" />
+      ) : null,
       // <Stellar key="stellar" />,
       // <Arbitrum key="arbitrum" />,
       // <Optimism key="optimism" />,

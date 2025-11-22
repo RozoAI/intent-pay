@@ -15,6 +15,7 @@ import {
   polygonUSDC,
   rozoSolanaUSDC,
   rozoStellarUSDC,
+  worldchainUSDC,
   type FeeErrorData,
   type FeeResponseData,
   type Token,
@@ -677,6 +678,8 @@ function getDisplayToken(meta: DepositAddressPaymentOptionMetadata) {
       return rozoStellarUSDC;
     case DepositAddressPaymentOptions.BSC:
       return bscUSDT;
+    case DepositAddressPaymentOptions.WORLD:
+      return worldchainUSDC;
     default:
       return null;
   }
