@@ -364,7 +364,7 @@ export default function DemoBasic() {
                     toAddress
                   </dt>
                   <dd className="text-gray-700 ml-4">
-                    The recipient's wallet address
+                    The recipient&apos;s wallet address
                   </dd>
                 </div>
                 <div>
@@ -380,7 +380,7 @@ export default function DemoBasic() {
                     toUnits
                   </dt>
                   <dd className="text-gray-700 ml-4">
-                    Amount in token's smallest unit (e.g., wei for ETH)
+                    Amount in token&apos;s smallest unit (e.g., wei for ETH)
                   </dd>
                 </div>
                 <div>
