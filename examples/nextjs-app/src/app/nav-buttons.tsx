@@ -27,7 +27,7 @@ export default function NavButtons() {
   );
 
   return (
-    <>
+    <div className="max-w-3xl mx-auto">
       <Heading className="text-primary-dark">RozoPayButton Examples</Heading>
       <div className="mt-1 text-sm text-primary-medium">
         @rozoai/intent-pay v{version}
@@ -40,6 +40,6 @@ export default function NavButtons() {
         <Btn route="/deposit">Deposit</Btn>
         <Btn route="/mini-app">Mini App</Btn>
       </div>
-    </>
+    </div>
   );
 }

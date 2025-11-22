@@ -12,7 +12,7 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
     <main
       className={`
         bg-white
-        w-full sm:max-w-3xl
+        w-full
         h-screen m-auto px-4 py-8 overflow-x-auto
       `}
     >
