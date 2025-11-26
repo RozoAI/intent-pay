@@ -6,6 +6,7 @@ import { useAccount } from "wagmi";
 import {
   Base,
   BinanceSmartChain,
+  Ethereum,
   Polygon,
   Solana,
   Stellar,
@@ -179,13 +180,13 @@ function CoinLogos({
   appId?: string;
 }) {
   const logos = [
-    // <Ethereum key="eth" />,
     // <Tron key="tron" />,
     // <USDC key="usdc" />,
     // <Optimism key="optimism" />,
     // <Arbitrum key="arbitrum" />,
     <Base key="base" />,
     <Polygon key="polygon" />,
+    <Ethereum key="ethereum" />,
   ];
 
   if (appId?.includes("MP")) {

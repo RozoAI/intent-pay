@@ -2,6 +2,7 @@ import {
   base,
   bsc,
   DepositAddressPaymentOptions,
+  ethereum,
   polygon,
   RozoPayOrderMode,
   worldchain,
@@ -40,6 +41,7 @@ export interface UseDepositAddressOptionsReturn {
  * Currently supported chains:
  * - Base (Chain ID: 8453) - Primary EVM chain
  * - Polygon (Chain ID: 137) - Secondary EVM chain
+ * - Ethereum (Chain ID: 1) - Ethereum mainnet
  * - BSC (Chain ID: 56) - Conditional support for MP app IDs
  */
 export function useDepositAddressOptions({
@@ -55,6 +57,11 @@ export function useDepositAddressOptions({
   // Memoized configuration for deposit address options
   const depositAddressConfig = useMemo(() => {
     const baseOptions: DepositAddressOption[] = [
+      {
+        id: DepositAddressPaymentOptions.ETH_L1,
+        logoURI: chainToLogo[ethereum.chainId],
+        minimumUsd: 1, // Higher minimum for Ethereum due to gas costs
+      },
       {
         id: DepositAddressPaymentOptions.BASE,
         logoURI: chainToLogo[base.chainId],
@@ -74,11 +81,6 @@ export function useDepositAddressOptions({
       //   id: DepositAddressPaymentOptions.OP_MAINNET,
       //   logoURI: chainToLogo[optimism.chainId],
       //   minimumUsd: 0.1,
-      // },
-      // {
-      //   id: DepositAddressPaymentOptions.ETH_L1,
-      //   logoURI: chainToLogo[ethereum.chainId],
-      //   minimumUsd: 10, // Higher minimum for Ethereum due to gas costs
       // },
       // {
       //   id: DepositAddressPaymentOptions.SOLANA,

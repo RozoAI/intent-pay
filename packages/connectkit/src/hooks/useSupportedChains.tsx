@@ -3,6 +3,8 @@ import {
   baseUSDC,
   bsc,
   bscUSDT,
+  ethereum,
+  ethereumUSDC,
   polygon,
   polygonUSDC,
   Token,
@@ -11,8 +13,8 @@ import {
 } from "@rozoai/intent-common";
 import { useMemo } from "react";
 
-const supportedChainsList = [base, polygon];
-const supportedTokens = [baseUSDC, polygonUSDC];
+const supportedChainsList = [base, polygon, ethereum];
+const supportedTokens = [baseUSDC, polygonUSDC, ethereumUSDC];
 
 /**
  * React hook to retrieve supported wallet payment chains and tokens.
@@ -23,8 +25,9 @@ const supportedTokens = [baseUSDC, polygonUSDC];
  * CURRENTLY SUPPORTED CHAINS/TOKENS:
  * - Base (8453) - USDC
  * - Polygon (137) - USDC
+ * - Ethereum (1) - USDC
  * - BSC (56) - USDT (only for MugglePay apps/pref)
- * - Worldchain (20240101) - USDC (only for World apps/pref)
+ * - Worldchain (480) - USDC (only for World apps/pref)
  *
  * @param {string} appId - The Rozo appId; can affect which chains are enabled.
  * @param {number[]} [preferredChains=[]] - Preferred chain IDs (may enable Worldchain).

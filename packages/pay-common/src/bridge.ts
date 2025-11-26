@@ -3,6 +3,8 @@ import {
   base,
   baseUSDC,
   bscUSDT,
+  ethereum,
+  ethereumUSDC,
   getKnownToken,
   polygonUSDC,
   RozoPayHydratedOrderWithOrg,
@@ -51,7 +53,7 @@ export interface DestinationConfig {
  * the complexity of multi-chain payments by:
  *
  * 1. **Preferred Payment Method**: Identifies which chain/token the user will pay from
- *    - Supports Base USDC, Polygon USDC, Solana USDC, Stellar USDC, Worldchain USDC, and BSC USDT
+ *    - Supports Base USDC, Polygon USDC, Ethereum USDC, Solana USDC, Stellar USDC, Worldchain USDC, and BSC USDT
  *    - Sets appropriate chain ID and token address for the source transaction
  *
  * 2. **Destination Configuration**: Determines where funds will be received
@@ -155,6 +157,15 @@ export function createPaymentBridgeConfig({
           preferredChain: String(polygonUSDC.chainId),
           preferredToken: "USDC",
           preferredTokenAddress: polygonUSDC.token,
+        };
+      }
+      // Pay In USDC Ethereum
+      else if (payInTokenAddress === ethereumUSDC.token) {
+        log?.(`[Payment Bridge] Pay In USDC Ethereum`);
+        preferred = {
+          preferredChain: String(ethereumUSDC.chainId),
+          preferredToken: "USDC",
+          preferredTokenAddress: ethereumUSDC.token,
         };
       }
       // Pay In USDC Solana

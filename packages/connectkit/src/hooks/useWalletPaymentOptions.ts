@@ -1,10 +1,4 @@
-import {
-  base,
-  baseUSDC,
-  polygon,
-  polygonUSDC,
-  WalletPaymentOption,
-} from "@rozoai/intent-common";
+import { WalletPaymentOption } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
@@ -22,6 +16,7 @@ import { useSupportedChains } from "./useSupportedChains";
  * CURRENTLY SUPPORTED CHAINS & TOKENS IN WALLET PAYMENT OPTIONS:
  * - Base (Chain ID: 8453) - USDC
  * - Polygon (Chain ID: 137) - USDC
+ * - Ethereum (Chain ID: 1) - USDC
  * - BSC (Chain ID: 56) - USDT (when MugglePay app, BSC preferred, or user has BSC USDT balance, even if disabled)
  * - Rozo Solana - USDC (native Solana USDC)
  * - Rozo Stellar - USDC/XLM (native Stellar tokens)
@@ -30,9 +25,6 @@ import { useSupportedChains } from "./useSupportedChains";
  * but wallet payment options are currently filtered to the above for optimal user experience.
  */
 // SUPPORTED CHAINS: Only these chains are currently active in wallet payment options
-const supportedChainsList = [base, polygon];
-const supportedTokens = [baseUSDC.token, polygonUSDC.token];
-
 export function useWalletPaymentOptions({
   trpc,
   address,
