@@ -5,7 +5,7 @@ Onboard users from any chain, any coin into your app with one click and maximize
 
 ## Features
 
-- 🌱 Instant cross-chain payments — Accept payment from 1000+ tokens on multiple chains. Payments complete in less than 5 seconds. We handle the swapping
+- 🌱 Instant cross-chain payments — Accept payment from 1000+ tokens on multiple chains. Payments complete in less than 1 minute. We handle the swapping
   and bridging so that your customers don't have to.
 - 💡 Pay with a single transaction - No more wallet round-trips to make approval, swap, or bridging transactions. Your customers pay with a single transfer transaction.
 - ⚡️ Fully permissionless - Rozo Pay never custodies funds and funds can never be stuck in a contract. Payments can be permissionlessly completed by anyone.
@@ -20,7 +20,7 @@ Onboard users from any chain, any coin into your app with one click and maximize
 
 **Solana Wallets:** Phantom, Backpack, Solflare
 
-**Stellar Wallets:** Via Stellar SDK integration
+**Stellar Wallets:** Albedo, Freighter, Hot Wallet, etc. (Refer to: <https://stellarwalletskit.dev/#compatible-wallets>)
 
 **Mobile Wallets:** All above wallets with mobile app support and deep-linking
 
@@ -28,30 +28,36 @@ Onboard users from any chain, any coin into your app with one click and maximize
 
 **Currently Active in Wallet Payment Options:**
 
-- Base
-- Polygon
-- BSC
-- Solana
-- Stellar
+- **Base** (Chain ID: 8453) - USDC
+- **Polygon** (Chain ID: 137) - USDC
+- **Ethereum** (Chain ID: 1) - USDC
+- **BSC** (Chain ID: 56) - USDT _(conditional: enabled for MugglePay appId related)_
+- **Worldchain** (Chain ID: 480) - USDC _(conditional: enabled for World appId related)_
+- **Solana** (Chain ID: 900) - USDC
+- **Stellar** (Chain ID: 1500) - USDC/XLM
 
 **Full Supported Chain Network:**
 
-- **EVM Chains:** Ethereum (1), Arbitrum (42161), Base (8453), Polygon (137), Optimism (10), BSC (56), Linea (59144), WorldChain (480), Mantle (5000), Celo (42220)
-- **Non-EVM:** Solana, Stellar
+The SDK has full infrastructure support for the following chains, though not all are currently active in wallet payment options:
+
+- **EVM Chains:** Arbitrum (42161), Base (8453), BSC (56), Ethereum (1), Polygon (137), Worldchain (480)
+- **Non-EVM Chains:** Solana (900), Stellar (1500)
 
 ### Supported Tokens
 
 **Currently Active in Wallet Payment Options:**
 
-- Base USDC
-- Polygon USDC
-- BSC USDT
-- Solana USDC
-- Stellar USDC
+- **Base USDC** - `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
+- **Polygon USDC** - `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`
+- **Ethereum USDC** - `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`
+- **BSC USDT** - `0x55d398326f99059fF775485246999027B3197955`
+- **Worldchain USDC** - `0x79A02482A880bCE3F13e09Da970dC34db4CD24d1`
+- **Solana USDC** - `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
+- **Stellar USDC** - `GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN`
 
 **Full Token Support Per Chain:**
 
-Each supported chain includes native tokens (ETH, MATIC, SOL, XLM), wrapped versions (WETH, WMATIC), stablecoins (USDC, USDT, DAI), and major tokens (WBTC, etc.). The SDK automatically handles token discovery and liquidity routing.
+The SDK currently supports USDC as the primary payment token across all active chains. Additional token support includes USDT on BSC (conditional) and XLM on Stellar. The SDK automatically handles cross-chain routing and bridging for supported tokens.
 
 ### External Payment Options
 
@@ -65,11 +71,11 @@ and much more...
 
 ## Documentation
 
-You can find the full Rozo Pay documentation [here](https://pay.rozoai.com).
+You can find the full Rozo Pay documentation at [pay.rozoai.com](https://docs.rozo.ai).
 
 ## Examples
 
-Check out [example](https://github.com/RozoAI/intent-pay/tree/master/examples/nextjs-app)
+Check out the [Next.js example app](https://github.com/RozoAI/intent-pay/tree/master/examples/nextjs-app)
 
 ## Demo
 
@@ -82,16 +88,16 @@ Clone the repository and build the SDK in `dev` mode:
 ```sh
 git clone https://github.com/RozoAI/intent-pay.git
 cd pay/packages/connectkit
-bun i
-bun run dev
+pnpm i
+pnpm run dev
 ```
 
 The rollup bundler will now watch file changes in the background. Try using one of the examples for testing:
 
 ```sh
 cd examples/nextjs
-bun i
-bun run dev
+pnpm i
+pnpm run dev
 ```
 
 Any changes will be reflected on the Pay button in the example app.
@@ -120,24 +126,10 @@ Daimo Pay SDK is a fork of [Connectkit](https://github.com/family/connectkit) de
 
 ## How to release `connectkit` package
 
-## Setup
-
-Make sure `bun` is installed.
-
-```sh
-bun -v
-```
-
-If not, install it.
-
-```sh
-npm install -g bun
-```
-
 ## Release
 
 ```sh
-bun run release
+pnpm run release
 ```
 
 Choose the version on the prompt.
