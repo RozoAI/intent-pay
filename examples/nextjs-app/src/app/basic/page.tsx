@@ -2,36 +2,47 @@
 
 import * as Tokens from "@rozoai/intent-common";
 import {
-  baseUSDC,
   getChainName,
   getChainNativeToken,
   knownTokens,
-  worldchain,
+  rozoSolana,
+  rozoStellar,
 } from "@rozoai/intent-common";
-import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
+import {
+  isEvmChain,
+  isSolanaChain,
+  isStellarChain,
+  RozoPayButton,
+  useRozoPayUI,
+} from "@rozoai/intent-pay";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Address, getAddress, isAddress } from "viem";
+import { Address, getAddress } from "viem";
 import { Text } from "../../shared/tailwind-catalyst/text";
 import { ConfigPanel } from "../config-panel";
 import { APP_ID, Container, usePersistedConfig } from "../shared";
 
 type Config = {
-  recipientAddress: string;
-  recipientStellarAddress?: string;
-  recipientSolanaAddress?: string;
-  chainId: number;
+  recipientAddress: string; // Unified: EVM Address or Solana/Stellar string
+  chainId: number; // Destination chain ID
   tokenAddress: string;
   amount: string;
 };
-
-const tempAddress = "0x0000000000000000000000000000000000000000" as Address;
 
 /**
  * Generates TypeScript code snippet for implementing RozoPayButton
  */
 const generateCodeSnippet = (config: Config): string => {
+  const isEvm = isEvmChain(config.chainId);
+  const isSolana = isSolanaChain(config.chainId);
+
+  // For EVM chains, use getAddress helper
+  // For non-EVM chains, use string directly
+  const addressCode = isEvm
+    ? `getAddress("${config.recipientAddress}")`
+    : `"${config.recipientAddress}"`;
+
   // Check if it's a native token
   const isNativeToken =
     config.tokenAddress === getChainNativeToken(config.chainId)?.token;
@@ -42,8 +53,15 @@ const generateCodeSnippet = (config: Config): string => {
       ? getChainName(config.chainId).toLowerCase() + nativeToken.symbol
       : "";
 
-    return `import { getAddress } from "viem";
-import { ${tokenVarName} } from "@rozoai/intent-common";
+    const tokenCode = isEvm
+      ? `getAddress(${tokenVarName}.token)`
+      : `${tokenVarName}.token`;
+
+    const importStatement = isEvm
+      ? `import { getAddress } from "viem";\nimport { ${tokenVarName} } from "@rozoai/intent-common";`
+      : `import { ${tokenVarName} } from "@rozoai/intent-common";`;
+
+    return `${importStatement}
 import { RozoPayButton } from "@rozoai/intent-pay";
 
 export default function YourComponent() {
@@ -51,13 +69,9 @@ export default function YourComponent() {
     <RozoPayButton
       appId="${APP_ID}"
       toChain={${tokenVarName}.chainId}
-      toAddress={getAddress("${config.recipientAddress}")}${
-      config.recipientStellarAddress
-        ? `\n      toStellarAddress="${config.recipientStellarAddress}"`
-        : ""
-    }
+      toAddress={${addressCode}}
       toUnits="${config.amount}"
-      toToken={getAddress(${tokenVarName}.token)}
+      toToken={${tokenCode}}
       onPaymentStarted={(event) => {
         console.log("Payment started:", event);
       }}
@@ -79,8 +93,19 @@ export default function YourComponent() {
   const tokenVarName =
     Object.entries(Tokens).find(([_, t]) => t === token)?.[0] || token.symbol;
 
-  return `import { getAddress } from "viem";
-import { ${tokenVarName} } from "@rozoai/intent-common";
+  const tokenCode = isEvm
+    ? `getAddress(${tokenVarName}.token)`
+    : isSolana
+    ? `rozoSolanaUSDC.token`
+    : `rozoStellarUSDC.token`;
+
+  const importStatement = isEvm
+    ? `import { getAddress } from "viem";\nimport { ${tokenVarName} } from "@rozoai/intent-common";`
+    : isSolana
+    ? `import { rozoSolanaUSDC } from "@rozoai/intent-common";`
+    : `import { rozoStellarUSDC } from "@rozoai/intent-common";`;
+
+  return `${importStatement}
 import { RozoPayButton } from "@rozoai/intent-pay";
 
 export default function YourComponent() {
@@ -88,13 +113,9 @@ export default function YourComponent() {
     <RozoPayButton
       appId="${APP_ID}"
       toChain={${tokenVarName}.chainId}
-      toAddress={getAddress("${config.recipientAddress}")}${
-    config.recipientStellarAddress
-      ? `\n      toStellarAddress="${config.recipientStellarAddress}"`
-      : ""
-  }
+      toToken={${tokenCode}}
+      toAddress={${addressCode}}
       toUnits="${config.amount}"
-      toToken={getAddress(${tokenVarName}.token)}
       onPaymentStarted={(event) => {
         console.log("Payment started:", event);
       }}
@@ -150,9 +171,7 @@ export default function DemoBasic() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [config, setConfig] = usePersistedConfig("rozo-basic-config", {
     recipientAddress: "",
-    recipientStellarAddress: "",
-    recipientSolanaAddress: "",
-    chainId: 0,
+    chainId: 8453,
     tokenAddress: "",
     amount: "",
   } as Config);
@@ -165,13 +184,26 @@ export default function DemoBasic() {
       setParsedConfig(newConfig);
 
       // NOTE: This is used to reset the payment state when the config changes
-      resetPayment({
+      const isEvm = isEvmChain(newConfig.chainId);
+      const payParams: any = {
         toChain: newConfig.chainId,
-        toAddress: getAddress(newConfig.recipientAddress),
-        toStellarAddress: newConfig.recipientStellarAddress,
         toUnits: newConfig.amount,
-        toToken: getAddress(newConfig.tokenAddress),
-      });
+      };
+
+      if (isEvm) {
+        payParams.toAddress = getAddress(newConfig.recipientAddress);
+        payParams.toToken = getAddress(newConfig.tokenAddress);
+      } else {
+        payParams.toAddress = newConfig.recipientAddress;
+        payParams.toToken = newConfig.tokenAddress;
+        if (isStellarChain(newConfig.chainId)) {
+          payParams.toStellarAddress = newConfig.recipientAddress;
+        } else if (isSolanaChain(newConfig.chainId)) {
+          payParams.toSolanaAddress = newConfig.recipientAddress;
+        }
+      }
+
+      resetPayment(payParams);
     },
     [setConfig, resetPayment]
   );
@@ -195,20 +227,14 @@ export default function DemoBasic() {
     );
 
     if (getConfig && getConfig.chainId !== 0) {
-      const parsedConfig = { ...getConfig };
+      const parsedConfig: Config = {
+        recipientAddress: getConfig.recipientAddress || "",
+        chainId: getConfig.chainId || 0,
+        tokenAddress: getConfig.tokenAddress || "",
+        amount: getConfig.amount || "",
+      };
 
-      if (!isAddress(parsedConfig.tokenAddress)) {
-        Object.assign(parsedConfig, {
-          tokenAddress: tempAddress,
-        });
-      }
-
-      if (!isAddress(parsedConfig.recipientAddress)) {
-        Object.assign(parsedConfig, {
-          recipientAddress: tempAddress,
-        });
-      }
-
+      // Validate and clean up config
       if (
         parsedConfig &&
         typeof parsedConfig === "object" &&
@@ -220,6 +246,7 @@ export default function DemoBasic() {
         setParsedConfig(parsedConfig);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Check if we have valid configuration
@@ -270,11 +297,17 @@ export default function DemoBasic() {
                 <RozoPayButton.Custom
                   appId={APP_ID}
                   toChain={parsedConfig.chainId}
-                  toAddress={getAddress(parsedConfig.recipientAddress)}
-                  toStellarAddress={parsedConfig.recipientStellarAddress}
+                  toAddress={
+                    isEvmChain(parsedConfig.chainId)
+                      ? (getAddress(parsedConfig.recipientAddress) as Address)
+                      : parsedConfig.recipientAddress
+                  }
+                  toToken={
+                    isEvmChain(parsedConfig.chainId)
+                      ? (getAddress(parsedConfig.tokenAddress) as Address)
+                      : parsedConfig.tokenAddress
+                  }
                   toUnits={parsedConfig.amount}
-                  toToken={getAddress(parsedConfig.tokenAddress)}
-                  preferredChains={[worldchain.chainId]}
                   onPaymentStarted={(e) => {
                     console.log("✓ Payment started:", e);
                   }}
@@ -337,6 +370,61 @@ export default function DemoBasic() {
             </div>
             <CodeSnippetDisplay code={codeSnippet} />
 
+            {/* Chain-specific Payment Notes */}
+            {parsedConfig && isStellarChain(parsedConfig.chainId) && (
+              <div className="w-full bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                  ℹ️ Stellar Payment Configuration
+                </h3>
+                <p className="text-sm text-gray-700 mb-2">
+                  For Stellar payments:
+                </p>
+                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                  <li>
+                    <code className="bg-blue-100 px-1 rounded">toChain</code> is
+                    set to Stellar Chain ID:{" "}
+                    <strong>{rozoStellar.chainId}</strong>
+                  </li>
+                  <li>
+                    <code className="bg-blue-100 px-1 rounded">toAddress</code>{" "}
+                    must be a valid Stellar address
+                  </li>
+                  <li>
+                    <code className="bg-blue-100 px-1 rounded">toToken</code> is
+                    the asset code (Only Supported USDC Token:
+                    GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN)
+                  </li>
+                </ul>
+              </div>
+            )}
+
+            {parsedConfig && isSolanaChain(parsedConfig.chainId) && (
+              <div className="w-full bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                  ℹ️ Solana Payment Configuration
+                </h3>
+                <p className="text-sm text-gray-700 mb-2">
+                  For Solana payments:
+                </p>
+                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                  <li>
+                    <code className="bg-blue-100 px-1 rounded">toChain</code> is
+                    set to Solana Chain ID:{" "}
+                    <strong>{rozoSolana.chainId}</strong>
+                  </li>
+                  <li>
+                    <code className="bg-blue-100 px-1 rounded">toAddress</code>{" "}
+                    must be a valid Solana address
+                  </li>
+                  <li>
+                    <code className="bg-blue-100 px-1 rounded">toToken</code> is
+                    the token mint address (Only Supported USDC Token:
+                    EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)
+                  </li>
+                </ul>
+              </div>
+            )}
+
             {/* API Reference */}
             <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-blue-900 mb-2">
@@ -361,14 +449,6 @@ export default function DemoBasic() {
                 </div>
                 <div>
                   <dt className="font-mono font-semibold text-blue-800">
-                    toAddress
-                  </dt>
-                  <dd className="text-gray-700 ml-4">
-                    The recipient&apos;s wallet address
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-mono font-semibold text-blue-800">
                     toToken
                   </dt>
                   <dd className="text-gray-700 ml-4">
@@ -377,10 +457,18 @@ export default function DemoBasic() {
                 </div>
                 <div>
                   <dt className="font-mono font-semibold text-blue-800">
+                    toAddress
+                  </dt>
+                  <dd className="text-gray-700 ml-4">
+                    The recipient&apos;s wallet address
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-mono font-semibold text-blue-800">
                     toUnits
                   </dt>
                   <dd className="text-gray-700 ml-4">
-                    Amount in token&apos;s smallest unit (e.g., wei for ETH)
+                    Amount in USD (e.g., 100.00)
                   </dd>
                 </div>
                 <div>
@@ -393,43 +481,6 @@ export default function DemoBasic() {
                 </div>
               </dl>
             </div>
-          </div>
-        )}
-
-        {/* Cross-chain Payment Note */}
-        {parsedConfig?.recipientStellarAddress && (
-          <div className="w-full bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-yellow-900 mb-2">
-              ⚠️ Cross-Chain Payment Configuration
-            </h3>
-            <p className="text-sm text-gray-700 mb-2">
-              When bridging to Stellar networks:
-            </p>
-            <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-              <li>
-                Set <code className="bg-yellow-100 px-1 rounded">toChain</code>{" "}
-                to Base Chain ID: <strong>{baseUSDC.chainId}</strong>
-              </li>
-              <li>
-                Set <code className="bg-yellow-100 px-1 rounded">toToken</code>{" "}
-                to Base USDC: <strong>{baseUSDC.token}</strong>
-              </li>
-              <li>
-                The{" "}
-                <code className="bg-yellow-100 px-1 rounded">toAddress</code>{" "}
-                can be any valid EVM address. In here we are using{" "}
-                <code className="bg-yellow-100 px-1 rounded">
-                  {tempAddress}
-                </code>
-              </li>
-              <li>
-                Use{" "}
-                <code className="bg-yellow-100 px-1 rounded">
-                  toStellarAddress
-                </code>{" "}
-                for the final destination
-              </li>
-            </ul>
           </div>
         )}
 

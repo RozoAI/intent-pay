@@ -6,6 +6,8 @@ import { PayParams } from "../payment/paymentFsm";
  * Return type for the useSolanaDestination hook
  */
 interface SolanaDestinationResult {
+  /** Whether the payout destination is Solana */
+  readonly isPayOutToSolana: boolean;
   /** The middleware address to use for the transaction */
   readonly destinationAddress: string | undefined;
   /** Whether this is a Solana payment (Pay In Solana scenarios) */
@@ -42,6 +44,10 @@ export function useSolanaDestination(
   const isPayOutToBase = useMemo((): boolean => {
     return payParams?.toChain === baseUSDC.chainId;
   }, [payParams?.toChain]);
+
+  const isPayOutToSolana = useMemo((): boolean => {
+    return !!payParams?.toSolanaAddress;
+  }, [payParams]);
 
   const isPayOutToStellar = useMemo((): boolean => {
     return !!payParams?.toStellarAddress;
@@ -91,6 +97,7 @@ export function useSolanaDestination(
   ]);
 
   return {
+    isPayOutToSolana,
     destinationAddress,
     isSolanaPayment,
     isPayInSolanaOutSolana,

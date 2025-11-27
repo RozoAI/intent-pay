@@ -35,10 +35,10 @@ export default function NavButtons() {
 
       <div className="flex flex-wrap gap-4 mt-10">
         <Btn route="/basic">Basic</Btn>
-        <Btn route="/contract">Contract</Btn>
+        {/* <Btn route="/contract">Contract</Btn> */}
         <Btn route="/checkout">Checkout</Btn>
         <Btn route="/deposit">Deposit</Btn>
-        <Btn route="/mini-app">Mini App</Btn>
+        {/* <Btn route="/mini-app">Mini App</Btn> */}
       </div>
     </div>
   );

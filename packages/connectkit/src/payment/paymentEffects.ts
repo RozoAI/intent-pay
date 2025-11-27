@@ -18,7 +18,7 @@ import {
   RozoPayOrderWithOrg,
   TokenLogo,
 } from "@rozoai/intent-common";
-import { formatUnits, getAddress, parseUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { parseErrorMessage } from "../utils/errorParser";
 import { PollHandle, startPolling } from "../utils/polling";
@@ -376,8 +376,8 @@ async function runHydratePayParamsEffects(
   );
 
   const toChain = getOrderDestChainId(order);
-  const toToken = getAddress(order.destFinalCallTokenAmount.token.token);
-  let toAddress = getAddress(order.destFinalCall.to);
+  const toToken = order.destFinalCallTokenAmount.token.token;
+  let toAddress = order.destFinalCall.to;
 
   // ROZO API CALL
   /**

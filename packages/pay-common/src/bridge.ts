@@ -6,6 +6,7 @@ import {
   ethereum,
   ethereumUSDC,
   getKnownToken,
+  polygon,
   polygonUSDC,
   RozoPayHydratedOrderWithOrg,
   RozoPayIntentStatus,
@@ -13,6 +14,7 @@ import {
   RozoPayOrderStatusDest,
   RozoPayOrderStatusSource,
   RozoPayUserMetadata,
+  rozoSolana,
   rozoSolanaUSDC,
   rozoStellar,
   rozoStellarUSDC,
@@ -142,12 +144,27 @@ export function createPaymentBridgeConfig({
   };
 
   /**
-   * IMPORTANT: Because we only support PAY OUT USDC BASE & STELLAR
+   * IMPORTANT: Because we only support PAY OUT USDC EVM & NON-EVM
    * So, We force toChain and toToken to Base USDC as default PayParams
    *
    * @TODO: Adjust this when we support another PAY OUT chain
    */
-  if (toChain === base.chainId && toToken === baseUSDC.token) {
+  const supportedChains = [
+    base.chainId,
+    polygon.chainId,
+    ethereum.chainId,
+    rozoSolana.chainId,
+    rozoStellar.chainId,
+  ];
+  const supportedTokens = [
+    baseUSDC.token,
+    polygonUSDC.token,
+    ethereumUSDC.token,
+    rozoSolanaUSDC.token,
+    rozoStellarUSDC.token,
+  ];
+
+  if (supportedChains.includes(toChain) && supportedTokens.includes(toToken)) {
     // Determine preferred payment method based on wallet selection
     if (payInTokenAddress) {
       // Pay In USDC Polygon
@@ -229,7 +246,7 @@ export function createPaymentBridgeConfig({
         tokenAddress: rozoSolanaUSDC.token,
       };
     } else {
-      log?.(`[Payment Bridge] Pay Out USDC Base`);
+      log?.(`[Payment Bridge] Pay Out USDC EVM`);
       // Keep default Base configuration
     }
   }

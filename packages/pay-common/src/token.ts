@@ -969,6 +969,20 @@ const tokensByChainAndType: Map<
     },
   ],
   [
+    rozoSolana.chainId,
+    {
+      [TokenType.NATIVE]: solanaSOL,
+      [TokenType.NATIVE_USDC]: rozoSolanaUSDC,
+    },
+  ],
+  [
+    rozoStellar.chainId,
+    {
+      [TokenType.NATIVE]: stellarXLM,
+      [TokenType.NATIVE_USDC]: rozoStellarUSDC,
+    },
+  ],
+  [
     worldchain.chainId,
     {
       [TokenType.NATIVE]: worldchainETH,

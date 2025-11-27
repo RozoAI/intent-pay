@@ -2,24 +2,32 @@ import { XMarkIcon } from "@heroicons/react/24/outline";
 import {
   base,
   baseUSDC,
+  ethereum,
+  ethereumUSDC,
+  polygon,
+  polygonUSDC,
   rozoSolana,
   rozoSolanaUSDC,
   rozoStellar,
-  stellarUSDC,
+  rozoStellarUSDC,
 } from "@rozoai/intent-common";
+import {
+  isEvmChain,
+  isSolanaChain,
+  isStellarChain,
+  validateAddressForChain,
+} from "@rozoai/intent-pay";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Address, isAddress } from "viem";
+import { isAddress } from "viem";
 
 // Define the possible configuration types
 export type ConfigType = "payment" | "deposit";
 
-// Base configuration interface
+// Base configuration interface - unified address field
 interface BaseConfig {
-  recipientAddress: string;
-  recipientStellarAddress?: string;
-  recipientSolanaAddress?: string;
-  chainId: number;
-  tokenAddress: string;
+  recipientAddress: string; // Unified: EVM Address or Solana/Stellar string
+  chainId: number; // Destination chain ID (EVM, Solana, or Stellar)
+  tokenAddress: string; // Token address or identifier
   amount: string;
 }
 
@@ -42,8 +50,6 @@ interface ConfigPanelProps {
   defaultRecipientAddress?: string;
 }
 
-const tempAddress = "0x0000000000000000000000000000000000000000" as Address;
-
 export function ConfigPanel({
   configType,
   isOpen,
@@ -54,8 +60,6 @@ export function ConfigPanel({
   // Initialize with default values
   const [config, setConfig] = useState<PaymentConfig>({
     recipientAddress: defaultRecipientAddress,
-    recipientStellarAddress: "",
-    recipientSolanaAddress: "",
     chainId: 0,
     tokenAddress: "",
     amount: "",
@@ -71,16 +75,28 @@ export function ConfigPanel({
         const parsed = JSON.parse(savedConfig);
         const parsedConfig = { ...parsed };
 
-        if (!isAddress(parsed.tokenAddress) && parsed.chainId !== 0) {
-          Object.assign(parsedConfig, {
-            tokenAddress: tempAddress,
-          });
+        // Validate token address based on chain type
+        if (parsed.chainId !== 0) {
+          const isEvm = isEvmChain(parsed.chainId);
+          if (isEvm && !isAddress(parsed.tokenAddress)) {
+            Object.assign(parsedConfig, {
+              tokenAddress: "",
+            });
+          }
         }
 
-        if (!isAddress(parsed.recipientAddress) && parsed.chainId !== 0) {
-          Object.assign(parsedConfig, {
-            recipientAddress: tempAddress,
-          });
+        // Validate recipient address based on chain type
+        if (parsed.chainId !== 0 && parsed.recipientAddress) {
+          const isValid = validateAddressForChain(
+            parsed.chainId,
+            parsed.recipientAddress
+          );
+          if (!isValid) {
+            // Reset invalid address
+            Object.assign(parsedConfig, {
+              recipientAddress: "",
+            });
+          }
         }
 
         if (
@@ -102,28 +118,66 @@ export function ConfigPanel({
   const [addressError, setAddressError] = useState<string>("");
 
   // Extract unique chains
-  const chains = [base, rozoStellar]; // Exclude Solana and Ethereum
+  const chains = [ethereum, base, polygon, rozoStellar, rozoSolana];
 
   // Get tokens for selected chain
+  // Select token options based on payment destination.
   const tokens = useMemo(() => {
-    if (config.chainId !== 0 && !config.recipientStellarAddress) {
-      return [baseUSDC];
-    } else if (config.recipientStellarAddress) {
-      return [stellarUSDC];
-    }
-    return [];
-  }, [config.chainId, config.recipientStellarAddress]);
+    if (config.chainId === 0) return [];
 
-  // Validate address on change
-  const validateAddress = useCallback((address: string) => {
+    // For EVM chains (Ethereum, Base, Polygon)
+    if (isEvmChain(config.chainId)) {
+      if (config.chainId === ethereum.chainId) {
+        return [ethereumUSDC];
+      }
+      if (config.chainId === base.chainId) {
+        return [baseUSDC];
+      }
+      if (config.chainId === polygon.chainId) {
+        return [polygonUSDC];
+      }
+    }
+
+    // For Stellar destination
+    if (isStellarChain(config.chainId)) {
+      return [rozoStellarUSDC];
+    }
+
+    // For Solana destination
+    if (isSolanaChain(config.chainId)) {
+      return [rozoSolanaUSDC];
+    }
+
+    // No tokens available by default
+    return [];
+  }, [config.chainId]);
+
+  // Validate address on change based on chain type
+  const validateAddress = useCallback((address: string, chainId: number) => {
     if (!address) {
       setAddressError("Address is required");
       return false;
     }
-    if (!isAddress(address)) {
-      setAddressError("Invalid Ethereum address");
+
+    if (chainId === 0) {
+      setAddressError("");
+      return true; // No validation if chain not selected
+    }
+
+    const isValid = validateAddressForChain(chainId, address);
+    if (!isValid) {
+      if (isEvmChain(chainId)) {
+        setAddressError("Invalid EVM address");
+      } else if (isSolanaChain(chainId)) {
+        setAddressError("Invalid Solana address");
+      } else if (isStellarChain(chainId)) {
+        setAddressError("Invalid Stellar address");
+      } else {
+        setAddressError("Invalid address format");
+      }
       return false;
     }
+
     setAddressError("");
     return true;
   }, []);
@@ -135,66 +189,49 @@ export function ConfigPanel({
       ...prev,
       recipientAddress: newAddress,
     }));
-    validateAddress(newAddress);
+    validateAddress(newAddress, config.chainId);
   };
 
   // Update form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const newConfig = {
-      ...config,
-    };
-
-    if (config.chainId === rozoStellar.chainId) {
-      if (!config.recipientStellarAddress) {
-        alert("Please enter a valid Stellar address");
-        return;
-      }
-
-      Object.assign(newConfig, {
-        chainId: baseUSDC.chainId,
-        tokenAddress: baseUSDC.token,
-        recipientAddress: tempAddress,
-        recipientStellarAddress: config.recipientStellarAddress,
-        recipientSolanaAddress: "",
-      });
-
-      setConfig((prev) => ({
-        ...prev,
-        ...newConfig,
-      }));
-    } else if (config.chainId === rozoSolana.chainId) {
-      if (!config.recipientSolanaAddress) {
-        alert("Please enter a valid Solana address");
-        return;
-      }
-
-      Object.assign(newConfig, {
-        chainId: baseUSDC.chainId,
-        tokenAddress: baseUSDC.token,
-        recipientAddress: tempAddress,
-        recipientStellarAddress: "",
-        recipientSolanaAddress: config.recipientSolanaAddress,
-      });
-    } else {
-      if (!config.recipientAddress) {
+    if (!config.recipientAddress) {
+      if (isEvmChain(config.chainId)) {
         alert("Please enter a valid EVM address");
-        return;
+      } else if (isSolanaChain(config.chainId)) {
+        alert("Please enter a valid Solana address");
+      } else if (isStellarChain(config.chainId)) {
+        alert("Please enter a valid Stellar address");
+      } else {
+        alert("Please enter a valid recipient address");
       }
+      return;
     }
 
-    // Validate recipient address
-    if (!isAddress(newConfig.recipientAddress)) {
-      alert("Please enter a valid address");
+    // Validate recipient address based on chain type
+    const isValid = validateAddressForChain(
+      config.chainId,
+      config.recipientAddress
+    );
+    if (!isValid) {
+      if (isEvmChain(config.chainId)) {
+        alert("Please enter a valid EVM address (0x... format)");
+      } else if (isSolanaChain(config.chainId)) {
+        alert("Please enter a valid Solana address (Base58 format)");
+      } else if (isStellarChain(config.chainId)) {
+        alert("Please enter a valid Stellar address (G... format)");
+      } else {
+        alert("Please enter a valid address");
+      }
       return;
     }
 
     // Create the appropriate config object based on type
     if (configType === "payment") {
-      onConfirm(newConfig);
+      onConfirm(config);
     } else {
-      onConfirm({ ...newConfig, amount: "" });
+      onConfirm({ ...config, amount: "" });
     }
 
     onClose();
@@ -202,10 +239,16 @@ export function ConfigPanel({
 
   // Determine if the form is valid based on config type
   const isFormValid = () => {
+    if (config.chainId === 0 || !config.tokenAddress) {
+      return false;
+    }
+
+    const addressValid = validateAddressForChain(
+      config.chainId,
+      config.recipientAddress
+    );
     const baseValid =
-      isAddress(config.recipientAddress) &&
-      config.chainId > 0 &&
-      config.tokenAddress !== "";
+      addressValid && config.chainId > 0 && config.tokenAddress !== "";
 
     // Payment requires amount field
     if (configType === "payment") {
@@ -244,26 +287,17 @@ export function ConfigPanel({
               Receiving Chain
             </label>
             <select
-              value={
-                config.recipientStellarAddress
-                  ? rozoStellar.chainId
-                  : config.recipientSolanaAddress
-                  ? rozoSolana.chainId
-                  : config.chainId
-              }
-              onChange={(e) =>
+              value={config.chainId}
+              onChange={(e) => {
+                const newChainId = Number(e.target.value);
                 setConfig((prev) => ({
                   ...prev,
-                  chainId: Number(e.target.value),
-                  recipientStellarAddress: "",
-                  recipientSolanaAddress: "",
-                  recipientAddress:
-                    prev.recipientAddress === tempAddress
-                      ? ""
-                      : prev.recipientAddress,
+                  chainId: newChainId,
+                  recipientAddress: "", // Reset address when chain changes
                   tokenAddress: "", // Reset token when chain changes
-                }))
-              }
+                }));
+                setAddressError(""); // Clear error when chain changes
+              }}
               className="w-full p-2 border border-gray-300 focus:border-primary-medium focus:ring focus:ring-primary-light focus:ring-opacity-50 rounded"
             >
               <option value={0}>Select Chain</option>
@@ -286,13 +320,7 @@ export function ConfigPanel({
             )}
             {config.chainId > 0 && (
               <select
-                value={
-                  config.recipientStellarAddress
-                    ? stellarUSDC.token
-                    : config.recipientSolanaAddress
-                    ? rozoSolanaUSDC.token
-                    : config.tokenAddress
-                }
+                value={config.tokenAddress}
                 onChange={(e) =>
                   setConfig((prev) => ({
                     ...prev,
@@ -322,78 +350,47 @@ export function ConfigPanel({
             </div>
           )}
 
-          {config.chainId > 0 &&
-            config.chainId !== rozoStellar.chainId &&
-            config.chainId !== rozoSolana.chainId &&
-            !config.recipientStellarAddress &&
-            !config.recipientSolanaAddress && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Recipient Address (EVM)
-                </label>
-                <input
-                  type="text"
-                  value={config.recipientAddress}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      recipientAddress: e.target.value,
-                    }))
-                  }
-                  className={`w-full p-2 border rounded ${
-                    addressError
-                      ? "border-red-500 focus:border-red-500 focus:ring-red-200"
-                      : "border-gray-300 focus:border-primary-medium focus:ring-primary-light"
-                  } focus:ring focus:ring-opacity-50`}
-                  placeholder="0x..."
-                  formNoValidate
-                />
-                {addressError && (
-                  <p className="mt-1 text-sm text-red-500">{addressError}</p>
-                )}
-              </div>
-            )}
-
-          {(config.chainId === rozoStellar.chainId ||
-            config.recipientStellarAddress) && (
+          {config.chainId > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Recipient Address (Stellar)
+                Recipient Address
+                {isEvmChain(config.chainId) && " (EVM)"}
+                {isSolanaChain(config.chainId) && " (Solana)"}
+                {isStellarChain(config.chainId) && " (Stellar)"}
               </label>
               <input
                 type="text"
-                value={config.recipientStellarAddress}
-                onChange={(e) =>
-                  setConfig((prev) => ({
-                    ...prev,
-                    recipientStellarAddress: e.target.value,
-                  }))
+                value={config.recipientAddress}
+                onChange={handleAddressChange}
+                className={`w-full p-2 border rounded ${
+                  addressError
+                    ? "border-red-500 focus:border-red-500 focus:ring-red-200"
+                    : "border-gray-300 focus:border-primary-medium focus:ring-primary-light"
+                } focus:ring focus:ring-opacity-50`}
+                placeholder={
+                  isEvmChain(config.chainId)
+                    ? "0x..."
+                    : isSolanaChain(config.chainId)
+                    ? "Base58 address..."
+                    : isStellarChain(config.chainId)
+                    ? "G..."
+                    : "Enter address..."
                 }
-                className={`w-full p-2 border rounded border-gray-300 focus:border-primary-medium focus:ring-primary-light focus:ring focus:ring-opacity-50`}
-                placeholder="G..."
                 formNoValidate
               />
-            </div>
-          )}
-
-          {config.chainId === rozoSolana.chainId && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Recipient Address (Solana)
-              </label>
-              <input
-                type="text"
-                value={config.recipientSolanaAddress}
-                onChange={(e) =>
-                  setConfig((prev) => ({
-                    ...prev,
-                    recipientSolanaAddress: e.target.value,
-                  }))
-                }
-                className={`w-full p-2 border rounded border-gray-300 focus:border-primary-medium focus:ring-primary-light focus:ring focus:ring-opacity-50`}
-                placeholder="..."
-                formNoValidate
-              />
+              {addressError && (
+                <p className="mt-1 text-sm text-red-500">{addressError}</p>
+              )}
+              {config.chainId > 0 && !addressError && (
+                <p className="mt-1 text-xs text-gray-500">
+                  {isEvmChain(config.chainId) &&
+                    "Enter a valid EVM address (0x followed by 40 hex characters)"}
+                  {isSolanaChain(config.chainId) &&
+                    "Enter a valid Solana address (Base58 encoded, 32-44 characters)"}
+                  {isStellarChain(config.chainId) &&
+                    "Enter a valid Stellar address (starts with G, 56 characters)"}
+                </p>
+              )}
             </div>
           )}
 
