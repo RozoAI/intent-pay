@@ -1,6 +1,6 @@
 {
   "name": "@rozoai/intent-common",
-  "version": "0.0.32-beta.1",
+  "version": "0.0.32-beta.2",
   "description": "Intent Pay shared types and utilities",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -8,7 +8,7 @@
   "homepage": "https://github.com/RozoAI/intent-pay",
   "license": "BSD-2-Clause",
   "scripts": {
-    "build": "tsc",
+    "build": "npm run test && tsc",
     "dev": "tsc --watch",
     "prepare": "npm run build",
     "test": "tape -r ts-node/register/transpile-only test/**/*.test.ts",
@@ -27,6 +27,8 @@
   },
   "dependencies": {
     "@scure/base": "^1.2.4",
+    "@solana/web3.js": "^1.98.4",
+    "@stellar/stellar-sdk": "^14.3.3",
     "viem": "^2.23.2",
     "zod": "^3.24.2"
   },

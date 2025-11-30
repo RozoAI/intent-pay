@@ -190,16 +190,16 @@ export type RozoPayDehydratedOrder = {
 export type RozoPayHydratedOrder = {
   mode: RozoPayOrderMode.HYDRATED;
   id: bigint;
-  intentAddr: Address;
+  intentAddr: string;
   /** Nullable because old intents don't record escrow address. */
-  escrowContractAddress: Address | null;
+  // escrowContractAddress: Address | null;
   /** Nullable because old intents don't record bridger address. */
-  bridgerContractAddress: Address | null;
+  // bridgerContractAddress: Address | null;
   /** @deprecated included for backcompat with old versions. Remove soon. */
-  handoffAddr: Address;
-  bridgeTokenOutOptions: RozoPayTokenAmount[];
-  selectedBridgeTokenOutAddr: Address | null;
-  selectedBridgeTokenOutAmount: bigint | null;
+  // handoffAddr: Address;
+  // bridgeTokenOutOptions: RozoPayTokenAmount[];
+  // selectedBridgeTokenOutAddr: Address | null;
+  // selectedBridgeTokenOutAmount: bigint | null;
   destFinalCallTokenAmount: RozoPayTokenAmount;
   destFinalCall: OnChainCall;
   usdValue: number;
@@ -208,7 +208,7 @@ export type RozoPayHydratedOrder = {
   sourceFulfillerAddr: Address | SolanaPublicKey | StellarPublicKey | null;
   sourceTokenAmount: RozoPayTokenAmount | null;
   sourceInitiateTxHash: Hex | null;
-  sourceStartTxHash: Hex | null;
+  // sourceStartTxHash: Hex | null;
   sourceStatus: RozoPayOrderStatusSource;
   destStatus: RozoPayOrderStatusDest;
   destFastFinishTxHash: Hex | null;
@@ -429,6 +429,12 @@ export enum DepositAddressPaymentOptions {
   STELLAR = "Stellar",
   WORLD = "Worldchain",
 
+  SOLANA_USDT = "USDT on Solana",
+  SOLANA_USDC = "USDC on Solana",
+  BASE_USDC = "USDC on Base",
+  ETHEREUM_USDT = "USDT on Ethereum",
+  ETHEREUM_USDC = "USDC on Ethereum",
+
   /** @deprecated */
   BITCOIN = "Bitcoin",
   /** @deprecated */
@@ -449,6 +455,8 @@ export type DepositAddressPaymentOptionMetadata = {
   id: DepositAddressPaymentOptions;
   logoURI: string;
   minimumUsd: number;
+  chainId: number;
+  token: Token;
 };
 
 export type DepositAddressPaymentOptionData = {
@@ -482,7 +490,7 @@ export interface RozoPayTokenAmount {
 }
 
 export type OnChainCall = {
-  to: Address;
+  to: Address | SolanaPublicKey | StellarPublicKey;
   data: Hex;
   value: bigint;
 };

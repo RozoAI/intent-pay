@@ -1,4 +1,5 @@
 export * from "./api/fee";
+export * from "./api/new-payment";
 export * from "./api/payment";
 export * from "./assert";
 export * from "./bridge";
@@ -10,3 +11,4 @@ export * from "./primitiveTypes";
 export * from "./retryBackoff";
 export * from "./token";
 export * from "./try";
+export * from "./validation";

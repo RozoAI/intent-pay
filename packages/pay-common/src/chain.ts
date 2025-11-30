@@ -107,21 +107,44 @@ export const rozoStellar: Chain = {
   cctpDomain: null,
 };
 
+export const gnosis: Chain = {
+  type: "evm",
+  chainId: 100,
+  name: "Gnosis",
+  cctpDomain: null,
+};
+
+export const avalanche: Chain = {
+  type: "evm",
+  chainId: 43114,
+  name: "Avalanche",
+  cctpDomain: null,
+};
+
+/**
+ * Supported chains for Near Intents cross-chain swaps
+ * Based on USDC/USDT support documentation
+ */
 export const supportedChains: Chain[] = [
-  arbitrum,
-  base,
-  bsc,
-  celo,
-  ethereum,
-  linea,
-  mantle,
-  optimism,
-  polygon,
-  solana,
-  stellar,
+  // Supported for Near Intents (USDC/USDT)
+  arbitrum, // USDC & USDT
+  avalanche, // USDC & USDT
+  base, // USDC only (no USDT)
+  bsc, // USDC & USDT
+  ethereum, // USDC & USDT
+  gnosis, // USDC & USDT
+  optimism, // USDC & USDT
+  polygon, // USDC & USDT
   worldchain,
-  rozoSolana,
-  rozoStellar,
+  rozoSolana, // USDC & USDT (chainId: 900)
+  rozoStellar, // USDC only (chainId: 1500, no USDT)
+
+  // Not supported for Near Intents - kept for other features
+  // celo, // Not in Near Intents docs
+  // linea, // Not in Near Intents docs
+  // mantle, // Not in Near Intents docs
+  // solana, // Use rozoSolana (900) instead of solana (501)
+  // stellar, // Use rozoStellar (1500) instead of stellar (10001)
 ];
 
 // https://developers.circle.com/stablecoins/supported-domains
@@ -186,6 +209,10 @@ export function getChainExplorerByChainId(chainId: number): string | undefined {
       return "https://optimistic.etherscan.io";
     case polygon.chainId:
       return "https://polygonscan.com";
+    case gnosis.chainId:
+      return "https://gnosisscan.io";
+    case avalanche.chainId:
+      return "https://snowtrace.io";
     case solana.chainId:
     case rozoSolana.chainId:
       return "https://solscan.io";

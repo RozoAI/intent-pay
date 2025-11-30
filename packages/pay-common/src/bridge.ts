@@ -1,42 +1,35 @@
 import { parseUnits } from "viem";
 import {
-  base,
   baseUSDC,
-  bscUSDT,
-  ethereum,
-  ethereumUSDC,
+  getChainById,
   getKnownToken,
-  polygon,
-  polygonUSDC,
+  isChainSupported,
+  isTokenSupported,
   RozoPayHydratedOrderWithOrg,
   RozoPayIntentStatus,
   RozoPayOrderMode,
   RozoPayOrderStatusDest,
   RozoPayOrderStatusSource,
   RozoPayUserMetadata,
-  rozoSolana,
   rozoSolanaUSDC,
-  rozoStellar,
   rozoStellarUSDC,
-  worldchainUSDC,
+  validateAddressForChain,
 } from ".";
 import type { PaymentResponseData } from "./api/payment";
 
 export interface PaymentBridgeConfig {
-  toChain?: number;
-  toToken?: string;
+  toChain: number;
+  toToken: string;
   toAddress: string;
-  toStellarAddress?: string;
-  toSolanaAddress?: string;
   toUnits: string;
-  payInTokenAddress: string;
-  log?: (msg: string) => void;
+  preferredChain: number;
+  preferredTokenAddress: string;
 }
 
 export interface PreferredPaymentConfig {
   preferredChain: string;
-  preferredToken: "USDC" | "USDT" | "XLM";
-  preferredTokenAddress?: string;
+  preferredToken: string;
+  preferredTokenAddress: string;
 }
 
 export interface DestinationConfig {
@@ -47,11 +40,17 @@ export interface DestinationConfig {
   tokenAddress: string;
 }
 
+interface PaymentBridge {
+  preferred: PreferredPaymentConfig;
+  destination: DestinationConfig;
+  isIntentPayment: boolean;
+}
+
 /**
  * Creates payment bridge configuration for cross-chain payment routing
  *
  * Determines the optimal payment routing based on the destination chain/token
- * and the wallet payment option selected by the user. This function handles
+ * and the preferred payment method selected by the user. This function handles
  * the complexity of multi-chain payments by:
  *
  * 1. **Preferred Payment Method**: Identifies which chain/token the user will pay from
@@ -60,198 +59,178 @@ export interface DestinationConfig {
  *
  * 2. **Destination Configuration**: Determines where funds will be received
  *    - Supports Base, Solana, Stellar, and Worldchain as destination chains
- *    - Handles special address formats for Solana and Stellar addresses
- *    - Defaults to Base USDC when no special destination is specified
+ *    - Automatically handles special address formats for Solana and Stellar addresses
+ *    - Configures destination token based on chain type (e.g., Stellar/Solana USDC)
  *
- * 3. **Cross-Chain Bridging**: Configures the payment bridge parameters
- *    - Maps user's selected wallet/token to the appropriate payment method
- *    - Sets up destination chain and token configuration
- *    - Handles token address formatting (e.g., Stellar's `USDC:issuerPK` format)
+ * 3. **Intent Payment Detection**: Determines if this is a cross-chain intent payment
+ *    - Returns `isIntentPayment: true` when preferred chain/token differs from destination
+ *    - Returns `isIntentPayment: false` for same-chain, same-token payments
  *
  * @param config - Payment bridge configuration parameters
- * @param config.toChain - Destination chain ID (defaults to Base: 8453)
- * @param config.toToken - Destination token address (defaults to Base USDC)
- * @param config.toAddress - Standard EVM destination address
- * @param config.toStellarAddress - Stellar-specific destination address (if paying to Stellar)
- * @param config.toSolanaAddress - Solana-specific destination address (if paying to Solana)
- * @param config.toUnits - Amount in token units (smallest denomination)
- * @param config.payInTokenAddress - Token address user selected to pay with
- * @param config.log - Optional logging function for debugging
+ * @param config.toChain - Destination chain ID (e.g., 8453 for Base, 900 for Solana, 10001 for Stellar)
+ * @param config.toToken - Destination token address (must be a supported token on the destination chain)
+ * @param config.toAddress - Destination address (format validated based on chain type: EVM 0x..., Solana Base58, Stellar G...)
+ * @param config.toUnits - Amount in human-readable units (e.g., "1" for 1 USDC, "0.5" for half a USDC)
+ * @param config.preferredChain - Chain ID where the user will pay from (e.g., 137 for Polygon, 8453 for Base)
+ * @param config.preferredTokenAddress - Token address the user selected to pay with (must be a supported token on preferredChain)
  *
- * @returns Payment routing configuration
+ * @returns Payment routing configuration object
  * @returns preferred - Source payment configuration (chain, token user will pay from)
+ * @returns preferred.preferredChain - Chain ID as string where payment originates
+ * @returns preferred.preferredToken - Token symbol (e.g., "USDC", "USDT")
+ * @returns preferred.preferredTokenAddress - Token contract address
  * @returns destination - Destination payment configuration (chain, token user will receive)
+ * @returns destination.destinationAddress - Address where funds will be received
+ * @returns destination.chainId - Destination chain ID as string
+ * @returns destination.amountUnits - Payment amount in token units
+ * @returns destination.tokenSymbol - Destination token symbol
+ * @returns destination.tokenAddress - Destination token contract address
+ * @returns isIntentPayment - Boolean indicating if this is a cross-chain intent payment
+ *
+ * @throws {Error} If the destination token is not supported for the destination chain
+ * @throws {Error} If the destination address format is invalid for the destination chain
+ * @throws {Error} If the preferred token is not supported for the preferred chain
+ * @throws {Error} If the destination chain or token is not supported
  *
  * @example
  * ```typescript
  * // User wants to pay with Polygon USDC to receive on Base
- * const { preferred, destination } = createPaymentBridgeConfig({
- *   toChain: 8453, // Base
+ * import { baseUSDC, polygonUSDCe } from '@rozoai/intent-common';
+ * import { base, polygon } from '@rozoai/intent-common';
+ *
+ * const { preferred, destination, isIntentPayment } = createPaymentBridgeConfig({
+ *   toChain: base.chainId, // 8453
  *   toToken: baseUSDC.token,
- *   toAddress: '0x123...',
- *   toUnits: '1000000', // 1 USDC
- *   payInTokenAddress: polygonUSDC.token,
- *   log: console.log
+ *   toAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+ *   toUnits: '1000000', // 1 USDC (6 decimals)
+ *   preferredChain: polygon.chainId, // 137
+ *   preferredToken: polygonUSDCe.token,
  * });
  *
- * // preferred = { preferredChain: '137', preferredToken: 'USDC', preferredTokenAddress: '0x2791...' }
- * // destination = { destinationAddress: '0x123...', chainId: '8453', amountUnits: '1000000', ... }
+ * // preferred = { preferredChain: '137', preferredToken: 'USDCe', preferredTokenAddress: '0x2791...' }
+ * // destination = { destinationAddress: '0x742d...', chainId: '8453', amountUnits: '1000000', tokenSymbol: 'USDC', tokenAddress: '0x8335...' }
+ * // isIntentPayment = true (different chains)
  * ```
  *
  * @example
  * ```typescript
- * // User wants to pay to a Stellar address
- * const { preferred, destination } = createPaymentBridgeConfig({
- *   toStellarAddress: 'GDZS...',
- *   toUnits: '1000000',
- *   payInTokenAddress: baseUSDC.token,
+ * // User wants to pay to a Stellar address using Base USDC
+ * import { baseUSDC, rozoStellarUSDC } from '@rozoai/intent-common';
+ * import { base, rozoStellar } from '@rozoai/intent-common';
+ *
+ * const { preferred, destination, isIntentPayment } = createPaymentBridgeConfig({
+ *   toChain: rozoStellar.chainId, // 10001
+ *   toToken: rozoStellarUSDC.token,
+ *   toAddress: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+ *   toUnits: '10000000', // 1 USDC (7 decimals for Stellar)
+ *   preferredChain: base.chainId, // 8453
+ *   preferredToken: baseUSDC.token,
  * });
  *
- * // destination will be configured for Stellar chain with USDC:issuerPK format
+ * // preferred = { preferredChain: '8453', preferredToken: 'USDC', preferredTokenAddress: '0x8335...' }
+ * // destination = { destinationAddress: 'GA5Z...', chainId: '10001', amountUnits: '10000000', tokenSymbol: 'USDC', tokenAddress: 'USDC:GA5Z...' }
+ * // isIntentPayment = true (Base to Stellar)
  * ```
  *
- * @note Currently only supports Base USDC and Stellar USDC as destination chains.
- *       Support for additional destination chains is planned.
+ * @example
+ * ```typescript
+ * // Same-chain payment (not an intent payment)
+ * const { preferred, destination, isIntentPayment } = createPaymentBridgeConfig({
+ *   toChain: base.chainId, // 8453
+ *   toToken: baseUSDC.token,
+ *   toAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+ *   toUnits: '1000000',
+ *   preferredChain: base.chainId, // 8453
+ *   preferredToken: baseUSDC.token,
+ * });
+ *
+ * // isIntentPayment = false (same chain and token)
+ * ```
  *
  * @see PreferredPaymentConfig
  * @see DestinationConfig
+ * @see PaymentBridgeConfig
  */
 export function createPaymentBridgeConfig({
-  toChain = baseUSDC.chainId,
-  toToken = baseUSDC.token,
+  toChain,
+  toToken,
   toAddress,
-  toStellarAddress,
-  toSolanaAddress,
   toUnits,
-  payInTokenAddress,
-  log,
-}: PaymentBridgeConfig): {
-  preferred: PreferredPaymentConfig;
-  destination: DestinationConfig;
-} {
-  // Default configuration for Base USDC payments
+  preferredChain,
+  preferredTokenAddress,
+}: PaymentBridgeConfig): PaymentBridge {
+  const chain = getChainById(toChain);
+  const token = getKnownToken(toChain, toToken);
+
+  if (!token) {
+    throw new Error(
+      `Unsupported token ${toToken} for chain ${chain.name} (${toChain})`
+    );
+  }
+
+  const addressValid = validateAddressForChain(toChain, toAddress);
+  if (!addressValid) {
+    throw new Error(
+      `Invalid address ${toAddress} for chain ${chain.name} (${toChain})`
+    );
+  }
+
+  const tokenConfig = getKnownToken(preferredChain, preferredTokenAddress);
+  if (!tokenConfig) {
+    throw new Error(
+      `Unknown token ${preferredTokenAddress} for chain ${chain.name} (${preferredChain})`
+    );
+  }
+
   let preferred: PreferredPaymentConfig = {
-    preferredChain: String(toChain),
-    preferredToken: "USDC",
+    preferredChain: String(preferredChain),
+    preferredToken: tokenConfig.symbol,
+    preferredTokenAddress: preferredTokenAddress,
   };
 
   let destination: DestinationConfig = {
     destinationAddress: toAddress,
     chainId: String(toChain),
     amountUnits: toUnits,
-    tokenSymbol: "USDC",
+    tokenSymbol: token.symbol,
     tokenAddress: toToken,
   };
 
-  /**
-   * IMPORTANT: Because we only support PAY OUT USDC EVM & NON-EVM
-   * So, We force toChain and toToken to Base USDC as default PayParams
-   *
-   * @TODO: Adjust this when we support another PAY OUT chain
-   */
-  const supportedChains = [
-    base.chainId,
-    polygon.chainId,
-    ethereum.chainId,
-    rozoSolana.chainId,
-    rozoStellar.chainId,
-  ];
-  const supportedTokens = [
-    baseUSDC.token,
-    polygonUSDC.token,
-    ethereumUSDC.token,
-    rozoSolanaUSDC.token,
-    rozoStellarUSDC.token,
-  ];
-
-  if (supportedChains.includes(toChain) && supportedTokens.includes(toToken)) {
-    // Determine preferred payment method based on wallet selection
-    if (payInTokenAddress) {
-      // Pay In USDC Polygon
-      if (payInTokenAddress === polygonUSDC.token) {
-        log?.(`[Payment Bridge] Pay In USDC Polygon`);
-        preferred = {
-          preferredChain: String(polygonUSDC.chainId),
-          preferredToken: "USDC",
-          preferredTokenAddress: polygonUSDC.token,
-        };
-      }
-      // Pay In USDC Ethereum
-      else if (payInTokenAddress === ethereumUSDC.token) {
-        log?.(`[Payment Bridge] Pay In USDC Ethereum`);
-        preferred = {
-          preferredChain: String(ethereumUSDC.chainId),
-          preferredToken: "USDC",
-          preferredTokenAddress: ethereumUSDC.token,
-        };
-      }
-      // Pay In USDC Solana
-      else if (payInTokenAddress === rozoSolanaUSDC.token) {
-        log?.(`[Payment Bridge] Pay In USDC Solana`);
-        preferred = {
-          preferredChain: String(rozoSolanaUSDC.chainId),
-          preferredToken: "USDC",
-          preferredTokenAddress: rozoSolanaUSDC.token,
-        };
-      }
-      // Pay In USDC Stellar
-      else if (
-        payInTokenAddress === rozoStellarUSDC.token ||
-        payInTokenAddress === `USDC:${rozoStellarUSDC.token}`
-      ) {
-        log?.(`[Payment Bridge] Pay In USDC Stellar`);
-        preferred = {
-          preferredChain: String(rozoStellarUSDC.chainId),
-          preferredToken: "USDC",
-          preferredTokenAddress: `USDC:${rozoStellarUSDC.token}`,
-        };
-      }
-      // Pay In USDC Worldchain
-      else if (payInTokenAddress === worldchainUSDC.token) {
-        log?.(`[Payment Bridge] Pay In USDC Worldchain`);
-        preferred = {
-          preferredChain: String(worldchainUSDC.chainId),
-          preferredToken: "USDC",
-          preferredTokenAddress: worldchainUSDC.token,
-        };
-      }
-      // Pay In USDT BSC
-      else if (payInTokenAddress === bscUSDT.token) {
-        log?.(`[Payment Bridge] Pay In USDT BSC`);
-        preferred = {
-          preferredChain: String(bscUSDT.chainId),
-          preferredToken: "USDT",
-          preferredTokenAddress: bscUSDT.token,
-        };
-      }
-    }
+  if (isChainSupported(toChain) && isTokenSupported(toChain, toToken)) {
+    preferred = {
+      preferredChain: String(tokenConfig.chainId),
+      preferredToken: tokenConfig.symbol,
+      preferredTokenAddress: tokenConfig.token,
+    };
 
     // Determine destination based on special address types
-    if (toStellarAddress) {
-      log?.(`[Payment Bridge] Pay Out USDC Stellar`);
+    if (isChainSupported(toChain, "stellar")) {
       destination = {
-        destinationAddress: toStellarAddress,
-        chainId: String(rozoStellar.chainId),
-        amountUnits: toUnits,
-        tokenSymbol: "USDC",
-        tokenAddress: `USDC:${rozoStellarUSDC.token}`,
+        ...destination,
+        tokenSymbol: rozoStellarUSDC.symbol,
+        chainId: String(rozoStellarUSDC.chainId),
+        tokenAddress: rozoStellarUSDC.token,
       };
-    } else if (toSolanaAddress) {
-      log?.(`[Payment Bridge] Pay Out USDC Solana`);
+    } else if (isChainSupported(toChain, "solana")) {
       destination = {
-        destinationAddress: toSolanaAddress,
+        ...destination,
+        tokenSymbol: rozoSolanaUSDC.symbol,
         chainId: String(rozoSolanaUSDC.chainId),
-        amountUnits: toUnits,
-        tokenSymbol: "USDC",
         tokenAddress: rozoSolanaUSDC.token,
       };
-    } else {
-      log?.(`[Payment Bridge] Pay Out USDC EVM`);
-      // Keep default Base configuration
     }
+  } else {
+    throw new Error(
+      `Unsupported chain ${chain.name} (${toChain}) or token ${token.symbol} (${toToken})`
+    );
   }
 
-  return { preferred, destination };
+  // If the preferred chain and token are not the same as the toChain and toToken, then it is an intent payment
+  const isIntentPayment =
+    preferred.preferredChain !== String(toChain) &&
+    preferred.preferredTokenAddress !== toToken;
+
+  return { preferred, destination, isIntentPayment };
 }
 
 /**
@@ -327,9 +306,9 @@ export function formatResponseToHydratedOrder(
 
   const requiredChain = order.metadata.preferredChain || baseUSDC.chainId;
 
-  const chain = getKnownToken(
+  const token = getKnownToken(
     Number(requiredChain),
-    Number(requiredChain) === rozoStellar.chainId
+    Number(requiredChain) === rozoStellarUSDC.chainId
       ? rozoStellarUSDC.token
       : order.metadata.preferredTokenAddress
   );
@@ -338,51 +317,48 @@ export function formatResponseToHydratedOrder(
     id: BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)),
     mode: RozoPayOrderMode.HYDRATED,
     intentAddr: destAddress,
-    handoffAddr: destAddress,
-    escrowContractAddress: destAddress,
-    bridgerContractAddress: destAddress,
     // @TODO: use correct destination token
-    bridgeTokenOutOptions: [
-      {
-        token: {
-          chainId: baseUSDC.chainId,
-          token: baseUSDC.token,
-          symbol: baseUSDC.symbol,
-          usd: 1,
-          priceFromUsd: 1,
-          decimals: baseUSDC.decimals,
-          displayDecimals: 2,
-          logoSourceURI: baseUSDC.logoSourceURI,
-          logoURI: baseUSDC.logoURI,
-          maxAcceptUsd: 100000,
-          maxSendUsd: 0,
-        },
-        amount: parseUnits(
-          order.destination.amountUnits,
-          baseUSDC.decimals
-        ).toString() as `${bigint}`,
-        usd: Number(order.destination.amountUnits),
-      },
-    ],
-    selectedBridgeTokenOutAddr: null,
-    selectedBridgeTokenOutAmount: null,
+    // bridgeTokenOutOptions: [
+    //   {
+    //     token: {
+    //       chainId: baseUSDC.chainId,
+    //       token: baseUSDC.token,
+    //       symbol: baseUSDC.symbol,
+    //       usd: 1,
+    //       priceFromUsd: 1,
+    //       decimals: baseUSDC.decimals,
+    //       displayDecimals: 2,
+    //       logoSourceURI: baseUSDC.logoSourceURI,
+    //       logoURI: baseUSDC.logoURI,
+    //       maxAcceptUsd: 100000,
+    //       maxSendUsd: 0,
+    //     },
+    //     amount: parseUnits(
+    //       order.destination.amountUnits,
+    //       baseUSDC.decimals
+    //     ).toString() as `${bigint}`,
+    //     usd: Number(order.destination.amountUnits),
+    //   },
+    // ],
+    // selectedBridgeTokenOutAddr: null,
+    // selectedBridgeTokenOutAmount: null,
     destFinalCallTokenAmount: {
       token: {
-        chainId: chain ? chain.chainId : baseUSDC.chainId,
-        token: chain ? chain.token : baseUSDC.token,
-        symbol: chain ? chain.symbol : baseUSDC.symbol,
+        chainId: token ? token.chainId : baseUSDC.chainId,
+        token: token ? token.token : baseUSDC.token,
+        symbol: token ? token.symbol : baseUSDC.symbol,
         usd: 1,
         priceFromUsd: 1,
-        decimals: chain ? chain.decimals : baseUSDC.decimals,
+        decimals: token ? token.decimals : baseUSDC.decimals,
         displayDecimals: 2,
-        logoSourceURI: chain ? chain.logoSourceURI : baseUSDC.logoSourceURI,
-        logoURI: chain ? chain.logoURI : baseUSDC.logoURI,
+        logoSourceURI: token ? token.logoSourceURI : baseUSDC.logoSourceURI,
+        logoURI: token ? token.logoURI : baseUSDC.logoURI,
         maxAcceptUsd: 100000,
         maxSendUsd: 0,
       },
       amount: parseUnits(
         order.destination.amountUnits,
-        chain ? chain.decimals : baseUSDC.decimals
+        token ? token.decimals : baseUSDC.decimals
       ).toString() as `${bigint}`,
       usd: Number(order.destination.amountUnits),
     },
@@ -394,10 +370,10 @@ export function formatResponseToHydratedOrder(
     },
     refundAddr: (order.source?.sourceAddress as `0x${string}`) || null,
     nonce: order.nonce as unknown as bigint,
-    sourceTokenAmount: null,
     sourceFulfillerAddr: null,
+    sourceTokenAmount: null,
     sourceInitiateTxHash: null,
-    sourceStartTxHash: null,
+    // sourceStartTxHash: null,
     sourceStatus: RozoPayOrderStatusSource.WAITING_PAYMENT,
     destStatus: RozoPayOrderStatusDest.PENDING,
     intentStatus: RozoPayIntentStatus.UNPAID,
@@ -417,7 +393,7 @@ export function formatResponseToHydratedOrder(
     expirationTs: BigInt(Math.floor(Date.now() / 1000 + 5 * 60).toString()),
     org: {
       orgId: order.orgId as string,
-      name: "Pay Rozo",
+      name: "",
     },
   };
 }
