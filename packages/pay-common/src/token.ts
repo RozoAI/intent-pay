@@ -893,10 +893,13 @@ export const supportedTokens: Map<number, Token[]> = new Map([
   [arbitrum.chainId, [arbitrumUSDC, arbitrumUSDT]],
   [avalanche.chainId, [avalancheUSDC, avalancheUSDT]],
   [base.chainId, [baseUSDC]],
+  [bsc.chainId, [bscUSDC, bscUSDT]],
   [ethereum.chainId, [ethereumUSDC, ethereumUSDT]],
   [gnosis.chainId, [gnosisUSDC, gnosisUSDT]],
   [optimism.chainId, [optimismUSDC, optimismUSDT]],
   [polygon.chainId, [polygonUSDC, polygonUSDT]],
+  [worldchain.chainId, [worldchainUSDC]],
+
   [rozoSolana.chainId, [rozoSolanaUSDC, rozoSolanaUSDT]],
   [rozoStellar.chainId, [rozoStellarUSDC]],
 ]);

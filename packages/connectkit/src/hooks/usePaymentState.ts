@@ -315,6 +315,34 @@ export function usePaymentState({
     );
   }, [paymentOptions, pay.order]);
 
+  // Memoize usdRequired and destChainId to prevent unnecessary refetches when order object reference changes
+  const usdRequired = useMemo(
+    () => pay.order?.destFinalCallTokenAmount.usd,
+    [pay.order?.destFinalCallTokenAmount.usd]
+  );
+  const destChainId = useMemo(
+    () => pay.order?.destFinalCallTokenAmount.token.chainId,
+    [pay.order?.destFinalCallTokenAmount.token.chainId]
+  );
+
+  // Memoize appId from currPayParams to prevent unnecessary refetches when payParams object reference changes
+  // This is important because appId may change from default (rozoIntentPay) to user-provided
+  const stableAppId = useMemo(
+    () => currPayParams?.appId ?? DEFAULT_ROZO_APP_ID,
+    [currPayParams?.appId]
+  );
+
+  // Create a stable payParams object that only changes when appId actually changes
+  // This prevents unnecessary refetches in payment option hooks when currPayParams reference changes
+  // The hooks extract appId internally and memoize it, so they won't refetch unless appId changes
+  const stablePayParams = useMemo(() => {
+    if (!currPayParams) return undefined;
+    return {
+      ...currPayParams,
+      appId: stableAppId,
+    };
+  }, [stableAppId, currPayParams]);
+
   // UI state. Selection for external payment (Binance, etc) vs wallet payment.
   const externalPaymentOptions = useExternalPaymentOptions({
     trpc,
@@ -322,40 +350,40 @@ export function usePaymentState({
     filterIds:
       buttonProps?.paymentOptions ?? pay.order?.metadata.payer?.paymentOptions,
     platform,
-    usdRequired: pay.order?.destFinalCallTokenAmount.usd,
+    usdRequired,
     mode: pay.order?.mode,
   });
   const walletPaymentOptions = useWalletPaymentOptions({
     trpc,
     address: ethWalletAddress,
-    usdRequired: pay.order?.destFinalCallTokenAmount.usd,
-    destChainId: pay.order?.destFinalCallTokenAmount.token.chainId,
+    usdRequired,
+    destChainId,
     preferredChains: pay.order?.metadata.payer?.preferredChains,
     preferredTokens: pay.order?.metadata.payer?.preferredTokens,
     evmChains: pay.order?.metadata.payer?.evmChains,
     isDepositFlow,
-    payParams: currPayParams,
+    payParams: stablePayParams,
     log,
   });
   const solanaPaymentOptions = useSolanaPaymentOptions({
     trpc,
     address: solanaPubKey,
-    usdRequired: pay.order?.destFinalCallTokenAmount.usd,
+    usdRequired,
     isDepositFlow,
-    payParams: currPayParams,
+    payParams: stablePayParams,
   });
   const stellarPaymentOptions = useStellarPaymentOptions({
     trpc,
     address: stellarPubKey,
-    usdRequired: pay.order?.destFinalCallTokenAmount.usd,
+    usdRequired,
     isDepositFlow,
-    payParams: currPayParams,
+    payParams: stablePayParams,
   });
   const depositAddressOptions = useDepositAddressOptions({
     trpc,
-    usdRequired: pay.order?.destFinalCallTokenAmount.usd,
+    usdRequired,
     mode: pay.order?.mode,
-    appId: currPayParams?.appId,
+    appId: stableAppId,
   });
 
   const chainOrderUsdLimits = useOrderUsdLimits({ trpc });
@@ -441,16 +469,6 @@ export function usePaymentState({
       const preferredChain = walletOption.required.token.chainId;
       const preferredTokenAddress = walletOption.required.token.token;
 
-      const metadata = {
-        preferredChain,
-        preferredTokenAddress,
-        ...mergedMetadata({
-          ...(payParams?.metadata ?? {}),
-          ...(order?.metadata ?? {}),
-          ...(order?.userMetadata ?? {}),
-        }),
-      };
-
       const payload = {
         appId,
         toChain,
@@ -459,7 +477,9 @@ export function usePaymentState({
         preferredChain,
         preferredTokenAddress,
         toUnits,
-        metadata,
+        metadata: mergedMetadata({
+          ...(payParams?.metadata ?? {}),
+        }),
       };
       const response = await createNewPayment(payload);
 
@@ -505,6 +525,11 @@ export function usePaymentState({
         )} does not match fees token ${debugJson(fees)}`
       );
     }
+
+    console.log("pay.order", pay.order);
+    console.log("required", required);
+    console.log("fees", fees);
+    console.log("pay.paymentState", pay.paymentState);
 
     // @NOTE: Fee handled by Rozo API
     // const paymentAmount = BigInt(required.amount) + BigInt(fees.amount);

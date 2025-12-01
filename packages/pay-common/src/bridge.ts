@@ -176,10 +176,11 @@ export function createPaymentBridgeConfig({
     );
   }
 
+  const preferredChainData = getChainById(preferredChain);
   const tokenConfig = getKnownToken(preferredChain, preferredTokenAddress);
   if (!tokenConfig) {
     throw new Error(
-      `Unknown token ${preferredTokenAddress} for chain ${chain.name} (${preferredChain})`
+      `Unknown token ${preferredTokenAddress} for chain ${preferredChainData.name} (${preferredChain})`
     );
   }
 

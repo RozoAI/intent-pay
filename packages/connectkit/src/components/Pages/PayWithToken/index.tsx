@@ -64,6 +64,12 @@ const PayWithToken: React.FC = () => {
     option: WalletPaymentOption,
     forceSwitch: boolean = false
   ): Promise<boolean> => {
+    console.log(
+      "trySwitchingChain",
+      walletChainId,
+      option.required.token.chainId,
+      forceSwitch
+    );
     if (walletChainId !== option.required.token.chainId || forceSwitch) {
       const resultChain = await (async () => {
         try {

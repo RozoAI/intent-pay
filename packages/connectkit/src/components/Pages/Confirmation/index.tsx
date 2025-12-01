@@ -213,20 +213,20 @@ const Confirmation: React.FC = () => {
           if (
             isActive &&
             response.data &&
-            response.data.payoutTransactionHash &&
-            typeof response.data.payoutTransactionHash === "string"
+            response.data.destination.txHash &&
+            typeof response.data.destination.txHash === "string"
           ) {
             const url = getChainExplorerTxUrl(
               Number(response.data.destination.chainId),
-              response.data.payoutTransactionHash
+              response.data.destination.txHash
             );
             context.log(
               "[CONFIRMATION] Found payout transaction:",
-              response.data.payoutTransactionHash,
+              response.data.destination.txHash,
               "URL:",
               url
             );
-            setPayoutTxHash(response.data.payoutTransactionHash);
+            setPayoutTxHash(response.data.destination.txHash);
             setPayoutTxHashUrl(url);
             setPayoutLoading(false);
             triggerResize();

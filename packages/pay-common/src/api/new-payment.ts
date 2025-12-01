@@ -400,7 +400,7 @@ export async function createNewPayment(
     },
     display: {
       currency: "USD",
-      title: title ?? "Payment",
+      title: title ?? "Pay",
       ...(description ? { description } : {}),
     },
     ...(metadata ? { metadata } : {}),

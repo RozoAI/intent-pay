@@ -4,6 +4,7 @@ import {
   CreateNewPaymentParams,
   FeeType,
   formatPaymentResponseToHydratedOrder,
+  generateIntentTitle,
   getKnownToken,
   getNewPayment,
   getOrderDestChainId,
@@ -299,14 +300,6 @@ async function runSetPayParamsEffects(
       intentStatus: "payment_unpaid",
       metadata: {
         intent: payParams.intent ?? "Pay",
-        items: [],
-        payer: {
-          paymentOptions: payParams.paymentOptions,
-          preferredChains: payParams.preferredChains,
-          preferredTokens: payParams.preferredTokens,
-          evmChains: payParams.evmChains,
-        },
-        appId: payParams.appId ?? DEFAULT_ROZO_APP_ID,
         ...(payParams.metadata ?? {}),
       },
       externalId: payParams.externalId,
@@ -399,7 +392,14 @@ async function runHydratePayParamsEffects(
     log?.("[Payment Effect]: createRozoPayment");
     const payload: CreateNewPaymentParams = {
       appId: payParams?.appId ?? DEFAULT_ROZO_APP_ID,
-      title: payParams?.metadata?.title ?? "Payment",
+      title:
+        payParams?.metadata?.intent ??
+        generateIntentTitle({
+          toChainId: toChain,
+          toTokenAddress: toToken,
+          preferredChainId: preferredChain,
+          preferredTokenAddress: preferredTokenAddress,
+        }),
       description: payParams?.metadata?.description ?? "",
       type: payParams.feeType ?? FeeType.ExactIn,
       toChain,
@@ -409,7 +409,7 @@ async function runHydratePayParamsEffects(
       preferredTokenAddress,
       toUnits,
       metadata: mergedMetadata({
-        ...(payParams?.metadata ?? {}),
+        ...(order?.metadata ?? {}),
       }),
     };
     log?.(`[Payment Effect]: payload: ${JSON.stringify(payload, null, 2)}`);
@@ -450,8 +450,6 @@ async function runHydratePayParamsEffects(
       ...rozoPaymentResponse,
       externalId: rozoPaymentId,
     });
-
-    console.log("hydratedOrder", hydratedOrder);
 
     store.dispatch({
       type: "order_hydrated",
