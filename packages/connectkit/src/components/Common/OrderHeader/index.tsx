@@ -189,11 +189,14 @@ function CoinLogos({
     <Ethereum key="ethereum" />,
   ];
 
-  if (appId?.includes("MP")) {
+  if (appId?.includes("MP") && !$exclude.includes("bsc")) {
     logos.push(<BinanceSmartChain key="bsc" />);
   }
 
-  if (appId?.toLowerCase().includes("world")) {
+  if (
+    appId?.toLowerCase().includes("world") &&
+    !$exclude.includes("worldchain")
+  ) {
     logos.push(<Worldchain key="worldchain" />);
   }
 

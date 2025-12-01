@@ -3,7 +3,7 @@ import {
   assertNotNull,
   baseUSDC,
   bscUSDT,
-  createNewPayment,
+  createPayment,
   debugJson,
   DepositAddressPaymentOptionData,
   DepositAddressPaymentOptionMetadata,
@@ -481,7 +481,7 @@ export function usePaymentState({
           ...(payParams?.metadata ?? {}),
         }),
       };
-      const response = await createNewPayment(payload);
+      const response = await createPayment(payload);
 
       if (!response?.id) {
         throw new Error("Payment creation failed");
@@ -862,11 +862,12 @@ export function usePaymentState({
       const token = walletPaymentOption.required.token;
 
       const destinationAddress = rozoPayment.destAddress;
+      const issuer = rozoStellarUSDC.token.split(":")[1];
 
       // Setup Stellar payment
       await stellarKit.setWallet(String(stellarConnector?.id ?? "freighter"));
       const sourceAccount = await stellarServer.loadAccount(stellarPublicKey);
-      const destAsset = new Asset("USDC", rozoStellarUSDC.token);
+      const destAsset = new Asset("USDC", issuer);
       const fee = String(await stellarServer.fetchBaseFee());
 
       // Build transaction based on token type

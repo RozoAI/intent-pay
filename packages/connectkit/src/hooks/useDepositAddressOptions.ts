@@ -52,8 +52,8 @@ export function useDepositAddressOptions({
   const [error, setError] = useState<string | null>(null);
 
   // Memoized configuration for deposit address options
-  const depositAddressConfig = useMemo(() => {
-    const baseOptions: DepositAddressPaymentOptionMetadata[] = [
+  const depositAddressConfig = useMemo(
+    () => [
       // Ethereum Mainnet (USDT, USDC)
       {
         id: DepositAddressPaymentOptions.ETHEREUM_USDT,
@@ -92,9 +92,9 @@ export function useDepositAddressOptions({
         chainId: rozoSolanaUSDC.chainId,
         token: rozoSolanaUSDC,
       },
-    ];
-    return baseOptions;
-  }, []);
+    ],
+    [usdRequired]
+  );
 
   // Memoized refresh function to prevent unnecessary re-renders
   const refreshDepositAddressOptions = useCallback(
@@ -141,7 +141,7 @@ export function useDepositAddressOptions({
   }, [usdRequired, mode, refreshDepositAddressOptions]);
 
   return {
-    options,
+    options: depositAddressConfig,
     loading,
     error,
   };

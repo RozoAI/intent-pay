@@ -1,13 +1,13 @@
 import {
   assert,
-  createNewPayment,
   CreateNewPaymentParams,
+  createPayment,
   FeeType,
   formatPaymentResponseToHydratedOrder,
   generateIntentTitle,
   getKnownToken,
-  getNewPayment,
   getOrderDestChainId,
+  getPayment,
   mergedMetadata,
   PaymentResponse,
   readRozoPayOrderID,
@@ -362,6 +362,7 @@ async function runHydratePayParamsEffects(
   const order = prev.order;
   const payParams = prev.payParamsData;
   const walletOption = event.walletPaymentOption;
+  const feeType = payParams.feeType ?? FeeType.ExactIn;
 
   const toUnits = formatUnits(
     BigInt(order.destFinalCallTokenAmount.amount),
@@ -401,7 +402,7 @@ async function runHydratePayParamsEffects(
           preferredTokenAddress: preferredTokenAddress,
         }),
       description: payParams?.metadata?.description ?? "",
-      type: payParams.feeType ?? FeeType.ExactIn,
+      type: feeType,
       toChain,
       toToken,
       toAddress,
@@ -414,7 +415,7 @@ async function runHydratePayParamsEffects(
     };
     log?.(`[Payment Effect]: payload: ${JSON.stringify(payload, null, 2)}`);
 
-    const rozoPayment = await createNewPayment(payload);
+    const rozoPayment = await createPayment(payload);
 
     if (!rozoPayment?.id) {
       throw new Error("Payment creation failed");
@@ -474,7 +475,7 @@ async function runHydratePayIdEffects(
     //   refundAddress: event.refundAddress,
     // });
 
-    const orderData = await getNewPayment(order.id.toString());
+    const orderData = await getPayment(order.id.toString());
     if (!orderData?.data) {
       throw new Error("Order not found");
     }

@@ -16,7 +16,6 @@ import {
   rozoStellarUSDC,
   validateAddressForChain,
 } from ".";
-import type { PaymentResponseData } from "./api/payment";
 
 export interface PaymentBridgeConfig {
   toChain: number;
@@ -236,114 +235,78 @@ export function createPaymentBridgeConfig({
 }
 
 /**
- * Transforms a payment API response into a fully hydrated order object
+ * Converts a RozoAI payment API response to a fully hydrated RozoPay order.
  *
- * Converts the payment response data from the RozoAI payment API into a complete
- * `RozoPayHydratedOrderWithOrg` object that contains all the information needed
- * to display order status, track payments, and handle cross-chain transactions.
+ * This utility transforms the low-level {@link PaymentResponse} object returned by the RozoAI Intent Pay API
+ * into a {@link RozoPayHydratedOrderWithOrg}, containing all values needed for UI display, order tracking,
+ * and multi-chain cross-payment logic. Fields are normalized and token metadata is resolved in order to
+ * standardize data from different chains and token types.
  *
- * This function performs several key transformations:
+ * Key steps performed:
  *
- * 1. **Token Resolution**: Identifies the correct token based on chain and address
- *    - Uses `getKnownToken()` to resolve token metadata (decimals, symbol, logo, etc.)
- *    - Handles special cases for Stellar tokens using issuer public key
+ * 1. **Token Metadata Lookup**: Uses {@link getKnownToken} to identify the correct token
+ *    for the payment, including decimals, symbol, logo, and chain details.
+ *    Special handling is applied for Stellar and Solana tokens based on how they're encoded in the backend.
  *
- * 2. **Order Structure**: Creates a complete order with all required fields
- *    - Generates random order ID for internal tracking
- *    - Sets up intent, handoff, and contract addresses
- *    - Configures bridge token options and destination amounts
+ * 2. **Order Hydration**: Generates a unique (random BigInt) internal order ID for frontend usage, sets the
+ *    payment mode as HYDRATED, and resolves all destination call and amount fields from the payment response.
  *
- * 3. **Status Initialization**: Sets initial payment statuses
- *    - Source status: WAITING_PAYMENT (awaiting user transaction)
- *    - Destination status: PENDING (not yet received)
- *    - Intent status: UNPAID (payment not initiated)
+ * 3. **Status Initialization**: Initializes the payment, source, and destination status fields
+ *    with their correct values based on the payment's progress in the state machine. The returned object is
+ *    ready for status tracking and user notification.
  *
- * 4. **Metadata Merge**: Combines various metadata sources
- *    - Merges order metadata, user metadata, and custom metadata
- *    - Preserves external ID and organization information
+ * 4. **Metadata Consolidation**: Merges core order metadata, user metadata (if provided by the payer),
+ *    and any external references such as org info. Ensures all details needed for order display and analytics are available.
  *
- * @param order - Payment response data from the RozoAI payment API
- * @param order.metadata - Payment metadata including chain, token, and routing info
- * @param order.destination - Destination configuration (chain, token, amount, address)
- * @param order.source - Source transaction info (if payment has been initiated)
- * @param order.orgId - Organization ID for the payment
- * @param order.externalId - External reference ID (if provided by merchant)
+ * @param order - Low-level API payment response (from RozoAI Intent Pay backend)
+ * @param feeType - Optional: Fee deduction mode (ExactIn/ExactOut); determines which side's amount is shown as source. Defaults to ExactIn.
  *
- * @returns Complete hydrated order object with all payment tracking information
- * @returns id - Unique order identifier (random BigInt)
- * @returns mode - Order mode (HYDRATED)
- * @returns sourceStatus - Source transaction status
- * @returns destStatus - Destination transaction status
- * @returns intentStatus - Overall payment intent status
- * @returns metadata - Merged metadata from all sources
- * @returns org - Organization information
+ * @returns {RozoPayHydratedOrderWithOrg} A normalized, display-ready order representation containing all tracking, status,
+ *          token, org, and routing information for frontend use.
  *
  * @example
  * ```typescript
- * const paymentResponse = await getRozoPayment(paymentId);
- *
- * const hydratedOrder = formatPaymentResponseDataToHydratedOrder(
- *   paymentResponse.data,
- *   'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
- * );
- *
+ * const paymentResponse = await getPayment(paymentId);
+ * const hydratedOrder = formatPaymentResponseToHydratedOrder(paymentResponse.data);
  * console.log(hydratedOrder.sourceStatus); // 'WAITING_PAYMENT'
  * console.log(hydratedOrder.destFinalCallTokenAmount.token.symbol); // 'USDC'
  * console.log(hydratedOrder.usdValue); // 10.00
  * ```
  *
- * @note The generated order ID is random and intended for client-side tracking only.
- *       Use `externalId` or the API payment ID for server-side reference.
+ * @remarks
+ * - The returned `id` (BigInt) is generated randomly and is client-side only; always use
+ *   `order.orderId` or the API reference for backend/server reconciliation.
+ * - The expiration timestamp and org info are carried over if present on the API response.
+ * - Decimals, token symbol, and display metadata for the amount and destination chain
+ *   are resolved so the result is immediately usable for UI.
  *
- * @note The function sets a 5-minute expiration timestamp from the current time.
- *
- * @see PaymentResponseData
+ * @see PaymentResponse
  * @see RozoPayHydratedOrderWithOrg
  * @see getKnownToken
  */
-export function formatResponseToHydratedOrder(
-  order: PaymentResponseData
+export function formatPaymentResponseToHydratedOrder(
+  order: PaymentResponse
 ): RozoPayHydratedOrderWithOrg {
-  const destAddress = order.metadata.receivingAddress as `0x${string}`;
+  // Source amount is in the same units as the destination amount without fee
+  const sourceAmountUnits = order.source?.amount ?? "0";
 
-  const requiredChain = order.metadata.preferredChain || baseUSDC.chainId;
+  // Destination address is where the payment will be received
+  const destAddress = order.source?.receiverAddress;
+
+  // Determine the chain from metadata or default to the source chain
+  const requiredChain = order.source?.chainId || baseUSDC.chainId;
 
   const token = getKnownToken(
     Number(requiredChain),
     Number(requiredChain) === rozoStellarUSDC.chainId
       ? rozoStellarUSDC.token
-      : order.metadata.preferredTokenAddress
+      : order.source?.tokenAddress || ""
   );
 
   return {
     id: BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)),
     mode: RozoPayOrderMode.HYDRATED,
-    intentAddr: destAddress,
-    // @TODO: use correct destination token
-    // bridgeTokenOutOptions: [
-    //   {
-    //     token: {
-    //       chainId: baseUSDC.chainId,
-    //       token: baseUSDC.token,
-    //       symbol: baseUSDC.symbol,
-    //       usd: 1,
-    //       priceFromUsd: 1,
-    //       decimals: baseUSDC.decimals,
-    //       displayDecimals: 2,
-    //       logoSourceURI: baseUSDC.logoSourceURI,
-    //       logoURI: baseUSDC.logoURI,
-    //       maxAcceptUsd: 100000,
-    //       maxSendUsd: 0,
-    //     },
-    //     amount: parseUnits(
-    //       order.destination.amountUnits,
-    //       baseUSDC.decimals
-    //     ).toString() as `${bigint}`,
-    //     usd: Number(order.destination.amountUnits),
-    //   },
-    // ],
-    // selectedBridgeTokenOutAddr: null,
-    // selectedBridgeTokenOutAmount: null,
+    intentAddr: destAddress ?? "",
     destFinalCallTokenAmount: {
       token: {
         chainId: token ? token.chainId : baseUSDC.chainId,
@@ -359,90 +322,44 @@ export function formatResponseToHydratedOrder(
         maxSendUsd: 0,
       },
       amount: parseUnits(
-        order.destination.amountUnits,
+        sourceAmountUnits,
         token ? token.decimals : baseUSDC.decimals
       ).toString() as `${bigint}`,
-      usd: Number(order.destination.amountUnits),
+      usd: Number(sourceAmountUnits),
     },
-    usdValue: Number(order.destination.amountUnits),
+    usdValue: Number(sourceAmountUnits),
     destFinalCall: {
-      to: destAddress,
+      to: destAddress ?? "",
       value: BigInt("0"),
       data: "0x",
     },
-    refundAddr: (order.source?.sourceAddress as `0x${string}`) || null,
-    nonce: order.nonce as unknown as bigint,
+    refundAddr: (order.source?.senderAddress as `0x${string}`) || null,
+    nonce: BigInt(order.nonce ?? 0),
     sourceFulfillerAddr: null,
     sourceTokenAmount: null,
     sourceInitiateTxHash: null,
-    // sourceStartTxHash: null,
     sourceStatus: RozoPayOrderStatusSource.WAITING_PAYMENT,
     destStatus: RozoPayOrderStatusDest.PENDING,
     intentStatus: RozoPayIntentStatus.UNPAID,
     destFastFinishTxHash: null,
     destClaimTxHash: null,
     redirectUri: null,
-    createdAt: Math.floor(Date.now() / 1000),
-    lastUpdatedAt: Math.floor(Date.now() / 1000),
-    orgId: order.orgId as string,
+    createdAt: Math.floor(new Date(order.createdAt).getTime() / 1000),
+    lastUpdatedAt: Math.floor(new Date(order.updatedAt).getTime() / 1000),
+    orgId: order.orgId ?? "",
     metadata: {
       ...(order?.metadata ?? {}),
-      ...(order.userMetadata ?? {}),
-      ...(order.metadata ?? {}),
-    } as any,
-    externalId: order.externalId as string | null,
-    userMetadata: order.userMetadata as RozoPayUserMetadata | null,
-    expirationTs: order.expiresAt
-      ? BigInt(
-          Math.floor(
-            new Date(String(order.expiresAt)).getTime() / 1000
-          ).toString()
-        )
-      : BigInt(Math.floor(Date.now() / 1000 + 5 * 60).toString()),
-    org: {
-      orgId: order.orgId as string,
-      name: "",
-    },
-  };
-}
-
-export function formatPaymentResponseToHydratedOrder(
-  order: PaymentResponse
-): RozoPayHydratedOrderWithOrg {
-  // Source amount is in the same units as the destination amount without fee
-  const sourceAmountUnits = order.source?.amount ?? "0";
-
-  return formatResponseToHydratedOrder({
-    id: order.id,
-    expiresAt: new Date(order.expiresAt).toISOString(),
-    updatedAt: new Date(order.updatedAt).toISOString(),
-    createdAt: new Date(order.createdAt).toISOString(),
-    status: RozoPayOrderMode.HYDRATED,
-    display: order.display,
-    metadata: {
-      ...order.metadata,
       receivingAddress: order.source?.receiverAddress,
       memo: order.source?.receiverMemo ?? null,
     } as any,
-    destination: {
-      destinationAddress: order.destination?.receiverAddress ?? "",
-      chainId: String(order.destination?.chainId ?? ""),
-      amountUnits: sourceAmountUnits,
-      tokenSymbol: order.destination?.tokenSymbol ?? "",
-      tokenAddress: order.destination?.tokenAddress ?? "",
-      txHash: order.destination?.txHash ?? null,
+    externalId: order.externalId ?? null,
+    userMetadata: order.userMetadata as RozoPayUserMetadata | null,
+    expirationTs: BigInt(
+      Math.floor(new Date(order.expiresAt).getTime() / 1000).toString()
+    ),
+    org: {
+      orgId: order.orgId ?? "",
+      name: "",
     },
-    source: {
-      sourceAddress: order.source?.senderAddress ?? undefined,
-      chainId: String(order.source?.chainId ?? ""),
-      amountUnits: sourceAmountUnits,
-      tokenSymbol: order.source?.tokenSymbol ?? "",
-      tokenAddress: order.source?.tokenAddress ?? "",
-    },
-    url: order.url,
-    externalId: order.externalId,
-    userMetadata: order.userMetadata,
-    nonce: order.nonce,
-    orgId: order.orgId,
-  });
+  };
 }

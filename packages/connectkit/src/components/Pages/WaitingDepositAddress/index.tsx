@@ -5,7 +5,7 @@ import {
   getChainName,
   getFee,
   getKnownToken,
-  getNewPayment,
+  getPayment,
   isHydrated,
   type FeeErrorData,
   type FeeResponseData,
@@ -176,7 +176,7 @@ export default function WaitingDepositAddress() {
           depAddr?.externalId
         );
         const isMugglePay = depAddr?.externalId.includes("mugglepay_order");
-        const response = await getNewPayment(depAddr?.externalId);
+        const response = await getPayment(depAddr?.externalId);
 
         context.log("[PAYMENT POLLING] Debug - API Response:", {
           status: response.status,

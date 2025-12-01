@@ -113,7 +113,8 @@ export const StellarContextProvider = ({
 
   const convertXlmToUsdc = async (amount: string) => {
     try {
-      const destAsset = new Asset("USDC", rozoStellarUSDC.token);
+      const issuer = rozoStellarUSDC.token.split(":")[1];
+      const destAsset = new Asset("USDC", issuer);
       const pathResults = await server
         .strictSendPaths(Asset.native(), amount, [destAsset])
         .call();

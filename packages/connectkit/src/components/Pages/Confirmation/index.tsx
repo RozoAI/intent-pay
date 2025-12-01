@@ -14,8 +14,8 @@ import {
   bscUSDT,
   getAddressContraction,
   getChainExplorerTxUrl,
-  getNewPayment,
   getOrderDestChainId,
+  getPayment,
   rozoSolana,
   rozoStellar,
 } from "@rozoai/intent-common";
@@ -207,7 +207,7 @@ const Confirmation: React.FC = () => {
             "[CONFIRMATION] Polling for payout transaction:",
             rozoPaymentId
           );
-          const response = await getNewPayment(rozoPaymentId);
+          const response = await getPayment(rozoPaymentId);
           context.log("[CONFIRMATION] Payout polling response:", response.data);
 
           if (

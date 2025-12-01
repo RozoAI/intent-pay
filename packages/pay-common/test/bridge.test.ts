@@ -1,5 +1,8 @@
 import test from "tape";
-import { createPaymentBridgeConfig, PaymentBridgeConfig } from "../src/bridge";
+import {
+  createPaymentBridgeConfig,
+  PaymentBridgeConfig,
+} from "../src/bridge-utils";
 import { base, polygon, rozoSolana, rozoStellar } from "../src/chain";
 import {
   baseUSDC,
