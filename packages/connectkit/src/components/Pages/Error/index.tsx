@@ -12,6 +12,10 @@ import { useRozoPay } from "../../../hooks/useDaimoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
 import styled from "../../../styles/styled";
 import { categorizeError, ErrorType } from "../../../utils/errorParser";
+import {
+  getDetailedValidationError,
+  ValidationError,
+} from "../../../utils/validatePayoutToken";
 import Button from "../../Common/Button";
 import PoweredByFooter from "../../Common/PoweredByFooter";
 
@@ -27,6 +31,21 @@ export default function ErrorPage() {
   const context = usePayContext();
 
   const errorCategory = useMemo((): ErrorCategory => {
+    // Check if this is a validation error from route meta
+    const validationError = context.routeMeta?.validationError as
+      | ValidationError
+      | undefined;
+
+    if (validationError) {
+      const { title, message } = getDetailedValidationError(validationError);
+      return {
+        title,
+        message,
+        canRetry: false,
+        showSupport: false,
+      };
+    }
+
     if (pay.paymentState !== "error") {
       return {
         title: "Unknown Error",
@@ -91,7 +110,11 @@ export default function ErrorPage() {
           showSupport: true,
         };
     }
-  }, [pay.paymentState, pay.paymentErrorMessage]);
+  }, [
+    pay.paymentState,
+    pay.paymentErrorMessage,
+    context.routeMeta?.validationError,
+  ]);
 
   const handleRetry = () => {
     context.setRoute(ROUTES.SELECT_METHOD);

@@ -11,7 +11,6 @@ import {
 
 import {
   assert,
-  bscUSDT,
   getAddressContraction,
   getChainExplorerTxUrl,
   getOrderDestChainId,
@@ -70,14 +69,6 @@ const Confirmation: React.FC = () => {
   const paymentCompletedSent = React.useRef<string | null>(null);
   const payoutCompletedSent = React.useRef<string | null>(null);
 
-  const isMugglePay = useMemo(() => {
-    return (
-      paymentStateContext?.payParams?.appId.includes("MP") &&
-      paymentStateContext.selectedTokenOption?.required.token.token ===
-        bscUSDT.token
-    );
-  }, [paymentStateContext]);
-
   const showProcessingPayout = useMemo(() => {
     const { payParams, tokenMode } = paymentStateContext;
 
@@ -85,15 +76,11 @@ const Confirmation: React.FC = () => {
       payParams &&
       (tokenMode === "stellar" || tokenMode === "solana" || tokenMode === "evm")
     ) {
-      return (
-        payParams.showProcessingPayout &&
-        // Hide Processing Payout if appId contains "MP" (MugglePay)
-        !isMugglePay
-      );
+      return payParams.showProcessingPayout;
     }
 
     return false;
-  }, [paymentStateContext, isMugglePay]);
+  }, [paymentStateContext]);
 
   const rozoPaymentId = useMemo(() => {
     return order?.externalId || paymentStateContext.rozoPaymentId;

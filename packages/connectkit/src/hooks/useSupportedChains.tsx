@@ -1,47 +1,26 @@
-import {
-  bsc,
-  bscUSDT,
-  supportedChains,
-  supportedTokens,
-  Token,
-  worldchain,
-  worldchainUSDC,
-} from "@rozoai/intent-common";
-import { useMemo } from "react";
-
-// Filter out BSC and Worldchain from base lists (they have special conditional rules)
-const baseSupportedChains = supportedChains.filter(
-  (chain) =>
-    chain.chainId !== bsc.chainId && chain.chainId !== worldchain.chainId
-);
-const baseSupportedTokens = Array.from(supportedTokens.values())
-  .flat()
-  .filter(
-    (token) =>
-      token.chainId !== bsc.chainId && token.chainId !== worldchain.chainId
-  );
+import { supportedChains, supportedTokens, Token } from "@rozoai/intent-common";
 
 /**
- * React hook to retrieve supported wallet payment chains and tokens.
+ * React hook: Returns currently supported wallet payment chains and tokens.
  *
- * Returns the list of currently active chains and tokens in wallet payment options,
- * with dynamic logic for including BSC/Worldchain based on appId or preferences.
+ * All other chains and tokens from @rozoai/intent-common are included by default.
  *
- * CURRENTLY SUPPORTED CHAINS/TOKENS:
- * - All chains/tokens from supportedChains and supportedTokens (from @rozoai/intent-common)
- *   - Includes: Arbitrum, Avalanche, Base, Ethereum, Gnosis, Optimism, Polygon, Solana, Stellar
- * - BSC (56) - USDT (only for MugglePay apps - appId includes "MP")
- * - Worldchain (480) - USDC (only for World apps or if in preferredChains)
+ * ### Output:
+ * - **Chains**: Includes all default chains.
+ * - **Tokens**: Includes all default tokens.
  *
- * @param {string} appId - The Rozo appId; can affect which chains are enabled.
- * @param {number[]} [preferredChains=[]] - Preferred chain IDs (may enable Worldchain).
+ * @param {string} appId  - Current Rozo appId.
+ * @param {number[]} [preferredChains=[]] - Preferred chain IDs.
  * @returns {{
  *   chains: Array<{ chainId: number; [k: string]: any }>;
  *   tokens: Token[];
- * }} An object with arrays of supported chains and supported token addresses.
+ * }} Object containing supported chain objects and tokens for wallet UI and payment logic.
  *
  * @example
- * const { chains, tokens } = useSupportedChains("MP_demo", [8453, 56]);
+ * // Usage: retrieve chains and tokens to render for this app/session
+ * const { chains, tokens } = useSupportedChains("your_appId", [8453, 56]);
+ *
+ * // Output: all chains/tokens except Worldchain
  */
 export function useSupportedChains(
   appId: string,
@@ -50,32 +29,14 @@ export function useSupportedChains(
   chains: Array<{ chainId: number; [k: string]: any }>;
   tokens: Token[];
 } {
-  const showBSCUSDT = useMemo(() => appId.includes("MP"), [appId]);
-  const showWorldchainUSDC = useMemo(
-    () =>
-      appId?.toLowerCase().includes("world") ||
-      preferredChains?.includes(worldchain.chainId),
-    [appId, preferredChains]
-  );
-
   return {
     /**
-     * Array of chain objects for use in wallet payment options UI.
-     * Includes all supported chains from pay-common, plus BSC and Worldchain if indicated by appId/preferences.
+     * Array of chain objects for wallet payment UI.
      */
-    chains: [
-      ...baseSupportedChains,
-      ...(showBSCUSDT ? [bsc] : []),
-      ...(showWorldchainUSDC ? [worldchain] : []),
-    ].filter(Boolean),
+    chains: supportedChains.filter(Boolean),
     /**
-     * Array of supported payment token addresses.
-     * Includes all supported tokens from pay-common, plus BSC USDT and Worldchain USDC if enabled.
+     * Array of supported tokens for payment widget.
      */
-    tokens: [
-      ...baseSupportedTokens,
-      ...(showBSCUSDT ? [bscUSDT] : []),
-      ...(showWorldchainUSDC ? [worldchainUSDC] : []),
-    ].filter(Boolean),
+    tokens: Array.from(supportedTokens.values()).flat().filter(Boolean),
   };
 }

@@ -104,9 +104,7 @@ export default function SelectAnotherMethodButton() {
       if (tokenMode !== "stellar") additionalIcons.push(<Stellar />);
       if (tokenMode !== "solana") additionalIcons.push(<Solana />);
       if (includeDepositAddressOption && additionalIcons.length < 3) {
-        if (appId?.includes("MP")) {
-          additionalIcons.push(<BinanceSmartChain />);
-        }
+        additionalIcons.push(<BinanceSmartChain />);
       }
       /* if (includeDepositAddressOption && additionalIcons.length < 3)
         additionalIcons.push(<Tron />); */

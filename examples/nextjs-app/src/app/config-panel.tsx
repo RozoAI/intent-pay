@@ -1,15 +1,8 @@
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import {
-  base,
-  baseUSDC,
-  ethereum,
-  ethereumUSDC,
-  polygon,
-  polygonUSDC,
-  rozoSolana,
-  rozoSolanaUSDC,
-  rozoStellar,
-  rozoStellarUSDC,
+  getChainById,
+  supportedPayoutTokens,
+  Token,
 } from "@rozoai/intent-common";
 import {
   isEvmChain,
@@ -117,39 +110,21 @@ export function ConfigPanel({
   // Add error state for recipient address
   const [addressError, setAddressError] = useState<string>("");
 
-  // Extract unique chains
-  const chains = [ethereum, base, polygon, rozoStellar, rozoSolana];
+  // Extract unique chains from supportedPayoutTokens
+  const chains = useMemo(() => {
+    return Array.from(supportedPayoutTokens.keys())
+      .map((chainId) => getChainById(chainId))
+      .filter((chain): chain is NonNullable<typeof chain> => chain !== null)
+      .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
+  }, []);
 
-  // Get tokens for selected chain
-  // Select token options based on payment destination.
-  const tokens = useMemo(() => {
+  // Get tokens for selected chain from supportedPayoutTokens
+  const tokens = useMemo((): Token[] => {
     if (config.chainId === 0) return [];
 
-    // For EVM chains (Ethereum, Base, Polygon)
-    if (isEvmChain(config.chainId)) {
-      if (config.chainId === ethereum.chainId) {
-        return [ethereumUSDC];
-      }
-      if (config.chainId === base.chainId) {
-        return [baseUSDC];
-      }
-      if (config.chainId === polygon.chainId) {
-        return [polygonUSDC];
-      }
-    }
-
-    // For Stellar destination
-    if (isStellarChain(config.chainId)) {
-      return [rozoStellarUSDC];
-    }
-
-    // For Solana destination
-    if (isSolanaChain(config.chainId)) {
-      return [rozoSolanaUSDC];
-    }
-
-    // No tokens available by default
-    return [];
+    // Get tokens directly from supportedPayoutTokens
+    const tokensForChain = supportedPayoutTokens.get(config.chainId);
+    return tokensForChain || [];
   }, [config.chainId]);
 
   // Validate address on change based on chain type

@@ -19,6 +19,7 @@ import {
 } from "@rozoai/intent-common";
 import { AnimatePresence, Variants } from "framer-motion";
 import { getAddress } from "viem";
+import { ROUTES } from "../../constants/routes";
 import { useRozoPay } from "../../hooks/useDaimoPay";
 import { PayParams } from "../../payment/paymentFsm";
 import { ResetContainer } from "../../styles";
@@ -29,6 +30,7 @@ import {
   isStellarChain,
   validateAddressForChain,
 } from "../../types/chainAddress";
+import { validatePayoutToken } from "../../utils/validatePayoutToken";
 import ThemedButton, { ThemeContainer } from "../Common/ThemedButton";
 import { RozoPayButtonCustomProps, RozoPayButtonProps } from "./types";
 
@@ -211,7 +213,10 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
     return isSolanaChain(payParams.toChain);
   }, [payParams?.toChain]);
 
-  // Validate address format matches chain type
+  // Store validation error ref
+  const validationErrorRef = useRef<any>(null);
+
+  // Validate address format matches chain type and chain/token support
   useEffect(() => {
     if ("appId" in props && props.toAddress) {
       const isValid = validateAddressForChain(props.toChain, props.toAddress);
@@ -229,6 +234,18 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
                 : "G... (Stellar address, 56 chars)"
             }`
         );
+      }
+
+      // Validate chain and token support for payouts
+      const validationError = validatePayoutToken(props.toChain, props.toToken);
+
+      if (validationError) {
+        console.error(
+          `[RozoPayButton] Validation error: ${validationError.message}`
+        );
+        validationErrorRef.current = validationError;
+      } else {
+        validationErrorRef.current = null;
       }
     }
   }, [props]);
@@ -295,6 +312,19 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   const { children, closeOnSuccess, resetOnSuccess, connectedWalletOnly } =
     props;
   const show = useCallback(() => {
+    // Check for validation errors before showing payment
+    if (validationErrorRef.current) {
+      context.log(
+        "[RozoPayButton] Validation error detected, showing error page",
+        validationErrorRef.current
+      );
+      context.setOpen(true);
+      context.setRoute(ROUTES.ERROR, {
+        validationError: validationErrorRef.current,
+      });
+      return;
+    }
+
     const modalOptions = {
       closeOnSuccess,
       resetOnSuccess,

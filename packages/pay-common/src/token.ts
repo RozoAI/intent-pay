@@ -891,16 +891,24 @@ const avalancheTokens: Token[] = [avalancheAVAX, avalancheUSDC, avalancheUSDT];
 /** Support tokens for Rozo Pay */
 export const supportedTokens: Map<number, Token[]> = new Map([
   [arbitrum.chainId, [arbitrumUSDC, arbitrumUSDT]],
-  [avalanche.chainId, [avalancheUSDC, avalancheUSDT]],
+  // [avalanche.chainId, [avalancheUSDC, avalancheUSDT]],
   [base.chainId, [baseUSDC]],
   [bsc.chainId, [bscUSDC, bscUSDT]],
   [ethereum.chainId, [ethereumUSDC, ethereumUSDT]],
-  [gnosis.chainId, [gnosisUSDC, gnosisUSDT]],
-  [optimism.chainId, [optimismUSDC, optimismUSDT]],
+  // [gnosis.chainId, [gnosisUSDC, gnosisUSDT]],
+  // [optimism.chainId, [optimismUSDC, optimismUSDT]],
   [polygon.chainId, [polygonUSDC, polygonUSDT]],
-  [worldchain.chainId, [worldchainUSDC]],
+  // [worldchain.chainId, [worldchainUSDC]],
 
   [rozoSolana.chainId, [rozoSolanaUSDC, rozoSolanaUSDT]],
+  [rozoStellar.chainId, [rozoStellarUSDC]],
+]);
+
+export const supportedPayoutTokens: Map<number, Token[]> = new Map([
+  [ethereum.chainId, [ethereumUSDC]],
+  [base.chainId, [baseUSDC]],
+  [polygon.chainId, [polygonUSDC]],
+  [rozoSolana.chainId, [rozoSolanaUSDC]],
   [rozoStellar.chainId, [rozoStellarUSDC]],
 ]);
 

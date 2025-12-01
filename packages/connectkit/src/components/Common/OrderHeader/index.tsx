@@ -10,7 +10,6 @@ import {
   Polygon,
   Solana,
   Stellar,
-  Worldchain,
 } from "../../../assets/chains";
 import defaultTheme from "../../../constants/defaultTheme";
 import { ROUTES } from "../../../constants/routes";
@@ -185,23 +184,12 @@ function CoinLogos({
     // <Optimism key="optimism" />,
     // <Arbitrum key="arbitrum" />,
     <Base key="base" />,
-    <Polygon key="polygon" />,
     <Ethereum key="ethereum" />,
+    <BinanceSmartChain key="bsc" />,
+    <Polygon key="polygon" />,
+    <Solana key="solana" />,
+    <Stellar key="stellar" />,
   ];
-
-  if (appId?.includes("MP") && !$exclude.includes("bsc")) {
-    logos.push(<BinanceSmartChain key="bsc" />);
-  }
-
-  if (
-    appId?.toLowerCase().includes("world") &&
-    !$exclude.includes("worldchain")
-  ) {
-    logos.push(<Worldchain key="worldchain" />);
-  }
-
-  logos.push(<Solana key="solana" />);
-  logos.push(<Stellar key="stellar" />);
 
   const logoBlock = (element: React.ReactElement, index: number) => (
     <LogoContainer

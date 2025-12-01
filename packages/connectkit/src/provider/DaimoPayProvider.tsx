@@ -37,6 +37,7 @@ import {
   Theme,
 } from "../types";
 import { createTrpcClient } from "../utils/trpc";
+import { validatePayoutToken } from "../utils/validatePayoutToken";
 import { setInWalletPaymentUrlFromApiUrl } from "../wallets/walletConfigs";
 import { PayContext, PayContextValue } from "./PayContext";
 import { PaymentContext, PaymentProvider } from "./PaymentProvider";
@@ -294,6 +295,24 @@ const RozoPayUIProvider = ({
         paymentFsmState: pay.paymentState,
       })}`
     );
+
+    // Validate chain/token support before opening modal
+    if (paymentState.payParams) {
+      const validationError = validatePayoutToken(
+        paymentState.payParams.toChain,
+        paymentState.payParams.toToken
+      );
+
+      if (validationError) {
+        log(
+          "[PAY] Validation error detected, showing error page",
+          validationError
+        );
+        setOpen(true);
+        setRoute(ROUTES.ERROR, { validationError });
+        return;
+      }
+    }
 
     setModalOptions(modalOptions);
     paymentState.setConnectedWalletOnly(
