@@ -1,6 +1,7 @@
 import {
   assert,
   ExternalPaymentOptionsString,
+  FeeType,
   isHydrated,
   RozoPayHydratedOrderWithOrg,
   RozoPayIntentStatus,
@@ -54,6 +55,8 @@ export interface PayParams {
   refundAddress?: Address;
   /** Optional configuration to show processing pay out loading when payment completed */
   showProcessingPayout?: boolean;
+  /** The fee type to use for the payment. */
+  feeType?: FeeType;
 }
 
 export type PaymentState =
@@ -146,10 +149,10 @@ export type PaymentEvent =
 
 type PayParamsData = {
   appId: string;
+  feeType?: FeeType;
   toStellarAddress?: string;
   toSolanaAddress?: string;
   toAddress?: string;
-  rozoAppId?: string;
   metadata?: RozoPayUserMetadata;
 };
 

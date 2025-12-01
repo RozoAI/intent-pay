@@ -3,6 +3,7 @@ import {
   assertNotNull,
   baseUSDC,
   bscUSDT,
+  createNewPayment,
   debugJson,
   DepositAddressPaymentOptionData,
   DepositAddressPaymentOptionMetadata,
@@ -11,12 +12,13 @@ import {
   ExternalPaymentOptionMetadata,
   ExternalPaymentOptions,
   ExternalPaymentOptionsString,
+  formatPaymentResponseToHydratedOrder,
   generateEVMDeepLink,
   getChainById,
   getOrderDestChainId,
   isCCTPV1Chain,
   mergedMetadata,
-  PaymentRequestData,
+  PaymentResponse,
   PlatformType,
   polygonUSDC,
   readRozoPayOrderID,
@@ -37,7 +39,14 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { erc20Abi, getAddress, Hex, hexToBytes, zeroAddress } from "viem";
+import {
+  Address,
+  erc20Abi,
+  getAddress,
+  Hex,
+  hexToBytes,
+  zeroAddress,
+} from "viem";
 import {
   useAccount,
   useEnsName,
@@ -46,12 +55,6 @@ import {
   useWriteContract,
 } from "wagmi";
 
-import {
-  createPaymentBridgeConfig,
-  createRozoPayment,
-  formatResponseToHydratedOrder,
-  PaymentResponseData,
-} from "@rozoai/intent-common";
 import {
   createAssociatedTokenAccountInstruction,
   createTransferCheckedInstruction,
@@ -66,7 +69,7 @@ import {
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
 import bs58 from "bs58";
-import { PayButtonPaymentProps } from "../components/DaimoPayButton";
+import { PayButtonPaymentProps } from "../components/DaimoPayButton/types";
 import { ROUTES } from "../constants/routes";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
@@ -209,7 +212,7 @@ export interface PaymentState {
   createPayment: (
     option: WalletPaymentOption,
     store: Store<PaymentState, PaymentEvent>
-  ) => Promise<PaymentResponseData | undefined>;
+  ) => Promise<PaymentResponse | undefined>;
 }
 
 export function usePaymentState({
@@ -414,49 +417,58 @@ export function usePaymentState({
   const handleCreateRozoPayment = async (
     walletOption: WalletPaymentOption,
     store: Store<PaymentState, PaymentEvent>
-  ): Promise<PaymentResponseData | undefined> => {
+  ): Promise<PaymentResponse | undefined> => {
     const payParams = currPayParams;
     const order = pay.order;
 
-    const { preferred, destination } = createPaymentBridgeConfig({
-      toAddress: String(payParams?.toAddress),
-      toSolanaAddress: payParams?.toSolanaAddress,
-      toStellarAddress: payParams?.toStellarAddress,
-      toUnits: payParams?.toUnits ?? "",
-      payInTokenAddress: walletOption.required.token.token,
-      log,
-    });
+    if (!payParams) {
+      throw new Error("No pay params provided");
+    }
 
-    // Merge metadata from all sources, then omit sensitive/implementation-specific keys
-    const metadata = mergedMetadata({
-      ...(payParams?.metadata ?? {}),
-      ...(order?.metadata ?? {}),
-      ...(order?.userMetadata ?? {}),
-    });
-
-    const paymentData: PaymentRequestData = {
-      appId: payParams?.appId ?? DEFAULT_ROZO_APP_ID,
-      display: {
-        intent: order?.metadata?.intent ?? "",
-        paymentValue: String(payParams?.toUnits ?? ""),
-        currency: "USD",
-      },
-      destination,
-      externalId: order?.externalId ?? "",
-      ...preferred,
-      metadata,
-    };
-
-    // API Call
     try {
-      const response = await createRozoPayment(paymentData);
+      let toAddress = String(payParams.toAddress);
 
-      if (!response?.data?.id) {
-        throw new Error(response?.error?.message ?? "Payment creation failed");
+      if (payParams.toSolanaAddress) {
+        toAddress = payParams.toSolanaAddress;
+      } else if (payParams.toStellarAddress) {
+        toAddress = payParams.toStellarAddress;
       }
 
-      setRozoPaymentId(response.data.id);
-      return response.data;
+      const appId = payParams?.appId ?? DEFAULT_ROZO_APP_ID;
+      const toChain = payParams.toChain;
+      const toToken = payParams.toToken;
+      const toUnits = payParams.toUnits;
+      const preferredChain = walletOption.required.token.chainId;
+      const preferredTokenAddress = walletOption.required.token.token;
+
+      const metadata = {
+        preferredChain,
+        preferredTokenAddress,
+        ...mergedMetadata({
+          ...(payParams?.metadata ?? {}),
+          ...(order?.metadata ?? {}),
+          ...(order?.userMetadata ?? {}),
+        }),
+      };
+
+      const payload = {
+        appId,
+        toChain,
+        toToken,
+        toAddress,
+        preferredChain,
+        preferredTokenAddress,
+        toUnits,
+        metadata,
+      };
+      const response = await createNewPayment(payload);
+
+      if (!response?.id) {
+        throw new Error("Payment creation failed");
+      }
+
+      setRozoPaymentId(response.id);
+      return response;
     } catch (error) {
       const message = parseErrorMessage(error);
       store.dispatch({
@@ -525,7 +537,7 @@ export function usePaymentState({
       }
 
       paymentId = res.id;
-      hydratedOrder = formatResponseToHydratedOrder(res);
+      hydratedOrder = formatPaymentResponseToHydratedOrder(res);
     } else {
       // Hydrate existing order
       const res = await pay.hydrateOrder(ethWalletAddress, walletOption);
@@ -545,7 +557,7 @@ export function usePaymentState({
       try {
         if (isNativeToken) {
           return await sendTransactionAsync({
-            to: destinationAddress,
+            to: destinationAddress as Address,
             value: paymentAmount,
           });
         } else {
@@ -557,7 +569,7 @@ export function usePaymentState({
             address: tokenAddress!,
             chainId: required.token.chainId,
             functionName: "transfer",
-            args: [destinationAddress, paymentAmount],
+            args: [destinationAddress as Address, paymentAmount],
           });
         }
       } catch (e) {

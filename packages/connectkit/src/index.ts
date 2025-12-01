@@ -7,12 +7,12 @@ export { default as getDefaultConfig } from "./defaultConfig";
 export { RozoPayProvider } from "./provider/DaimoPayProvider";
 
 // Pay button
-export {
-  RozoPayButton,
+export { RozoPayButton } from "./components/DaimoPayButton";
+
+export type {
   RozoPayButtonCustomProps,
   RozoPayButtonProps,
-  RozoPayment,
-} from "./components/DaimoPayButton";
+} from "./components/DaimoPayButton/types";
 
 // Hooks to track payment status + UI status.
 export { useRozoPay } from "./hooks/useDaimoPay";

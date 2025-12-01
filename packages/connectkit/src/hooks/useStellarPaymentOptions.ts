@@ -39,10 +39,7 @@ export function useStellarPaymentOptions({
     if (!options) return [];
 
     return options
-      .filter(
-        (option) =>
-          option.balance.token.token === `USDC:${rozoStellarUSDC.token}`
-      )
+      .filter((option) => option.balance.token.token === rozoStellarUSDC.token)
       .map((item) => {
         const usd = isDepositFlow ? 0 : usdRequired || 0;
 

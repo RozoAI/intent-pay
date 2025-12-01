@@ -1,5 +1,6 @@
 import { createPaymentBridgeConfig } from "../bridge";
 import { apiClient, ApiResponse } from "./base";
+import { DisplayInfo } from "./new-payment";
 
 /**
  * Payment display information
@@ -49,11 +50,15 @@ export interface PaymentResponseData {
   id: string;
   status: "payment_unpaid" | string;
   createdAt: string;
-  display: {
-    intent: string;
-    currency: string;
-    paymentValue?: string;
-  };
+  updatedAt: string;
+  expiresAt: string;
+  display:
+    | {
+        intent: string;
+        currency: string;
+        paymentValue?: string;
+      }
+    | DisplayInfo;
   source: PaymentSource | null;
   destination: {
     destinationAddress: string;

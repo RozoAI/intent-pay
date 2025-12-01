@@ -1,14 +1,14 @@
 import {
   assert,
-  createPaymentBridgeConfig,
-  createRozoPayment,
-  formatResponseToHydratedOrder,
+  createNewPayment,
+  CreateNewPaymentParams,
+  FeeType,
+  formatPaymentResponseToHydratedOrder,
   getKnownToken,
+  getNewPayment,
   getOrderDestChainId,
-  getRozoPayment,
   mergedMetadata,
-  PaymentRequestData,
-  PaymentResponseData,
+  PaymentResponse,
   readRozoPayOrderID,
   RozoPayHydratedOrderWithOrg,
   RozoPayIntentStatus,
@@ -18,7 +18,7 @@ import {
   RozoPayOrderWithOrg,
   TokenLogo,
 } from "@rozoai/intent-common";
-import { formatUnits, parseUnits } from "viem";
+import { Address, formatUnits, parseUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { parseErrorMessage } from "../utils/errorParser";
 import { PollHandle, startPolling } from "../utils/polling";
@@ -324,7 +324,7 @@ async function runSetPayParamsEffects(
         toStellarAddress: payParams.toStellarAddress,
         toSolanaAddress: payParams.toSolanaAddress,
         toAddress: payParams.toAddress,
-        rozoAppId: payParams.appId,
+        feeType: payParams.feeType,
       },
     });
   } catch (e: any) {
@@ -368,7 +368,7 @@ async function runHydratePayParamsEffects(
 ) {
   const order = prev.order;
   const payParams = prev.payParamsData;
-  const walletPaymentOption = event.walletPaymentOption;
+  const walletOption = event.walletPaymentOption;
 
   const toUnits = formatUnits(
     BigInt(order.destFinalCallTokenAmount.amount),
@@ -377,58 +377,55 @@ async function runHydratePayParamsEffects(
 
   const toChain = getOrderDestChainId(order);
   const toToken = order.destFinalCallTokenAmount.token.token;
-  let toAddress = order.destFinalCall.to;
 
-  // ROZO API CALL
   /**
-   * Pay Out USDC Base scenario
-   *
+   * ROZO API CALL
    * @link https://github.com/RozoAI/rozo-payment-manager/tree/staging?tab=readme-ov-file#supported-chains-and-tokens
    */
   let rozoPaymentId: string | undefined = order?.externalId ?? undefined;
-  let rozoPaymentResponse: PaymentResponseData | undefined = undefined;
+  let rozoPaymentResponse: PaymentResponse | undefined = undefined;
 
-  const { preferred, destination } = createPaymentBridgeConfig({
-    toChain: toChain,
-    toToken: toToken,
-    toAddress: toAddress,
-    toSolanaAddress: payParams?.toSolanaAddress,
-    toStellarAddress: payParams?.toStellarAddress,
-    toUnits: toUnits,
-    payInTokenAddress: walletPaymentOption?.required.token.token ?? "",
-    log,
-  });
+  let toAddress = order.destFinalCall.to;
+  if (payParams.toSolanaAddress) {
+    toAddress = payParams.toSolanaAddress;
+  } else if (payParams.toStellarAddress) {
+    toAddress = payParams.toStellarAddress;
+  }
 
-  const paymentData: PaymentRequestData = {
-    appId: payParams?.rozoAppId ?? payParams?.appId ?? DEFAULT_ROZO_APP_ID,
-    display: {
-      intent: order?.metadata?.intent ?? "",
-      paymentValue: String(toUnits),
-      currency: "USD",
-    },
-    ...preferred,
-    destination,
-    externalId: order?.externalId ?? "",
-    metadata: {
-      // daimoOrderId: order?.id ?? "",
-      preferredChain: preferred.preferredChain,
-      preferredToken: preferred.preferredToken,
-      preferredTokenAddress: preferred.preferredTokenAddress,
-      ...mergedMetadata({
-        ...(payParams?.metadata ?? {}),
-        ...(order?.metadata ?? {}),
-        ...(order.userMetadata ?? {}),
-      }),
-    },
-  };
+  const preferredChain = walletOption?.required.token.chainId ?? 0;
+  const preferredTokenAddress = walletOption?.required.token.token ?? "";
 
   try {
-    const rozoPayment = await createRozoPayment(paymentData);
-    if (!rozoPayment?.data?.id) {
-      throw new Error(rozoPayment?.error?.message ?? "Payment creation failed");
+    log?.("[Payment Effect]: createRozoPayment");
+    const payload: CreateNewPaymentParams = {
+      appId: payParams?.appId ?? DEFAULT_ROZO_APP_ID,
+      title: payParams?.metadata?.title ?? "Payment",
+      description: payParams?.metadata?.description ?? "",
+      type: payParams.feeType ?? FeeType.ExactIn,
+      toChain,
+      toToken,
+      toAddress,
+      preferredChain,
+      preferredTokenAddress,
+      toUnits,
+      metadata: mergedMetadata({
+        ...(payParams?.metadata ?? {}),
+      }),
+    };
+    log?.(`[Payment Effect]: payload: ${JSON.stringify(payload, null, 2)}`);
+
+    const rozoPayment = await createNewPayment(payload);
+
+    if (!rozoPayment?.id) {
+      throw new Error("Payment creation failed");
     }
-    rozoPaymentResponse = rozoPayment.data;
-    rozoPaymentId = rozoPayment.data.id;
+
+    log?.(
+      `[Payment Effect]: rozoPayment: ${JSON.stringify(rozoPayment, null, 2)}`
+    );
+
+    rozoPaymentResponse = rozoPayment;
+    rozoPaymentId = rozoPayment.id;
   } catch (error) {
     const message = parseErrorMessage(error);
     store.dispatch({
@@ -442,28 +439,6 @@ async function runHydratePayParamsEffects(
   // END ROZO API CALL
 
   try {
-    // const { hydratedOrder } = await trpc.createOrder.mutate({
-    //   // appId: prev.payParamsData.appId,
-    //   appId: DEFAULT_ROZO_APP_ID,
-    //   paymentInput: {
-    //     id: order.id.toString(),
-    //     toChain: toChain,
-    //     toToken,
-    //     toUnits,
-    //     toAddress,
-    //     toCallData: order.destFinalCall.data,
-    //     isAmountEditable: order.mode === RozoPayOrderMode.CHOOSE_AMOUNT,
-    //     metadata: order.metadata,
-    //     userMetadata: order.userMetadata,
-    //     // externalId: order.externalId ?? undefined,
-    //     externalId: rozoPaymentId,
-    //   },
-    //   // Prefer the refund address passed to this function, if specified. This
-    //   // is for cases where the user pays from an EOA. Otherwise, use the refund
-    //   // address specified by the dev.
-    //   refundAddress: event.refundAddress ?? prev.order.refundAddr ?? undefined,
-    // });
-
     if (
       typeof rozoPaymentResponse === "undefined" ||
       rozoPaymentResponse === null
@@ -471,10 +446,12 @@ async function runHydratePayParamsEffects(
       throw new Error("Payment data not found");
     }
 
-    const hydratedOrder = formatResponseToHydratedOrder({
+    const hydratedOrder = formatPaymentResponseToHydratedOrder({
       ...rozoPaymentResponse,
       externalId: rozoPaymentId,
     });
+
+    console.log("hydratedOrder", hydratedOrder);
 
     store.dispatch({
       type: "order_hydrated",
@@ -499,7 +476,7 @@ async function runHydratePayIdEffects(
     //   refundAddress: event.refundAddress,
     // });
 
-    const orderData = await getRozoPayment(order.id.toString());
+    const orderData = await getNewPayment(order.id.toString());
     if (!orderData?.data) {
       throw new Error("Order not found");
     }
@@ -512,34 +489,34 @@ async function runHydratePayIdEffects(
     const hydratedOrder: RozoPayHydratedOrderWithOrg = {
       id: order.id ?? BigInt(orderData.data.id),
       mode: RozoPayOrderMode.HYDRATED,
-      intentAddr: orderData.data.metadata.receivingAddress as `0x${string}`,
-      handoffAddr: orderData.data.metadata.receivingAddress as `0x${string}`,
-      escrowContractAddress: orderData.data.metadata
-        .receivingAddress as `0x${string}`,
-      bridgerContractAddress: orderData.data.metadata
-        .receivingAddress as `0x${string}`,
-      bridgeTokenOutOptions: [
-        {
-          token: {
-            chainId: order.destFinalCallTokenAmount.token.chainId,
-            token: order.destFinalCallTokenAmount.token.token,
-            symbol: order.destFinalCallTokenAmount.token.symbol,
-            usd: 1,
-            priceFromUsd: 1,
-            decimals: token?.decimals ?? 18,
-            displayDecimals: 2,
-            logoSourceURI: order.destFinalCallTokenAmount.token.logoSourceURI,
-            logoURI: order.destFinalCallTokenAmount.token.logoURI,
-            maxAcceptUsd: 100000,
-            maxSendUsd: 0,
-          },
-          amount: order.destFinalCallTokenAmount
-            .amount as unknown as `${bigint}`,
-          usd: Number(order.destFinalCallTokenAmount.usd),
-        },
-      ],
-      selectedBridgeTokenOutAddr: null,
-      selectedBridgeTokenOutAmount: null,
+      intentAddr: orderData.data.source.receiverAddress as Address,
+      // handoffAddr: orderData.data.metadata.receivingAddress as Address,
+      // escrowContractAddress: orderData.data.metadata
+      //   .receivingAddress as `0x${string}`,
+      // bridgerContractAddress: orderData.data.metadata
+      //   .receivingAddress as `0x${string}`,
+      // bridgeTokenOutOptions: [
+      //   {
+      //     token: {
+      //       chainId: order.destFinalCallTokenAmount.token.chainId,
+      //       token: order.destFinalCallTokenAmount.token.token,
+      //       symbol: order.destFinalCallTokenAmount.token.symbol,
+      //       usd: 1,
+      //       priceFromUsd: 1,
+      //       decimals: token?.decimals ?? 18,
+      //       displayDecimals: 2,
+      //       logoSourceURI: order.destFinalCallTokenAmount.token.logoSourceURI,
+      //       logoURI: order.destFinalCallTokenAmount.token.logoURI,
+      //       maxAcceptUsd: 100000,
+      //       maxSendUsd: 0,
+      //     },
+      //     amount: order.destFinalCallTokenAmount
+      //       .amount as unknown as `${bigint}`,
+      //     usd: Number(order.destFinalCallTokenAmount.usd),
+      //   },
+      // ],
+      // selectedBridgeTokenOutAddr: null,
+      // selectedBridgeTokenOutAmount: null,
       destFinalCallTokenAmount: {
         token: {
           chainId: order.destFinalCallTokenAmount.token.chainId,
@@ -562,7 +539,7 @@ async function runHydratePayIdEffects(
       },
       usdValue: Number(order.destFinalCallTokenAmount.usd),
       destFinalCall: {
-        to: orderData.data.metadata.receivingAddress as `0x${string}`,
+        to: orderData.data.source.receiverAddress as string,
         value: BigInt("0"),
         data: "0x",
       },
@@ -571,7 +548,7 @@ async function runHydratePayIdEffects(
       sourceTokenAmount: null,
       sourceFulfillerAddr: null,
       sourceInitiateTxHash: null,
-      sourceStartTxHash: null,
+      // sourceStartTxHash: null,
       sourceStatus: RozoPayOrderStatusSource.WAITING_PAYMENT,
       destStatus: RozoPayOrderStatusDest.PENDING,
       intentStatus: RozoPayIntentStatus.UNPAID,
@@ -594,7 +571,7 @@ async function runHydratePayIdEffects(
       expirationTs: orderData.data.expirationTs as unknown as bigint,
       org: {
         orgId: orderData.data.id,
-        name: "Pay Rozo",
+        name: "",
       },
     };
 

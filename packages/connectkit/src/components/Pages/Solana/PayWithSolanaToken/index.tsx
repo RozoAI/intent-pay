@@ -10,7 +10,7 @@ import {
 } from "../../../Common/Modal/styles";
 
 import {
-  formatResponseToHydratedOrder,
+  formatPaymentResponseToHydratedOrder,
   getChainExplorerTxUrl,
   RozoPayHydratedOrderWithOrg,
   rozoSolana,
@@ -104,7 +104,7 @@ const PayWithSolanaToken: React.FC = () => {
         }
 
         paymentId = res.id;
-        hydratedOrder = formatResponseToHydratedOrder(res);
+        hydratedOrder = formatPaymentResponseToHydratedOrder(res);
       } else {
         // Hydrate existing order
         const res = await hydrateOrderRozo(undefined, option);

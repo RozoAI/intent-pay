@@ -1,21 +1,12 @@
 import {
-  arbitrumUSDC,
-  baseUSDC,
-  bscUSDT,
-  DepositAddressPaymentOptionMetadata,
   DepositAddressPaymentOptions,
-  ethereumUSDC,
   generateEVMDeepLink,
   getAddressContraction,
   getChainName,
   getFee,
-  getRozoPayment,
+  getKnownToken,
+  getNewPayment,
   isHydrated,
-  optimismUSDC,
-  polygonUSDC,
-  rozoSolanaUSDC,
-  rozoStellarUSDC,
-  worldchainUSDC,
   type FeeErrorData,
   type FeeResponseData,
   type Token,
@@ -185,7 +176,7 @@ export default function WaitingDepositAddress() {
           depAddr?.externalId
         );
         const isMugglePay = depAddr?.externalId.includes("mugglepay_order");
-        const response = await getRozoPayment(depAddr?.externalId);
+        const response = await getNewPayment(depAddr?.externalId);
 
         context.log("[PAYMENT POLLING] Debug - API Response:", {
           status: response.status,
@@ -301,7 +292,10 @@ export default function WaitingDepositAddress() {
       // Prevent multiple executions for the same deposit option
       if (isLoading || hasExecutedDepositCall) return;
 
-      const displayToken = getDisplayToken(selectedDepositAddressOption);
+      const displayToken = getKnownToken(
+        selectedDepositAddressOption.chainId,
+        selectedDepositAddressOption.token.token
+      );
       const logoURI = selectedDepositAddressOption.logoURI;
 
       // Set loading state immediately to prevent race conditions
@@ -320,7 +314,7 @@ export default function WaitingDepositAddress() {
       }
 
       setDepAddr({
-        displayToken,
+        displayToken: displayToken ?? null,
         logoURI,
         amount: amount?.toString() ?? undefined,
       });
@@ -332,6 +326,7 @@ export default function WaitingDepositAddress() {
             const feeResponse = await getFee({
               amount,
               appId: payParams.appId,
+              toChain: selectedDepositAddressOption.chainId,
             });
 
             if (feeResponse.data) {
@@ -383,7 +378,7 @@ export default function WaitingDepositAddress() {
             coins: details.suffix,
             expirationS: details.expirationS,
             uri: details.uri,
-            displayToken,
+            displayToken: displayToken ?? null,
             logoURI,
             externalId: details.externalId,
             memo: shouldShowMemo ? details.memo || "" : undefined,
@@ -658,31 +653,6 @@ function DepositAddressInfo({
       />
     </ModalContent>
   );
-}
-
-function getDisplayToken(meta: DepositAddressPaymentOptionMetadata) {
-  switch (meta.id) {
-    case DepositAddressPaymentOptions.OP_MAINNET:
-      return optimismUSDC;
-    case DepositAddressPaymentOptions.ARBITRUM:
-      return arbitrumUSDC;
-    case DepositAddressPaymentOptions.BASE:
-      return baseUSDC;
-    case DepositAddressPaymentOptions.POLYGON:
-      return polygonUSDC;
-    case DepositAddressPaymentOptions.ETH_L1:
-      return ethereumUSDC;
-    case DepositAddressPaymentOptions.SOLANA:
-      return rozoSolanaUSDC;
-    case DepositAddressPaymentOptions.STELLAR:
-      return rozoStellarUSDC;
-    case DepositAddressPaymentOptions.BSC:
-      return bscUSDT;
-    case DepositAddressPaymentOptions.WORLD:
-      return worldchainUSDC;
-    default:
-      return null;
-  }
 }
 
 const LogoWrap = styled.div`

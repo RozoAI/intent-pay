@@ -5,6 +5,7 @@ import {
   getKnownToken,
   isChainSupported,
   isTokenSupported,
+  PaymentResponse,
   RozoPayHydratedOrderWithOrg,
   RozoPayIntentStatus,
   RozoPayOrderMode,
@@ -390,10 +391,57 @@ export function formatResponseToHydratedOrder(
     } as any,
     externalId: order.externalId as string | null,
     userMetadata: order.userMetadata as RozoPayUserMetadata | null,
-    expirationTs: BigInt(Math.floor(Date.now() / 1000 + 5 * 60).toString()),
+    expirationTs: order.expiresAt
+      ? BigInt(
+          Math.floor(
+            new Date(String(order.expiresAt)).getTime() / 1000
+          ).toString()
+        )
+      : BigInt(Math.floor(Date.now() / 1000 + 5 * 60).toString()),
     org: {
       orgId: order.orgId as string,
       name: "",
     },
   };
+}
+
+export function formatPaymentResponseToHydratedOrder(
+  order: PaymentResponse
+): RozoPayHydratedOrderWithOrg {
+  // Source amount is in the same units as the destination amount without fee
+  const sourceAmountUnits = order.source?.amount ?? "0";
+
+  return formatResponseToHydratedOrder({
+    id: order.id,
+    expiresAt: new Date(order.expiresAt).toISOString(),
+    updatedAt: new Date(order.updatedAt).toISOString(),
+    createdAt: new Date(order.createdAt).toISOString(),
+    status: RozoPayOrderMode.HYDRATED,
+    display: order.display,
+    metadata: {
+      ...order.metadata,
+      receivingAddress: order.source?.receiverAddress,
+      memo: order.source?.receiverMemo ?? null,
+    } as any,
+    destination: {
+      destinationAddress: order.destination?.receiverAddress ?? "",
+      chainId: String(order.destination?.chainId ?? ""),
+      amountUnits: sourceAmountUnits,
+      tokenSymbol: order.destination?.tokenSymbol ?? "",
+      tokenAddress: order.destination?.tokenAddress ?? "",
+      txHash: order.destination?.txHash ?? null,
+    },
+    source: {
+      sourceAddress: order.source?.senderAddress ?? undefined,
+      chainId: String(order.source?.chainId ?? ""),
+      amountUnits: sourceAmountUnits,
+      tokenSymbol: order.source?.tokenSymbol ?? "",
+      tokenAddress: order.source?.tokenAddress ?? "",
+    },
+    url: order.url,
+    externalId: order.externalId,
+    userMetadata: order.userMetadata,
+    nonce: order.nonce,
+    orgId: order.orgId,
+  });
 }

@@ -1,22 +1,17 @@
 import {
   base,
-  bsc,
+  baseUSDC,
+  DepositAddressPaymentOptionMetadata,
   DepositAddressPaymentOptions,
   ethereum,
-  polygon,
+  ethereumUSDC,
+  ethereumUSDT,
   RozoPayOrderMode,
-  worldchain,
+  rozoSolanaUSDC,
+  rozoSolanaUSDT,
 } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { chainToLogo } from "../assets/chains";
 import { TrpcClient } from "../utils/trpc";
-
-// Type definitions for better type safety
-export interface DepositAddressOption {
-  id: DepositAddressPaymentOptions;
-  logoURI: string | React.ReactNode;
-  minimumUsd: number;
-}
 
 export interface UseDepositAddressOptionsParams {
   trpc: TrpcClient;
@@ -26,7 +21,7 @@ export interface UseDepositAddressOptionsParams {
 }
 
 export interface UseDepositAddressOptionsReturn {
-  options: DepositAddressOption[];
+  options: DepositAddressPaymentOptionMetadata[];
   loading: boolean;
   error: string | null;
 }
@@ -50,69 +45,56 @@ export function useDepositAddressOptions({
   mode,
   appId,
 }: UseDepositAddressOptionsParams): UseDepositAddressOptionsReturn {
-  const [options, setOptions] = useState<DepositAddressOption[]>([]);
+  const [options, setOptions] = useState<DepositAddressPaymentOptionMetadata[]>(
+    []
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Memoized configuration for deposit address options
   const depositAddressConfig = useMemo(() => {
-    const baseOptions: DepositAddressOption[] = [
+    const baseOptions: DepositAddressPaymentOptionMetadata[] = [
+      // Ethereum Mainnet (USDT, USDC)
       {
-        id: DepositAddressPaymentOptions.ETH_L1,
-        logoURI: chainToLogo[ethereum.chainId],
-        minimumUsd: 1, // Higher minimum for Ethereum due to gas costs
+        id: DepositAddressPaymentOptions.ETHEREUM_USDT,
+        logoURI: ethereumUSDT.logoURI,
+        minimumUsd: 1,
+        chainId: ethereum.chainId,
+        token: ethereumUSDT,
       },
       {
-        id: DepositAddressPaymentOptions.BASE,
-        logoURI: chainToLogo[base.chainId],
+        id: DepositAddressPaymentOptions.ETHEREUM_USDC,
+        logoURI: ethereumUSDC.logoURI,
+        minimumUsd: 1,
+        chainId: ethereum.chainId,
+        token: ethereumUSDC,
+      },
+      // Base (USDC)
+      {
+        id: DepositAddressPaymentOptions.BASE_USDC,
+        logoURI: baseUSDC.logoURI,
         minimumUsd: 0.1,
+        chainId: base.chainId,
+        token: baseUSDC,
+      },
+      // Solana (USDT, USDC)
+      {
+        id: DepositAddressPaymentOptions.SOLANA_USDT,
+        logoURI: rozoSolanaUSDT.logoURI,
+        minimumUsd: 0.1,
+        chainId: rozoSolanaUSDT.chainId,
+        token: rozoSolanaUSDT,
       },
       {
-        id: DepositAddressPaymentOptions.POLYGON,
-        logoURI: chainToLogo[polygon.chainId],
+        id: DepositAddressPaymentOptions.SOLANA_USDC,
+        logoURI: rozoSolanaUSDC.logoURI,
         minimumUsd: 0.1,
+        chainId: rozoSolanaUSDC.chainId,
+        token: rozoSolanaUSDC,
       },
-      // {
-      //   id: DepositAddressPaymentOptions.ARBITRUM,
-      //   logoURI: chainToLogo[arbitrum.chainId],
-      //   minimumUsd: 0.1,
-      // },
-      // {
-      //   id: DepositAddressPaymentOptions.OP_MAINNET,
-      //   logoURI: chainToLogo[optimism.chainId],
-      //   minimumUsd: 0.1,
-      // },
-      // {
-      //   id: DepositAddressPaymentOptions.SOLANA,
-      //   logoURI: chainToLogo[rozoSolana.chainId],
-      //   minimumUsd: 0.1,
-      // },
-      // {
-      //   id: DepositAddressPaymentOptions.STELLAR,
-      //   logoURI: chainToLogo[rozoStellar.chainId],
-      //   minimumUsd: 0.1,
-      // },
     ];
-
-    // Add BSC conditionally for MP app IDs
-    if (appId?.includes("MP")) {
-      baseOptions.push({
-        id: DepositAddressPaymentOptions.BSC,
-        logoURI: chainToLogo[bsc.chainId],
-        minimumUsd: 0.1,
-      });
-    }
-
-    if (appId?.toLowerCase().includes("world")) {
-      baseOptions.push({
-        id: DepositAddressPaymentOptions.WORLD,
-        logoURI: chainToLogo[worldchain.chainId],
-        minimumUsd: 0.1,
-      });
-    }
-
     return baseOptions;
-  }, [appId]);
+  }, []);
 
   // Memoized refresh function to prevent unnecessary re-renders
   const refreshDepositAddressOptions = useCallback(

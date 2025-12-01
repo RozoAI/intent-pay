@@ -2,6 +2,7 @@
 
 import * as Tokens from "@rozoai/intent-common";
 import {
+  FeeType,
   getChainName,
   getChainNativeToken,
   knownTokens,
@@ -18,7 +19,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Address, getAddress } from "viem";
+import { getAddress } from "viem";
 import { Text } from "../../shared/tailwind-catalyst/text";
 import { ConfigPanel } from "../config-panel";
 import { APP_ID, Container, usePersistedConfig } from "../shared";
@@ -297,16 +298,8 @@ export default function DemoBasic() {
                 <RozoPayButton.Custom
                   appId={APP_ID}
                   toChain={parsedConfig.chainId}
-                  toAddress={
-                    isEvmChain(parsedConfig.chainId)
-                      ? (getAddress(parsedConfig.recipientAddress) as Address)
-                      : parsedConfig.recipientAddress
-                  }
-                  toToken={
-                    isEvmChain(parsedConfig.chainId)
-                      ? (getAddress(parsedConfig.tokenAddress) as Address)
-                      : parsedConfig.tokenAddress
-                  }
+                  toAddress={parsedConfig.recipientAddress}
+                  toToken={parsedConfig.tokenAddress}
                   toUnits={parsedConfig.amount}
                   onPaymentStarted={(e) => {
                     console.log("✓ Payment started:", e);
@@ -317,6 +310,7 @@ export default function DemoBasic() {
                   onPayoutCompleted={(e: any) => {
                     console.log("✓ Payout completed:", e);
                   }}
+                  feeType={FeeType.ExactIn}
                   resetOnSuccess={true}
                   metadata={metadata}
                   showProcessingPayout

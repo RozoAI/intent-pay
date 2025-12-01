@@ -223,40 +223,40 @@ export interface PaymentResponse {
   /**
    * Your application ID
    */
-  appId?: string;
+  appId: string;
   /**
    * ISO 8601 timestamp
    */
-  createdAt?: Date;
-  destination?: DestinationResponse;
-  display?: DisplayInfo;
-  errorCode?: PaymentErrorCode;
+  createdAt: Date;
+  destination: DestinationResponse;
+  display: DisplayInfo;
+  errorCode: PaymentErrorCode | null;
   /**
    * ISO 8601 timestamp (when payment expires)
    */
-  expiresAt?: Date;
+  expiresAt: Date;
   /**
    * Payment ID
    */
-  id?: string;
-  metadata?: { [key: string]: any };
+  id: string;
+  metadata: { [key: string]: any } | null;
   /**
    * Your order reference ID
    */
-  orderId?: string;
-  source?: SourceResponse;
-  status?: PaymentStatus;
-  type?: FeeType;
+  orderId: string | null;
+  source: SourceResponse;
+  status: PaymentStatus;
+  type: FeeType;
   /**
    * ISO 8601 timestamp
    */
-  updatedAt?: Date;
+  updatedAt: Date;
   /**
    * Secret for webhook signature verification.
    * Only present when webhookUrl was provided in the request.
    * Store this securely to verify incoming webhook signatures.
    */
-  webhookSecret?: string;
+  webhookSecret: string | null;
   [property: string]: any;
 }
 
@@ -363,12 +363,12 @@ export async function createNewPayment(
   const sourceChain = getChainById(Number(preferred.preferredChain));
   const sourceToken = getKnownToken(
     Number(preferred.preferredChain),
-    preferred.preferredToken
+    preferred.preferredTokenAddress
   );
   const destinationChain = getChainById(Number(destination.chainId));
   const destinationToken = getKnownToken(
     Number(destination.chainId),
-    destination.tokenSymbol
+    destination.tokenAddress
   );
 
   if (!sourceToken || !destinationToken) {
@@ -378,6 +378,16 @@ export async function createNewPayment(
   // Build payment request data matching new backend interface
   const paymentData: CreatePaymentRequest = {
     appId,
+    type: type ?? FeeType.ExactIn,
+    ...(orderId ? { orderId } : {}),
+    source: {
+      chainId: sourceChain.chainId,
+      tokenSymbol: sourceToken.symbol,
+      amount: destination.amountUnits, // Use same amount for source
+      ...(preferred.preferredTokenAddress
+        ? { tokenAddress: preferred.preferredTokenAddress }
+        : {}),
+    },
     destination: {
       chainId: destinationChain.chainId,
       receiverAddress: destination.destinationAddress ?? toAddress,
@@ -388,22 +398,12 @@ export async function createNewPayment(
         : {}),
       ...(receiverMemo ? { receiverMemo } : {}),
     },
-    source: {
-      chainId: sourceChain.chainId,
-      tokenSymbol: sourceToken.symbol,
-      amount: destination.amountUnits, // Use same amount for source
-      ...(preferred.preferredTokenAddress
-        ? { tokenAddress: preferred.preferredTokenAddress }
-        : {}),
-    },
     display: {
       currency: "USD",
       title: title ?? "Payment",
       ...(description ? { description } : {}),
     },
     ...(metadata ? { metadata } : {}),
-    ...(orderId ? { orderId } : {}),
-    ...(type ? { type } : {}),
     ...(webhookUrl ? { webhookUrl } : {}),
     ...(webhookSecret ? { webhookSecret } : {}),
   };
@@ -429,5 +429,5 @@ export async function createNewPayment(
 export const getNewPayment = (
   paymentId: string
 ): Promise<ApiResponse<PaymentResponse>> => {
-  return apiClient.get<PaymentResponse>(`/payment-api/${paymentId}`);
+  return apiClient.get<PaymentResponse>(`/payment-api/payments/${paymentId}`);
 };
