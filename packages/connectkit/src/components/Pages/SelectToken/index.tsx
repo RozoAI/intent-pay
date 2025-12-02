@@ -22,7 +22,6 @@ export default function SelectToken() {
 
   const { paymentState } = usePayContext();
   const { tokenMode, connectedWalletOnly } = paymentState;
-  const { optionsList, isLoading, refreshOptions } = useTokenOptions(tokenMode);
 
   const { isConnected: isEvmConnected } = useAccount();
   const { isConnected: isStellarConnected, connector } = useStellar();
@@ -33,9 +32,26 @@ export default function SelectToken() {
     [isEvmConnected, isSolConnected, isStellarConnected]
   );
 
+  // Detect if multiple networks are connected (e.g., Phantom connecting both EVM and Solana)
+  const connectedNetworksCount = useMemo(() => {
+    return (
+      (isEvmConnected ? 1 : 0) +
+      (isSolConnected ? 1 : 0) +
+      (isStellarConnected ? 1 : 0)
+    );
+  }, [isEvmConnected, isSolConnected, isStellarConnected]);
+
+  // If multiple networks are connected, override tokenMode to "all" to show all available tokens
+  const effectiveTokenMode = useMemo(() => {
+    return connectedNetworksCount > 1 ? "all" : tokenMode;
+  }, [connectedNetworksCount, tokenMode]);
+
+  const { optionsList, isLoading, refreshOptions } =
+    useTokenOptions(effectiveTokenMode);
+
   const isAnotherMethodButtonVisible = useMemo(
-    () => optionsList.length > 0 && tokenMode !== "all" && !connectedWalletOnly,
-    [optionsList.length, tokenMode, connectedWalletOnly]
+    () => !connectedWalletOnly,
+    [connectedWalletOnly]
   );
 
   const noConnectedWallet = useMemo(() => {
@@ -43,10 +59,10 @@ export default function SelectToken() {
 
     // Check if there's a connected wallet that matches the payment options
     const hasMatchingConnectedWallet =
-      (tokenMode === "evm" && isEvmConnected) ||
-      (tokenMode === "solana" && isSolConnected) ||
-      (tokenMode === "stellar" && isStellarConnected && connector) ||
-      (tokenMode === "all" &&
+      (effectiveTokenMode === "evm" && isEvmConnected) ||
+      (effectiveTokenMode === "solana" && isSolConnected) ||
+      (effectiveTokenMode === "stellar" && isStellarConnected && connector) ||
+      (effectiveTokenMode === "all" &&
         (isEvmConnected || isSolConnected || isStellarConnected));
 
     return !hasMatchingConnectedWallet;
@@ -55,7 +71,8 @@ export default function SelectToken() {
     isSolConnected,
     isStellarConnected,
     connectedWalletOnly,
-    tokenMode,
+    effectiveTokenMode,
+    connector,
   ]);
 
   // Prevent showing "Insufficient balance" too quickly to avoid flickering
@@ -67,7 +84,7 @@ export default function SelectToken() {
     <PageContent>
       <OrderHeader
         minified={!connectedWalletOnly}
-        show={tokenMode}
+        show={effectiveTokenMode}
         excludeLogos={["stellar"]}
       />
       <OptionsList
@@ -83,7 +100,9 @@ export default function SelectToken() {
       {showInsufficientBalance && !noConnectedWallet && (
         <InsufficientBalance onRefresh={refreshOptions} />
       )}
-      {!isLoading && !isConnected && tokenMode === "all" && <ConnectButton />}
+      {!isLoading && !isConnected && effectiveTokenMode === "all" && (
+        <ConnectButton />
+      )}
       {isAnotherMethodButtonVisible && <SelectAnotherMethodButton />}
       {noConnectedWallet && <NoConnectedWallet />}
     </PageContent>
