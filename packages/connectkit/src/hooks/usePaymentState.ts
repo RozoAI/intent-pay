@@ -15,8 +15,6 @@ import {
   formatPaymentResponseToHydratedOrder,
   generateEVMDeepLink,
   getChainById,
-  getOrderDestChainId,
-  isCCTPV1Chain,
   mergedMetadata,
   PaymentResponse,
   PlatformType,
@@ -297,13 +295,13 @@ export function usePaymentState({
   }, [buttonProps, currPayParams]);
 
   // Include by default if paymentOptions not provided. Solana bridging is only
-  // supported on CCTP v1 chains.
+  // supported on the destination chain.
   const showSolanaPaymentMethod = useMemo(() => {
     return (
       (paymentOptions == null ||
         paymentOptions.includes(ExternalPaymentOptions.Solana)) &&
-      pay.order != null &&
-      isCCTPV1Chain(getOrderDestChainId(pay.order))
+      pay.order != null
+      // isCCTPV1Chain(getOrderDestChainId(pay.order))
     );
   }, [paymentOptions, pay.order]);
 
@@ -525,11 +523,6 @@ export function usePaymentState({
         )} does not match fees token ${debugJson(fees)}`
       );
     }
-
-    console.log("pay.order", pay.order);
-    console.log("required", required);
-    console.log("fees", fees);
-    console.log("pay.paymentState", pay.paymentState);
 
     // @NOTE: Fee handled by Rozo API
     // const paymentAmount = BigInt(required.amount) + BigInt(fees.amount);

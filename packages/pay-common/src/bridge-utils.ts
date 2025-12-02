@@ -12,8 +12,10 @@ import {
   RozoPayOrderStatusDest,
   RozoPayOrderStatusSource,
   RozoPayUserMetadata,
+  rozoSolana,
   rozoSolanaUSDC,
   rozoStellarUSDC,
+  solana,
   validateAddressForChain,
 } from ".";
 
@@ -199,7 +201,11 @@ export function createPaymentBridgeConfig({
 
   if (isChainSupported(toChain) && isTokenSupported(toChain, toToken)) {
     preferred = {
-      preferredChain: String(tokenConfig.chainId),
+      preferredChain: String(
+        tokenConfig.chainId === solana.chainId
+          ? rozoSolana.chainId
+          : tokenConfig.chainId
+      ),
       preferredToken: tokenConfig.symbol,
       preferredTokenAddress: tokenConfig.token,
     };

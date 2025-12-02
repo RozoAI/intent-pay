@@ -136,6 +136,7 @@ export const supportedChains: Chain[] = [
   optimism, // USDC & USDT
   polygon, // USDC & USDT
   worldchain,
+  solana,
   rozoSolana, // USDC & USDT (chainId: 900)
   rozoStellar, // USDC only (chainId: 1500, no USDT)
 
@@ -156,6 +157,8 @@ const cctpV1Chains = [
   polygon,
   solana,
   rozoSolana,
+  stellar,
+  rozoStellar,
 ];
 const cctpV2Chains = [arbitrum, base, ethereum, linea, worldchain];
 

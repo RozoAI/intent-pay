@@ -149,12 +149,13 @@ export const OrderHeader = ({
         </MinifiedContainer>
       );
     } else {
-      // return (
-      //   <MinifiedContainer>
-      //     <CoinLogos $exclude={excludeLogos} />
-      //     <Subtitle>1000+ tokens accepted</Subtitle>
-      //   </MinifiedContainer>
-      // );
+      return (
+        <>
+          {titleAmountContent && (
+            <TitleAmount>{titleAmountContent}</TitleAmount>
+          )}
+        </>
+      );
     }
   } else {
     return (

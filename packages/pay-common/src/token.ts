@@ -1,4 +1,4 @@
-import { Address, getAddress, zeroAddress } from "viem";
+import { getAddress, zeroAddress } from "viem";
 import { assertNotNull } from "./assert";
 import {
   arbitrum,
@@ -708,6 +708,16 @@ export const solanaUSDC: Token = token({
   logoURI: TokenLogo.USDC,
 });
 
+export const solanaUSDT: Token = token({
+  chainId: rozoSolana.chainId,
+  token: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+  decimals: 6,
+  fiatISO: "USD",
+  name: "Tether USD",
+  symbol: "USDT",
+  logoURI: TokenLogo.USDT,
+});
+
 export const rozoSolanaUSDC: Token = token({
   chainId: rozoSolana.chainId,
   token: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -732,6 +742,7 @@ const solanaTokens: Token[] = [
   solanaUSDC,
   solanaWSOL,
   solanaSOL,
+  solanaUSDT,
   rozoSolanaUSDC,
   rozoSolanaUSDT,
 ];
@@ -900,6 +911,7 @@ export const supportedTokens: Map<number, Token[]> = new Map([
   [polygon.chainId, [polygonUSDC, polygonUSDT]],
   // [worldchain.chainId, [worldchainUSDC]],
 
+  [solana.chainId, [solanaUSDC, solanaUSDT]],
   [rozoSolana.chainId, [rozoSolanaUSDC, rozoSolanaUSDT]],
   [rozoStellar.chainId, [rozoStellarUSDC]],
 ]);
@@ -908,6 +920,7 @@ export const supportedPayoutTokens: Map<number, Token[]> = new Map([
   [ethereum.chainId, [ethereumUSDC]],
   [base.chainId, [baseUSDC]],
   [polygon.chainId, [polygonUSDC]],
+  [solana.chainId, [solanaUSDC]],
   [rozoSolana.chainId, [rozoSolanaUSDC]],
   [rozoStellar.chainId, [rozoStellarUSDC]],
 ]);
@@ -1193,7 +1206,7 @@ export function token({
   logoURI,
 }: {
   chainId: number;
-  token: Address | string;
+  token: string;
   name: string;
   symbol: string;
   decimals: number;

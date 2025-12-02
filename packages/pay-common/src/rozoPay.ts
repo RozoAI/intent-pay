@@ -183,7 +183,7 @@ export type RozoPayDehydratedOrder = {
   metadata: RozoPayOrderMetadata;
   externalId: string | null;
   userMetadata: RozoPayUserMetadata | null;
-  refundAddr: Address | null;
+  refundAddr: string | null;
   memo?: string | null;
 };
 
@@ -192,20 +192,20 @@ export type RozoPayHydratedOrder = {
   id: bigint;
   intentAddr: string;
   /** Nullable because old intents don't record escrow address. */
-  // escrowContractAddress: Address | null;
+  // escrowContractAddress: string | null;
   /** Nullable because old intents don't record bridger address. */
-  // bridgerContractAddress: Address | null;
+  // bridgerContractAddress: string | null;
   /** @deprecated included for backcompat with old versions. Remove soon. */
-  // handoffAddr: Address;
+  // handoffAddr: string;
   // bridgeTokenOutOptions: RozoPayTokenAmount[];
-  // selectedBridgeTokenOutAddr: Address | null;
+  // selectedBridgeTokenOutAddr: string | null;
   // selectedBridgeTokenOutAmount: bigint | null;
   destFinalCallTokenAmount: RozoPayTokenAmount;
   destFinalCall: OnChainCall;
   usdValue: number;
-  refundAddr: Address;
+  refundAddr: string;
   nonce: bigint;
-  sourceFulfillerAddr: Address | SolanaPublicKey | StellarPublicKey | null;
+  sourceFulfillerAddr: string | null;
   sourceTokenAmount: RozoPayTokenAmount | null;
   sourceInitiateTxHash: Hex | null;
   // sourceStartTxHash: Hex | null;
@@ -468,7 +468,7 @@ export type DepositAddressPaymentOptionData = {
 };
 
 export interface RozoPayToken extends Token {
-  token: Address | SolanaPublicKey | StellarPublicKey;
+  token: string;
   /** Price to convert 1.0 of this token to a USD stablecoin. */
   usd: number;
   /** Price to convert $1 to this token T. If 2.00, then we receive 0.5 T. */
@@ -490,7 +490,7 @@ export interface RozoPayTokenAmount {
 }
 
 export type OnChainCall = {
-  to: Address | SolanaPublicKey | StellarPublicKey;
+  to: string;
   data: Hex;
   value: bigint;
 };
@@ -583,9 +583,9 @@ export type PaymentRefundedEvent = {
   type: RozoPayEventType.PaymentRefunded;
   isTestEvent?: boolean;
   paymentId: RozoPayOrderID;
-  refundAddress: Address;
+  refundAddress: string;
   chainId: number;
-  tokenAddress: Address;
+  tokenAddress: string;
   txHash: string;
   amountUnits: string;
   payment: RozoPayOrderView;

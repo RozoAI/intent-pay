@@ -1,5 +1,5 @@
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { injected, useAccount } from "wagmi";
 import { Ethereum, Solana } from "../../../assets/chains";
 import { RetryIcon } from "../../../assets/icons";
@@ -59,18 +59,8 @@ export default function SelectToken() {
   ]);
 
   // Prevent showing "Insufficient balance" too quickly to avoid flickering
-  const [showInsufficientBalance, setShowInsufficientBalance] = useState(false);
-
-  useEffect(() => {
-    if (!isLoading && isConnected && optionsList.length === 0) {
-      // Add a small delay before showing insufficient balance to prevent flickering
-      const timer = setTimeout(() => {
-        setShowInsufficientBalance(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    } else {
-      setShowInsufficientBalance(false);
-    }
+  const showInsufficientBalance = useMemo(() => {
+    return !isLoading && isConnected && optionsList.length === 0;
   }, [isLoading, isConnected, optionsList.length]);
 
   return (

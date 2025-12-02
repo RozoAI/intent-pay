@@ -1,5 +1,6 @@
 import {
   assert,
+  baseUSDC,
   CreateNewPaymentParams,
   createPayment,
   FeeType,
@@ -386,8 +387,10 @@ async function runHydratePayParamsEffects(
     toAddress = payParams.toStellarAddress;
   }
 
-  const preferredChain = walletOption?.required.token.chainId ?? 0;
-  const preferredTokenAddress = walletOption?.required.token.token ?? "";
+  const preferredChain =
+    walletOption?.required.token.chainId ?? baseUSDC.chainId;
+  const preferredTokenAddress =
+    walletOption?.required.token.token ?? baseUSDC.token;
 
   try {
     log?.("[Payment Effect]: createRozoPayment");
@@ -428,6 +431,7 @@ async function runHydratePayParamsEffects(
     rozoPaymentResponse = rozoPayment;
     rozoPaymentId = rozoPayment.id;
   } catch (error) {
+    console.error(error);
     const message = parseErrorMessage(error);
     store.dispatch({
       type: "error",
