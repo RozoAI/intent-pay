@@ -5,13 +5,17 @@ import {
   PageContent,
 } from "../../Common/Modal/styles";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { AlertIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
 import { useRozoPay } from "../../../hooks/useDaimoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
 import styled from "../../../styles/styled";
 import { categorizeError, ErrorType } from "../../../utils/errorParser";
+import {
+  getDetailedValidationError,
+  ValidationError,
+} from "../../../utils/validatePayoutToken";
 import Button from "../../Common/Button";
 import PoweredByFooter from "../../Common/PoweredByFooter";
 
@@ -27,6 +31,21 @@ export default function ErrorPage() {
   const context = usePayContext();
 
   const errorCategory = useMemo((): ErrorCategory => {
+    // Check if this is a validation error from route meta
+    const validationError = context.routeMeta?.validationError as
+      | ValidationError
+      | undefined;
+
+    if (validationError) {
+      const { title, message } = getDetailedValidationError(validationError);
+      return {
+        title,
+        message,
+        canRetry: false,
+        showSupport: false,
+      };
+    }
+
     if (pay.paymentState !== "error") {
       return {
         title: "Unknown Error",
@@ -67,21 +86,21 @@ export default function ErrorPage() {
           title: "Network Error",
           message: errorMsg,
           canRetry: true,
-          showSupport: false,
+          showSupport: true,
         };
       case ErrorType.INSUFFICIENT_FUNDS:
         return {
           title: "Insufficient Funds",
           message: errorMsg,
           canRetry: false,
-          showSupport: false,
+          showSupport: true,
         };
       case ErrorType.REJECTED:
         return {
           title: "Transaction Rejected",
           message: errorMsg,
           canRetry: true,
-          showSupport: false,
+          showSupport: true,
         };
       default:
         return {
@@ -91,7 +110,11 @@ export default function ErrorPage() {
           showSupport: true,
         };
     }
-  }, [pay.paymentState, pay.paymentErrorMessage]);
+  }, [
+    pay.paymentState,
+    pay.paymentErrorMessage,
+    context.routeMeta?.validationError,
+  ]);
 
   const handleRetry = () => {
     context.setRoute(ROUTES.SELECT_METHOD);
@@ -109,6 +132,10 @@ export default function ErrorPage() {
     }
   };
 
+  useEffect(() => {
+    context.triggerResize();
+  }, [errorCategory]);
+
   return (
     <PageContent>
       <ModalContent
@@ -125,14 +152,14 @@ export default function ErrorPage() {
           <ErrorTitle>{errorCategory.title}</ErrorTitle>
           <ErrorBody>{errorCategory.message}</ErrorBody>
 
-          <ButtonContainer>
-            {errorCategory.canRetry && (
-              <Button onClick={handleRetry}>Try Another Method</Button>
-            )}
-            <Button onClick={handleCancel} variant="secondary">
-              Cancel
+          {errorCategory.canRetry && (
+            <Button onClick={handleRetry} variant="primary">
+              Try Another Method
             </Button>
-          </ButtonContainer>
+          )}
+          <Button onClick={handleCancel} variant="secondary">
+            Cancel
+          </Button>
         </CenterContainer>
         <PoweredByFooter
           preFilledMessage={`Error: ${errorCategory.message}`}
@@ -146,9 +173,9 @@ export default function ErrorPage() {
 const CenterContainer = styled.div`
   display: flex;
   flex-direction: column;
-  align-items: center;
   padding: 16px;
   max-width: 100%;
+  width: 100%;
 `;
 
 const ErrorTitle = styled(ModalH1)`
@@ -165,19 +192,11 @@ const ErrorBody = styled(ModalBody)`
   margin-bottom: 8px;
 `;
 
-const ButtonContainer = styled.div`
-  margin-top: 24px;
-  width: 100%;
-  max-width: 280px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-`;
-
 const FailIcon = styled(AlertIcon)`
   color: var(--ck-body-color-alert);
   width: 48px;
   height: 48px;
   margin-top: auto;
   margin-bottom: 8px;
+  margin-inline: auto;
 `;

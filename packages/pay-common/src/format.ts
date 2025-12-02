@@ -1,3 +1,6 @@
+import { getChainName } from "./chain";
+import { getKnownToken } from "./token";
+
 /**
  * Contract an Ethereum address to a shorter string.
  *
@@ -32,4 +35,31 @@ export function generateEVMDeepLink({
   amountUnits: string;
 }): string {
   return `ethereum:${tokenAddress}@${chainId}/transfer?address=${recipientAddress}&uint256=${amountUnits}`;
+}
+
+export function generateIntentTitle({
+  toChainId,
+  toTokenAddress,
+  preferredChainId,
+  preferredTokenAddress,
+}: {
+  toChainId: number;
+  toTokenAddress: string;
+  preferredChainId: number;
+  preferredTokenAddress: string;
+}): string {
+  const toChainName = getChainName(toChainId);
+  const preferredChainName = getChainName(preferredChainId);
+  const toToken = getKnownToken(toChainId, toTokenAddress);
+  const preferredToken = getKnownToken(preferredChainId, preferredTokenAddress);
+
+  if (!toToken || !preferredToken) {
+    return "Pay";
+  }
+
+  if (toToken.chainId === preferredToken.chainId) {
+    return `Pay with ${preferredToken.symbol} (${preferredChainName})`;
+  }
+
+  return `Pay with ${preferredToken.symbol} (${preferredChainName}) to ${toToken.symbol} (${toChainName})`;
 }

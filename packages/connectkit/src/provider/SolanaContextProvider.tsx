@@ -20,6 +20,7 @@ export const SolanaContextProvider = ({
 
   return (
     <ConnectionProvider endpoint={endpoint}>
+      {/* wallets = [] means all wallets are supported */}
       <WalletProvider wallets={[]} autoConnect>
         {children}
       </WalletProvider>

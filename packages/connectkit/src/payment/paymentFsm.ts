@@ -1,6 +1,7 @@
 import {
   assert,
   ExternalPaymentOptionsString,
+  FeeType,
   isHydrated,
   RozoPayHydratedOrderWithOrg,
   RozoPayIntentStatus,
@@ -21,20 +22,20 @@ export interface PayParams {
   appId: string;
   /** Destination chain ID. */
   toChain: number;
-  /** The destination token to send. */
-  toToken: Address;
+  /** The destination token to send. Address for EVM, string for non-EVM. */
+  toToken: Address | string;
   /**
    * The amount of the token to send.
    * If not provided, the user will be prompted to enter an amount.
    */
   toUnits?: string;
-  /** The final address to transfer to or contract to call. */
-  toAddress: Address;
+  /** The final EVM address to transfer to or contract to call. */
+  toAddress?: Address;
   /** The final stellar address to transfer to. */
   toStellarAddress?: string;
   /** The final solana address to transfer to. */
   toSolanaAddress?: string;
-  /** Calldata for final call, or empty data for transfer. */
+  /** Calldata for final call, or empty data for transfer. EVM only. */
   toCallData?: Hex;
   /** The intent verb, such as Pay, Deposit, or Purchase. Default: Pay */
   intent?: string;
@@ -43,17 +44,19 @@ export interface PayParams {
   /** Preferred chain IDs. */
   preferredChains?: number[];
   /** Preferred tokens. These appear first in the token list. */
-  preferredTokens?: { chain: number; address: Address }[];
+  preferredTokens?: { chain: number; address: Address | string }[];
   /** Only allow payments on these EVM chains. */
   evmChains?: number[];
   /** External ID. E.g. a correlation ID. */
   externalId?: string;
   /** Developer metadata. E.g. correlation ID. */
   metadata?: RozoPayUserMetadata;
-  /** The address to refund to if the payment bounces or a refund is requested. */
+  /** The address to refund to if the payment bounces or a refund is requested. EVM only. */
   refundAddress?: Address;
   /** Optional configuration to show processing pay out loading when payment completed */
   showProcessingPayout?: boolean;
+  /** The fee type to use for the payment. */
+  feeType?: FeeType;
 }
 
 export type PaymentState =
@@ -146,10 +149,10 @@ export type PaymentEvent =
 
 type PayParamsData = {
   appId: string;
+  feeType?: FeeType;
   toStellarAddress?: string;
   toSolanaAddress?: string;
   toAddress?: string;
-  rozoAppId?: string;
   metadata?: RozoPayUserMetadata;
 };
 

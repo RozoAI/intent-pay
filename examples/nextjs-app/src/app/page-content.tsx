@@ -21,12 +21,12 @@ const demos: DemoCard[] = [
       "Deliver a great checkout experience with customizable payment options.",
     path: "/checkout",
   },
-  {
-    title: "Smart Contract",
-    description:
-      "Skip bridges, swaps and approvals. Let your users transact in one step.",
-    path: "/contract",
-  },
+  // {
+  //   title: "Smart Contract",
+  //   description:
+  //     "Skip bridges, swaps and approvals. Let your users transact in one step.",
+  //   path: "/contract",
+  // },
   {
     title: "Deposit Demo",
     description:

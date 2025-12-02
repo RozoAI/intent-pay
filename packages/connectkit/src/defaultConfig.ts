@@ -1,5 +1,16 @@
 import { type CreateConfigParameters, CreateConnectorFn, http } from "wagmi";
-import { base, bsc, Chain, polygon, worldchain } from "wagmi/chains";
+import {
+  arbitrum,
+  avalanche,
+  base,
+  bsc,
+  Chain,
+  gnosis,
+  mainnet,
+  optimism,
+  polygon,
+  worldchain,
+} from "wagmi/chains";
 import { CoinbaseWalletParameters } from "wagmi/connectors";
 
 import defaultConnectors from "./defaultConnectors";
@@ -23,18 +34,21 @@ type DefaultConfigProps = {
   additionalConnectors?: CreateConnectorFn[];
 } & Partial<CreateConfigParameters>;
 
+/**
+ * REQUIRED_CHAINS is the list of chains that are required for the Rozo Pay SDK.
+ * These are the chains that are supported by the Rozo Pay SDK and are required for the SDK to work.
+ * Whenever Supported Chains are added to the SDK, they should also be added to this list.
+ */
 export const REQUIRED_CHAINS: CreateConfigParameters["chains"] = [
-  // mainnet,
+  arbitrum,
+  avalanche,
   base,
-  polygon,
-  // optimism,
-  // arbitrum,
-  // linea,
   bsc,
-  // sepolia,
+  gnosis,
+  mainnet,
+  optimism,
+  polygon,
   worldchain,
-  // mantle,
-  // celo,
 ];
 
 /** Rozo Pay recommended config, for use with wagmi's createConfig(). */

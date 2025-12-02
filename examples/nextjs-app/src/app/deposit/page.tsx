@@ -2,36 +2,37 @@
 
 import * as Tokens from "@rozoai/intent-common";
 import {
-  baseUSDC,
   getChainName,
   getChainNativeToken,
   knownTokens,
+  rozoSolana,
+  rozoStellar,
 } from "@rozoai/intent-common";
-import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
+import {
+  isEvmChain,
+  isSolanaChain,
+  isStellarChain,
+  RozoPayButton,
+  useRozoPayUI,
+} from "@rozoai/intent-pay";
 import { useEffect, useState } from "react";
-import { Address, getAddress, isAddress } from "viem";
+import { Address, getAddress } from "viem";
 import { Text, TextLink } from "../../shared/tailwind-catalyst/text";
 import CodeSnippet from "../code-snippet";
 import { ConfigPanel } from "../config-panel";
 import { APP_ID, Container, printEvent, usePersistedConfig } from "../shared";
 
 type Config = {
-  recipientAddress: string;
-  recipientStellarAddress?: string;
-  recipientSolanaAddress?: string;
-  chainId: number;
+  recipientAddress: string; // Unified: EVM Address or Solana/Stellar string
+  chainId: number; // Destination chain ID
   tokenAddress: string;
 };
-
-const tempAddress = "0x0000000000000000000000000000000000000000" as Address;
 
 export default function DemoDeposit() {
   const [txHash, setTxHash] = useState<string | null>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [config, setConfig] = usePersistedConfig("rozo-deposit-config", {
     recipientAddress: "",
-    recipientStellarAddress: "",
-    recipientSolanaAddress: "",
     chainId: 0,
     tokenAddress: "",
   } as Config);
@@ -43,13 +44,27 @@ export default function DemoDeposit() {
   const handleSetConfig = (config: Config) => {
     setConfig(config);
     setParsedConfig(config);
-    resetPayment({
+
+    // NOTE: This is used to reset the payment state when the config changes
+    const isEvm = isEvmChain(config.chainId);
+    const payParams: any = {
       toChain: config.chainId,
-      toAddress: getAddress(config.recipientAddress),
-      toStellarAddress: config.recipientStellarAddress,
-      toSolanaAddress: config.recipientSolanaAddress,
-      toToken: getAddress(config.tokenAddress),
-    });
+    };
+
+    if (isEvm) {
+      payParams.toAddress = getAddress(config.recipientAddress);
+      payParams.toToken = getAddress(config.tokenAddress);
+    } else {
+      payParams.toAddress = config.recipientAddress;
+      payParams.toToken = config.tokenAddress;
+      if (isStellarChain(config.chainId)) {
+        payParams.toStellarAddress = config.recipientAddress;
+      } else if (isSolanaChain(config.chainId)) {
+        payParams.toSolanaAddress = config.recipientAddress;
+      }
+    }
+
+    resetPayment(payParams);
   };
 
   // Only render the RozoPayButton when we have valid config
@@ -79,20 +94,13 @@ export default function DemoDeposit() {
     );
 
     if (getConfig && getConfig.chainId !== 0) {
-      const parsedConfig = { ...getConfig };
+      const parsedConfig: Config = {
+        recipientAddress: getConfig.recipientAddress || "",
+        chainId: getConfig.chainId || 0,
+        tokenAddress: getConfig.tokenAddress || "",
+      };
 
-      if (!isAddress(parsedConfig.tokenAddress)) {
-        Object.assign(parsedConfig, {
-          tokenAddress: tempAddress,
-        });
-      }
-
-      if (!isAddress(parsedConfig.recipientAddress)) {
-        Object.assign(parsedConfig, {
-          recipientAddress: tempAddress,
-        });
-      }
-
+      // Validate and clean up config
       if (
         parsedConfig &&
         typeof parsedConfig === "object" &&
@@ -108,10 +116,20 @@ export default function DemoDeposit() {
 
   useEffect(() => {
     // Only generate code snippet if we have a complete config
-    if (!hasValidConfig) {
+    if (!hasValidConfig || !parsedConfig) {
       setCodeSnippet("");
       return;
     }
+
+    const isEvm = isEvmChain(parsedConfig.chainId);
+    const isSolana = isSolanaChain(parsedConfig.chainId);
+    const isStellar = isStellarChain(parsedConfig.chainId);
+
+    // For EVM chains, use getAddress helper
+    // For non-EVM chains, use string directly
+    const addressCode = isEvm
+      ? `getAddress("${parsedConfig.recipientAddress}")`
+      : `"${parsedConfig.recipientAddress}"`;
 
     // First check if it's a native token (address is 0x0)
     if (
@@ -122,36 +140,45 @@ export default function DemoDeposit() {
         getChainName(parsedConfig.chainId).toLowerCase() +
         getChainNativeToken(parsedConfig.chainId)?.symbol;
       if (tokenVarName) {
-        const snippet = `
-        import { getAddress } from "viem";
-        import { ${tokenVarName} } from "@rozoai/intent-common";
+        const tokenCode = isEvm
+          ? `getAddress(${tokenVarName}.token)`
+          : isSolana
+          ? `rozoSolanaUSDC.token`
+          : `rozoStellarUSDC.token`;
 
-        <RozoPayButton
-          appId="${APP_ID}"
-          toChain={${tokenVarName}.chainId}
-          toAddress={getAddress("${parsedConfig.recipientAddress}")}
-          ${
-            parsedConfig.recipientStellarAddress
-              ? `toStellarAddress={"${parsedConfig.recipientStellarAddress}"}`
-              : ""
-          }
-          ${
-            parsedConfig.recipientSolanaAddress
-              ? `toSolanaAddress={"${parsedConfig.recipientSolanaAddress}"}`
-              : ""
-          }
-          toToken={getAddress(${tokenVarName}.token)}
-          intent="Deposit"
-        />`;
+        const importStatement = isEvm
+          ? `import { getAddress } from "viem";\nimport { ${tokenVarName} } from "@rozoai/intent-common";`
+          : isSolana
+          ? `import { rozoSolanaUSDC } from "@rozoai/intent-common";`
+          : `import { rozoStellarUSDC } from "@rozoai/intent-common";`;
+
+        const chainVarName = isEvm
+          ? tokenVarName
+          : isSolana
+          ? "rozoSolanaUSDC"
+          : "rozoStellarUSDC";
+
+        const snippet = `${importStatement}
+import { RozoPayButton } from "@rozoai/intent-pay";
+
+<RozoPayButton
+  appId="${APP_ID}"
+  toChain={${chainVarName}.chainId}
+  toAddress={${addressCode}}
+  toToken={${tokenCode}}
+  intent="Deposit"
+/>`;
         setCodeSnippet(snippet);
         return;
       }
     }
 
     // For non-native tokens
-    if (parsedConfig.chainId != 0) {
+    if (parsedConfig.chainId !== 0) {
       const token = knownTokens.find(
-        (t) => t.token === parsedConfig.tokenAddress
+        (t) =>
+          t.token === parsedConfig.tokenAddress &&
+          t.chainId === parsedConfig.chainId
       );
       if (!token) return;
 
@@ -160,21 +187,22 @@ export default function DemoDeposit() {
         Object.entries(Tokens).find(([_, t]) => t === token)?.[0] ||
         token.symbol;
 
-      const snippet = `import { getAddress} from "viem";
-import { ${tokenVarName}} from "@rozoai/intent-common";
+      const tokenCode = isEvm
+        ? `getAddress(${tokenVarName}.token)`
+        : `${tokenVarName}.token`;
+
+      const importStatement = isEvm
+        ? `import { getAddress } from "viem";\nimport { ${tokenVarName} } from "@rozoai/intent-common";`
+        : `import { ${tokenVarName} } from "@rozoai/intent-common";`;
+
+      const snippet = `${importStatement}
+import { RozoPayButton } from "@rozoai/intent-pay";
     
 <RozoPayButton
   appId="${APP_ID}"
   toChain={${tokenVarName}.chainId}
-  toAddress={getAddress("${parsedConfig.recipientAddress}")}
-  ${`${
-    parsedConfig.recipientStellarAddress
-      ? `toStellarAddress={"${parsedConfig.recipientStellarAddress}"}`
-      : parsedConfig.recipientSolanaAddress
-      ? `toSolanaAddress={"${parsedConfig.recipientSolanaAddress}"}`
-      : ""
-  }
-  toToken={getAddress(${tokenVarName}.token)}`}
+  toAddress={${addressCode}}
+  toToken={${tokenCode}}
   intent="Deposit"
 />`;
       setCodeSnippet(snippet);
@@ -194,10 +222,16 @@ import { ${tokenVarName}} from "@rozoai/intent-common";
             <RozoPayButton
               appId={APP_ID}
               toChain={parsedConfig.chainId}
-              toAddress={getAddress(parsedConfig.recipientAddress)}
-              toToken={getAddress(parsedConfig.tokenAddress)}
-              toStellarAddress={parsedConfig.recipientStellarAddress}
-              toSolanaAddress={parsedConfig.recipientSolanaAddress}
+              toAddress={
+                isEvmChain(parsedConfig.chainId)
+                  ? (getAddress(parsedConfig.recipientAddress) as Address)
+                  : parsedConfig.recipientAddress
+              }
+              toToken={
+                isEvmChain(parsedConfig.chainId)
+                  ? (getAddress(parsedConfig.tokenAddress) as Address)
+                  : parsedConfig.tokenAddress
+              }
               intent="Deposit"
               onPaymentStarted={printEvent}
               onPaymentCompleted={(e) => {
@@ -249,22 +283,47 @@ import { ${tokenVarName}} from "@rozoai/intent-common";
           defaultRecipientAddress={config.recipientAddress}
         />
 
-        {parsedConfig?.recipientStellarAddress && (
-          <div className="text-sm text-gray-600 text-left">
-            <p className="mb-2">
-              <strong>Note:</strong> When using <code>toStellarAddress</code>,
-              you must set:
-            </p>
-            <ul className="list-disc list-inside mb-2">
+        {parsedConfig && isStellarChain(parsedConfig.chainId) && (
+          <div className="w-full bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+            <h3 className="text-lg font-semibold text-blue-900 mb-2">
+              ℹ️ Stellar Deposit Configuration
+            </h3>
+            <p className="text-sm text-gray-700 mb-2">For Stellar deposits:</p>
+            <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
               <li>
-                <code>toChain</code> to Base Chain ({baseUSDC.chainId})
+                <code className="bg-blue-100 px-1 rounded">toChain</code> is set
+                to Stellar Chain ID: <strong>{rozoStellar.chainId}</strong>
               </li>
               <li>
-                <code>toToken</code> to Base USDC ({baseUSDC.token})
+                <code className="bg-blue-100 px-1 rounded">toAddress</code> must
+                be a valid Stellar address (starts with G, 56 characters)
               </li>
               <li>
-                The <code>toAddress</code> can be any valid EVM address in this
-                case.
+                <code className="bg-blue-100 px-1 rounded">toToken</code> is the
+                asset code (e.g., &quot;USDC&quot;, &quot;XLM&quot;)
+              </li>
+            </ul>
+          </div>
+        )}
+
+        {parsedConfig && isSolanaChain(parsedConfig.chainId) && (
+          <div className="w-full bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+            <h3 className="text-lg font-semibold text-blue-900 mb-2">
+              ℹ️ Solana Deposit Configuration
+            </h3>
+            <p className="text-sm text-gray-700 mb-2">For Solana deposits:</p>
+            <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+              <li>
+                <code className="bg-blue-100 px-1 rounded">toChain</code> is set
+                to Solana Chain ID: <strong>{rozoSolana.chainId}</strong>
+              </li>
+              <li>
+                <code className="bg-blue-100 px-1 rounded">toAddress</code> must
+                be a valid Solana address (Base58 encoded, 32-44 characters)
+              </li>
+              <li>
+                <code className="bg-blue-100 px-1 rounded">toToken</code> is the
+                token mint address
               </li>
             </ul>
           </div>

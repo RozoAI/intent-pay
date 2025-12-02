@@ -11,11 +11,10 @@ import {
 
 import {
   assert,
-  bscUSDT,
   getAddressContraction,
   getChainExplorerTxUrl,
   getOrderDestChainId,
-  getRozoPayment,
+  getPayment,
   rozoSolana,
   rozoStellar,
 } from "@rozoai/intent-common";
@@ -70,14 +69,6 @@ const Confirmation: React.FC = () => {
   const paymentCompletedSent = React.useRef<string | null>(null);
   const payoutCompletedSent = React.useRef<string | null>(null);
 
-  const isMugglePay = useMemo(() => {
-    return (
-      paymentStateContext?.payParams?.appId.includes("MP") &&
-      paymentStateContext.selectedTokenOption?.required.token.token ===
-        bscUSDT.token
-    );
-  }, [paymentStateContext]);
-
   const showProcessingPayout = useMemo(() => {
     const { payParams, tokenMode } = paymentStateContext;
 
@@ -85,15 +76,11 @@ const Confirmation: React.FC = () => {
       payParams &&
       (tokenMode === "stellar" || tokenMode === "solana" || tokenMode === "evm")
     ) {
-      return (
-        payParams.showProcessingPayout &&
-        // Hide Processing Payout if appId contains "MP" (MugglePay)
-        !isMugglePay
-      );
+      return payParams.showProcessingPayout;
     }
 
     return false;
-  }, [paymentStateContext, isMugglePay]);
+  }, [paymentStateContext]);
 
   const rozoPaymentId = useMemo(() => {
     return order?.externalId || paymentStateContext.rozoPaymentId;
@@ -207,26 +194,26 @@ const Confirmation: React.FC = () => {
             "[CONFIRMATION] Polling for payout transaction:",
             rozoPaymentId
           );
-          const response = await getRozoPayment(rozoPaymentId);
+          const response = await getPayment(rozoPaymentId);
           context.log("[CONFIRMATION] Payout polling response:", response.data);
 
           if (
             isActive &&
             response.data &&
-            response.data.payoutTransactionHash &&
-            typeof response.data.payoutTransactionHash === "string"
+            response.data.destination.txHash &&
+            typeof response.data.destination.txHash === "string"
           ) {
             const url = getChainExplorerTxUrl(
               Number(response.data.destination.chainId),
-              response.data.payoutTransactionHash
+              response.data.destination.txHash
             );
             context.log(
               "[CONFIRMATION] Found payout transaction:",
-              response.data.payoutTransactionHash,
+              response.data.destination.txHash,
               "URL:",
               url
             );
-            setPayoutTxHash(response.data.payoutTransactionHash);
+            setPayoutTxHash(response.data.destination.txHash);
             setPayoutTxHashUrl(url);
             setPayoutLoading(false);
             triggerResize();

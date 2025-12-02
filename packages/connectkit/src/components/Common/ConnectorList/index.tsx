@@ -1,3 +1,4 @@
+import { useEffect, useMemo } from "react";
 import { ROUTES } from "../../../constants/routes";
 import { useConnect } from "../../../hooks/useConnect";
 import { useRozoPay } from "../../../hooks/useDaimoPay";
@@ -47,12 +48,24 @@ const ConnectorList = ({
   // For mobile flow, we need to wait for the order to be hydrated before
   // we can deeplink to the in-wallet browser.
   // If customDeeplink is provided, we don't need to wait for hydration
-  const shouldWaitForHydration =
-    !customDeeplink && isMobile && !context.paymentState.isDepositFlow;
-  const ready =
-    customDeeplink ||
-    !shouldWaitForHydration ||
-    paymentState === "payment_unpaid";
+  const shouldWaitForHydration = useMemo(
+    () => !customDeeplink && isMobile && !context.paymentState.isDepositFlow,
+    [customDeeplink, isMobile, context.paymentState.isDepositFlow]
+  );
+
+  const ready = useMemo(
+    () =>
+      customDeeplink ||
+      !shouldWaitForHydration ||
+      paymentState === "payment_unpaid",
+    [customDeeplink, shouldWaitForHydration, paymentState]
+  );
+
+  useEffect(() => {
+    if (paymentState === "error") {
+      context.setRoute(ROUTES.ERROR);
+    }
+  }, [paymentState]);
 
   return (
     <ScrollArea mobileDirection={"horizontal"}>

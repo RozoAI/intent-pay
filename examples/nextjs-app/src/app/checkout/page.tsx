@@ -7,7 +7,7 @@ import {
   PaymentStartedEvent,
 } from "@rozoai/intent-common";
 import { useCallback, useState } from "react";
-import { getAddress } from "viem";
+import { Address, getAddress } from "viem";
 import { Code, Text, TextLink } from "../../shared/tailwind-catalyst/text";
 import {
   APP_ID,
@@ -51,7 +51,11 @@ export default function DemoCheckout() {
           <RozoPayButton
             appId={APP_ID}
             toChain={baseUSDC.chainId}
-            toAddress={ROZO_ADDRESS}
+            toAddress={
+              ROZO_ADDRESS
+                ? (getAddress(ROZO_ADDRESS) as Address)
+                : ("0x0000000000000000000000000000000000000000" as Address)
+            }
             toUnits="0.42" /* $0.42 USDC */
             toToken={getAddress(baseUSDC.token)}
             intent="Purchase"

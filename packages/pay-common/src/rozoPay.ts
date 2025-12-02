@@ -183,32 +183,32 @@ export type RozoPayDehydratedOrder = {
   metadata: RozoPayOrderMetadata;
   externalId: string | null;
   userMetadata: RozoPayUserMetadata | null;
-  refundAddr: Address | null;
+  refundAddr: string | null;
   memo?: string | null;
 };
 
 export type RozoPayHydratedOrder = {
   mode: RozoPayOrderMode.HYDRATED;
   id: bigint;
-  intentAddr: Address;
+  intentAddr: string;
   /** Nullable because old intents don't record escrow address. */
-  escrowContractAddress: Address | null;
+  // escrowContractAddress: string | null;
   /** Nullable because old intents don't record bridger address. */
-  bridgerContractAddress: Address | null;
+  // bridgerContractAddress: string | null;
   /** @deprecated included for backcompat with old versions. Remove soon. */
-  handoffAddr: Address;
-  bridgeTokenOutOptions: RozoPayTokenAmount[];
-  selectedBridgeTokenOutAddr: Address | null;
-  selectedBridgeTokenOutAmount: bigint | null;
+  // handoffAddr: string;
+  // bridgeTokenOutOptions: RozoPayTokenAmount[];
+  // selectedBridgeTokenOutAddr: string | null;
+  // selectedBridgeTokenOutAmount: bigint | null;
   destFinalCallTokenAmount: RozoPayTokenAmount;
   destFinalCall: OnChainCall;
   usdValue: number;
-  refundAddr: Address;
+  refundAddr: string;
   nonce: bigint;
-  sourceFulfillerAddr: Address | SolanaPublicKey | StellarPublicKey | null;
+  sourceFulfillerAddr: string | null;
   sourceTokenAmount: RozoPayTokenAmount | null;
   sourceInitiateTxHash: Hex | null;
-  sourceStartTxHash: Hex | null;
+  // sourceStartTxHash: Hex | null;
   sourceStatus: RozoPayOrderStatusSource;
   destStatus: RozoPayOrderStatusDest;
   destFastFinishTxHash: Hex | null;
@@ -429,6 +429,12 @@ export enum DepositAddressPaymentOptions {
   STELLAR = "Stellar",
   WORLD = "Worldchain",
 
+  SOLANA_USDT = "USDT on Solana",
+  SOLANA_USDC = "USDC on Solana",
+  BASE_USDC = "USDC on Base",
+  ETHEREUM_USDT = "USDT on Ethereum",
+  ETHEREUM_USDC = "USDC on Ethereum",
+
   /** @deprecated */
   BITCOIN = "Bitcoin",
   /** @deprecated */
@@ -449,6 +455,8 @@ export type DepositAddressPaymentOptionMetadata = {
   id: DepositAddressPaymentOptions;
   logoURI: string;
   minimumUsd: number;
+  chainId: number;
+  token: Token;
 };
 
 export type DepositAddressPaymentOptionData = {
@@ -460,7 +468,7 @@ export type DepositAddressPaymentOptionData = {
 };
 
 export interface RozoPayToken extends Token {
-  token: Address | SolanaPublicKey | StellarPublicKey;
+  token: string;
   /** Price to convert 1.0 of this token to a USD stablecoin. */
   usd: number;
   /** Price to convert $1 to this token T. If 2.00, then we receive 0.5 T. */
@@ -482,7 +490,7 @@ export interface RozoPayTokenAmount {
 }
 
 export type OnChainCall = {
-  to: Address;
+  to: string;
   data: Hex;
   value: bigint;
 };
@@ -575,9 +583,9 @@ export type PaymentRefundedEvent = {
   type: RozoPayEventType.PaymentRefunded;
   isTestEvent?: boolean;
   paymentId: RozoPayOrderID;
-  refundAddress: Address;
+  refundAddress: string;
   chainId: number;
-  tokenAddress: Address;
+  tokenAddress: string;
   txHash: string;
   amountUnits: string;
   payment: RozoPayOrderView;

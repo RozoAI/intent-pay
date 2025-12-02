@@ -10,15 +10,7 @@ import {
 } from "@rozoai/intent-common";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Connector, useAccount, useDisconnect } from "wagmi";
-import {
-  Base,
-  BinanceSmartChain,
-  Ethereum,
-  Polygon,
-  Solana,
-  Stellar,
-  Worldchain,
-} from "../../../assets/chains";
+import { Base, Ethereum, Solana, Stellar } from "../../../assets/chains";
 import {
   Coinbase,
   MetaMask,
@@ -404,16 +396,9 @@ function getDepositAddressOption(
     id: "depositAddress",
     title: "Pay to address",
     icons: [
-      appId?.includes("MP") ? <BinanceSmartChain key="bsc" /> : null,
       <Base key="base" />,
-      // <Solana key="base" />,
-      <Polygon key="polygon" />,
-      appId?.toLowerCase().includes("world") ? (
-        <Worldchain key="worldchain" />
-      ) : null,
-      // <Stellar key="stellar" />,
-      // <Arbitrum key="arbitrum" />,
-      // <Optimism key="optimism" />,
+      <Solana key="solana" />,
+      <Ethereum key="ethereum" />,
     ],
     onClick: () => {
       setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_CHAIN);

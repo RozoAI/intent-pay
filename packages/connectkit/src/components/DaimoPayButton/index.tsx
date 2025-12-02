@@ -1,11 +1,10 @@
-import { ReactElement, useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { usePayContext } from "../../hooks/usePayContext";
 import { TextContainer } from "./styles";
 
 import {
   assertNotNull,
-  ExternalPaymentOptionsString,
   getChainExplorerTxUrl,
   getRozoPayOrderView,
   PaymentBouncedEvent,
@@ -14,148 +13,26 @@ import {
   PaymentStartedEvent,
   RozoPayEventType,
   RozoPayHydratedOrderWithOrg,
-  RozoPayOrderView,
-  RozoPayUserMetadata,
   rozoSolana,
   rozoStellar,
   writeRozoPayOrderID,
 } from "@rozoai/intent-common";
 import { AnimatePresence, Variants } from "framer-motion";
-import { Address, Hex } from "viem";
+import { getAddress } from "viem";
+import { ROUTES } from "../../constants/routes";
 import { useRozoPay } from "../../hooks/useDaimoPay";
 import { PayParams } from "../../payment/paymentFsm";
 import { ResetContainer } from "../../styles";
-import { CustomTheme, Mode, Theme } from "../../types";
+import {
+  getChainTypeName,
+  isEvmChain,
+  isSolanaChain,
+  isStellarChain,
+  validateAddressForChain,
+} from "../../types/chainAddress";
+import { validatePayoutToken } from "../../utils/validatePayoutToken";
 import ThemedButton, { ThemeContainer } from "../Common/ThemedButton";
-
-/** Payment details and status. */
-export type RozoPayment = RozoPayOrderView;
-
-/** Props for RozoPayButton. */
-export type PayButtonPaymentProps =
-  | {
-      /**
-       * Your public app ID. Specify either (payId) or (appId + parameters).
-       */
-      appId: string;
-      /**
-       * Destination chain ID.
-       */
-      toChain: number;
-      /**
-       * The destination token to send, completing payment. Must be an ERC-20
-       * token or the zero address, indicating the native token / ETH.
-       */
-      toToken: Address;
-      /**
-       * The amount of destination token to send (transfer or approve).
-       * If not provided, the user will be prompted to enter an amount.
-       */
-      toUnits?: string;
-      /**
-       * The destination address to transfer to, or contract to call.
-       */
-      toAddress: Address;
-      /**
-       * The destination stellar address to transfer to.
-       */
-      toStellarAddress?: string;
-      /**
-       * The destination solana address to transfer to.
-       */
-      toSolanaAddress?: string;
-      /**
-       * Optional calldata to call an arbitrary function on `toAddress`.
-       */
-      toCallData?: Hex;
-      /**
-       * The intent verb, such as "Pay", "Deposit", or "Purchase".
-       */
-      intent?: string;
-      /**
-       * Payment options. By default, all are enabled.
-       */
-      paymentOptions?: ExternalPaymentOptionsString[];
-      /**
-       * Preferred chain IDs. Assets on these chains will appear first.
-       */
-      preferredChains?: number[];
-      /**
-       * Preferred tokens. These appear first in the token list.
-       */
-      preferredTokens?: { chain: number; address: Address }[];
-      /**
-       * Only allow payments on these EVM chains.
-       */
-      evmChains?: number[];
-      /**
-       * External ID. E.g. a correlation ID.
-       */
-      externalId?: string;
-      /**
-       * Developer metadata. E.g. correlation ID.
-       * */
-      metadata?: RozoPayUserMetadata;
-      /**
-       * The address to refund to if the payment bounces.
-       */
-      refundAddress?: Address;
-    }
-  | {
-      /** The payment ID, generated via the Rozo Pay API. Replaces params above. */
-      payId: string;
-      /** Payment options. By default, all are enabled. */
-      paymentOptions?: ExternalPaymentOptionsString[];
-    };
-
-type PayButtonCommonProps = PayButtonPaymentProps & {
-  /** Called when user sends payment and transaction is seen on chain */
-  onPaymentStarted?: (event: PaymentStartedEvent) => void;
-  /** Called when destination transfer or call completes successfully */
-  onPaymentCompleted?: (event: PaymentCompletedEvent) => void;
-  /** Called when destination call reverts and funds are refunded */
-  onPaymentBounced?: (event: PaymentBouncedEvent) => void;
-  /** Called when payout completes */
-  onPayoutCompleted?: (event: PaymentPayoutCompletedEvent) => void;
-  /** Called when the modal is opened. */
-  onOpen?: () => void;
-  /** Called when the modal is closed. */
-  onClose?: () => void;
-  /** Open the modal by default. */
-  defaultOpen?: boolean;
-  /** Automatically close the modal after a successful payment. */
-  closeOnSuccess?: boolean;
-  /** Reset the payment after a successful payment. */
-  resetOnSuccess?: boolean;
-  /** Go directly to tokens in already-connected Ethereum and Solana wallet(s).
-   * Don't let the user pick any other payment method. Used in embedded flows.*/
-  connectedWalletOnly?: boolean;
-  /** Custom message to display on confirmation page. */
-  confirmationMessage?: string;
-  /** Redirect URL to return to the app. E.g. after Coinbase, Binance, RampNetwork. */
-  redirectReturnUrl?: string;
-  /** Optional configuration to show processing pay out loading when payment completed */
-  showProcessingPayout?: boolean;
-};
-
-export type RozoPayButtonProps = PayButtonCommonProps & {
-  /** Light mode, dark mode, or auto. */
-  mode?: Mode;
-  /** Named theme. See docs for options. */
-  theme?: Theme;
-  /** Custom theme. See docs for options. */
-  customTheme?: CustomTheme;
-  /** Disable interaction. */
-  disabled?: boolean;
-};
-
-export type RozoPayButtonCustomProps = PayButtonCommonProps & {
-  /** Custom renderer */
-  children: (renderProps: {
-    show: () => void;
-    hide: () => void;
-  }) => ReactElement;
-};
+import { RozoPayButtonCustomProps, RozoPayButtonProps } from "./types";
 
 /**
  * A button that shows the Rozo Pay checkout. Replaces the traditional
@@ -199,68 +76,94 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
       paymentOptions: props.paymentOptions,
       preferredChains: props.preferredChains,
       preferredTokens: props.preferredTokens,
-      evmChains: props.evmChains,
+      // evmChains: props.evmChains,
       metadata: props.metadata,
     });
   }, [
     "appId" in props && props.paymentOptions,
     "appId" in props && props.preferredChains,
     "appId" in props && props.preferredTokens,
-    "appId" in props && props.evmChains,
+    // "appId" in props && props.evmChains,
     "appId" in props && props.metadata,
   ]);
 
   const { payParams, payId } = useMemo(() => {
     if ("appId" in props) {
+      const isEvm = isEvmChain(props.toChain);
+
+      // Extract common props
       const {
         appId,
         toChain,
         toAddress,
-        toStellarAddress,
-        toSolanaAddress,
         toToken,
         toUnits,
-        toCallData,
         intent,
         paymentOptions,
         preferredChains,
         preferredTokens,
-        evmChains,
+        feeType,
+        // evmChains,
         externalId,
         metadata,
-        refundAddress,
-        showProcessingPayout,
       } = props;
 
-      return {
-        payParams: {
-          appId,
-          toChain,
-          toAddress,
-          toStellarAddress,
-          toSolanaAddress,
-          toToken,
-          toUnits,
-          toCallData,
-          intent,
-          paymentOptions,
-          preferredChains,
-          preferredTokens,
-          evmChains,
-          externalId,
-          metadata,
-          refundAddress,
-          showProcessingPayout,
-        } as PayParams,
-        payId: null,
-      };
-    }
+      if (isEvm) {
+        // EVM-specific props (TypeScript knows toCallData and refundAddress exist)
+        // const evmProps = props as CommonPaymentProps & EvmChainProps;
 
-    if ("payId" in props) {
-      return {
-        payParams: null,
-        payId: props.payId,
-      };
+        return {
+          payParams: {
+            appId,
+            toChain,
+            toAddress, // Address type for EVM
+            toToken,
+            toUnits,
+            // toCallData: evmProps.toCallData,
+            toCallData: undefined,
+            intent,
+            paymentOptions,
+            preferredChains,
+            preferredTokens,
+            // evmChains,
+            evmChains: undefined,
+            externalId,
+            metadata,
+            // refundAddress: evmProps.refundAddress,
+            refundAddress: undefined,
+            showProcessingPayout: props.showProcessingPayout,
+            feeType,
+          } as PayParams,
+          payId: null,
+        };
+      } else {
+        // Non-EVM: Route to appropriate address field
+        const isSolana = isSolanaChain(toChain);
+        const isStellar = isStellarChain(toChain);
+
+        return {
+          payParams: {
+            appId,
+            toChain,
+            toAddress: getAddress("0x0000000000000000000000000000000000000000"),
+            toSolanaAddress: isSolana ? toAddress : undefined, // string type for Solana
+            toStellarAddress: isStellar ? toAddress : undefined, // string type for Stellar
+            toToken,
+            toUnits,
+            intent,
+            paymentOptions,
+            preferredChains,
+            preferredTokens,
+            // evmChains,
+            evmChains: undefined,
+            externalId,
+            metadata,
+            showProcessingPayout: props.showProcessingPayout,
+            feeType,
+          } as PayParams,
+          payId: null,
+        };
+      }
     }
 
     return { payParams: null, payId: null };
@@ -273,14 +176,17 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
           props.appId,
           props.toChain,
           props.toAddress,
-          props.toStellarAddress,
-          props.toSolanaAddress,
           props.toToken,
           props.toUnits,
-          props.toCallData,
+          // Include EVM-specific props if they exist
+          isEvmChain(props.toChain) &&
+            "toCallData" in props &&
+            props.toCallData,
+          isEvmChain(props.toChain) &&
+            "refundAddress" in props &&
+            props.refundAddress,
           props.intent,
           props.externalId,
-          props.refundAddress,
           props.showProcessingPayout,
           objectPropsKey, // Single dependency for all object/array props
         ]
@@ -298,12 +204,51 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   } = useRozoPay();
 
   const isToStellar = useMemo(() => {
-    return payParams?.toStellarAddress != null;
-  }, [payParams?.toStellarAddress]);
+    if (!payParams) return false;
+    return isStellarChain(payParams.toChain);
+  }, [payParams?.toChain]);
 
   const isToSolana = useMemo(() => {
-    return payParams?.toSolanaAddress != null;
-  }, [payParams?.toSolanaAddress]);
+    if (!payParams) return false;
+    return isSolanaChain(payParams.toChain);
+  }, [payParams?.toChain]);
+
+  // Store validation error ref
+  const validationErrorRef = useRef<any>(null);
+
+  // Validate address format matches chain type and chain/token support
+  useEffect(() => {
+    if ("appId" in props && props.toAddress) {
+      const isValid = validateAddressForChain(props.toChain, props.toAddress);
+
+      if (!isValid) {
+        const chainName = getChainTypeName(props.toChain);
+        console.error(
+          `[RozoPayButton] Invalid address format for ${chainName} (chain ${props.toChain}). ` +
+            `Received: ${props.toAddress}. ` +
+            `Expected format: ${
+              isEvmChain(props.toChain)
+                ? "0x... (EVM address)"
+                : isSolanaChain(props.toChain)
+                ? "Base58 encoded address (32-44 chars)"
+                : "G... (Stellar address, 56 chars)"
+            }`
+        );
+      }
+
+      // Validate chain and token support for payouts
+      const validationError = validatePayoutToken(props.toChain, props.toToken);
+
+      if (validationError) {
+        console.error(
+          `[RozoPayButton] Validation error: ${validationError.message}`
+        );
+        validationErrorRef.current = validationError;
+      } else {
+        validationErrorRef.current = null;
+      }
+    }
+  }, [props]);
 
   // Track previous values to prevent unnecessary API calls
   const prevPayIdRef = useRef<string | null>(null);
@@ -367,6 +312,19 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   const { children, closeOnSuccess, resetOnSuccess, connectedWalletOnly } =
     props;
   const show = useCallback(() => {
+    // Check for validation errors before showing payment
+    if (validationErrorRef.current) {
+      context.log(
+        "[RozoPayButton] Validation error detected, showing error page",
+        validationErrorRef.current
+      );
+      context.setOpen(true);
+      context.setRoute(ROUTES.ERROR, {
+        validationError: validationErrorRef.current,
+      });
+      return;
+    }
+
     const modalOptions = {
       closeOnSuccess,
       resetOnSuccess,

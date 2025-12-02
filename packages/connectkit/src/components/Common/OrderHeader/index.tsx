@@ -6,10 +6,10 @@ import { useAccount } from "wagmi";
 import {
   Base,
   BinanceSmartChain,
+  Ethereum,
   Polygon,
   Solana,
   Stellar,
-  Worldchain,
 } from "../../../assets/chains";
 import defaultTheme from "../../../constants/defaultTheme";
 import { ROUTES } from "../../../constants/routes";
@@ -149,12 +149,13 @@ export const OrderHeader = ({
         </MinifiedContainer>
       );
     } else {
-      // return (
-      //   <MinifiedContainer>
-      //     <CoinLogos $exclude={excludeLogos} />
-      //     <Subtitle>1000+ tokens accepted</Subtitle>
-      //   </MinifiedContainer>
-      // );
+      return (
+        <>
+          {titleAmountContent && (
+            <TitleAmount>{titleAmountContent}</TitleAmount>
+          )}
+        </>
+      );
     }
   } else {
     return (
@@ -179,25 +180,17 @@ function CoinLogos({
   appId?: string;
 }) {
   const logos = [
-    // <Ethereum key="eth" />,
     // <Tron key="tron" />,
     // <USDC key="usdc" />,
     // <Optimism key="optimism" />,
     // <Arbitrum key="arbitrum" />,
     <Base key="base" />,
+    <Ethereum key="ethereum" />,
+    <BinanceSmartChain key="bsc" />,
     <Polygon key="polygon" />,
+    <Solana key="solana" />,
+    <Stellar key="stellar" />,
   ];
-
-  if (appId?.includes("MP")) {
-    logos.push(<BinanceSmartChain key="bsc" />);
-  }
-
-  if (appId?.toLowerCase().includes("world")) {
-    logos.push(<Worldchain key="worldchain" />);
-  }
-
-  logos.push(<Solana key="solana" />);
-  logos.push(<Stellar key="stellar" />);
 
   const logoBlock = (element: React.ReactElement, index: number) => (
     <LogoContainer

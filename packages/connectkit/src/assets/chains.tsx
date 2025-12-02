@@ -8,6 +8,7 @@ import {
   mantle,
   optimism,
   polygon,
+  rozoSolana,
   rozoStellar,
   solana,
   stellar,
@@ -534,6 +535,7 @@ export const chainToLogo = {
   [polygon.chainId]: <Polygon />,
   [worldchain.chainId]: <Worldchain />,
   [solana.chainId]: <Solana />,
+  [rozoSolana.chainId]: <Solana />,
   [stellar.chainId]: <Stellar />,
   [rozoStellar.chainId]: <Stellar />,
 };

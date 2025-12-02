@@ -1,3 +1,4 @@
+import { getChainById } from "../chain";
 import { ApiResponse } from "./base";
 
 /**
@@ -27,8 +28,9 @@ export interface FeeErrorData {
  * Fee request parameters
  */
 export interface GetFeeParams {
+  appId: string;
   amount: number;
-  appId?: string;
+  toChain: number;
   currency?: string;
 }
 
@@ -40,13 +42,17 @@ export interface GetFeeParams {
 export const getFee = async (
   params: GetFeeParams
 ): Promise<ApiResponse<FeeResponseData>> => {
-  const { amount, appId = "rozodemo", currency = "USDC" } = params;
+  const { amount, appId, currency = "USDC", toChain } = params;
 
   try {
+    const chain = getChainById(toChain);
+    const toChainName = chain.name.toLowerCase();
+
     const queryParams = new URLSearchParams({
       amount: amount.toString(),
       appId,
       currency,
+      tochain: toChainName,
     });
 
     const response = await fetch(

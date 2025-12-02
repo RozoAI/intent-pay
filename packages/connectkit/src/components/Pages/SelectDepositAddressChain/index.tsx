@@ -27,11 +27,12 @@ const SelectDepositAddressChain: React.FC = () => {
         minified
         excludeLogos={[
           "tron",
-          "eth",
           "arbitrum",
           "optimism",
-          "solana",
           "stellar",
+          "polygon",
+          "worldchain",
+          "bsc",
         ]}
       />
 
@@ -56,31 +57,29 @@ const SelectDepositAddressChain: React.FC = () => {
         isLoading={depositAddressOptions.loading}
         options={
           depositAddressOptions.options
-            ?.filter(
-              (option) =>
-                !option.id.toLowerCase().includes("tron") &&
-                !option.id.toLowerCase().includes("ethereum")
-            )
-            .map((option) => {
-              return {
-                id: option.id,
-                title: option.id,
-                icons: [option.logoURI],
-                disabled:
-                  option.minimumUsd > 0 &&
-                  order?.mode === RozoPayOrderMode.HYDRATED &&
-                  order.usdValue < option.minimumUsd,
-                onClick: () => {
-                  setSelectedDepositAddressOption(option as any);
-                  const meta = { event: "click-option", option: option.id };
-                  if (isDepositFlow) {
-                    setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_AMOUNT, meta);
-                  } else {
-                    setRoute(ROUTES.WAITING_DEPOSIT_ADDRESS, meta);
-                  }
-                },
-              };
-            }) ?? []
+            ?.filter((option) => !option.id.toLowerCase().includes("tron"))
+            .map((option) => ({
+              id: option.id,
+              title: option.id,
+              icons: [option.logoURI],
+              disabled:
+                option.minimumUsd <= 0 ||
+                (order?.mode === RozoPayOrderMode.HYDRATED &&
+                  order.usdValue < option.minimumUsd) ||
+                (order?.mode === RozoPayOrderMode.SALE &&
+                  order.destFinalCallTokenAmount.usd < option.minimumUsd),
+              onClick: () => {
+                setSelectedDepositAddressOption(option as any);
+                const meta = { event: "click-option", option: option.id };
+                if (isDepositFlow) {
+                  setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_AMOUNT, meta);
+                } else {
+                  setRoute(ROUTES.WAITING_DEPOSIT_ADDRESS, meta);
+                }
+              },
+            }))
+            // sort: enabled (disabled: false) appear first, then disabled (disabled: true) after
+            .sort((a, b) => Number(a.disabled) - Number(b.disabled)) ?? []
         }
       />
       <PoweredByFooter />

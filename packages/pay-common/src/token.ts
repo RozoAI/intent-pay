@@ -1,11 +1,13 @@
-import { Address, getAddress, zeroAddress } from "viem";
+import { getAddress, zeroAddress } from "viem";
 import { assertNotNull } from "./assert";
 import {
   arbitrum,
+  avalanche,
   base,
   bsc,
   celo,
   ethereum,
+  gnosis,
   linea,
   mantle,
   optimism,
@@ -706,6 +708,16 @@ export const solanaUSDC: Token = token({
   logoURI: TokenLogo.USDC,
 });
 
+export const solanaUSDT: Token = token({
+  chainId: rozoSolana.chainId,
+  token: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+  decimals: 6,
+  fiatISO: "USD",
+  name: "Tether USD",
+  symbol: "USDT",
+  logoURI: TokenLogo.USDT,
+});
+
 export const rozoSolanaUSDC: Token = token({
   chainId: rozoSolana.chainId,
   token: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -716,11 +728,23 @@ export const rozoSolanaUSDC: Token = token({
   logoURI: TokenLogo.USDC,
 });
 
+export const rozoSolanaUSDT: Token = token({
+  chainId: rozoSolana.chainId,
+  token: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+  decimals: 6,
+  fiatISO: "USD",
+  name: "Tether USD",
+  symbol: "USDT",
+  logoURI: TokenLogo.USDT,
+});
+
 const solanaTokens: Token[] = [
   solanaUSDC,
   solanaWSOL,
   solanaSOL,
+  solanaUSDT,
   rozoSolanaUSDC,
+  rozoSolanaUSDT,
 ];
 
 //
@@ -748,8 +772,8 @@ export const stellarUSDC: Token = token({
 
 export const rozoStellarUSDC: Token = token({
   chainId: rozoStellar.chainId,
-  token: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
-  decimals: 6,
+  token: "USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+  decimals: 7,
   fiatISO: "USD",
   name: "USD Coin",
   symbol: "USDC",
@@ -809,20 +833,114 @@ const worldchainTokens: Token[] = [
   worldchainWLD,
 ];
 
-const knownTokensByChain = new Map<number, Token[]>([
-  [arbitrum.chainId, arbitrumTokens],
-  [base.chainId, baseTokens],
-  [bsc.chainId, bscTokens],
-  [celo.chainId, celoTokens],
-  [ethereum.chainId, ethereumTokens],
-  [linea.chainId, lineaTokens],
-  [mantle.chainId, mantleTokens],
-  [optimism.chainId, optimismTokens],
-  [polygon.chainId, polygonTokens],
-  [rozoSolana.chainId, solanaTokens],
-  [rozoStellar.chainId, stellarTokens],
-  [worldchain.chainId, worldchainTokens],
+//
+// Gnosis
+//
+
+export const gnosisXDAI = nativeToken({
+  chainId: gnosis.chainId,
+  name: "xDAI",
+  symbol: "XDAI",
+  logoURI: TokenLogo.DAI,
+});
+
+export const gnosisUSDC: Token = token({
+  chainId: gnosis.chainId,
+  token: getAddress("0x2a22f9c3b484c3629090feed35f17ff8f88f76f0"),
+  decimals: 6,
+  fiatISO: "USD",
+  name: "USD Coin",
+  symbol: "USDC",
+  logoURI: TokenLogo.USDC,
+});
+
+export const gnosisUSDT: Token = token({
+  chainId: gnosis.chainId,
+  token: getAddress("0x4ecaba5870353805a9f068101a40e0f32ed605c6"),
+  decimals: 6,
+  fiatISO: "USD",
+  name: "Tether USD",
+  symbol: "USDT",
+  logoURI: TokenLogo.USDT,
+});
+
+const gnosisTokens: Token[] = [gnosisXDAI, gnosisUSDC, gnosisUSDT];
+
+//
+// Avalanche
+//
+
+export const avalancheAVAX = nativeToken({
+  chainId: avalanche.chainId,
+  name: "Avalanche",
+  symbol: "AVAX",
+  logoURI: TokenLogo.AVAX,
+});
+
+export const avalancheUSDC: Token = token({
+  chainId: avalanche.chainId,
+  token: getAddress("0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"),
+  decimals: 6,
+  fiatISO: "USD",
+  name: "USD Coin",
+  symbol: "USDC",
+  logoURI: TokenLogo.USDC,
+});
+
+export const avalancheUSDT: Token = token({
+  chainId: avalanche.chainId,
+  token: getAddress("0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7"),
+  decimals: 6,
+  fiatISO: "USD",
+  name: "Tether USD",
+  symbol: "USDT",
+  logoURI: TokenLogo.USDT,
+});
+
+const avalancheTokens: Token[] = [avalancheAVAX, avalancheUSDC, avalancheUSDT];
+
+/** Support tokens for Rozo Pay */
+export const supportedTokens: Map<number, Token[]> = new Map([
+  [arbitrum.chainId, [arbitrumUSDC, arbitrumUSDT]],
+  // [avalanche.chainId, [avalancheUSDC, avalancheUSDT]],
+  [base.chainId, [baseUSDC]],
+  [bsc.chainId, [bscUSDC, bscUSDT]],
+  [ethereum.chainId, [ethereumUSDC, ethereumUSDT]],
+  // [gnosis.chainId, [gnosisUSDC, gnosisUSDT]],
+  // [optimism.chainId, [optimismUSDC, optimismUSDT]],
+  [polygon.chainId, [polygonUSDC, polygonUSDT]],
+  // [worldchain.chainId, [worldchainUSDC]],
+
+  [solana.chainId, [solanaUSDC, solanaUSDT]],
+  [rozoSolana.chainId, [rozoSolanaUSDC, rozoSolanaUSDT]],
+  [rozoStellar.chainId, [rozoStellarUSDC]],
 ]);
+
+export const supportedPayoutTokens: Map<number, Token[]> = new Map([
+  [ethereum.chainId, [ethereumUSDC]],
+  [base.chainId, [baseUSDC]],
+  [polygon.chainId, [polygonUSDC]],
+  [solana.chainId, [solanaUSDC]],
+  [rozoSolana.chainId, [rozoSolanaUSDC]],
+  [rozoStellar.chainId, [rozoStellarUSDC]],
+]);
+
+// const knownTokensByChain = new Map<number, Token[]>([
+//   [arbitrum.chainId, arbitrumTokens],
+//   [avalanche.chainId, avalancheTokens],
+//   [base.chainId, baseTokens],
+//   [bsc.chainId, bscTokens],
+//   [celo.chainId, celoTokens],
+//   [ethereum.chainId, ethereumTokens],
+//   [gnosis.chainId, gnosisTokens],
+//   [linea.chainId, lineaTokens],
+//   [mantle.chainId, mantleTokens],
+//   [optimism.chainId, optimismTokens],
+//   [polygon.chainId, polygonTokens],
+//   [rozoSolana.chainId, solanaTokens],
+//   [rozoStellar.chainId, stellarTokens],
+//   [worldchain.chainId, worldchainTokens],
+// ]);
 
 /**
  * Common tokens, included for convenience.
@@ -830,9 +948,7 @@ const knownTokensByChain = new Map<number, Token[]>([
  * Rozo Pay supports payment in many more tokens. In general, the goal for
  * Pay is to accept all tokens with DEX liquidity on any major chain.
  */
-export const knownTokens: Token[] = Array.from(
-  knownTokensByChain.values()
-).flat();
+export const knownTokens: Token[] = Array.from(supportedTokens.values()).flat();
 
 /* --------------------- Tokens By Address --------------------- */
 
@@ -969,6 +1085,34 @@ const tokensByChainAndType: Map<
     },
   ],
   [
+    rozoSolana.chainId,
+    {
+      [TokenType.NATIVE]: solanaSOL,
+      [TokenType.NATIVE_USDC]: rozoSolanaUSDC,
+    },
+  ],
+  [
+    rozoStellar.chainId,
+    {
+      [TokenType.NATIVE]: stellarXLM,
+      [TokenType.NATIVE_USDC]: rozoStellarUSDC,
+    },
+  ],
+  [
+    gnosis.chainId,
+    {
+      [TokenType.NATIVE]: gnosisXDAI,
+      [TokenType.NATIVE_USDC]: gnosisUSDC,
+    },
+  ],
+  [
+    avalanche.chainId,
+    {
+      [TokenType.NATIVE]: avalancheAVAX,
+      [TokenType.NATIVE_USDC]: avalancheUSDC,
+    },
+  ],
+  [
     worldchain.chainId,
     {
       [TokenType.NATIVE]: worldchainETH,
@@ -1062,7 +1206,7 @@ export function token({
   logoURI,
 }: {
   chainId: number;
-  token: Address | string;
+  token: string;
   name: string;
   symbol: string;
   decimals: number;

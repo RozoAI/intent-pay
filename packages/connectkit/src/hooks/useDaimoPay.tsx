@@ -59,7 +59,7 @@ type RozoPayFunctions = {
    * token swap prices.
    */
   hydrateOrder: (
-    refundAddress?: Address,
+    refundAddress?: string,
     walletPaymentOption?: WalletPaymentOption
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
@@ -68,7 +68,7 @@ type RozoPayFunctions = {
    * This is used for Rozo payments.
    */
   hydrateOrderRozo: (
-    refundAddress?: Address,
+    refundAddress?: string,
     walletPaymentOption?: WalletPaymentOption
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
