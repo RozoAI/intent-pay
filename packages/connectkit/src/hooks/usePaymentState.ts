@@ -13,8 +13,10 @@ import {
   ExternalPaymentOptionMetadata,
   ExternalPaymentOptions,
   ExternalPaymentOptionsString,
+  FeeType,
   formatPaymentResponseToHydratedOrder,
   generateEVMDeepLink,
+  generateIntentTitle,
   getChainById,
   mergedMetadata,
   PaymentResponse,
@@ -169,7 +171,6 @@ export interface PaymentState {
   payWithSolanaTokenRozo: (
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
-      tokenAddress: string;
       destAddress: string;
       usdcAmount: string;
       memo?: string;
@@ -180,7 +181,6 @@ export interface PaymentState {
     rozoPayment: {
       destAddress: string;
       usdcAmount: string;
-      stellarAmount: string;
       memo?: string;
     }
   ) => Promise<{ signedTx: string; success: boolean }>;
@@ -461,14 +461,26 @@ export function usePaymentState({
       }
 
       const appId = payParams?.appId ?? DEFAULT_ROZO_APP_ID;
+      const feeType = payParams?.feeType ?? FeeType.ExactIn;
       const toChain = payParams.toChain;
       const toToken = payParams.toToken;
       const toUnits = payParams.toUnits;
       const preferredChain = walletOption.required.token.chainId;
       const preferredTokenAddress = walletOption.required.token.token;
 
+      log?.("[handleCreateRozoPayment]");
       const payload: CreateNewPaymentParams = {
         apiVersion: "v2",
+        title:
+          payParams?.intent ??
+          payParams?.metadata?.intent ??
+          generateIntentTitle({
+            toChainId: toChain,
+            toTokenAddress: toToken,
+            preferredChainId: preferredChain,
+            preferredTokenAddress: preferredTokenAddress,
+          }),
+        type: feeType,
         appId,
         toChain,
         toToken,
@@ -480,6 +492,9 @@ export function usePaymentState({
           ...(payParams?.metadata ?? {}),
         }),
       };
+      log?.(
+        `[handleCreateRozoPayment] payload: ${JSON.stringify(payload, null, 2)}`
+      );
       const response = await createPayment(payload);
 
       if (!response?.id) {
@@ -680,7 +695,6 @@ export function usePaymentState({
   const payWithSolanaTokenRozo = async (
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
-      tokenAddress: string;
       destAddress: string;
       usdcAmount: string;
       memo?: string;
@@ -712,7 +726,9 @@ export function usePaymentState({
       const instructions: TransactionInstruction[] = [];
 
       // Set up token addresses
-      const mintAddress = new PublicKey(rozoPayment.tokenAddress ?? "");
+      const mintAddress = new PublicKey(
+        walletPaymentOption.required.token.token
+      );
       const fromKey = new PublicKey(payerPublicKey);
       const toKey = new PublicKey(rozoPayment.destAddress);
 
@@ -834,7 +850,6 @@ export function usePaymentState({
     rozoPayment: {
       destAddress: string;
       usdcAmount: string;
-      stellarAmount: string;
       memo?: string;
     }
   ): Promise<{ signedTx: string; success: boolean }> => {
@@ -852,8 +867,6 @@ export function usePaymentState({
         throw new Error("Stellar services not initialized");
       }
 
-      const token = walletPaymentOption.required.token;
-
       const destinationAddress = rozoPayment.destAddress;
       const issuer = rozoStellarUSDC.token.split(":")[1];
 
@@ -863,42 +876,19 @@ export function usePaymentState({
       const destAsset = new Asset("USDC", issuer);
       const fee = String(await stellarServer.fetchBaseFee());
 
-      // Build transaction based on token type
-      let transaction: TransactionBuilder;
-      const isXlmToken = token.symbol === "XLM";
-
-      if (isXlmToken) {
-        // const estimatedDestMinAmount = await convertXlmToUsdc(amount);
-        transaction = new TransactionBuilder(sourceAccount, {
-          fee,
-          networkPassphrase: Networks.PUBLIC,
-        })
-          .addOperation(
-            Operation.pathPaymentStrictSend({
-              sendAsset: Asset.native(),
-              sendAmount: String(rozoPayment.stellarAmount),
-              destination: destinationAddress,
-              destAsset,
-              destMin: rozoPayment.usdcAmount,
-              path: [],
-            })
-          )
-          .setTimeout(180);
-      } else {
-        // For other tokens, use direct payment
-        transaction = new TransactionBuilder(sourceAccount, {
-          fee,
-          networkPassphrase: Networks.PUBLIC,
-        })
-          .addOperation(
-            Operation.payment({
-              destination: destinationAddress,
-              asset: destAsset,
-              amount: String(rozoPayment.usdcAmount),
-            })
-          )
-          .setTimeout(180);
-      }
+      // Build transaction
+      const transaction = new TransactionBuilder(sourceAccount, {
+        fee,
+        networkPassphrase: Networks.PUBLIC,
+      })
+        .addOperation(
+          Operation.payment({
+            destination: destinationAddress,
+            asset: destAsset,
+            amount: String(rozoPayment.usdcAmount),
+          })
+        )
+        .setTimeout(180);
 
       if (rozoPayment.memo) {
         transaction.addMemo(Memo.text(String(rozoPayment.memo)));

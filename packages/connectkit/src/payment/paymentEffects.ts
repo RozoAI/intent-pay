@@ -102,6 +102,12 @@ export function attachPaymentEffectHandlers(
           runHydratePayParamsEffects(store, trpc, prev, event, log);
         } else if (prev.type === "unhydrated") {
           runHydratePayIdEffects(store, trpc, prev, event);
+        } else if (prev.type === "payment_started") {
+          // Order is already hydrated in payment_started state, no effect needed
+          // This can happen when user goes back and selects the same payment method again
+          log(
+            `[EFFECT] skipping ${event.type} on state ${prev.type} - order already hydrated`
+          );
         } else {
           log(`[EFFECT] invalid event ${event.type} on state ${prev.type}`);
         }

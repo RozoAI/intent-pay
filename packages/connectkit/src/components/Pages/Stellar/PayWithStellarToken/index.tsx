@@ -25,7 +25,6 @@ import {
 import { useRozoPay } from "../../../../hooks/useDaimoPay";
 import { useStellarDestination } from "../../../../hooks/useStellarDestination";
 import { useStellar } from "../../../../provider/StellarContextProvider";
-import { roundTokenAmount } from "../../../../utils/format";
 import { getSupportUrl } from "../../../../utils/supportUrl";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
@@ -45,7 +44,7 @@ const PayWithStellarToken: React.FC = () => {
   const { triggerResize, paymentState, setRoute, log } = usePayContext();
   const {
     selectedStellarTokenOption,
-    payWithStellarToken: payWithStellarTokenImpl,
+    payWithStellarToken,
     setTxHash,
     payParams,
     rozoPaymentId,
@@ -108,6 +107,9 @@ const PayWithStellarToken: React.FC = () => {
 
       if (state === "payment_unpaid" && !needRozoPayment) {
         hydratedOrder = order;
+      } else if (state === "payment_started" && !needRozoPayment) {
+        // Already in payment_started state, reuse existing order
+        hydratedOrder = order;
       } else if (needRozoPayment) {
         const res = await createPayment(option, store as any);
 
@@ -130,28 +132,34 @@ const PayWithStellarToken: React.FC = () => {
       const newId = paymentId ?? hydratedOrder.externalId;
       if (newId) {
         setRozoPaymentId(newId);
-        setPaymentStarted(String(newId), hydratedOrder);
+
+        // Handle payment state transitions
+        if (paymentId && state === "payment_started") {
+          // A new payment was created while in payment_started state (e.g., user switched chains)
+          // First transition back to payment_unpaid, then to payment_started with new order
+          await setPaymentUnpaid(rozoPaymentId!);
+          await setPaymentStarted(String(newId), hydratedOrder);
+        } else if (state !== "payment_started") {
+          // Normal flow: transition to payment_started
+          await setPaymentStarted(String(newId), hydratedOrder);
+        }
+        // If state === "payment_started" && !paymentId, we're reusing the same order, no state change needed
       }
 
       setPayState(PayState.RequestingPayment);
 
       const paymentData = {
-        destAddress:
-          (hydratedOrder.destFinalCall.to as string) || destinationAddress,
-        usdcAmount: String(hydratedOrder.destFinalCallTokenAmount.usd),
-        stellarAmount: roundTokenAmount(
-          hydratedOrder.destFinalCallTokenAmount.amount,
-          hydratedOrder.destFinalCallTokenAmount.token
-        ),
+        destAddress: hydratedOrder.intentAddr || destinationAddress,
+        usdcAmount: String(hydratedOrder.usdValue),
       };
 
-      if (hydratedOrder.metadata?.memo) {
+      if (hydratedOrder.memo) {
         Object.assign(paymentData, {
-          memo: hydratedOrder.metadata.memo as string,
+          memo: hydratedOrder.memo,
         });
       }
 
-      const result = await payWithStellarTokenImpl(option, paymentData);
+      const result = await payWithStellarToken(option, paymentData);
       setSignedTx(result.signedTx);
       setPayState(PayState.WaitingForConfirmation);
     } catch (error) {

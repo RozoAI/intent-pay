@@ -422,7 +422,7 @@ export async function createPayment(
   };
 
   if (apiVersion === "v2") {
-    paymentData.display.intent = title;
+    paymentData.display.intent = title ?? "Pay";
     paymentData.destination.amountUnits = destination.amountUnits;
     paymentData.destination.destinationAddress = destinationAddress;
     paymentData.preferredToken = sourceToken.symbol;

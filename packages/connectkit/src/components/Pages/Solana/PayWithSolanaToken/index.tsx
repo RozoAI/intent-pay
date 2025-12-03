@@ -37,7 +37,7 @@ const PayWithSolanaToken: React.FC = () => {
   const { triggerResize, paymentState, setRoute, log } = usePayContext();
   const {
     selectedSolanaTokenOption,
-    payWithSolanaTokenRozo: payWithSolanaTokenImpl,
+    payWithSolanaTokenRozo,
     payParams,
     rozoPaymentId,
     setRozoPaymentId,
@@ -107,19 +107,20 @@ const PayWithSolanaToken: React.FC = () => {
 
         if (state === "payment_unpaid" && !needRozoPayment) {
           hydratedOrder = order;
+        } else if (state === "payment_started" && !needRozoPayment) {
+          // Already in payment_started state, reuse existing order
+          hydratedOrder = order;
         } else if (needRozoPayment) {
           const res = await createPayment(option, store as any);
 
           if (!res) {
             throw new Error("Failed to create Rozo payment");
           }
-          console.log({ res });
           paymentId = res.id;
           hydratedOrder = formatPaymentResponseToHydratedOrder(res);
         } else {
           // Hydrate existing order
           const res = await hydrateOrderRozo(undefined, option);
-          console.log({ hydrateOrderRozo: res });
           hydratedOrder = res.order;
         }
 
@@ -130,15 +131,23 @@ const PayWithSolanaToken: React.FC = () => {
         const newId = paymentId ?? hydratedOrder.externalId;
         if (newId) {
           setRozoPaymentId(newId);
-          setPaymentStarted(String(newId), hydratedOrder);
+
+          // Handle payment state transitions
+          if (paymentId && state === "payment_started") {
+            // A new payment was created while in payment_started state (e.g., user switched chains)
+            // First transition back to payment_unpaid, then to payment_started with new order
+            await setPaymentUnpaid(rozoPaymentId!);
+            await setPaymentStarted(String(newId), hydratedOrder);
+          } else if (state !== "payment_started") {
+            // Normal flow: transition to payment_started
+            await setPaymentStarted(String(newId), hydratedOrder);
+          }
+          // If state === "payment_started" && !paymentId, we're reusing the same order, no state change needed
         }
 
         setPayState(PayState.RequestingPayment);
 
-        console.log({ hydratedOrder });
-
         const paymentData = {
-          tokenAddress: required.token.token,
           destAddress: hydratedOrder.intentAddr || destinationAddress,
           usdcAmount: String(hydratedOrder.usdValue),
         };
@@ -151,7 +160,7 @@ const PayWithSolanaToken: React.FC = () => {
 
         log("[PAY SOLANA] Rozo payment:", { paymentData });
 
-        const result = await payWithSolanaTokenImpl(option, paymentData);
+        const result = await payWithSolanaTokenRozo(option, paymentData);
         log(
           "[PAY SOLANA] Result",
           result,

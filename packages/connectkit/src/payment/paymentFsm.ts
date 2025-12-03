@@ -332,6 +332,10 @@ function reducePaymentStarted(
   event: PaymentEvent
 ): PaymentState {
   switch (event.type) {
+    case "hydrate_order":
+      // Order is already hydrated in payment_started state, so this is a no-op
+      // This can happen when user goes back and selects the same payment method again
+      return state;
     case "order_refreshed":
       return getStateFromHydratedOrder(state, event.order);
     case "error":
