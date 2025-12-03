@@ -1,7 +1,7 @@
 import { createPaymentBridgeConfig } from "../bridge-utils";
 import { getChainById } from "../chain";
 import { getKnownToken } from "../token";
-import { apiClient, ApiResponse } from "./base";
+import { apiClient, ApiResponse, ApiVersion, setApiConfig } from "./base";
 
 /**
  * FeeType, Fee calculation type:
@@ -301,6 +301,8 @@ export interface CreateNewPaymentParams {
   webhookSecret?: string;
   /** Memo for Stellar/Solana destinations */
   receiverMemo?: string;
+  /** API version to use (v2 or v4). Defaults to v4 */
+  apiVersion?: ApiVersion;
 }
 
 /**
@@ -347,7 +349,13 @@ export async function createPayment(
     webhookUrl,
     webhookSecret,
     receiverMemo,
+    apiVersion,
   } = params;
+
+  // Set API version if provided
+  if (apiVersion) {
+    setApiConfig({ version: apiVersion });
+  }
 
   // Create payment bridge configuration
   const { preferred, destination } = createPaymentBridgeConfig({
@@ -365,11 +373,13 @@ export async function createPayment(
     Number(preferred.preferredChain),
     preferred.preferredTokenAddress
   );
+
   const destinationChain = getChainById(Number(destination.chainId));
   const destinationToken = getKnownToken(
     Number(destination.chainId),
     destination.tokenAddress
   );
+  const destinationAddress = destination.destinationAddress ?? toAddress;
 
   if (!sourceToken || !destinationToken) {
     throw new Error("Source or destination token not found");
@@ -390,7 +400,7 @@ export async function createPayment(
     },
     destination: {
       chainId: destinationChain.chainId,
-      receiverAddress: destination.destinationAddress ?? toAddress,
+      receiverAddress: destinationAddress,
       tokenSymbol: destinationToken.symbol,
       amount: destination.amountUnits,
       ...(destination.tokenAddress
@@ -403,10 +413,22 @@ export async function createPayment(
       title: title ?? "Pay",
       ...(description ? { description } : {}),
     },
-    ...(metadata ? { metadata } : {}),
+    metadata: {
+      ...(metadata ?? {}),
+      appId,
+    },
     ...(webhookUrl ? { webhookUrl } : {}),
     ...(webhookSecret ? { webhookSecret } : {}),
   };
+
+  if (apiVersion === "v2") {
+    paymentData.display.intent = title;
+    paymentData.destination.amountUnits = destination.amountUnits;
+    paymentData.destination.destinationAddress = destinationAddress;
+    paymentData.preferredToken = sourceToken.symbol;
+    paymentData.preferredChain = preferred.preferredChain;
+    paymentData.preferredTokenAddress = preferred.preferredTokenAddress;
+  }
 
   // Create payment via API
   const response = await apiClient.post<PaymentResponse>(
@@ -424,10 +446,25 @@ export async function createPayment(
 /**
  * Gets payment details by ID using the new backend API
  * @param paymentId - Payment ID
+ * @param apiVersion - Optional API version to use (v2 or v4). Defaults to v4
  * @returns Promise with payment response
  */
 export const getPayment = (
-  paymentId: string
+  paymentId: string,
+  apiVersion?: ApiVersion
 ): Promise<ApiResponse<PaymentResponse>> => {
+  // Set API version if provided
+  if (apiVersion) {
+    setApiConfig({ version: apiVersion });
+  }
+
+  if (apiVersion === "v2") {
+    const isMugglePay = paymentId.includes("mugglepay_order");
+    const endpoint = isMugglePay
+      ? `/payment-api/${paymentId}`
+      : `/payment/id/${paymentId}`;
+    return apiClient.get<PaymentResponse>(endpoint);
+  }
+
   return apiClient.get<PaymentResponse>(`/payment-api/payments/${paymentId}`);
 };

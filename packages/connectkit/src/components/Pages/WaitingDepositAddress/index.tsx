@@ -176,7 +176,7 @@ export default function WaitingDepositAddress() {
           depAddr?.externalId
         );
         const isMugglePay = depAddr?.externalId.includes("mugglepay_order");
-        const response = await getPayment(depAddr?.externalId);
+        const response = await getPayment(depAddr?.externalId, "v2");
 
         context.log("[PAYMENT POLLING] Debug - API Response:", {
           status: response.status,

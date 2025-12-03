@@ -395,6 +395,7 @@ async function runHydratePayParamsEffects(
   try {
     log?.("[Payment Effect]: createRozoPayment");
     const payload: CreateNewPaymentParams = {
+      apiVersion: "v2",
       appId: payParams?.appId ?? DEFAULT_ROZO_APP_ID,
       title:
         payParams?.metadata?.intent ??
@@ -479,7 +480,7 @@ async function runHydratePayIdEffects(
     //   refundAddress: event.refundAddress,
     // });
 
-    const orderData = await getPayment(order.id.toString());
+    const orderData = await getPayment(order.id.toString(), "v2");
     if (!orderData?.data) {
       throw new Error("Order not found");
     }

@@ -195,11 +195,6 @@ export type RozoPayHydratedOrder = {
   // escrowContractAddress: string | null;
   /** Nullable because old intents don't record bridger address. */
   // bridgerContractAddress: string | null;
-  /** @deprecated included for backcompat with old versions. Remove soon. */
-  // handoffAddr: string;
-  // bridgeTokenOutOptions: RozoPayTokenAmount[];
-  // selectedBridgeTokenOutAddr: string | null;
-  // selectedBridgeTokenOutAmount: bigint | null;
   destFinalCallTokenAmount: RozoPayTokenAmount;
   destFinalCall: OnChainCall;
   usdValue: number;
@@ -225,6 +220,11 @@ export type RozoPayHydratedOrder = {
   expirationTs: bigint | null;
   memo?: string | null;
   payoutTransactionHash?: string | null;
+  /** @deprecated included for backcompat with old versions. Remove soon. */
+  // handoffAddr: string;
+  // bridgeTokenOutOptions: RozoPayTokenAmount[];
+  // selectedBridgeTokenOutAddr: string | null;
+  // selectedBridgeTokenOutAmount: bigint | null;
 };
 
 export type RozoPayOrderWithOrg = RozoPayOrder & {

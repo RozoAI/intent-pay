@@ -23,7 +23,7 @@ const ConnectSolana: React.FC = () => {
   const { setTokenMode } = paymentState;
 
   const selectedWallet = solanaWallets.wallets.find(
-    (wallet) => wallet.adapter.name === solanaConnector,
+    (wallet) => wallet.adapter.name === solanaConnector
   );
 
   // Prefer icon from walletConfigs if available

@@ -1,5 +1,5 @@
 import { getChainById } from "../chain";
-import { ApiResponse } from "./base";
+import { ApiResponse, ApiVersion, setApiConfig } from "./base";
 
 /**
  * Fee response data type (success case)
@@ -32,6 +32,8 @@ export interface GetFeeParams {
   amount: number;
   toChain: number;
   currency?: string;
+  /** API version to use (v2 or v4). Defaults to v4 */
+  apiVersion?: ApiVersion;
 }
 
 /**
@@ -42,7 +44,12 @@ export interface GetFeeParams {
 export const getFee = async (
   params: GetFeeParams
 ): Promise<ApiResponse<FeeResponseData>> => {
-  const { amount, appId, currency = "USDC", toChain } = params;
+  const { amount, appId, currency = "USDC", toChain, apiVersion } = params;
+
+  // Set API version if provided
+  if (apiVersion) {
+    setApiConfig({ version: apiVersion });
+  }
 
   try {
     const chain = getChainById(toChain);

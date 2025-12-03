@@ -86,14 +86,20 @@ export const RozoPayModal: React.FC<{
   } = paymentState;
   const { paymentState: paymentFsmState } = useRozoPay();
 
+  // EVM
   const {
     isConnected: isEthConnected,
     connector,
     chain,
     address,
   } = useAccount();
+
+  // Solana
   const { connected: isSolanaConnected } = useWallet();
+
+  // Stellar
   const { isConnected: isStellarConnected } = useStellar();
+
   const chainIsSupported = useChainIsSupported(chain?.id);
 
   //if chain is unsupported we enforce a "switch chain" prompt

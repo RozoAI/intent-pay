@@ -294,7 +294,15 @@ export function formatPaymentResponseToHydratedOrder(
   order: PaymentResponse
 ): RozoPayHydratedOrderWithOrg {
   // Source amount is in the same units as the destination amount without fee
-  const sourceAmountUnits = order.source?.amount ?? "0";
+  const sourceAmountUnits =
+    order.source?.amount ?? order.destination?.amountUnits ?? "0";
+
+  // Destination Intent Address
+  const intentAddress =
+    order.metadata?.receivingAddress ?? order.source?.receiverAddress;
+
+  // Destination Intent Memo
+  const intentMemo = order.metadata?.memo ?? order.source?.receiverMemo;
 
   // Destination address is where the payment will be received
   const destAddress = order.source?.receiverAddress;
@@ -312,13 +320,14 @@ export function formatPaymentResponseToHydratedOrder(
   return {
     id: BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)),
     mode: RozoPayOrderMode.HYDRATED,
-    intentAddr: destAddress ?? "",
+    intentAddr: intentAddress ?? "",
+    memo: intentMemo ?? null,
     destFinalCallTokenAmount: {
       token: {
         chainId: token ? token.chainId : baseUSDC.chainId,
         token: token ? token.token : baseUSDC.token,
         symbol: token ? token.symbol : baseUSDC.symbol,
-        usd: 1,
+        usd: Number(sourceAmountUnits),
         priceFromUsd: 1,
         decimals: token ? token.decimals : baseUSDC.decimals,
         displayDecimals: 2,
@@ -355,8 +364,8 @@ export function formatPaymentResponseToHydratedOrder(
     orgId: order.orgId ?? "",
     metadata: {
       ...(order?.metadata ?? {}),
-      receivingAddress: order.source?.receiverAddress,
-      memo: order.source?.receiverMemo ?? null,
+      receivingAddress: intentAddress ?? "",
+      memo: intentMemo ?? null,
     } as any,
     externalId: order.externalId ?? null,
     userMetadata: order.userMetadata as RozoPayUserMetadata | null,

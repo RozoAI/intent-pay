@@ -194,7 +194,7 @@ const Confirmation: React.FC = () => {
             "[CONFIRMATION] Polling for payout transaction:",
             rozoPaymentId
           );
-          const response = await getPayment(rozoPaymentId);
+          const response = await getPayment(rozoPaymentId, "v2");
           context.log("[CONFIRMATION] Payout polling response:", response.data);
 
           if (

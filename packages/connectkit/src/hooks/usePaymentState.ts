@@ -3,6 +3,7 @@ import {
   assertNotNull,
   baseUSDC,
   bscUSDT,
+  CreateNewPaymentParams,
   createPayment,
   debugJson,
   DepositAddressPaymentOptionData,
@@ -171,7 +172,6 @@ export interface PaymentState {
       tokenAddress: string;
       destAddress: string;
       usdcAmount: string;
-      solanaAmount: string;
       memo?: string;
     }
   ) => Promise<{ txHash: string; success: boolean }>;
@@ -467,7 +467,8 @@ export function usePaymentState({
       const preferredChain = walletOption.required.token.chainId;
       const preferredTokenAddress = walletOption.required.token.token;
 
-      const payload = {
+      const payload: CreateNewPaymentParams = {
+        apiVersion: "v2",
         appId,
         toChain,
         toToken,
@@ -682,7 +683,6 @@ export function usePaymentState({
       tokenAddress: string;
       destAddress: string;
       usdcAmount: string;
-      solanaAmount: string;
       memo?: string;
     }
   ): Promise<{ txHash: string; success: boolean }> => {

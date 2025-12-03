@@ -15,11 +15,7 @@ import {
   worldchain,
 } from "@rozoai/intent-common";
 
-type Logo = {
-  testnet?: boolean;
-};
-
-const KnownChain = ({ testnet, ...props }: Logo) => (
+const KnownChain = (props) => (
   <svg
     {...props}
     aria-hidden="true"
@@ -29,9 +25,7 @@ const KnownChain = ({ testnet, ...props }: Logo) => (
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
     style={{
-      background: testnet
-        ? "linear-gradient(180deg, #8995A9 0%, #424D5F 99.48%)"
-        : "black",
+      background: "black",
     }}
   >
     <path
@@ -74,19 +68,11 @@ const KnownChain = ({ testnet, ...props }: Logo) => (
   </svg>
 );
 
-export const UnknownChain = ({ testnet, ...props }: Logo) => {
-  return <KnownChain testnet {...props} />;
+export const UnknownChain = (props) => {
+  return <KnownChain {...props} />;
 };
 
-export const Ethereum = ({ testnet, ...props }: Logo) => {
-  let bg = "var(--ck-chain-ethereum-01, #25292E)";
-  let fill = "var(--ck-chain-ethereum-02, #ffffff)";
-
-  if (testnet) {
-    bg = "linear-gradient(180deg, #8995A9 0%, #424D5F 99.48%)";
-    fill = "#fff";
-  }
-
+export const Ethereum = (props) => {
   return (
     <svg
       {...props}
@@ -97,36 +83,36 @@ export const Ethereum = ({ testnet, ...props }: Logo) => {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       style={{
-        background: bg,
+        background: "var(--ck-chain-ethereum-01, #25292E)",
       }}
     >
       <path
         d="M21.9967 6.99621L21.7955 7.67987V27.5163L21.9967 27.7171L31.2044 22.2744L21.9967 6.99621Z"
-        fill={fill}
+        fill="var(--ck-chain-ethereum-02, #ffffff)"
       />
       <path
         d="M21.9957 6.99621L12.7878 22.2744L21.9957 27.7171V18.0891V6.99621Z"
-        fill={fill}
+        fill="var(--ck-chain-ethereum-02, #ffffff)"
       />
       <path
         fillRule="evenodd"
         clipRule="evenodd"
         d="M21.9959 36.9996L21.9959 36.9997V36.9995L31.2091 24.0243L21.9959 29.4642L12.788 24.0243L21.9957 36.9993L21.9958 36.9997L21.9959 36.9996Z"
-        fill={fill}
+        fill="var(--ck-chain-ethereum-02, #ffffff)"
       />
       <path
         d="M21.996 27.7181L31.2037 22.2753L21.996 18.09V27.7181Z"
-        fill={fill}
+        fill="var(--ck-chain-ethereum-02, #ffffff)"
       />
       <path
         d="M12.7878 22.2753L21.9957 27.7181V18.09L12.7878 22.2753Z"
-        fill={fill}
+        fill="var(--ck-chain-ethereum-02, #ffffff)"
       />
     </svg>
   );
 };
 
-export const Polygon = ({ testnet, ...props }: Logo) => (
+export const Polygon = (props) => (
   <svg
     {...props}
     aria-hidden="true"
@@ -137,9 +123,7 @@ export const Polygon = ({ testnet, ...props }: Logo) => (
     xmlns="http://www.w3.org/2000/svg"
     style={{
       borderRadius: "50%",
-      background: testnet
-        ? "linear-gradient(180deg, #8995A9 0%, #424D5F 99.48%)"
-        : "#6F41D8",
+      background: "#6F41D8",
     }}
   >
     <path
@@ -148,7 +132,7 @@ export const Polygon = ({ testnet, ...props }: Logo) => (
     />
   </svg>
 );
-export const Optimism = ({ testnet, ...props }: Logo) => (
+export const Optimism = (props) => (
   <svg
     {...props}
     aria-hidden="true"
@@ -159,9 +143,7 @@ export const Optimism = ({ testnet, ...props }: Logo) => (
     xmlns="http://www.w3.org/2000/svg"
     style={{
       borderRadius: "50%",
-      background: testnet
-        ? "linear-gradient(180deg, #8995A9 0%, #424D5F 99.48%)"
-        : "#FF0420",
+      background: "#FF0420",
     }}
   >
     <path
@@ -175,9 +157,7 @@ export const Optimism = ({ testnet, ...props }: Logo) => (
   </svg>
 );
 
-export const Arbitrum = ({ testnet, ...props }: Logo) => {
-  const fill = testnet ? "#ffffff" : "#28A0F0";
-  const outlineFill = testnet ? "#ffffff" : "#96BEDC";
+export const Arbitrum = (props) => {
   return (
     <svg
       {...props}
@@ -189,24 +169,20 @@ export const Arbitrum = ({ testnet, ...props }: Logo) => {
       xmlns="http://www.w3.org/2000/svg"
       style={{
         borderRadius: "50%",
-        background: testnet
-          ? "linear-gradient(180deg, #8995A9 0%, #424D5F 99.48%)"
-          : "#2C364F",
+        background: "#2C364F",
       }}
     >
-      {!testnet && (
-        <path
-          d="M25.7948 20.5826L28.2683 16.3854L34.9355 26.7696L34.9386 28.7625L34.9168 15.0491C34.9011 14.7137 34.7231 14.407 34.4391 14.2261L22.4357 7.32182C22.1551 7.1838 21.7989 7.18546 21.5187 7.32618C21.4807 7.34524 21.4453 7.36576 21.4113 7.38835L21.3694 7.41467L9.71816 14.1664L9.67298 14.1871C9.61474 14.2137 9.55609 14.2479 9.50076 14.2872C9.27983 14.4456 9.1331 14.68 9.08564 14.9425C9.07859 14.9823 9.0732 15.023 9.07092 15.064L9.08916 26.239L15.2994 16.6138C16.0811 15.3376 17.7847 14.9262 19.3662 14.9488L21.2221 14.9977L10.2862 32.5356L11.5753 33.2778L22.6422 15.0155L27.5338 14.9977L16.4956 33.7209L21.0955 36.3668L21.6451 36.6827C21.8776 36.7772 22.1516 36.7819 22.386 36.6972L34.5581 29.6433L32.2309 30.9918L25.7948 20.5826ZM26.7384 34.175L22.0925 26.8829L24.9287 22.0702L31.0303 31.6876L26.7384 34.175Z"
-          fill={"#2D374B"}
-        />
-      )}
+      <path
+        d="M25.7948 20.5826L28.2683 16.3854L34.9355 26.7696L34.9386 28.7625L34.9168 15.0491C34.9011 14.7137 34.7231 14.407 34.4391 14.2261L22.4357 7.32182C22.1551 7.1838 21.7989 7.18546 21.5187 7.32618C21.4807 7.34524 21.4453 7.36576 21.4113 7.38835L21.3694 7.41467L9.71816 14.1664L9.67298 14.1871C9.61474 14.2137 9.55609 14.2479 9.50076 14.2872C9.27983 14.4456 9.1331 14.68 9.08564 14.9425C9.07859 14.9823 9.0732 15.023 9.07092 15.064L9.08916 26.239L15.2994 16.6138C16.0811 15.3376 17.7847 14.9262 19.3662 14.9488L21.2221 14.9977L10.2862 32.5356L11.5753 33.2778L22.6422 15.0155L27.5338 14.9977L16.4956 33.7209L21.0955 36.3668L21.6451 36.6827C21.8776 36.7772 22.1516 36.7819 22.386 36.6972L34.5581 29.6433L32.2309 30.9918L25.7948 20.5826ZM26.7384 34.175L22.0925 26.8829L24.9287 22.0702L31.0303 31.6876L26.7384 34.175Z"
+        fill={"#2D374B"}
+      />
       <path
         d="M22.0924 26.8832L26.7385 34.1751L31.0302 31.6879L24.9286 22.0705L22.0924 26.8832Z"
-        fill={fill}
+        fill="#28A0F0"
       />
       <path
         d="M34.9387 28.7627L34.9356 26.7698L28.2684 16.3856L25.7949 20.5828L32.2312 30.992L34.5584 29.6435C34.7866 29.4582 34.9248 29.1861 34.9393 28.8926L34.9387 28.7627Z"
-        fill={fill}
+        fill="#28A0F0"
       />
       <path
         d="M7 30.642L10.2863 32.5356L21.2222 14.9976L19.3663 14.9487C17.785 14.9263 16.0814 15.3375 15.2995 16.6137L9.08927 26.239L7 29.449V30.642V30.642Z"
@@ -218,18 +194,13 @@ export const Arbitrum = ({ testnet, ...props }: Logo) => {
       />
       <path
         d="M37 14.9723C36.9592 13.9493 36.4052 13.013 35.5377 12.4677L23.377 5.47434C22.5187 5.04223 21.4466 5.04161 20.5868 5.47414C20.4852 5.52533 8.76078 12.3251 8.76078 12.3251C8.5985 12.4029 8.44224 12.4955 8.2953 12.6008C7.52081 13.156 7.0487 14.0186 7 14.9661V29.4492L9.08927 26.2392L9.07103 15.0639C9.07352 15.0231 9.0787 14.9827 9.08575 14.9431C9.133 14.6801 9.27994 14.4457 9.50086 14.2872C9.5562 14.2478 21.4806 7.34517 21.5186 7.32611C21.799 7.18538 22.155 7.18373 22.4356 7.32175L34.439 14.226C34.723 14.4069 34.901 14.7137 34.9167 15.049V28.8921C34.9022 29.1856 34.7862 29.4577 34.558 29.643L32.2308 30.9916L31.03 31.6875L26.7383 34.1747L22.3859 36.6969C22.1515 36.7817 21.8773 36.7769 21.645 36.6824L16.4955 33.7206L15.4435 35.5046L20.0713 38.169C20.2243 38.256 20.3607 38.3331 20.4726 38.3961C20.6458 38.4933 20.764 38.5582 20.8056 38.5785C21.1345 38.7383 21.6077 38.8311 22.0342 38.8311C22.4251 38.8311 22.8064 38.7594 23.1672 38.6181L35.8092 31.2971C36.5347 30.7348 36.9617 29.8869 37 28.9686V14.9723Z"
-        fill={outlineFill}
+        fill="#96BEDC"
       />
     </svg>
   );
 };
 
-export const BinanceSmartChain = ({
-  testnet,
-  ...props
-}: {
-  testnet?: boolean;
-}) => (
+export const BinanceSmartChain = (props) => (
   <svg
     {...props}
     aria-hidden="true"
@@ -273,7 +244,7 @@ export const BinanceSmartChain = ({
   </svg>
 );
 
-export const Solana = ({ testnet, ...props }: { testnet?: boolean }) => (
+export const Solana = (props) => (
   <svg
     {...props}
     aria-hidden="true"
@@ -318,7 +289,7 @@ export const Solana = ({ testnet, ...props }: { testnet?: boolean }) => (
   </svg>
 );
 
-export const Base = ({ testnet, ...props }: { testnet?: boolean }) => (
+export const Base = (props) => (
   <svg
     {...props}
     width="44"
@@ -328,9 +299,7 @@ export const Base = ({ testnet, ...props }: { testnet?: boolean }) => (
     xmlns="http://www.w3.org/2000/svg"
     style={{
       borderRadius: "50%",
-      background: testnet
-        ? "linear-gradient(180deg, #8995A9 0%, #424D5F 99.48%)"
-        : "#0052FF",
+      background: "#0052FF",
     }}
   >
     <path
@@ -340,7 +309,7 @@ export const Base = ({ testnet, ...props }: { testnet?: boolean }) => (
   </svg>
 );
 
-const Linea = ({ testnet, ...props }: { testnet?: boolean }) => (
+const Linea = (props) => (
   <svg
     {...props}
     width="44"
@@ -374,7 +343,7 @@ const Linea = ({ testnet, ...props }: { testnet?: boolean }) => (
   </svg>
 );
 
-export const Worldchain = ({ testnet, ...props }: { testnet?: boolean }) => (
+export const Worldchain = (props) => (
   <svg
     {...props}
     aria-hidden="true"
@@ -447,7 +416,7 @@ export const Worldchain = ({ testnet, ...props }: { testnet?: boolean }) => (
   </svg>
 );
 
-const Mantle = ({ testnet, ...props }: { testnet?: boolean }) => (
+const Mantle = (props) => (
   <svg
     {...props}
     aria-hidden="true"
@@ -500,7 +469,7 @@ export const Stellar = (props) => (
   </svg>
 );
 
-const Celo = ({ testnet, ...props }: { testnet?: boolean }) => (
+const Celo = (props) => (
   <svg
     {...props}
     aria-hidden="true"
@@ -510,14 +479,12 @@ const Celo = ({ testnet, ...props }: { testnet?: boolean }) => (
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
     style={{
-      background: testnet
-        ? "linear-gradient(180deg, #8995A9 0%, #424D5F 99.48%)"
-        : "#FCFE72",
+      background: "#FCFE72",
     }}
   >
     <path
       d="M9 9H34.5183V18.112H30.3564C28.896 14.7687 25.6102 12.4171 21.777 12.4171C16.593 12.4171 12.3948 16.6422 12.3948 21.823C12.3948 27.0039 16.593 31.2654 21.777 31.2654C25.5373 31.2654 28.8231 28.9876 30.2829 25.7172H34.5178V34.682H9V9Z"
-      fill={testnet ? "#ffffff" : "black"}
+      fill="black"
     />
   </svg>
 );

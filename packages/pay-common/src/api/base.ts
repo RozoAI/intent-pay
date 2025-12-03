@@ -1,8 +1,8 @@
 /**
  * RozoAI API Configuration Constants
  */
-// export const ROZO_API_URL = "https://intentapiv2.rozo.ai/functions/v1";
-export const ROZO_API_URL = "https://intentapiv4.rozo.ai/functions/v1";
+export const ROZO_API_URL = "https://intentapiv2.rozo.ai/functions/v1";
+export const NEW_ROZO_API_URL = "https://intentapiv4.rozo.ai/functions/v1";
 export const ROZO_API_TOKEN =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4Y3Zmb2xobmNtdXZmYXp1cXViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI4Mzg2NjYsImV4cCI6MjA2ODQxNDY2Nn0.B4dV5y_-zCMKSNm3_qyCbAvCPJmoOGv_xB783LfAVUA";
 
@@ -33,33 +33,67 @@ export interface RequestState<T = any> extends ApiResponse<T> {
 }
 
 /**
+ * API Version type
+ */
+export type ApiVersion = "v2" | "v4";
+
+/**
  * API Configuration
  */
 export interface ApiConfig {
   baseUrl: string;
   apiToken: string;
+  version?: ApiVersion;
 }
 
 // Default configuration (can be overridden via setApiConfig)
+// v4 is the default API version
 let apiConfig: ApiConfig = {
-  baseUrl: ROZO_API_URL,
+  baseUrl: NEW_ROZO_API_URL,
   apiToken: ROZO_API_TOKEN,
+  version: "v4",
 };
 
 /**
- * Set API configuration
- * @param config - API configuration
+ * Sets the API configuration (baseUrl, apiToken, and version)
+ * @param config - Partial API configuration to override defaults
+ * @example
+ * ```typescript
+ * // Use v2 API
+ * setApiConfig({ version: "v2" });
+ *
+ * // Use v4 API (default)
+ * setApiConfig({ version: "v4" });
+ *
+ * // Custom configuration
+ * setApiConfig({
+ *   baseUrl: "https://custom-api.com",
+ *   apiToken: "custom-token",
+ *   version: "v4"
+ * });
+ * ```
  */
-export const setApiConfig = (config: Partial<ApiConfig>) => {
-  apiConfig = { ...apiConfig, ...config };
+export const setApiConfig = (config: Partial<ApiConfig>): void => {
+  if (config.version) {
+    // Auto-set baseUrl based on version if not explicitly provided
+    if (!config.baseUrl) {
+      config.baseUrl =
+        config.version === "v4" ? NEW_ROZO_API_URL : ROZO_API_URL;
+    }
+  }
+
+  apiConfig = {
+    ...apiConfig,
+    ...config,
+  };
 };
 
 /**
- * Get current API configuration
+ * Gets the current API configuration
  * @returns Current API configuration
  */
-export const getApiConfig = (): ApiConfig => {
-  return apiConfig;
+export const getApiConfig = (): Readonly<ApiConfig> => {
+  return { ...apiConfig };
 };
 
 /**

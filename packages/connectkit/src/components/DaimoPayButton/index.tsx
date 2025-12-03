@@ -283,10 +283,10 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   // Set the redirect return url
   const { setRedirectReturnUrl } = context;
   useEffect(() => {
-    if (props.redirectReturnUrl) {
-      setRedirectReturnUrl(props.redirectReturnUrl);
+    if ("redirectReturnUrl" in props && props.redirectReturnUrl) {
+      setRedirectReturnUrl(props.redirectReturnUrl as string);
     }
-  }, [props.redirectReturnUrl, setRedirectReturnUrl]);
+  }, [props]);
 
   // Set the onOpen and onClose callbacks
   const { setOnOpen, setOnClose } = context;
