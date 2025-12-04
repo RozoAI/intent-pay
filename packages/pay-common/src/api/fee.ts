@@ -1,5 +1,6 @@
 import { getChainById } from "../chain";
-import { ApiResponse, ApiVersion, setApiConfig } from "./base";
+import { ApiResponse } from "./base";
+import { FeeType } from "./payment";
 
 /**
  * Fee response data type (success case)
@@ -8,10 +9,14 @@ export interface FeeResponseData {
   appId: string;
   amount: number;
   currency: string;
+  type: string;
   fee: number;
   feePercentage: string;
   minimumFee: string;
+  amountIn: number;
+  amountOut: number;
   amount_out: number;
+  amount_in: number;
 }
 
 /**
@@ -28,12 +33,11 @@ export interface FeeErrorData {
  * Fee request parameters
  */
 export interface GetFeeParams {
-  appId: string;
-  amount: number;
-  toChain: number;
+  appId?: string;
   currency?: string;
-  /** API version to use (v2 or v4). Defaults to v4 */
-  apiVersion?: ApiVersion;
+  toUnits: string;
+  toChain: number;
+  type: FeeType;
 }
 
 /**
@@ -44,20 +48,18 @@ export interface GetFeeParams {
 export const getFee = async (
   params: GetFeeParams
 ): Promise<ApiResponse<FeeResponseData>> => {
-  const { amount, appId, currency = "USDC", toChain, apiVersion } = params;
-
-  // Set API version if provided
-  if (apiVersion) {
-    setApiConfig({ version: apiVersion });
-  }
+  const { toUnits, appId, currency = "USDC", toChain, type } = params;
 
   try {
-    const chain = getChainById(toChain);
+    const chain = getChainById(Number(toChain));
     const toChainName = chain.name.toLowerCase();
 
     const queryParams = new URLSearchParams({
-      amount: amount.toString(),
-      appId,
+      ...(appId ? { appId } : {}),
+      ...(type === FeeType.ExactIn
+        ? { type: "exactIn" }
+        : { type: "exactOut" }),
+      amount: toUnits,
       currency,
       tochain: toChainName,
     });

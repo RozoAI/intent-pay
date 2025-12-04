@@ -184,6 +184,8 @@ export type RozoPayDehydratedOrder = {
   externalId: string | null;
   userMetadata: RozoPayUserMetadata | null;
   refundAddr: string | null;
+  preferredChainId: number | null;
+  preferredTokenAddress: string | null;
   memo?: string | null;
 };
 
@@ -219,6 +221,8 @@ export type RozoPayHydratedOrder = {
   /** Nullable because old intents don't have expiration time. */
   expirationTs: bigint | null;
   memo?: string | null;
+  preferredChainId: number | null;
+  preferredTokenAddress: string | null;
   payoutTransactionHash?: string | null;
   /** @deprecated included for backcompat with old versions. Remove soon. */
   // handoffAddr: string;

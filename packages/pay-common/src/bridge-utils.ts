@@ -322,6 +322,8 @@ export function formatPaymentResponseToHydratedOrder(
     mode: RozoPayOrderMode.HYDRATED,
     intentAddr: intentAddress ?? "",
     memo: intentMemo ?? null,
+    preferredChainId: order.source?.chainId ?? null,
+    preferredTokenAddress: order.source?.tokenAddress ?? null,
     destFinalCallTokenAmount: {
       token: {
         chainId: token ? token.chainId : baseUSDC.chainId,

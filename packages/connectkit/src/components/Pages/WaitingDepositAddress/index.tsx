@@ -1,5 +1,6 @@
 import {
   DepositAddressPaymentOptions,
+  FeeType,
   generateEVMDeepLink,
   getAddressContraction,
   getChainName,
@@ -324,7 +325,9 @@ export default function WaitingDepositAddress() {
         if (amount && payParams?.appId) {
           try {
             const feeResponse = await getFee({
-              amount,
+              currency: "USD",
+              type: payParams?.feeType ?? FeeType.ExactIn,
+              toUnits: amount.toString(),
               appId: payParams.appId,
               toChain: selectedDepositAddressOption.chainId,
             });

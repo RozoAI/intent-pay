@@ -99,16 +99,16 @@ const PayWithStellarToken: React.FC = () => {
       const { required } = option;
 
       const needRozoPayment =
-        "payinchainid" in order.metadata &&
-        Number(order.metadata.payinchainid) !== required.token.chainId;
+        order.preferredChainId !== null &&
+        order.preferredChainId !== required.token.chainId;
 
       let hydratedOrder: RozoPayHydratedOrderWithOrg;
       let paymentId: string | undefined;
 
-      if (state === "payment_unpaid" && !needRozoPayment) {
-        hydratedOrder = order;
-      } else if (state === "payment_started" && !needRozoPayment) {
-        // Already in payment_started state, reuse existing order
+      if (
+        (state === "payment_unpaid" || state === "payment_started") &&
+        !needRozoPayment
+      ) {
         hydratedOrder = order;
       } else if (needRozoPayment) {
         const res = await createPayment(option, store as any);
@@ -150,7 +150,7 @@ const PayWithStellarToken: React.FC = () => {
 
       const paymentData = {
         destAddress: hydratedOrder.intentAddr || destinationAddress,
-        usdcAmount: String(hydratedOrder.usdValue),
+        usdcAmount: String(option.required.usd),
       };
 
       if (hydratedOrder.memo) {
@@ -164,7 +164,11 @@ const PayWithStellarToken: React.FC = () => {
       setPayState(PayState.WaitingForConfirmation);
     } catch (error) {
       if (rozoPaymentId) {
-        setPaymentUnpaid(rozoPaymentId);
+        try {
+          await setPaymentUnpaid(rozoPaymentId);
+        } catch (e) {
+          console.error("Failed to set payment unpaid:", e);
+        }
       }
       if ((error as any).message.includes("rejected")) {
         setPayState(PayState.RequestCancelled);

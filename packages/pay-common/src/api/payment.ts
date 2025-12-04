@@ -294,7 +294,7 @@ export interface CreateNewPaymentParams {
   /** Order reference ID (for idempotency) */
   orderId?: string;
   /** Fee calculation type (exactIn or exactOut) */
-  type?: FeeType;
+  feeType?: FeeType;
   /** Webhook URL to receive payment status updates */
   webhookUrl?: string;
   /** Secret for HMAC-SHA256 signature verification */
@@ -345,7 +345,7 @@ export async function createPayment(
     title,
     description,
     orderId,
-    type,
+    feeType,
     webhookUrl,
     webhookSecret,
     receiverMemo,
@@ -388,7 +388,7 @@ export async function createPayment(
   // Build payment request data matching new backend interface
   const paymentData: CreatePaymentRequest = {
     appId,
-    type: type ?? FeeType.ExactIn,
+    type: feeType ?? FeeType.ExactIn,
     ...(orderId ? { orderId } : {}),
     source: {
       chainId: sourceChain.chainId,
@@ -421,7 +421,7 @@ export async function createPayment(
     ...(webhookSecret ? { webhookSecret } : {}),
   };
 
-  if (apiVersion === "v2") {
+  if (apiVersion === "v1") {
     paymentData.display.intent = title ?? "Pay";
     paymentData.destination.amountUnits = destination.amountUnits;
     paymentData.destination.destinationAddress = destinationAddress;
@@ -458,7 +458,7 @@ export const getPayment = (
     setApiConfig({ version: apiVersion });
   }
 
-  if (apiVersion === "v2") {
+  if (apiVersion === "v1") {
     const isMugglePay = paymentId.includes("mugglepay_order");
     const endpoint = isMugglePay
       ? `/payment-api/${paymentId}`

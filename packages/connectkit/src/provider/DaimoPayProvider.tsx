@@ -1,4 +1,5 @@
 import {
+  ApiVersion,
   ExternalPaymentOptions,
   RozoPayOrderMode,
   RozoPayOrderStatusSource,
@@ -58,6 +59,8 @@ type RozoPayUIProviderProps = {
   customTheme?: CustomTheme;
   options?: RozoPayContextOptions;
   debugMode?: boolean;
+  /** API Version (v1 or v2). Default is v2. */
+  apiVersion?: "v1" | "v2";
   /** Custom Pay API, useful for test and staging. */
   payApiUrl: string;
   log: (msg: string, ...props: any[]) => void;
@@ -72,6 +75,7 @@ const RozoPayUIProvider = ({
   onConnect,
   onDisconnect,
   debugMode = false,
+  apiVersion = "v2",
   payApiUrl,
   log,
 }: RozoPayUIProviderProps) => {
@@ -284,6 +288,7 @@ const RozoPayUIProvider = ({
     setRoute,
     log,
     redirectReturnUrl,
+    apiVersion,
   });
 
   const showPayment = async (modalOptions: RozoPayModalOptions) => {
@@ -392,6 +397,7 @@ const RozoPayUIProvider = ({
     pendingConnectorId,
     setPendingConnectorId,
     sessionId,
+    apiVersion,
     solanaConnector,
     setSolanaConnector,
     stellarConnector,
@@ -449,6 +455,8 @@ type RozoPayProviderProps = {
   customTheme?: CustomTheme;
   options?: RozoPayContextOptions;
   debugMode?: boolean;
+  /** API Version (v1 or v2). Default is v2. */
+  apiVersion?: ApiVersion;
   /**
    * Be careful with this endpoint, some endpoints (incl. Alchemy) don't support
    * `signatureSubscribe` which leads to txes behaving erratically
@@ -471,6 +479,7 @@ type RozoPayProviderProps = {
  */
 export const RozoPayProvider = (props: RozoPayProviderProps) => {
   const payApiUrl = props.payApiUrl ?? "https://intentapi.rozo.ai";
+  const apiVersion = props.apiVersion ?? "v2";
   const log = useMemo(
     () =>
       props.debugMode ? (...args: any[]) => console.log(...args) : () => {},
@@ -478,7 +487,7 @@ export const RozoPayProvider = (props: RozoPayProviderProps) => {
   );
 
   return (
-    <PaymentProvider payApiUrl={payApiUrl} log={log}>
+    <PaymentProvider payApiUrl={payApiUrl} apiVersion={apiVersion} log={log}>
       <SolanaContextProvider rpcUrl={props.solanaRpcUrl}>
         <StellarContextProvider
           rpcUrl={props.stellarRpcUrl}
@@ -486,7 +495,12 @@ export const RozoPayProvider = (props: RozoPayProviderProps) => {
           stellarWalletPersistence={props.stellarWalletPersistence}
           log={log}
         >
-          <RozoPayUIProvider {...props} payApiUrl={payApiUrl} log={log} />
+          <RozoPayUIProvider
+            {...props}
+            apiVersion={apiVersion}
+            payApiUrl={payApiUrl}
+            log={log}
+          />
         </StellarContextProvider>
       </SolanaContextProvider>
     </PaymentProvider>

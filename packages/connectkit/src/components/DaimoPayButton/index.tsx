@@ -69,29 +69,17 @@ export function RozoPayButton(props: RozoPayButtonProps): JSX.Element {
 function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   const context = usePayContext();
 
-  // Simple: create stable key for object/array props to prevent infinite re-renders
-  const objectPropsKey = useMemo(() => {
-    if (!("appId" in props)) return null;
-    return JSON.stringify({
-      paymentOptions: props.paymentOptions,
-      preferredChains: props.preferredChains,
-      preferredTokens: props.preferredTokens,
-      // evmChains: props.evmChains,
-      metadata: props.metadata,
-    });
-  }, [
-    "appId" in props && props.paymentOptions,
-    "appId" in props && props.preferredChains,
-    "appId" in props && props.preferredTokens,
-    // "appId" in props && props.evmChains,
-    "appId" in props && props.metadata,
-  ]);
-
+  // Memoize payParams/payId with proper dependency tracking
+  // For object/array props, we serialize them to detect deep changes
   const { payParams, payId } = useMemo(() => {
+    // Handle payId mode
+    if ("payId" in props) {
+      return { payParams: null, payId: props.payId };
+    }
+
+    // Handle appId mode
     if ("appId" in props) {
       const isEvm = isEvmChain(props.toChain);
-
-      // Extract common props
       const {
         appId,
         toChain,
@@ -103,36 +91,34 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         preferredChains,
         preferredTokens,
         feeType,
-        // evmChains,
         externalId,
         metadata,
+        showProcessingPayout,
       } = props;
 
-      if (isEvm) {
-        // EVM-specific props (TypeScript knows toCallData and refundAddress exist)
-        // const evmProps = props as CommonPaymentProps & EvmChainProps;
+      const commonParams = {
+        appId,
+        toChain,
+        toToken,
+        toUnits,
+        intent,
+        paymentOptions,
+        preferredChains,
+        preferredTokens,
+        evmChains: undefined,
+        externalId,
+        metadata,
+        showProcessingPayout,
+        feeType,
+      };
 
+      if (isEvm) {
         return {
           payParams: {
-            appId,
-            toChain,
-            toAddress, // Address type for EVM
-            toToken,
-            toUnits,
-            // toCallData: evmProps.toCallData,
+            ...commonParams,
+            toAddress,
             toCallData: undefined,
-            intent,
-            paymentOptions,
-            preferredChains,
-            preferredTokens,
-            // evmChains,
-            evmChains: undefined,
-            externalId,
-            metadata,
-            // refundAddress: evmProps.refundAddress,
             refundAddress: undefined,
-            showProcessingPayout: props.showProcessingPayout,
-            feeType,
           } as PayParams,
           payId: null,
         };
@@ -143,23 +129,10 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
         return {
           payParams: {
-            appId,
-            toChain,
+            ...commonParams,
             toAddress: getAddress("0x0000000000000000000000000000000000000000"),
-            toSolanaAddress: isSolana ? toAddress : undefined, // string type for Solana
-            toStellarAddress: isStellar ? toAddress : undefined, // string type for Stellar
-            toToken,
-            toUnits,
-            intent,
-            paymentOptions,
-            preferredChains,
-            preferredTokens,
-            // evmChains,
-            evmChains: undefined,
-            externalId,
-            metadata,
-            showProcessingPayout: props.showProcessingPayout,
-            feeType,
+            toSolanaAddress: isSolana ? toAddress : undefined,
+            toStellarAddress: isStellar ? toAddress : undefined,
           } as PayParams,
           payId: null,
         };
@@ -168,30 +141,8 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
     return { payParams: null, payId: null };
   }, [
-    "appId" in props,
-    "payId" in props,
-    // Only include relevant props based on mode
-    ...("appId" in props
-      ? [
-          props.appId,
-          props.toChain,
-          props.toAddress,
-          props.toToken,
-          props.toUnits,
-          // Include EVM-specific props if they exist
-          isEvmChain(props.toChain) &&
-            "toCallData" in props &&
-            props.toCallData,
-          isEvmChain(props.toChain) &&
-            "refundAddress" in props &&
-            props.refundAddress,
-          props.intent,
-          props.externalId,
-          props.showProcessingPayout,
-          objectPropsKey, // Single dependency for all object/array props
-        ]
-      : []),
-    ...("payId" in props ? [props.payId] : []),
+    // Serialize entire props to catch all changes (simple and safe)
+    JSON.stringify(props),
   ]);
 
   const { paymentState, log } = context;

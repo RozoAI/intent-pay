@@ -310,7 +310,7 @@ export default function DemoBasic() {
                   onPayoutCompleted={(e: any) => {
                     console.log("✓ Payout completed:", e);
                   }}
-                  feeType={FeeType.ExactIn}
+                  feeType={FeeType.ExactOut}
                   resetOnSuccess={true}
                   metadata={metadata}
                   showProcessingPayout

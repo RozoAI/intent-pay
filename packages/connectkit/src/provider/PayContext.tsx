@@ -1,14 +1,15 @@
 import React, { createContext } from "react";
 
+import { ApiVersion } from "@rozoai/intent-common";
 import { ROUTES } from "../constants/routes";
 import { useConnectCallbackProps } from "../hooks/useConnectCallback";
 import { PaymentState } from "../hooks/usePaymentState";
 import {
   CustomTheme,
-  RozoPayContextOptions,
-  RozoPayModalOptions,
   Languages,
   Mode,
+  RozoPayContextOptions,
+  RozoPayModalOptions,
   Theme,
 } from "../types";
 import { SolanaWalletName } from "./SolanaContextProvider";
@@ -48,6 +49,8 @@ export type PayContextValue = {
   // All options below are new, specific to Rozo Pay.
   /** Session ID. */
   sessionId: string;
+  /** API Version (v1 or v2). Default is v2. */
+  apiVersion: ApiVersion;
   /** EVM pending connector */
   pendingConnectorId: string | undefined;
   setPendingConnectorId: (id: string) => void;

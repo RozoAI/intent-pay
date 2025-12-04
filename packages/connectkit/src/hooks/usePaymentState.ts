@@ -56,6 +56,7 @@ import {
   useWriteContract,
 } from "wagmi";
 
+import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
 import {
   createAssociatedTokenAccountInstruction,
   createTransferCheckedInstruction,
@@ -219,12 +220,14 @@ export function usePaymentState({
   setRoute,
   log,
   redirectReturnUrl,
+  apiVersion = "v2",
 }: {
   trpc: TrpcClient;
   lockPayParams: boolean;
   setRoute: (route: ROUTES, data?: Record<string, any>) => void;
   log: (...args: any[]) => void;
   redirectReturnUrl?: string;
+  apiVersion?: ApiVersion;
 }): PaymentState {
   // Cache for payment validation to avoid repeated checks
   const paymentValidationCache = useRef<Map<string, boolean>>(new Map());
@@ -468,9 +471,14 @@ export function usePaymentState({
       const preferredChain = walletOption.required.token.chainId;
       const preferredTokenAddress = walletOption.required.token.token;
 
+      const calculatedToUnits =
+        feeType === FeeType.ExactIn
+          ? Number(toUnits)
+          : Number(toUnits) - Number(walletOption?.fees.usd ?? 0);
+
       log?.("[handleCreateRozoPayment]");
       const payload: CreateNewPaymentParams = {
-        apiVersion: "v2",
+        apiVersion,
         title:
           payParams?.intent ??
           payParams?.metadata?.intent ??
@@ -480,14 +488,14 @@ export function usePaymentState({
             preferredChainId: preferredChain,
             preferredTokenAddress: preferredTokenAddress,
           }),
-        type: feeType,
+        feeType,
         appId,
         toChain,
         toToken,
         toAddress,
         preferredChain,
         preferredTokenAddress,
-        toUnits,
+        toUnits: calculatedToUnits.toFixed(2),
         metadata: mergedMetadata({
           ...(payParams?.metadata ?? {}),
         }),
@@ -525,8 +533,9 @@ export function usePaymentState({
     assert(
       pay.paymentState === "preview" ||
         pay.paymentState === "unhydrated" ||
-        pay.paymentState === "payment_unpaid",
-      `[PAY TOKEN] paymentState is ${pay.paymentState}, must be preview or unhydrated or payment_unpaid`
+        pay.paymentState === "payment_unpaid" ||
+        pay.paymentState === "payment_started",
+      `[PAY TOKEN] paymentState is ${pay.paymentState}, must be preview, unhydrated, payment_unpaid, or payment_started`
     );
 
     const { required, fees } = walletOption;
@@ -545,9 +554,24 @@ export function usePaymentState({
     const paymentAmount = BigInt(required.amount);
 
     // Check if we need to create a new Rozo payment (cache this check)
+    const previousChainId = pay.order.preferredChainId
+      ? Number(pay.order.preferredChainId)
+      : null;
+
+    // If we have an existing payment and chain differs, MUST create new payment
+    // Also check if order has externalId (existing payment) and we're on different chain
+    const hasExistingPayment = pay.order.externalId != null;
     const needRozoPayment =
-      "payinchainid" in pay.order.metadata &&
-      Number(pay.order.metadata.payinchainid) !== required.token.chainId;
+      (previousChainId !== null &&
+        previousChainId !== required.token.chainId) ||
+      (hasExistingPayment &&
+        previousChainId === null &&
+        pay.order.destFinalCallTokenAmount?.token?.chainId !==
+          required.token.chainId);
+
+    log?.(
+      `[PAY TOKEN] Chain check: previous=${previousChainId}, current=${required.token.chainId}, hasExistingPayment=${hasExistingPayment}, needRozoPayment=${needRozoPayment}`
+    );
 
     // Prepare transaction parameters early (before async operations)
     const isNativeToken = required.token.token === zeroAddress;
@@ -559,11 +583,9 @@ export function usePaymentState({
     let hydratedOrder: RozoPayHydratedOrderWithOrg;
     let paymentId: string | undefined;
 
-    if (pay.paymentState === "payment_unpaid" && !needRozoPayment) {
-      // Order is already hydrated, use it directly
-      hydratedOrder = pay.order;
-    } else if (needRozoPayment) {
-      // Create Rozo payment and hydrate in one step
+    // CRITICAL: Always check needRozoPayment FIRST - if switching chains, MUST create new payment
+    if (needRozoPayment) {
+      // Create Rozo payment and hydrate in one step (cross-chain switch)
       const res = await handleCreateRozoPayment(walletOption, store as any);
 
       if (!res) {
@@ -572,8 +594,14 @@ export function usePaymentState({
 
       paymentId = res.id;
       hydratedOrder = formatPaymentResponseToHydratedOrder(res);
+    } else if (
+      pay.paymentState === "payment_unpaid" ||
+      pay.paymentState === "payment_started"
+    ) {
+      // Order is already hydrated for same chain, use it directly
+      hydratedOrder = pay.order;
     } else {
-      // Hydrate existing order
+      // Hydrate existing order (from preview/unhydrated state)
       const res = await pay.hydrateOrder(ethWalletAddress, walletOption);
       hydratedOrder = res.order;
     }
@@ -581,10 +609,49 @@ export function usePaymentState({
     if (paymentId ?? hydratedOrder.externalId) {
       const newId = (paymentId ?? hydratedOrder.externalId) || undefined;
       setRozoPaymentId(newId);
-      pay.setPaymentStarted(String(newId), hydratedOrder);
+
+      // Handle payment state transitions
+      const currentState = pay.paymentState;
+
+      if (currentState === "payment_started" && paymentId) {
+        // A new payment was created while in payment_started state (cross-chain switch)
+        // First transition back to payment_unpaid, then to payment_started with new order
+        const oldPaymentId = pay.order.externalId;
+        if (oldPaymentId) {
+          try {
+            await pay.setPaymentUnpaid(oldPaymentId);
+            await pay.setPaymentStarted(String(newId), hydratedOrder);
+          } catch (e) {
+            // State might have changed during async operations
+            console.warn(
+              "[PAY TOKEN] State transition failed, attempting direct start:",
+              e
+            );
+            // Try to set started directly if state is already unpaid
+            try {
+              await pay.setPaymentStarted(String(newId), hydratedOrder);
+            } catch (e2) {
+              console.error("[PAY TOKEN] Could not start payment:", e2);
+              throw e2;
+            }
+          }
+        } else {
+          await pay.setPaymentStarted(String(newId), hydratedOrder);
+        }
+      } else if (currentState !== "payment_started") {
+        // State is not payment_started (preview, unhydrated, or payment_unpaid)
+        // Transition to payment_started
+        try {
+          await pay.setPaymentStarted(String(newId), hydratedOrder);
+        } catch (e) {
+          console.error("[PAY TOKEN] Could not start payment:", e);
+          throw e;
+        }
+      }
+      // else: reusing the same order in payment_started state (no paymentId), no state change needed
     }
 
-    const destinationAddress = hydratedOrder.destFinalCall.to;
+    const destinationAddress = hydratedOrder.intentAddr;
 
     // Execute transaction with optimized error handling
     const paymentTxHash = await (async () => {
