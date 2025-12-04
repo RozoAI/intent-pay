@@ -19,6 +19,8 @@ import {
   RozoPayOrderStatusDest,
   RozoPayOrderStatusSource,
   RozoPayOrderWithOrg,
+  rozoSolana,
+  rozoStellar,
   TokenLogo,
 } from "@rozoai/intent-common";
 import { Address, formatUnits, parseUnits } from "viem";
@@ -329,6 +331,8 @@ async function runSetPayParamsEffects(
         toSolanaAddress: payParams.toSolanaAddress,
         toAddress: payParams.toAddress,
         feeType: payParams.feeType,
+        receiverMemo: payParams.receiverMemo,
+        metadata: payParams.metadata,
       },
     });
   } catch (e: any) {
@@ -407,20 +411,26 @@ async function runHydratePayParamsEffects(
     walletOption?.required.token.chainId ?? baseUSDC.chainId;
   const preferredTokenAddress =
     walletOption?.required.token.token ?? baseUSDC.token;
+  const title =
+    payParams?.metadata?.intent ??
+    generateIntentTitle({
+      toChainId: toChain,
+      toTokenAddress: toToken,
+      preferredChainId: preferredChain,
+      preferredTokenAddress: preferredTokenAddress,
+    });
 
   try {
     log?.("[Payment Effect]: createRozoPayment");
+    const isAbleToIncludeReceiverMemo = [
+      rozoSolana.chainId,
+      rozoStellar.chainId,
+    ].includes(toChain);
+
     const payload: CreateNewPaymentParams = {
+      title,
       apiVersion,
       appId: payParams?.appId ?? DEFAULT_ROZO_APP_ID,
-      title:
-        payParams?.metadata?.intent ??
-        generateIntentTitle({
-          toChainId: toChain,
-          toTokenAddress: toToken,
-          preferredChainId: preferredChain,
-          preferredTokenAddress: preferredTokenAddress,
-        }),
       description: payParams?.metadata?.description ?? "",
       feeType,
       toChain,
@@ -429,6 +439,9 @@ async function runHydratePayParamsEffects(
       toUnits: calculatedToUnits.toFixed(2),
       preferredChain,
       preferredTokenAddress,
+      ...(isAbleToIncludeReceiverMemo && payParams?.receiverMemo
+        ? { receiverMemo: payParams.receiverMemo }
+        : {}),
       metadata: mergedMetadata({
         ...(order?.metadata ?? {}),
       }),

@@ -57,6 +57,8 @@ export interface PayParams {
   showProcessingPayout?: boolean;
   /** The fee type to use for the payment. */
   feeType?: FeeType;
+  /** The memo to use for the payment. Only used for rozoSolana (900) and rozoStellar (1500). */
+  receiverMemo?: string;
 }
 
 export type PaymentState =
@@ -154,6 +156,7 @@ type PayParamsData = {
   toSolanaAddress?: string;
   toAddress?: string;
   metadata?: RozoPayUserMetadata;
+  receiverMemo?: string;
 };
 
 /**

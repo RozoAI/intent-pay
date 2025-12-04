@@ -25,7 +25,9 @@ import {
   readRozoPayOrderID,
   RozoPayHydratedOrderWithOrg,
   RozoPayOrder,
+  rozoSolana,
   rozoSolanaUSDC,
+  rozoStellar,
   rozoStellarUSDC,
   Token,
   WalletPaymentOption,
@@ -477,6 +479,11 @@ export function usePaymentState({
           : Number(toUnits) - Number(walletOption?.fees.usd ?? 0);
 
       log?.("[handleCreateRozoPayment]");
+
+      const isAbleToIncludeReceiverMemo = [
+        rozoSolana.chainId,
+        rozoStellar.chainId,
+      ].includes(toChain);
       const payload: CreateNewPaymentParams = {
         apiVersion,
         title:
@@ -496,6 +503,9 @@ export function usePaymentState({
         preferredChain,
         preferredTokenAddress,
         toUnits: calculatedToUnits.toFixed(2),
+        ...(isAbleToIncludeReceiverMemo && payParams?.receiverMemo
+          ? { receiverMemo: payParams.receiverMemo }
+          : {}),
         metadata: mergedMetadata({
           ...(payParams?.metadata ?? {}),
         }),

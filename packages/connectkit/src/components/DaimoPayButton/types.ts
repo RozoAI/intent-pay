@@ -72,6 +72,10 @@ type CommonPaymentProps = {
    */
   intent?: string;
   /**
+   * The memo to use for the payment.
+   */
+  receiverMemo?: string;
+  /**
    * The fee type to use for the payment.
    * - exactIn (default): Fee deducted from input, recipient receives amount - fee
    * - exactOut: Fee added to input, recipient receives exact amount

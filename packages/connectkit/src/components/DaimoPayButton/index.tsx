@@ -94,6 +94,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         externalId,
         metadata,
         showProcessingPayout,
+        receiverMemo,
       } = props;
 
       const commonParams = {
@@ -110,6 +111,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         metadata,
         showProcessingPayout,
         feeType,
+        receiverMemo,
       };
 
       if (isEvm) {
