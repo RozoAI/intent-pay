@@ -23,14 +23,14 @@ export interface PayParams {
   /** Destination chain ID. */
   toChain: number;
   /** The destination token to send. Address for EVM, string for non-EVM. */
-  toToken: Address | string;
+  toToken: string;
   /**
    * The amount of the token to send.
    * If not provided, the user will be prompted to enter an amount.
    */
   toUnits?: string;
   /** The final EVM address to transfer to or contract to call. */
-  toAddress?: Address;
+  toAddress?: string;
   /** The final stellar address to transfer to. */
   toStellarAddress?: string;
   /** The final solana address to transfer to. */

@@ -42,13 +42,13 @@ const PayWithSolanaToken: React.FC = () => {
     rozoPaymentId,
     setRozoPaymentId,
     setTxHash,
-    setPayId,
     createPayment,
   } = paymentState;
   const {
     store,
     order,
     paymentState: state,
+    setPayId,
     setPaymentStarted,
     setPaymentUnpaid,
     setPaymentRozoCompleted,
@@ -117,7 +117,9 @@ const PayWithSolanaToken: React.FC = () => {
             throw new Error("Failed to create Rozo payment");
           }
           paymentId = res.id;
-          hydratedOrder = formatPaymentResponseToHydratedOrder(res);
+
+          const formattedOrder = formatPaymentResponseToHydratedOrder(res);
+          hydratedOrder = formattedOrder;
         } else {
           // Hydrate existing order
           const res = await hydrateOrderRozo(undefined, option);
@@ -133,16 +135,57 @@ const PayWithSolanaToken: React.FC = () => {
           setRozoPaymentId(newId);
 
           // Handle payment state transitions
-          if (paymentId && state === "payment_started") {
-            // A new payment was created while in payment_started state (e.g., user switched chains)
+          // Get the ACTUAL current state from the store, not the stale React state
+          const currentState = store.getState().type;
+
+          if (currentState === "payment_started" && paymentId) {
+            // A new payment was created while in payment_started state (cross-chain switch)
             // First transition back to payment_unpaid, then to payment_started with new order
-            await setPaymentUnpaid(rozoPaymentId!);
-            await setPaymentStarted(String(newId), hydratedOrder);
-          } else if (state !== "payment_started") {
-            // Normal flow: transition to payment_started
-            await setPaymentStarted(String(newId), hydratedOrder);
+            const oldPaymentId = order?.externalId;
+            if (oldPaymentId) {
+              try {
+                await setPaymentUnpaid(oldPaymentId);
+                await setPaymentStarted(String(newId), hydratedOrder);
+              } catch (e) {
+                // State might have changed during async operations
+                console.warn(
+                  "[PayWithSolanaToken] State transition failed, attempting direct start:",
+                  e
+                );
+                // Try to set started directly if state is already unpaid
+                try {
+                  await setPaymentStarted(String(newId), hydratedOrder);
+                } catch (e2) {
+                  console.error(
+                    "[PayWithSolanaToken] Could not start payment:",
+                    e2
+                  );
+                  throw e2;
+                }
+              }
+            } else {
+              await setPaymentStarted(String(newId), hydratedOrder);
+            }
+          } else if (currentState !== "payment_started") {
+            // State is not payment_started (preview, unhydrated, or payment_unpaid)
+            // Only transition to payment_started if we're in payment_unpaid
+            const stateBeforeTransition = store.getState().type;
+            if (stateBeforeTransition === "payment_unpaid") {
+              try {
+                await setPaymentStarted(String(newId), hydratedOrder);
+              } catch (e) {
+                console.error(
+                  "[PayWithSolanaToken] Could not start payment:",
+                  e
+                );
+                throw e;
+              }
+            } else {
+              log(
+                `[PayWithSolanaToken] Skipping setPaymentStarted - state is ${stateBeforeTransition}, needs to be payment_unpaid`
+              );
+            }
           }
-          // If state === "payment_started" && !paymentId, we're reusing the same order, no state change needed
         }
 
         setPayState(PayState.RequestingPayment);
@@ -157,8 +200,6 @@ const PayWithSolanaToken: React.FC = () => {
             memo: hydratedOrder.memo,
           });
         }
-
-        log("[PAY SOLANA] Rozo payment:", { paymentData });
 
         const result = await payWithSolanaTokenRozo(option, paymentData);
         log(

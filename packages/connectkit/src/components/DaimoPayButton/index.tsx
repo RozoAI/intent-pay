@@ -126,8 +126,8 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         };
       } else {
         // Non-EVM: Route to appropriate address field
-        const isSolana = isSolanaChain(toChain);
-        const isStellar = isStellarChain(toChain);
+        const isSolana = rozoSolana.chainId === toChain;
+        const isStellar = rozoStellar.chainId === toChain;
 
         return {
           payParams: {
@@ -311,7 +311,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
       paymentId: currentRozoPaymentId || writeRozoPayOrderID(order.id),
       chainId: order.destFinalCallTokenAmount.token.chainId,
       txHash: null,
-      payment: getRozoPayOrderView(order),
+      payment: null as any,
     };
 
     onPaymentStarted?.(event);

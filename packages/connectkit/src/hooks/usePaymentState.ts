@@ -18,6 +18,7 @@ import {
   generateEVMDeepLink,
   generateIntentTitle,
   getChainById,
+  isValidSolanaAddress,
   mergedMetadata,
   PaymentResponse,
   PlatformType,
@@ -29,6 +30,7 @@ import {
   rozoSolanaUSDC,
   rozoStellar,
   rozoStellarUSDC,
+  solana,
   Token,
   WalletPaymentOption,
   worldchainUSDC,
@@ -43,11 +45,11 @@ import {
 } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Address,
   erc20Abi,
   getAddress,
   Hex,
   hexToBytes,
+  parseUnits,
   zeroAddress,
 } from "viem";
 import {
@@ -470,7 +472,10 @@ export function usePaymentState({
       const toChain = payParams.toChain;
       const toToken = payParams.toToken;
       const toUnits = payParams.toUnits;
-      const preferredChain = walletOption.required.token.chainId;
+      const preferredChain =
+        walletOption.required.token.chainId === solana.chainId
+          ? rozoSolana.chainId
+          : walletOption.required.token.chainId;
       const preferredTokenAddress = walletOption.required.token.token;
 
       const calculatedToUnits =
@@ -478,12 +483,11 @@ export function usePaymentState({
           ? Number(toUnits)
           : Number(toUnits) - Number(walletOption?.fees.usd ?? 0);
 
-      log?.("[handleCreateRozoPayment]");
-
       const isAbleToIncludeReceiverMemo = [
         rozoSolana.chainId,
         rozoStellar.chainId,
       ].includes(toChain);
+
       const payload: CreateNewPaymentParams = {
         apiVersion,
         title:
@@ -514,6 +518,14 @@ export function usePaymentState({
         `[handleCreateRozoPayment] payload: ${JSON.stringify(payload, null, 2)}`
       );
       const response = await createPayment(payload);
+
+      log?.(
+        `[handleCreateRozoPayment] response: ${JSON.stringify(
+          response,
+          null,
+          2
+        )}`
+      );
 
       if (!response?.id) {
         throw new Error("Payment creation failed");
@@ -561,7 +573,13 @@ export function usePaymentState({
 
     // @NOTE: Fee handled by Rozo API
     // const paymentAmount = BigInt(required.amount) + BigInt(fees.amount);
-    const paymentAmount = BigInt(required.amount);
+    const paymentAmount = parseUnits(
+      required.usd.toString(),
+      required.token.decimals
+    );
+
+    console.log("paymentAmount", paymentAmount);
+    console.log("required", required);
 
     // Check if we need to create a new Rozo payment (cache this check)
     const previousChainId = pay.order.preferredChainId
@@ -668,7 +686,7 @@ export function usePaymentState({
       try {
         if (isNativeToken) {
           return await sendTransactionAsync({
-            to: destinationAddress as Address,
+            to: getAddress(destinationAddress),
             value: paymentAmount,
           });
         } else {
@@ -680,7 +698,7 @@ export function usePaymentState({
             address: tokenAddress!,
             chainId: required.token.chainId,
             functionName: "transfer",
-            args: [destinationAddress as Address, paymentAmount],
+            args: [getAddress(destinationAddress), paymentAmount],
           });
         }
       } catch (e) {
@@ -778,6 +796,14 @@ export function usePaymentState({
     }
   ): Promise<{ txHash: string; success: boolean }> => {
     try {
+      log?.(
+        `[PAY SOLANA] Starting Solana payment transaction: ${JSON.stringify(
+          rozoPayment,
+          null,
+          2
+        )}`
+      );
+
       const payerPublicKey = solanaWallet.publicKey;
 
       // Initial validation
@@ -802,12 +828,34 @@ export function usePaymentState({
 
       const instructions: TransactionInstruction[] = [];
 
+      // Validate destination address before creating PublicKey
+      if (!rozoPayment.destAddress || rozoPayment.destAddress.trim() === "") {
+        throw new Error("Destination address is required for Solana payment");
+      }
+
+      // Validate that the address is a valid Solana Base58 address
+      // Check for invalid characters that would cause Base58 decode errors
+      if (!isValidSolanaAddress(rozoPayment.destAddress)) {
+        throw new Error(
+          `Invalid Solana destination address format: ${rozoPayment.destAddress}`
+        );
+      }
+
       // Set up token addresses
-      const mintAddress = new PublicKey(
-        walletPaymentOption.required.token.token
-      );
-      const fromKey = new PublicKey(payerPublicKey);
-      const toKey = new PublicKey(rozoPayment.destAddress);
+      let mintAddress: PublicKey;
+      let fromKey: PublicKey;
+      let toKey: PublicKey;
+
+      try {
+        mintAddress = new PublicKey(walletPaymentOption.required.token.token);
+        fromKey = new PublicKey(payerPublicKey);
+        toKey = new PublicKey(rozoPayment.destAddress);
+      } catch (error: any) {
+        throw new Error(
+          `Invalid Solana address format: ${error.message}. ` +
+            `Destination address: ${rozoPayment.destAddress}`
+        );
+      }
 
       log("[PAY SOLANA] Transaction details:", {
         tokenMint: mintAddress.toString(),
@@ -865,7 +913,7 @@ export function usePaymentState({
           recipientTokenAccount,
           fromKey,
           transferAmount,
-          6
+          rozoSolanaUSDC.decimals
         )
       );
 
@@ -912,6 +960,7 @@ export function usePaymentState({
       log("[PAY SOLANA] Transaction sent! Hash:", txHash);
       return { txHash: txHash, success: true };
     } catch (error) {
+      console.error(`[PAY SOLANA] Error: ${error}`);
       throw error;
     }
   };
@@ -1066,12 +1115,12 @@ export function usePaymentState({
       const evmDeeplink = generateEVMDeepLink({
         amountUnits: order.destFinalCallTokenAmount.amount,
         chainId: order.destFinalCallTokenAmount.token.chainId,
-        recipientAddress: order.destFinalCall.to,
+        recipientAddress: order.intentAddr,
         tokenAddress: order.destFinalCallTokenAmount.token.token,
       });
 
       return {
-        address: order.destFinalCall.to,
+        address: order.intentAddr,
         amount: String(order.usdValue),
         suffix: `${token.symbol} ${chain.name}`,
         uri: evmDeeplink,
@@ -1222,6 +1271,18 @@ export function usePaymentState({
 
       // Set the new payParams
       if (mergedPayParams) {
+        if (mergedPayParams.toChain === rozoStellar.chainId) {
+          mergedPayParams.toStellarAddress = mergedPayParams.toAddress;
+          mergedPayParams.toAddress = getAddress(
+            "0x0000000000000000000000000000000000000000"
+          );
+        } else if (mergedPayParams.toChain === rozoSolana.chainId) {
+          mergedPayParams.toSolanaAddress = mergedPayParams.toAddress;
+          mergedPayParams.toAddress = getAddress(
+            "0x0000000000000000000000000000000000000000"
+          );
+        }
+
         await pay.createPreviewOrder(mergedPayParams);
         setCurrPayParams(mergedPayParams);
         setIsDepositFlow(mergedPayParams.toUnits == null);

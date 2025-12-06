@@ -350,7 +350,7 @@ export function formatPaymentResponseToHydratedOrder(
       value: BigInt("0"),
       data: "0x",
     },
-    refundAddr: (order.source?.senderAddress as `0x${string}`) || null,
+    refundAddr: (order.source?.senderAddress as any) || null,
     nonce: BigInt(order.nonce ?? 0),
     sourceFulfillerAddr: null,
     sourceTokenAmount: null,
