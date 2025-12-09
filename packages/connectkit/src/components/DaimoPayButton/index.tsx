@@ -311,7 +311,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
       paymentId: currentRozoPaymentId || writeRozoPayOrderID(order.id),
       chainId: order.destFinalCallTokenAmount.token.chainId,
       txHash: null,
-      payment: null as any,
+      payment: getRozoPayOrderView(order),
     };
 
     onPaymentStarted?.(event);

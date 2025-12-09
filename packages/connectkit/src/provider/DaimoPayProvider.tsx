@@ -324,22 +324,37 @@ const RozoPayUIProvider = ({
       modalOptions.connectedWalletOnly ?? false
     );
     setOpen(true);
-    if (modalOptions.connectedWalletOnly) {
-      if (
-        paymentState.paymentOptions?.includes(ExternalPaymentOptions.Ethereum)
-      ) {
+
+    // Set tokenMode based on paymentOptions, regardless of connectedWalletOnly
+    // This ensures token filtering respects the paymentOptions constraint
+    if (paymentState.paymentOptions && paymentState.paymentOptions.length > 0) {
+      const hasEthereum = paymentState.paymentOptions.includes(
+        ExternalPaymentOptions.Ethereum
+      );
+      const hasSolana = paymentState.paymentOptions.includes(
+        ExternalPaymentOptions.Solana
+      );
+      const hasStellar = paymentState.paymentOptions.includes(
+        ExternalPaymentOptions.Stellar
+      );
+
+      // Determine tokenMode based on which wallet payment options are included
+      if (hasEthereum && !hasSolana && !hasStellar) {
         paymentState.setTokenMode("evm");
-      } else if (
-        paymentState.paymentOptions?.includes(ExternalPaymentOptions.Solana)
-      ) {
+      } else if (hasSolana && !hasEthereum && !hasStellar) {
         paymentState.setTokenMode("solana");
-      } else if (
-        paymentState.paymentOptions?.includes(ExternalPaymentOptions.Stellar)
-      ) {
+      } else if (hasStellar && !hasEthereum && !hasSolana) {
         paymentState.setTokenMode("stellar");
+      } else if (hasEthereum || hasSolana || hasStellar) {
+        // Multiple wallet payment options are allowed, set to "all" but will be filtered in useTokenOptions
+        paymentState.setTokenMode("all");
       } else {
+        // No wallet payment options specified, default to "all"
         paymentState.setTokenMode("all");
       }
+    } else {
+      // No paymentOptions constraint, default to "all"
+      paymentState.setTokenMode("all");
     }
 
     if (pay.paymentState === "error") {

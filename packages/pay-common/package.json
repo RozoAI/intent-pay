@@ -1,6 +1,6 @@
 {
   "name": "@rozoai/intent-common",
-  "version": "0.1.1-beta.7",
+  "version": "0.1.4",
   "description": "Intent Pay shared types and utilities",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -16,6 +16,10 @@
     "lint:deps": "npx depcheck --ignores @tsconfig/node20,@types/tape,ts-node",
     "lint:style": "eslint --max-warnings=0"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "devDependencies": {
     "@tsconfig/node20": "^20.1.4",
     "@types/tape": "^5.6.0",

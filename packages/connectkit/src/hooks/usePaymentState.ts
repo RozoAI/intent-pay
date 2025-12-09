@@ -578,9 +578,6 @@ export function usePaymentState({
       required.token.decimals
     );
 
-    console.log("paymentAmount", paymentAmount);
-    console.log("required", required);
-
     // Check if we need to create a new Rozo payment (cache this check)
     const previousChainId = pay.order.preferredChainId
       ? Number(pay.order.preferredChainId)

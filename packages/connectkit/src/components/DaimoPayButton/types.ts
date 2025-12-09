@@ -5,7 +5,6 @@ import {
   PaymentCompletedEvent,
   PaymentPayoutCompletedEvent,
   PaymentStartedEvent,
-  RozoPayUserMetadata,
 } from "@rozoai/intent-common";
 import { ReactElement } from "react";
 import { Address } from "viem";
@@ -104,7 +103,7 @@ type CommonPaymentProps = {
   /**
    * Developer metadata. E.g. correlation ID.
    */
-  metadata?: RozoPayUserMetadata;
+  metadata?: Record<string, any>;
 };
 
 /** Props for RozoPayButton - discriminated union based on chain type */

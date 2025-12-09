@@ -21,7 +21,7 @@ export default function SelectToken() {
     isMobile || window?.innerWidth < defaultTheme.mobileWidth;
 
   const { paymentState } = usePayContext();
-  const { tokenMode, connectedWalletOnly } = paymentState;
+  const { tokenMode, connectedWalletOnly, paymentOptions } = paymentState;
 
   const { isConnected: isEvmConnected } = useAccount();
   const { isConnected: isStellarConnected, connector } = useStellar();
@@ -41,10 +41,30 @@ export default function SelectToken() {
     );
   }, [isEvmConnected, isSolConnected, isStellarConnected]);
 
+  // Determine if paymentOptions has specific wallet constraints
+  const hasPaymentOptionsConstraint = useMemo(() => {
+    if (!paymentOptions || paymentOptions.length === 0) return false;
+
+    // Check if paymentOptions includes any wallet-specific options
+    // These are the options that should constrain which tokens are shown
+    const walletOptions = ["Ethereum", "Solana", "Stellar"];
+    return paymentOptions.some((option) => walletOptions.includes(option));
+  }, [paymentOptions]);
+
   // If multiple networks are connected, override tokenMode to "all" to show all available tokens
+  // UNLESS there are explicit paymentOptions constraints (connectedWalletOnly or specific wallet options)
   const effectiveTokenMode = useMemo(() => {
+    if (connectedWalletOnly || hasPaymentOptionsConstraint) {
+      // Respect the tokenMode set by paymentOptions when there are explicit constraints
+      return tokenMode;
+    }
     return connectedNetworksCount > 1 ? "all" : tokenMode;
-  }, [connectedNetworksCount, tokenMode]);
+  }, [
+    connectedNetworksCount,
+    tokenMode,
+    connectedWalletOnly,
+    hasPaymentOptionsConstraint,
+  ]);
 
   const { optionsList, isLoading, refreshOptions } =
     useTokenOptions(effectiveTokenMode);

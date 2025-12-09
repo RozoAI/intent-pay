@@ -197,11 +197,11 @@ export default function DemoBasic() {
       } else {
         payParams.toAddress = newConfig.recipientAddress;
         payParams.toToken = newConfig.tokenAddress;
-        if (isStellarChain(newConfig.chainId)) {
-          payParams.toStellarAddress = newConfig.recipientAddress;
-        } else if (isSolanaChain(newConfig.chainId)) {
-          payParams.toSolanaAddress = newConfig.recipientAddress;
-        }
+        // if (isStellarChain(newConfig.chainId)) {
+        //   payParams.toStellarAddress = newConfig.recipientAddress;
+        // } else if (isSolanaChain(newConfig.chainId)) {
+        //   payParams.toSolanaAddress = newConfig.recipientAddress;
+        // }
       }
 
       resetPayment(payParams);
@@ -313,6 +313,7 @@ export default function DemoBasic() {
                   feeType={FeeType.ExactOut}
                   resetOnSuccess={true}
                   metadata={metadata}
+                  receiverMemo="272727"
                   showProcessingPayout
                 >
                   {(renderProps) => (

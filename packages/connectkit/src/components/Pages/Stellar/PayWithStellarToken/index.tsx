@@ -134,16 +134,57 @@ const PayWithStellarToken: React.FC = () => {
         setRozoPaymentId(newId);
 
         // Handle payment state transitions
-        if (paymentId && state === "payment_started") {
-          // A new payment was created while in payment_started state (e.g., user switched chains)
+        // Get the ACTUAL current state from the store, not the stale React state
+        const currentState = store.getState().type;
+
+        if (currentState === "payment_started" && paymentId) {
+          // A new payment was created while in payment_started state (cross-chain switch)
           // First transition back to payment_unpaid, then to payment_started with new order
-          await setPaymentUnpaid(rozoPaymentId!);
-          await setPaymentStarted(String(newId), hydratedOrder);
-        } else if (state !== "payment_started") {
-          // Normal flow: transition to payment_started
-          await setPaymentStarted(String(newId), hydratedOrder);
+          const oldPaymentId = order?.externalId;
+          if (oldPaymentId) {
+            try {
+              await setPaymentUnpaid(oldPaymentId);
+              await setPaymentStarted(String(newId), hydratedOrder);
+            } catch (e) {
+              // State might have changed during async operations
+              console.warn(
+                "[PayWithStellarToken] State transition failed, attempting direct start:",
+                e
+              );
+              // Try to set started directly if state is already unpaid
+              try {
+                await setPaymentStarted(String(newId), hydratedOrder);
+              } catch (e2) {
+                console.error(
+                  "[PayWithStellarToken] Could not start payment:",
+                  e2
+                );
+                throw e2;
+              }
+            }
+          } else {
+            await setPaymentStarted(String(newId), hydratedOrder);
+          }
+        } else if (currentState !== "payment_started") {
+          // State is not payment_started (preview, unhydrated, or payment_unpaid)
+          // Only transition to payment_started if we're in payment_unpaid
+          const stateBeforeTransition = store.getState().type;
+          if (stateBeforeTransition === "payment_unpaid") {
+            try {
+              await setPaymentStarted(String(newId), hydratedOrder);
+            } catch (e) {
+              console.error(
+                "[PayWithStellarToken] Could not start payment:",
+                e
+              );
+              throw e;
+            }
+          } else {
+            log?.(
+              `[PayWithStellarToken] Skipping setPaymentStarted - state is ${stateBeforeTransition}, needs to be payment_unpaid`
+            );
+          }
         }
-        // If state === "payment_started" && !paymentId, we're reusing the same order, no state change needed
       }
 
       setPayState(PayState.RequestingPayment);

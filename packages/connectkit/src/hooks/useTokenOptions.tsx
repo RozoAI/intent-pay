@@ -21,6 +21,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   const {
     isDepositFlow,
     connectedWalletOnly,
+    paymentOptions,
     walletPaymentOptions,
     solanaPaymentOptions,
     stellarPaymentOptions,
@@ -33,7 +34,58 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   let isLoading = false;
   let hasAnyData = false;
 
-  if (["evm", "all"].includes(mode)) {
+  // Determine which token types should be included based on mode and paymentOptions
+  // When mode is "all" but paymentOptions has specific constraints, we need to filter
+  const shouldIncludeEvm = (() => {
+    if (["evm", "all"].includes(mode)) {
+      // If paymentOptions exists and has wallet constraints, check if Ethereum is allowed
+      if (paymentOptions && paymentOptions.length > 0) {
+        const walletOptions = ["Ethereum", "Solana", "Stellar"];
+        const hasWalletConstraints = paymentOptions.some((opt) =>
+          walletOptions.includes(opt)
+        );
+        if (hasWalletConstraints) {
+          return paymentOptions.includes("Ethereum");
+        }
+      }
+      return true; // No constraints, include EVM
+    }
+    return false;
+  })();
+
+  const shouldIncludeSolana = (() => {
+    if (["solana", "all"].includes(mode)) {
+      if (paymentOptions && paymentOptions.length > 0) {
+        const walletOptions = ["Ethereum", "Solana", "Stellar"];
+        const hasWalletConstraints = paymentOptions.some((opt) =>
+          walletOptions.includes(opt)
+        );
+        if (hasWalletConstraints) {
+          return paymentOptions.includes("Solana");
+        }
+      }
+      return true;
+    }
+    return false;
+  })();
+
+  const shouldIncludeStellar = (() => {
+    if (["stellar", "all"].includes(mode)) {
+      if (paymentOptions && paymentOptions.length > 0) {
+        const walletOptions = ["Ethereum", "Solana", "Stellar"];
+        const hasWalletConstraints = paymentOptions.some((opt) =>
+          walletOptions.includes(opt)
+        );
+        if (hasWalletConstraints) {
+          return paymentOptions.includes("Stellar");
+        }
+      }
+      return true;
+    }
+    return false;
+  })();
+
+  if (shouldIncludeEvm) {
     const evmOptions = walletPaymentOptions.isLoading
       ? []
       : getEvmTokenOptions(
@@ -47,7 +99,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     hasAnyData ||= (walletPaymentOptions.options?.length ?? 0) > 0;
   }
 
-  if (["solana", "all"].includes(mode)) {
+  if (shouldIncludeSolana) {
     const solanaOptions = solanaPaymentOptions.isLoading
       ? []
       : getSolanaTokenOptions(
@@ -61,7 +113,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     hasAnyData ||= (solanaPaymentOptions.options?.length ?? 0) > 0;
   }
 
-  if (["stellar", "all"].includes(mode)) {
+  if (shouldIncludeStellar) {
     const stellarOptions = stellarPaymentOptions.isLoading
       ? []
       : getStellarTokenOptions(
