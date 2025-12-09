@@ -357,18 +357,41 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
   // Emit onPaymentComplete or onPaymentBounced handler when payment state
   // changes to payment_completed or payment_bounced
-  const lastRozoPaymentId = useRef<string | null>(null);
+  // Track processed events per order ID to prevent duplicates and ensure correct order processing
+  const processedEvents = useRef<
+    Map<string, { payment: boolean; payout: boolean }>
+  >(new Map());
 
   useEffect(() => {
-    // Reset sentComplete flags when rozoPaymentId changes
-    const currentRozoPaymentId = rozoPaymentId ?? order?.externalId;
-    if (currentRozoPaymentId !== lastRozoPaymentId.current) {
-      sentComplete.current = false;
-      sentPayoutComplete.current = false;
-      lastRozoPaymentId.current = currentRozoPaymentId || null;
+    if (!order) {
+      // Clear processed events when order is null
+      processedEvents.current.clear();
+      return;
     }
 
-    if (!order) return;
+    const orderIdString = String(order.id);
+    const currentRozoPaymentId = rozoPaymentId ?? order?.externalId ?? null;
+
+    // Get or create tracking for this order
+    const orderKey = `${orderIdString}-${currentRozoPaymentId || ""}`;
+    let orderTracking = processedEvents.current.get(orderKey);
+    if (!orderTracking) {
+      orderTracking = { payment: false, payout: false };
+      processedEvents.current.set(orderKey, orderTracking);
+    }
+
+    // Clean up tracking for other orders (prevent memory leaks)
+    // Keep only the current order and a few recent ones
+    if (processedEvents.current.size > 10) {
+      const keysToDelete: string[] = [];
+      for (const [key] of processedEvents.current) {
+        if (key !== orderKey) {
+          keysToDelete.push(key);
+        }
+        if (keysToDelete.length >= 5) break; // Keep at least 5 entries
+      }
+      keysToDelete.forEach((key) => processedEvents.current.delete(key));
+    }
 
     // Check if payment is completed (either through payState or paymentRozoCompleted)
     const isPaymentCompleted =
@@ -378,8 +401,8 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
       payState === "payout_completed" || payoutRozoCompleted;
 
     // Handle payout completion separately (can happen after payment completion)
-    if (isPayoutCompleted && !sentPayoutComplete.current) {
-      sentPayoutComplete.current = true;
+    if (isPayoutCompleted && !orderTracking.payout) {
+      orderTracking.payout = true;
 
       const sourceChain = order.destFinalCallTokenAmount.token.chainId;
       const destChain = isToStellar
@@ -430,11 +453,11 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
       onPayoutCompleted?.(payoutEvent);
     }
 
-    // Handle payment completion/bounced (only if not already sent)
-    if (sentComplete.current) return;
+    // Handle payment completion/bounced (only if not already sent for this order)
+    if (orderTracking.payment) return;
     if (!isPaymentCompleted && !isPaymentBounced) return;
 
-    sentComplete.current = true;
+    orderTracking.payment = true;
     const eventType = isPaymentCompleted
       ? RozoPayEventType.PaymentCompleted
       : RozoPayEventType.PaymentBounced;
@@ -468,6 +491,9 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
     paymentRozoCompleted,
     payoutRozoCompleted,
     rozoPaymentId,
+    isToStellar,
+    isToSolana,
+    payParams?.toChain,
   ]);
 
   // Open the modal by default if the defaultOpen prop is true

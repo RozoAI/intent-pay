@@ -12,6 +12,7 @@ import {
 import {
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -203,8 +204,13 @@ export type UseRozoPay = RozoPayFunctions & RozoPayState;
  * manage Rozo Pay orders and payments.
  */
 export function useRozoPay(): UseRozoPay {
-  const [paymentRozoCompleted, setPaymentRozoCompleted] = useState(false);
-  const [payoutRozoCompleted, setPayoutRozoCompleted] = useState(false);
+  // Track completion per order ID instead of global boolean flags
+  // This is safer because it prevents cross-order contamination and doesn't rely
+  // on React state updates that might not trigger in built packages
+  const paymentRozoCompletedByOrderId = useRef<Set<string>>(new Set());
+  const payoutRozoCompletedByOrderId = useRef<Set<string>>(new Set());
+  // Version counter to trigger re-renders when Sets are modified
+  const [completionVersion, setCompletionVersion] = useState(0);
   const lastPayoutTxHash = useRef<string | null>(null);
   const store = useContext(PaymentContext);
   if (!store) {
@@ -235,6 +241,51 @@ export function useRozoPay(): UseRozoPay {
   const rozoPaymentId = useMemo(() => {
     return order?.externalId ?? null;
   }, [order]);
+
+  // Get order ID as string for consistent tracking
+  const orderIdString = useMemo(() => {
+    return order?.id ? String(order.id) : null;
+  }, [order?.id]);
+
+  /* --------------------------------------------------
+     Cleanup old order tracking (prevent memory leaks)
+  ---------------------------------------------------*/
+
+  // Clean up tracking for orders that are no longer active
+  // Keep only the current order in the sets to prevent memory leaks
+  useEffect(() => {
+    let changed = false;
+    if (!orderIdString) {
+      // No order - clear all tracking
+      if (
+        paymentRozoCompletedByOrderId.current.size > 0 ||
+        payoutRozoCompletedByOrderId.current.size > 0
+      ) {
+        paymentRozoCompletedByOrderId.current.clear();
+        payoutRozoCompletedByOrderId.current.clear();
+        changed = true;
+      }
+    } else {
+      // Remove tracking for orders that are no longer current
+      // This is a safety measure - in practice, we only track the current order
+      const currentOrderId = orderIdString;
+      for (const orderId of paymentRozoCompletedByOrderId.current) {
+        if (orderId !== currentOrderId) {
+          paymentRozoCompletedByOrderId.current.delete(orderId);
+          changed = true;
+        }
+      }
+      for (const orderId of payoutRozoCompletedByOrderId.current) {
+        if (orderId !== currentOrderId) {
+          payoutRozoCompletedByOrderId.current.delete(orderId);
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      setCompletionVersion((v) => v + 1);
+    }
+  }, [orderIdString]);
 
   /* --------------------------------------------------
      Order event dispatch helpers
@@ -406,7 +457,12 @@ export function useRozoPay(): UseRozoPay {
     [dispatch, store]
   );
 
-  const reset = useCallback(() => dispatch({ type: "reset" }), [dispatch]);
+  const reset = useCallback(() => {
+    dispatch({ type: "reset" });
+    // Clear all completion tracking when resetting
+    paymentRozoCompletedByOrderId.current.clear();
+    payoutRozoCompletedByOrderId.current.clear();
+  }, []);
 
   const setChosenUsd = useCallback(
     (usd: number) => dispatch({ type: "set_chosen_usd", usd }),
@@ -497,6 +553,7 @@ export function useRozoPay(): UseRozoPay {
       }
 
       const hydratedOrder = currentState.order as RozoPayHydratedOrderWithOrg;
+      const orderId = String(hydratedOrder.id);
 
       dispatch({
         type: "order_refreshed",
@@ -513,7 +570,11 @@ export function useRozoPay(): UseRozoPay {
         "payout_completed"
       );
 
-      setPayoutRozoCompleted(true);
+      // Mark this order ID as having payout completed
+      if (!payoutRozoCompletedByOrderId.current.has(orderId)) {
+        payoutRozoCompletedByOrderId.current.add(orderId);
+        setCompletionVersion((v) => v + 1);
+      }
 
       return payoutCompletedState;
     },
@@ -576,6 +637,60 @@ export function useRozoPay(): UseRozoPay {
       return unpaidState;
     },
     [dispatch, store]
+  );
+
+  // Getter functions that check if the current order has been marked as completed
+  // Depend on completionVersion to trigger re-renders when Sets are modified
+  const paymentRozoCompleted = useMemo(() => {
+    return orderIdString
+      ? paymentRozoCompletedByOrderId.current.has(orderIdString)
+      : false;
+  }, [orderIdString, completionVersion]);
+
+  const payoutRozoCompleted = useMemo(() => {
+    return orderIdString
+      ? payoutRozoCompletedByOrderId.current.has(orderIdString)
+      : false;
+  }, [orderIdString, completionVersion]);
+
+  // Setter functions that mark the current order as completed
+  // Increment version to trigger re-renders
+  const setPaymentRozoCompleted = useCallback(
+    (completed: boolean) => {
+      if (!orderIdString) return;
+      const hadValue = paymentRozoCompletedByOrderId.current.has(orderIdString);
+      if (completed) {
+        paymentRozoCompletedByOrderId.current.add(orderIdString);
+        if (!hadValue) {
+          setCompletionVersion((v) => v + 1);
+        }
+      } else {
+        paymentRozoCompletedByOrderId.current.delete(orderIdString);
+        if (hadValue) {
+          setCompletionVersion((v) => v + 1);
+        }
+      }
+    },
+    [orderIdString]
+  );
+
+  const setPayoutRozoCompleted = useCallback(
+    (completed: boolean) => {
+      if (!orderIdString) return;
+      const hadValue = payoutRozoCompletedByOrderId.current.has(orderIdString);
+      if (completed) {
+        payoutRozoCompletedByOrderId.current.add(orderIdString);
+        if (!hadValue) {
+          setCompletionVersion((v) => v + 1);
+        }
+      } else {
+        payoutRozoCompletedByOrderId.current.delete(orderIdString);
+        if (hadValue) {
+          setCompletionVersion((v) => v + 1);
+        }
+      }
+    },
+    [orderIdString]
   );
 
   return {
