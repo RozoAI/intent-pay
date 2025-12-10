@@ -171,6 +171,8 @@ const PayWithStellarToken: React.FC = () => {
           if (stateBeforeTransition === "payment_unpaid") {
             try {
               await setPaymentStarted(String(newId), hydratedOrder);
+              await handleTransfer(option);
+              return;
             } catch (e) {
               console.error(
                 "[PayWithStellarToken] Could not start payment:",
@@ -178,6 +180,10 @@ const PayWithStellarToken: React.FC = () => {
               );
               throw e;
             }
+          } else if (stateBeforeTransition === "preview") {
+            // Transition from preview -> payment_unpaid -> payment_started
+            await setPaymentUnpaid(String(newId), hydratedOrder);
+            await setPaymentStarted(String(newId), hydratedOrder);
           } else {
             log?.(
               `[PayWithStellarToken] Skipping setPaymentStarted - state is ${stateBeforeTransition}, needs to be payment_unpaid`

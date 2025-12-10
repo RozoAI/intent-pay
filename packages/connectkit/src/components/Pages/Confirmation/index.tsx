@@ -35,7 +35,7 @@ import styled from "../../../styles/styled";
 import Button from "../../Common/Button";
 import PoweredByFooter from "../../Common/PoweredByFooter";
 
-const poolDelay = 4000;
+const poolDelay = 1000;
 
 const Confirmation: React.FC = () => {
   const {

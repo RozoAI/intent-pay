@@ -42,8 +42,8 @@ importers:
         specifier: 0.1.5
         version: 0.1.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@rozoai/intent-pay':
-        specifier: 0.1.4-beta.1
-        version: 0.1.4-beta.1(90f923ea2750f3f912664a4a2bd2af12)
+        specifier: 0.1.4
+        version: 0.1.4(90f923ea2750f3f912664a4a2bd2af12)
       '@tanstack/react-query':
         specifier: ^5.51.11
         version: 5.90.12(react@18.2.0)
@@ -1422,8 +1422,8 @@ packages:
   '@rozoai/intent-common@0.1.5':
     resolution: {integrity: sha512-aPMinmgpLwLu3YkVcBHs7Ge/xtM3uhqsvR4ZFJzfoXYK04IJRref5gl1qmlWcNoMgQqNG1+gDYWS7Sj/05Xg9g==}
 
-  '@rozoai/intent-pay@0.1.4-beta.1':
-    resolution: {integrity: sha512-KSbNvNfX/24CcGvzQhyZZzZJ4Hap7jbOglMvGvf2t1qHeI6g34scVXIBznpvJ85481DtJdq1KClyTkElfYmpVA==}
+  '@rozoai/intent-pay@0.1.4':
+    resolution: {integrity: sha512-4xYo2VNZj8Bt4CqcIurtAHNCt95AAnUHmAW2EIGJy/kg/FnC4Ildv9plbiIOVir7FoJXalZMbssIZfLDo+0u4Q==}
     engines: {node: '>=12.4'}
     peerDependencies:
       '@creit.tech/stellar-wallets-kit': ^1.9.5
@@ -9400,7 +9400,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@rozoai/intent-pay@0.1.4-beta.1(90f923ea2750f3f912664a4a2bd2af12)':
+  '@rozoai/intent-pay@0.1.4(90f923ea2750f3f912664a4a2bd2af12)':
     dependencies:
       '@albedo-link/intent': 0.13.0
       '@reown/appkit': 1.8.15(@react-native-async-storage/async-storage@1.24.0(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.2.0)(utf-8-validate@5.0.10)))(@types/react@18.3.27)(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(react@18.2.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.76)
@@ -9419,6 +9419,7 @@ snapshots:
       buffer: 6.0.3
       detect-browser: 5.3.0
       framer-motion: 11.18.2(@emotion/is-prop-valid@1.4.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      pino-pretty: 10.3.1
       qrcode: 1.5.4
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
@@ -14389,7 +14390,7 @@ snapshots:
 
   extension-port-stream@3.0.0:
     dependencies:
-      readable-stream: 3.6.2
+      readable-stream: 4.7.0
       webextension-polyfill: 0.10.0
 
   eyes@0.1.8: {}
@@ -15883,10 +15884,10 @@ snapshots:
   ox@0.6.7(typescript@5.9.3)(zod@3.25.76):
     dependencies:
       '@adraffy/ens-normalize': 1.11.1
-      '@noble/curves': 1.8.1
+      '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
-      '@scure/bip32': 1.6.2
-      '@scure/bip39': 1.5.4
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
       abitype: 1.0.8(typescript@5.9.3)(zod@3.25.76)
       eventemitter3: 5.0.1
     optionalDependencies:
@@ -15897,10 +15898,10 @@ snapshots:
   ox@0.6.7(typescript@5.9.3)(zod@4.1.13):
     dependencies:
       '@adraffy/ens-normalize': 1.11.1
-      '@noble/curves': 1.8.1
+      '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
-      '@scure/bip32': 1.6.2
-      '@scure/bip39': 1.5.4
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
       abitype: 1.0.8(typescript@5.9.3)(zod@4.1.13)
       eventemitter3: 5.0.1
     optionalDependencies:

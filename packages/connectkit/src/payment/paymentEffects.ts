@@ -421,7 +421,13 @@ async function runHydratePayParamsEffects(
     });
 
   try {
-    log?.("[Payment Effect]: createRozoPayment");
+    log?.(
+      `[Payment Effect]: createRozoPayment: ${JSON.stringify(
+        payParams,
+        null,
+        2
+      )}`
+    );
     const isAbleToIncludeReceiverMemo = [
       rozoSolana.chainId,
       rozoStellar.chainId,

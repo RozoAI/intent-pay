@@ -43,7 +43,6 @@ class PaymentEventEmitter {
     orderId: string | bigint | null | undefined,
     data: any
   ) {
-    console.log("[PaymentEventEmitter] emit", eventType, orderId, data);
     if (!orderId) return;
 
     const orderIdString = String(orderId);

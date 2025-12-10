@@ -247,6 +247,30 @@ function reducePreview(
   switch (event.type) {
     case "order_hydrated":
       return { type: "payment_unpaid", order: event.order };
+    case "order_refreshed":
+      // Handle order_refreshed events when transitioning from preview to payment_unpaid
+      // This happens when setPaymentUnpaid is called from preview state
+      if (isHydrated(event.order)) {
+        // If order is hydrated, transition based on intentStatus
+        if (event.order.intentStatus === RozoPayIntentStatus.UNPAID) {
+          return { type: "payment_unpaid", order: event.order };
+        }
+        // For other statuses, use getStateFromHydratedOrder logic
+        switch (event.order.intentStatus) {
+          case RozoPayIntentStatus.STARTED:
+            return { type: "payment_started", order: event.order };
+          case RozoPayIntentStatus.COMPLETED:
+            return { type: "payment_completed", order: event.order };
+          case RozoPayIntentStatus.BOUNCED:
+            return { type: "payment_bounced", order: event.order };
+          case RozoPayIntentStatus.PAYOUT_COMPLETED:
+            return { type: "payout_completed", order: event.order };
+          default:
+            return state;
+        }
+      }
+      // If order is not hydrated, stay in preview
+      return state;
     case "set_chosen_usd": {
       const token = state.order.destFinalCallTokenAmount.token;
       const tokenUnits = (event.usd / token.priceFromUsd).toString();

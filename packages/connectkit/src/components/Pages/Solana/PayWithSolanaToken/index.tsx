@@ -178,6 +178,10 @@ const PayWithSolanaToken: React.FC = () => {
                 );
                 throw e;
               }
+            } else if (stateBeforeTransition === "preview") {
+              // Transition from preview -> payment_unpaid -> payment_started
+              await setPaymentUnpaid(String(newId), hydratedOrder);
+              await setPaymentStarted(String(newId), hydratedOrder);
             } else {
               log(
                 `[PayWithSolanaToken] Skipping setPaymentStarted - state is ${stateBeforeTransition}, needs to be payment_unpaid`
