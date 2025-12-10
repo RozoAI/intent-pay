@@ -313,7 +313,6 @@ export default function DemoBasic() {
                   feeType={FeeType.ExactOut}
                   resetOnSuccess={true}
                   metadata={metadata}
-                  receiverMemo="272727"
                   showProcessingPayout
                 >
                   {(renderProps) => (

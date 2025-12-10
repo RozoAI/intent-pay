@@ -584,7 +584,7 @@ async function runHydratePayIdEffects(
       sourceTokenAmount: null,
       sourceFulfillerAddr: null,
       sourceInitiateTxHash: null,
-      // sourceStartTxHash: null,
+      sourceStartTxHash: null,
       sourceStatus: RozoPayOrderStatusSource.WAITING_PAYMENT,
       destStatus: RozoPayOrderStatusDest.PENDING,
       intentStatus: RozoPayIntentStatus.UNPAID,

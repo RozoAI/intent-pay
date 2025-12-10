@@ -50,9 +50,7 @@ const Confirmation: React.FC = () => {
     order,
     paymentState,
     setPaymentCompleted,
-    setPaymentRozoCompleted,
     setPaymentPayoutCompleted,
-    setPayoutRozoCompleted,
   } = useRozoPay();
 
   const [isConfirming, setIsConfirming] = useState<boolean>(true);
@@ -259,7 +257,6 @@ const Confirmation: React.FC = () => {
 
       paymentCompletedSent.current = paymentKey;
       setPaymentCompleted(rawPayInHash, rozoPaymentId);
-      setPaymentRozoCompleted(true);
       onSuccess();
     }
   }, [done, onSuccess, paymentStateContext, rawPayInHash, rozoPaymentId]);
@@ -279,7 +276,6 @@ const Confirmation: React.FC = () => {
 
       payoutCompletedSent.current = payoutKey;
       setPaymentPayoutCompleted(payoutTxHash, rozoPaymentId);
-      setPayoutRozoCompleted(true);
     }
   }, [done, payoutTxHash, rozoPaymentId]);
 

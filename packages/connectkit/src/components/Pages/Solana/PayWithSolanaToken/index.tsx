@@ -48,12 +48,10 @@ const PayWithSolanaToken: React.FC = () => {
     store,
     order,
     paymentState: state,
-    setPayId,
     setPaymentStarted,
     setPaymentUnpaid,
-    setPaymentRozoCompleted,
     setPaymentCompleted,
-    hydrateOrderRozo,
+    hydrateOrder,
   } = useRozoPay();
 
   // Get the destination address and payment direction using our custom hook
@@ -122,7 +120,7 @@ const PayWithSolanaToken: React.FC = () => {
           hydratedOrder = formattedOrder;
         } else {
           // Hydrate existing order
-          const res = await hydrateOrderRozo(undefined, option);
+          const res = await hydrateOrder(undefined, option);
           hydratedOrder = res.order;
         }
 
@@ -213,7 +211,6 @@ const PayWithSolanaToken: React.FC = () => {
           setPayState(PayState.RequestSuccessful);
           setTxHash(result.txHash);
           setTimeout(() => {
-            setPaymentRozoCompleted(true);
             setPaymentCompleted(result.txHash, rozoPaymentId);
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-solana" });
           }, 200);

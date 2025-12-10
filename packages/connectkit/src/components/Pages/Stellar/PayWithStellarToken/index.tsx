@@ -57,9 +57,8 @@ const PayWithStellarToken: React.FC = () => {
     paymentState: state,
     setPaymentStarted,
     setPaymentUnpaid,
-    setPaymentRozoCompleted,
     setPaymentCompleted,
-    hydrateOrderRozo,
+    hydrateOrder,
   } = useRozoPay();
   // Get the destination address and payment direction using our custom hook
   const { destinationAddress } = useStellarDestination(payParams);
@@ -121,7 +120,7 @@ const PayWithStellarToken: React.FC = () => {
         hydratedOrder = formatPaymentResponseToHydratedOrder(res);
       } else {
         // Hydrate existing order
-        const res = await hydrateOrderRozo(undefined, option);
+        const res = await hydrateOrder(undefined, option);
         hydratedOrder = res.order;
       }
 
@@ -248,7 +247,6 @@ const PayWithStellarToken: React.FC = () => {
           setTxURL(getChainExplorerTxUrl(stellar.chainId, response.hash));
           setTimeout(() => {
             setSignedTx(undefined);
-            setPaymentRozoCompleted(true);
             setPaymentCompleted(response.hash, rozoPaymentId);
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
           }, 200);
