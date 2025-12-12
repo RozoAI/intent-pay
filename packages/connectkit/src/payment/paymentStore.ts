@@ -8,13 +8,23 @@ import {
 
 export type PaymentStore = ReturnType<
   typeof createStore<PaymentState, PaymentEvent>
->;
+> & {
+  apiVersion?: "v1" | "v2";
+};
 
-export function createPaymentStore(log?: (msg: string) => void): PaymentStore {
-  return createStore<PaymentState, PaymentEvent>(
+export function createPaymentStore(
+  log?: (msg: string) => void,
+  apiVersion: "v1" | "v2" = "v2"
+): PaymentStore {
+  const store = createStore<PaymentState, PaymentEvent>(
     (state, event) => paymentReducer(state, event),
     initialPaymentState
-  );
+  ) as PaymentStore;
+  
+  // Attach apiVersion to the store for easy access
+  store.apiVersion = apiVersion;
+  
+  return store;
 }
 
 /**

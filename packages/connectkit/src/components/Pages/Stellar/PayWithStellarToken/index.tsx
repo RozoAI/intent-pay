@@ -25,7 +25,6 @@ import {
 import { useRozoPay } from "../../../../hooks/useDaimoPay";
 import { useStellarDestination } from "../../../../hooks/useStellarDestination";
 import { useStellar } from "../../../../provider/StellarContextProvider";
-import { roundTokenAmount } from "../../../../utils/format";
 import { getSupportUrl } from "../../../../utils/supportUrl";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
@@ -45,7 +44,7 @@ const PayWithStellarToken: React.FC = () => {
   const { triggerResize, paymentState, setRoute, log } = usePayContext();
   const {
     selectedStellarTokenOption,
-    payWithStellarToken: payWithStellarTokenImpl,
+    payWithStellarToken,
     setTxHash,
     payParams,
     rozoPaymentId,
@@ -58,9 +57,8 @@ const PayWithStellarToken: React.FC = () => {
     paymentState: state,
     setPaymentStarted,
     setPaymentUnpaid,
-    setPaymentRozoCompleted,
     setPaymentCompleted,
-    hydrateOrderRozo,
+    hydrateOrder,
   } = useRozoPay();
   // Get the destination address and payment direction using our custom hook
   const { destinationAddress } = useStellarDestination(payParams);
@@ -100,13 +98,16 @@ const PayWithStellarToken: React.FC = () => {
       const { required } = option;
 
       const needRozoPayment =
-        "payinchainid" in order.metadata &&
-        Number(order.metadata.payinchainid) !== required.token.chainId;
+        order.preferredChainId !== null &&
+        order.preferredChainId !== required.token.chainId;
 
       let hydratedOrder: RozoPayHydratedOrderWithOrg;
       let paymentId: string | undefined;
 
-      if (state === "payment_unpaid" && !needRozoPayment) {
+      if (
+        (state === "payment_unpaid" || state === "payment_started") &&
+        !needRozoPayment
+      ) {
         hydratedOrder = order;
       } else if (needRozoPayment) {
         const res = await createPayment(option, store as any);
@@ -119,7 +120,7 @@ const PayWithStellarToken: React.FC = () => {
         hydratedOrder = formatPaymentResponseToHydratedOrder(res);
       } else {
         // Hydrate existing order
-        const res = await hydrateOrderRozo(undefined, option);
+        const res = await hydrateOrder(undefined, option);
         hydratedOrder = res.order;
       }
 
@@ -130,33 +131,90 @@ const PayWithStellarToken: React.FC = () => {
       const newId = paymentId ?? hydratedOrder.externalId;
       if (newId) {
         setRozoPaymentId(newId);
-        setPaymentStarted(String(newId), hydratedOrder);
+
+        // Handle payment state transitions
+        // Get the ACTUAL current state from the store, not the stale React state
+        const currentState = store.getState().type;
+
+        if (currentState === "payment_started" && paymentId) {
+          // A new payment was created while in payment_started state (cross-chain switch)
+          // First transition back to payment_unpaid, then to payment_started with new order
+          const oldPaymentId = order?.externalId;
+          if (oldPaymentId) {
+            try {
+              await setPaymentUnpaid(oldPaymentId);
+              await setPaymentStarted(String(newId), hydratedOrder);
+            } catch (e) {
+              // State might have changed during async operations
+              console.warn(
+                "[PayWithStellarToken] State transition failed, attempting direct start:",
+                e
+              );
+              // Try to set started directly if state is already unpaid
+              try {
+                await setPaymentStarted(String(newId), hydratedOrder);
+              } catch (e2) {
+                console.error(
+                  "[PayWithStellarToken] Could not start payment:",
+                  e2
+                );
+                throw e2;
+              }
+            }
+          } else {
+            await setPaymentStarted(String(newId), hydratedOrder);
+          }
+        } else if (currentState !== "payment_started") {
+          // State is not payment_started (preview, unhydrated, or payment_unpaid)
+          // Only transition to payment_started if we're in payment_unpaid
+          const stateBeforeTransition = store.getState().type;
+          if (stateBeforeTransition === "payment_unpaid") {
+            try {
+              await setPaymentStarted(String(newId), hydratedOrder);
+              await handleTransfer(option);
+              return;
+            } catch (e) {
+              console.error(
+                "[PayWithStellarToken] Could not start payment:",
+                e
+              );
+              throw e;
+            }
+          } else if (stateBeforeTransition === "preview") {
+            // Transition from preview -> payment_unpaid -> payment_started
+            await setPaymentUnpaid(String(newId), hydratedOrder);
+            await setPaymentStarted(String(newId), hydratedOrder);
+          } else {
+            log?.(
+              `[PayWithStellarToken] Skipping setPaymentStarted - state is ${stateBeforeTransition}, needs to be payment_unpaid`
+            );
+          }
+        }
       }
 
       setPayState(PayState.RequestingPayment);
 
       const paymentData = {
-        destAddress:
-          (hydratedOrder.destFinalCall.to as string) || destinationAddress,
-        usdcAmount: String(hydratedOrder.destFinalCallTokenAmount.usd),
-        stellarAmount: roundTokenAmount(
-          hydratedOrder.destFinalCallTokenAmount.amount,
-          hydratedOrder.destFinalCallTokenAmount.token
-        ),
+        destAddress: hydratedOrder.intentAddr || destinationAddress,
+        usdcAmount: String(option.required.usd),
       };
 
-      if (hydratedOrder.metadata?.memo) {
+      if (hydratedOrder.memo) {
         Object.assign(paymentData, {
-          memo: hydratedOrder.metadata.memo as string,
+          memo: hydratedOrder.memo,
         });
       }
 
-      const result = await payWithStellarTokenImpl(option, paymentData);
+      const result = await payWithStellarToken(option, paymentData);
       setSignedTx(result.signedTx);
       setPayState(PayState.WaitingForConfirmation);
     } catch (error) {
       if (rozoPaymentId) {
-        setPaymentUnpaid(rozoPaymentId);
+        try {
+          await setPaymentUnpaid(rozoPaymentId);
+        } catch (e) {
+          console.error("Failed to set payment unpaid:", e);
+        }
       }
       if ((error as any).message.includes("rejected")) {
         setPayState(PayState.RequestCancelled);
@@ -195,7 +253,6 @@ const PayWithStellarToken: React.FC = () => {
           setTxURL(getChainExplorerTxUrl(stellar.chainId, response.hash));
           setTimeout(() => {
             setSignedTx(undefined);
-            setPaymentRozoCompleted(true);
             setPaymentCompleted(response.hash, rozoPaymentId);
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
           }, 200);

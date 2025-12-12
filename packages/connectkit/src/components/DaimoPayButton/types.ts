@@ -5,7 +5,6 @@ import {
   PaymentCompletedEvent,
   PaymentPayoutCompletedEvent,
   PaymentStartedEvent,
-  RozoPayUserMetadata,
 } from "@rozoai/intent-common";
 import { ReactElement } from "react";
 import { Address } from "viem";
@@ -58,11 +57,8 @@ type CommonPaymentProps = {
   appId: string;
   /**
    * Destination chain ID for non-EVM chains.
-   * - Base: 8453
-   * - Ethereum: 1
-   * - Polygon: 137
-   * - Solana: 900
-   * - Stellar: 1500
+   *
+   * @see {@link https://docs.rozo.ai/integration/api-doc/supported-tokens-and-chains#pay-out-tokens-and-chains}
    */
   toChain: number;
   /**
@@ -74,6 +70,10 @@ type CommonPaymentProps = {
    * The intent verb, such as "Pay", "Deposit", or "Purchase".
    */
   intent?: string;
+  /**
+   * The memo to use for the payment.
+   */
+  receiverMemo?: string;
   /**
    * The fee type to use for the payment.
    * - exactIn (default): Fee deducted from input, recipient receives amount - fee
@@ -103,7 +103,7 @@ type CommonPaymentProps = {
   /**
    * Developer metadata. E.g. correlation ID.
    */
-  metadata?: RozoPayUserMetadata;
+  metadata?: Record<string, any>;
 };
 
 /** Props for RozoPayButton - discriminated union based on chain type */
@@ -142,7 +142,7 @@ type PayButtonCommonProps = PayButtonPaymentProps & {
   /** Custom message to display on confirmation page. */
   confirmationMessage?: string;
   /** Redirect URL to return to the app. E.g. after Coinbase, Binance, RampNetwork. */
-  redirectReturnUrl?: string;
+  // redirectReturnUrl?: string;
   /** Optional configuration to show processing pay out loading when payment completed */
   showProcessingPayout?: boolean;
 };

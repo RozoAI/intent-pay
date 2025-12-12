@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { ROUTES } from "../../../constants/routes";
 import { usePayContext } from "../../../hooks/usePayContext";
 
@@ -29,30 +29,34 @@ import WalletChainLogo from "../../Common/WalletChainLogo";
 export default function SelectMethod() {
   const { isMobile } = useIsMobile();
 
+  // EVM
   const {
     address,
     chain,
     isConnected: isEthConnected,
     connector,
   } = useAccount();
+
+  // Solana
   const {
     connected: isSolanaConnected,
     wallet: solanaWallet,
     disconnect: disconnectSolana,
     publicKey,
   } = useWallet();
-  const { setRoute, paymentState, log, disableMobileInjector } =
-    usePayContext();
-  const { showSolanaPaymentMethod } = paymentState;
-  const { disconnectAsync } = useDisconnect();
 
-  // Stellar Support
+  // Stellar
   const {
     connector: stellarConnector,
     isConnected: isStellarConnected,
     disconnect: disconnectStellar,
     publicKey: stellarPublicKey,
   } = useStellar();
+
+  const { setRoute, paymentState, log, disableMobileInjector } =
+    usePayContext();
+  const { showSolanaPaymentMethod } = paymentState;
+  const { disconnectAsync } = useDisconnect();
 
   const {
     externalPaymentOptions,
@@ -66,16 +70,26 @@ export default function SelectMethod() {
   // Decide whether to show the connected eth account, solana account, or both.
   // Desktop: Always show connected wallets when available
   // Mobile: Only show connected wallets when mobile injector is enabled (!disableMobileInjector)
-  const showConnectedEth =
-    isEthConnected && (!isMobile || !disableMobileInjector);
-  const showConnectedSolana =
-    isSolanaConnected && (!isMobile || !disableMobileInjector);
-  const showConnectedStellar =
-    isStellarConnected && (!isMobile || !disableMobileInjector);
+  const showConnectedEth = useMemo(
+    () => isEthConnected && (!isMobile || !disableMobileInjector),
+    [isEthConnected, isMobile, disableMobileInjector]
+  );
+  const showConnectedSolana = useMemo(
+    () => isSolanaConnected && (!isMobile || !disableMobileInjector),
+    [isSolanaConnected, isMobile, disableMobileInjector]
+  );
+  const showConnectedStellar = useMemo(
+    () => isStellarConnected && (!isMobile || !disableMobileInjector),
+    [isStellarConnected, isMobile, disableMobileInjector]
+  );
 
-  const getConnectedWalletOptions = () => {
+  // Memoize connected wallet options to prevent unnecessary recalculations
+  const connectedWalletOptions = useMemo(() => {
     const showChainLogo =
-      isEthConnected && isSolanaConnected && showSolanaPaymentMethod;
+      (isEthConnected || isSolanaConnected || isStellarConnected) &&
+      ((isEthConnected && isSolanaConnected) ||
+        (isEthConnected && isStellarConnected) ||
+        (isSolanaConnected && isStellarConnected));
 
     const connectedOptions: Option[] = [];
 
@@ -246,44 +260,129 @@ export default function SelectMethod() {
     }
 
     return connectedOptions;
-  };
+  }, [
+    showConnectedEth,
+    showConnectedSolana,
+    showConnectedStellar,
+    isEthConnected,
+    isSolanaConnected,
+    isStellarConnected,
+    showSolanaPaymentMethod,
+    address,
+    senderEnsName,
+    connector?.id,
+    connector?.name,
+    connector?.icon,
+    chain?.id,
+    publicKey,
+    solanaWallet?.adapter.name,
+    solanaWallet?.adapter.icon,
+    stellarPublicKey,
+    stellarConnector?.id,
+    stellarConnector?.name,
+    stellarConnector?.icon,
+    paymentOptions,
+    // paymentState.setTokenMode,
+    // setRoute,
+  ]);
 
-  const connectedWalletOptions = getConnectedWalletOptions();
+  // Memoize all options to prevent unnecessary recalculations
+  const allOptions = useMemo(() => {
+    const options: Option[] = [];
+    options.push(...connectedWalletOptions);
 
-  const options: {
-    id: string;
-    title: string;
-    subtitle?: string;
-    icons: (React.ReactNode | string)[];
-    onClick: () => void;
-    disabled?: boolean;
-  }[] = [];
-  options.push(...connectedWalletOptions);
+    if (!connectedWalletOnly) {
+      const unconnectedWalletOption = {
+        id: "unconnectedWallet",
+        title:
+          isEthConnected || isSolanaConnected || isStellarConnected
+            ? `Pay with another wallet`
+            : `Pay with wallet`,
+        icons: getBestUnconnectedWalletIcons(connector, isMobile),
+        onClick: async () => {
+          await disconnectAsync();
+          await disconnectSolana();
+          await disconnectStellar();
+          setRoute(ROUTES.CONNECTORS);
+        },
+      };
+      options.push(unconnectedWalletOption);
 
-  if (!connectedWalletOnly) {
-    const unconnectedWalletOption = {
-      id: "unconnectedWallet",
-      title:
-        isEthConnected || isSolanaConnected || isStellarConnected
-          ? `Pay with another wallet`
-          : `Pay with wallet`,
-      icons: getBestUnconnectedWalletIcons(connector, isMobile),
-      onClick: async () => {
-        await disconnectAsync();
-        await disconnectSolana();
-        await disconnectStellar();
-        setRoute(ROUTES.CONNECTORS);
-      },
-    };
-    options.push(unconnectedWalletOption);
+      // Pay with Deposit Address
+      const depositAddressOption = getDepositAddressOption(
+        setRoute,
+        payParams?.appId
+      );
+      options.push(depositAddressOption);
+    }
 
-    // Pay with Deposit Address
-    const depositAddressOption = getDepositAddressOption(
-      setRoute,
-      payParams?.appId
-    );
-    options.push(depositAddressOption);
-  }
+    if (showStellarPaymentMethod) {
+      options.push({
+        id: "stellar",
+        title: "Pay with Stellar",
+        icons: [<Stellar key="stellar" />],
+        onClick: async () => {
+          await disconnectAsync();
+          await disconnectSolana();
+          await disconnectStellar();
+          setRoute(ROUTES.STELLAR_CONNECT);
+        },
+      });
+    }
+
+    // Pay with Exchange
+    // const exchangeOptions = externalPaymentOptions.options.get("exchange") ?? [];
+
+    // const showExchangePaymentMethod = exchangeOptions.length > 0;
+    // if (showExchangePaymentMethod) {
+    //   options.push({
+    //     id: "exchange",
+    //     title: "Pay with exchange",
+    //     icons: exchangeOptions.slice(0, 3).map((option) => option.logoURI),
+    //     onClick: () => {
+    //       setRoute(ROUTES.SELECT_EXCHANGE, {
+    //         event: "click-option",
+    //         option: "exchange",
+    //       });
+    //     },
+    //   });
+    // }
+
+    // ZKP2P is currently only available on desktop. Check if the user is on
+    // desktop and if any ZKP2P options are available.
+    const zkp2pOptions = externalPaymentOptions.options.get("zkp2p") ?? [];
+    const showZkp2pPaymentMethod = !isMobile && zkp2pOptions.length > 0;
+    if (showZkp2pPaymentMethod) {
+      options.push({
+        id: "ZKP2P",
+        title: "Pay via payment app",
+        icons: zkp2pOptions.slice(0, 2).map((option) => option.logoURI),
+        onClick: () => {
+          setRoute(ROUTES.SELECT_ZKP2P);
+        },
+      });
+    }
+
+    // Order disabled to bottom
+    options.sort((a, b) => (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0));
+
+    return options;
+  }, [
+    connectedWalletOptions,
+    connectedWalletOnly,
+    isEthConnected,
+    isSolanaConnected,
+    isStellarConnected,
+    connector,
+    isMobile,
+    // disconnectAsync,
+    // disconnectSolana,
+    // disconnectStellar,
+    // setRoute,
+    payParams?.appId,
+    showStellarPaymentMethod,
+    externalPaymentOptions.options,
+  ]);
 
   log(
     `[SELECT_METHOD] loading: ${
@@ -291,67 +390,13 @@ export default function SelectMethod() {
     }, options: ${JSON.stringify(externalPaymentOptions.options)}`
   );
 
-  if (showStellarPaymentMethod) {
-    options.push({
-      id: "stellar",
-      title: "Pay with Stellar",
-      icons: [<Stellar key="stellar" />],
-      onClick: async () => {
-        await disconnectAsync();
-        await disconnectSolana();
-        await disconnectStellar();
-        setRoute(ROUTES.STELLAR_CONNECT);
-      },
-    });
-  }
-
-  // Pay with Exchange
-  // const exchangeOptions = externalPaymentOptions.options.get("exchange") ?? [];
-
-  // const showExchangePaymentMethod = exchangeOptions.length > 0;
-  // if (showExchangePaymentMethod) {
-  //   options.push({
-  //     id: "exchange",
-  //     title: "Pay with exchange",
-  //     icons: exchangeOptions.slice(0, 3).map((option) => option.logoURI),
-  //     onClick: () => {
-  //       setRoute(ROUTES.SELECT_EXCHANGE, {
-  //         event: "click-option",
-  //         option: "exchange",
-  //       });
-  //     },
-  //   });
-  // }
-
-  // ZKP2P is currently only available on desktop. Check if the user is on
-  // desktop and if any ZKP2P options are available.
-  const zkp2pOptions = externalPaymentOptions.options.get("zkp2p") ?? [];
-  const showZkp2pPaymentMethod = !isMobile && zkp2pOptions.length > 0;
-  if (showZkp2pPaymentMethod) {
-    options.push({
-      id: "ZKP2P",
-      title: "Pay via payment app",
-      icons: zkp2pOptions.slice(0, 2).map((option) => option.logoURI),
-      onClick: () => {
-        setRoute(ROUTES.SELECT_ZKP2P);
-      },
-    });
-  }
-
-  // Order disabled to bottom
-  options.sort((a, b) => (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0));
-
   return (
     <PageContent>
-      {/* TODO: Hide Tron and Ethereum from the deposit address options */}
-      <OrderHeader
-        excludeLogos={["tron", "eth", "arbitrum", "optimism", "stellar"]}
-      />
-
+      <OrderHeader excludeLogos={["tron", "arbitrum", "optimism", "stellar"]} />
       <OptionsList
         requiredSkeletons={isMobile ? 4 : 3} // TODO: programmatically determine skeletons to best avoid layout shifts
         isLoading={externalPaymentOptions.loading}
-        options={externalPaymentOptions.loading ? [] : options}
+        options={externalPaymentOptions.loading ? [] : allOptions}
       />
       <PoweredByFooter />
     </PageContent>

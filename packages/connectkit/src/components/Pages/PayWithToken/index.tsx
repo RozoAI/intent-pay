@@ -99,9 +99,14 @@ const PayWithToken: React.FC = () => {
       try {
         setPayState(PayState.RequestingPayment);
         const currentRozoPaymentId = rozoPaymentId ?? order?.externalId;
-        // Only set unpaid if state is payment_started (for retry scenarios)
+        // Only set unpaid if state is payment_started (for retry scenarios and cross-chain switches)
         if (currentRozoPaymentId && rozoPaymentState === "payment_started") {
-          await setPaymentUnpaid(currentRozoPaymentId);
+          try {
+            await setPaymentUnpaid(currentRozoPaymentId);
+          } catch (e) {
+            console.error("Failed to set payment unpaid:", e);
+            // If already unpaid, continue anyway
+          }
         }
 
         const result = await payWithToken(option, store as any);

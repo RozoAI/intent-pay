@@ -23,14 +23,14 @@ export interface PayParams {
   /** Destination chain ID. */
   toChain: number;
   /** The destination token to send. Address for EVM, string for non-EVM. */
-  toToken: Address | string;
+  toToken: string;
   /**
    * The amount of the token to send.
    * If not provided, the user will be prompted to enter an amount.
    */
   toUnits?: string;
   /** The final EVM address to transfer to or contract to call. */
-  toAddress?: Address;
+  toAddress?: string;
   /** The final stellar address to transfer to. */
   toStellarAddress?: string;
   /** The final solana address to transfer to. */
@@ -57,6 +57,8 @@ export interface PayParams {
   showProcessingPayout?: boolean;
   /** The fee type to use for the payment. */
   feeType?: FeeType;
+  /** The memo to use for the payment. Only used for rozoSolana (900) and rozoStellar (1500). */
+  receiverMemo?: string;
 }
 
 export type PaymentState =
@@ -154,6 +156,7 @@ type PayParamsData = {
   toSolanaAddress?: string;
   toAddress?: string;
   metadata?: RozoPayUserMetadata;
+  receiverMemo?: string;
 };
 
 /**
@@ -244,6 +247,30 @@ function reducePreview(
   switch (event.type) {
     case "order_hydrated":
       return { type: "payment_unpaid", order: event.order };
+    case "order_refreshed":
+      // Handle order_refreshed events when transitioning from preview to payment_unpaid
+      // This happens when setPaymentUnpaid is called from preview state
+      if (isHydrated(event.order)) {
+        // If order is hydrated, transition based on intentStatus
+        if (event.order.intentStatus === RozoPayIntentStatus.UNPAID) {
+          return { type: "payment_unpaid", order: event.order };
+        }
+        // For other statuses, use getStateFromHydratedOrder logic
+        switch (event.order.intentStatus) {
+          case RozoPayIntentStatus.STARTED:
+            return { type: "payment_started", order: event.order };
+          case RozoPayIntentStatus.COMPLETED:
+            return { type: "payment_completed", order: event.order };
+          case RozoPayIntentStatus.BOUNCED:
+            return { type: "payment_bounced", order: event.order };
+          case RozoPayIntentStatus.PAYOUT_COMPLETED:
+            return { type: "payout_completed", order: event.order };
+          default:
+            return state;
+        }
+      }
+      // If order is not hydrated, stay in preview
+      return state;
     case "set_chosen_usd": {
       const token = state.order.destFinalCallTokenAmount.token;
       const tokenUnits = (event.usd / token.priceFromUsd).toString();
@@ -332,6 +359,10 @@ function reducePaymentStarted(
   event: PaymentEvent
 ): PaymentState {
   switch (event.type) {
+    case "hydrate_order":
+      // Order is already hydrated in payment_started state, so this is a no-op
+      // This can happen when user goes back and selects the same payment method again
+      return state;
     case "order_refreshed":
       return getStateFromHydratedOrder(state, event.order);
     case "error":

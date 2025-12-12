@@ -184,6 +184,8 @@ export type RozoPayDehydratedOrder = {
   externalId: string | null;
   userMetadata: RozoPayUserMetadata | null;
   refundAddr: string | null;
+  preferredChainId: number | null;
+  preferredTokenAddress: string | null;
   memo?: string | null;
 };
 
@@ -195,11 +197,6 @@ export type RozoPayHydratedOrder = {
   // escrowContractAddress: string | null;
   /** Nullable because old intents don't record bridger address. */
   // bridgerContractAddress: string | null;
-  /** @deprecated included for backcompat with old versions. Remove soon. */
-  // handoffAddr: string;
-  // bridgeTokenOutOptions: RozoPayTokenAmount[];
-  // selectedBridgeTokenOutAddr: string | null;
-  // selectedBridgeTokenOutAmount: bigint | null;
   destFinalCallTokenAmount: RozoPayTokenAmount;
   destFinalCall: OnChainCall;
   usdValue: number;
@@ -207,12 +204,12 @@ export type RozoPayHydratedOrder = {
   nonce: bigint;
   sourceFulfillerAddr: string | null;
   sourceTokenAmount: RozoPayTokenAmount | null;
-  sourceInitiateTxHash: Hex | null;
-  // sourceStartTxHash: Hex | null;
+  sourceInitiateTxHash: string | null;
+  sourceStartTxHash: string | null;
   sourceStatus: RozoPayOrderStatusSource;
   destStatus: RozoPayOrderStatusDest;
-  destFastFinishTxHash: Hex | null;
-  destClaimTxHash: Hex | null;
+  destFastFinishTxHash: string | null;
+  destClaimTxHash: string | null;
   redirectUri: string | null;
   orgId: string | null;
   createdAt: number | null;
@@ -224,7 +221,14 @@ export type RozoPayHydratedOrder = {
   /** Nullable because old intents don't have expiration time. */
   expirationTs: bigint | null;
   memo?: string | null;
+  preferredChainId: number | null;
+  preferredTokenAddress: string | null;
   payoutTransactionHash?: string | null;
+  /** @deprecated included for backcompat with old versions. Remove soon. */
+  // handoffAddr: string;
+  // bridgeTokenOutOptions: RozoPayTokenAmount[];
+  // selectedBridgeTokenOutAddr: string | null;
+  // selectedBridgeTokenOutAmount: bigint | null;
 };
 
 export type RozoPayOrderWithOrg = RozoPayOrder & {
@@ -265,7 +269,7 @@ export type RozoPayOrderView = {
   };
   source: {
     payerAddress: RozoAddress | null;
-    txHash: Hex | string | null;
+    txHash: string | string | null;
     chainId: string;
     amountUnits: string;
     tokenSymbol: string;
@@ -273,7 +277,7 @@ export type RozoPayOrderView = {
   } | null;
   destination: {
     destinationAddress: RozoAddress;
-    txHash: Hex | null;
+    txHash: string | null;
     chainId: string;
     amountUnits: string;
     tokenSymbol: string;
@@ -346,7 +350,7 @@ export function getRozoPayOrderView(order: RozoPayOrder): RozoPayOrderView {
       destinationAddress: order.destFinalCall.to,
       txHash:
         order.mode === RozoPayOrderMode.HYDRATED
-          ? order.destFastFinishTxHash ?? order.destClaimTxHash
+          ? String(order.destFastFinishTxHash ?? order.destClaimTxHash)
           : null,
       chainId: getOrderDestChainId(order).toString(),
       amountUnits: formatUnits(

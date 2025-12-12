@@ -1,8 +1,8 @@
 /**
  * RozoAI API Configuration Constants
  */
-// export const ROZO_API_URL = "https://intentapiv2.rozo.ai/functions/v1";
-export const ROZO_API_URL = "https://intentapiv4.rozo.ai/functions/v1";
+export const ROZO_API_URL = "https://intentapiv2.rozo.ai/functions/v1";
+export const NEW_ROZO_API_URL = "https://intentapiv4.rozo.ai/functions/v1";
 export const ROZO_API_TOKEN =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4Y3Zmb2xobmNtdXZmYXp1cXViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI4Mzg2NjYsImV4cCI6MjA2ODQxNDY2Nn0.B4dV5y_-zCMKSNm3_qyCbAvCPJmoOGv_xB783LfAVUA";
 
@@ -33,33 +33,76 @@ export interface RequestState<T = any> extends ApiResponse<T> {
 }
 
 /**
+ * API Version type
+ */
+export type ApiVersion = "v1" | "v2";
+
+/**
  * API Configuration
  */
 export interface ApiConfig {
   baseUrl: string;
   apiToken: string;
+  version?: ApiVersion;
 }
 
 // Default configuration (can be overridden via setApiConfig)
-let apiConfig: ApiConfig = {
-  baseUrl: ROZO_API_URL,
-  apiToken: ROZO_API_TOKEN,
+// v2 is the default API version
+let apiConfig: Record<ApiVersion, ApiConfig> = {
+  v1: { baseUrl: ROZO_API_URL, apiToken: ROZO_API_TOKEN, version: "v1" },
+  v2: { baseUrl: NEW_ROZO_API_URL, apiToken: ROZO_API_TOKEN, version: "v2" },
 };
 
-/**
- * Set API configuration
- * @param config - API configuration
- */
-export const setApiConfig = (config: Partial<ApiConfig>) => {
-  apiConfig = { ...apiConfig, ...config };
-};
+// Current active API version
+let activeVersion: ApiVersion = "v2";
 
 /**
- * Get current API configuration
+ * Gets the current active API configuration
  * @returns Current API configuration
  */
 export const getApiConfig = (): ApiConfig => {
-  return apiConfig;
+  return apiConfig[activeVersion];
+};
+
+/**
+ * Sets the API configuration (baseUrl, apiToken, and version)
+ * @param config - Partial API configuration to override defaults
+ * @example
+ * ```typescript
+ * // Use v2 API (default)
+ * setApiConfig({ version: "v2" });
+ *
+ * // Use v1 API
+ * setApiConfig({ version: "v1" });
+ *
+ * // Custom configuration for a specific version
+ * setApiConfig({
+ *   baseUrl: "https://custom-api.com",
+ *   apiToken: "custom-token",
+ *   version: "v2"
+ * });
+ * ```
+ */
+export const setApiConfig = (config: Partial<ApiConfig>): void => {
+  if (config.version) {
+    activeVersion = config.version;
+
+    // Update the specific version's config if baseUrl or apiToken provided
+    if (config.baseUrl || config.apiToken) {
+      apiConfig[activeVersion] = {
+        ...apiConfig[activeVersion],
+        ...(config.baseUrl && { baseUrl: config.baseUrl }),
+        ...(config.apiToken && { apiToken: config.apiToken }),
+      };
+    }
+  } else {
+    // Update current active version with provided config
+    apiConfig[activeVersion] = {
+      ...apiConfig[activeVersion],
+      ...(config.baseUrl && { baseUrl: config.baseUrl }),
+      ...(config.apiToken && { apiToken: config.apiToken }),
+    };
+  }
 };
 
 /**
@@ -69,9 +112,10 @@ export const getApiConfig = (): ApiConfig => {
  * @returns Full URL with query parameters
  */
 const createUrl = (url: string, params?: Record<string, string>): string => {
+  const config = getApiConfig();
   const fullUrl = url.startsWith("/")
-    ? `${apiConfig.baseUrl}${url}`
-    : `${apiConfig.baseUrl}/${url}`;
+    ? `${config.baseUrl}${url}`
+    : `${config.baseUrl}/${url}`;
 
   if (!params) return fullUrl;
 
@@ -101,10 +145,11 @@ export const fetchApi = async <T = any>(
   try {
     const fullUrl = createUrl(url, params);
 
+    const config = getApiConfig();
     const requestHeaders: Record<string, string> = {
       "Content-Type": "application/json",
       ...headers,
-      Authorization: `Bearer ${apiConfig.apiToken}`,
+      Authorization: `Bearer ${config.apiToken}`,
     };
 
     const requestOptions: {

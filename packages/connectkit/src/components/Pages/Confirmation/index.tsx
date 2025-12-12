@@ -35,7 +35,7 @@ import styled from "../../../styles/styled";
 import Button from "../../Common/Button";
 import PoweredByFooter from "../../Common/PoweredByFooter";
 
-const poolDelay = 4000;
+const poolDelay = 1000;
 
 const Confirmation: React.FC = () => {
   const {
@@ -50,9 +50,7 @@ const Confirmation: React.FC = () => {
     order,
     paymentState,
     setPaymentCompleted,
-    setPaymentRozoCompleted,
     setPaymentPayoutCompleted,
-    setPayoutRozoCompleted,
   } = useRozoPay();
 
   const [isConfirming, setIsConfirming] = useState<boolean>(true);
@@ -194,7 +192,7 @@ const Confirmation: React.FC = () => {
             "[CONFIRMATION] Polling for payout transaction:",
             rozoPaymentId
           );
-          const response = await getPayment(rozoPaymentId);
+          const response = await getPayment(rozoPaymentId, "v2");
           context.log("[CONFIRMATION] Payout polling response:", response.data);
 
           if (
@@ -259,7 +257,6 @@ const Confirmation: React.FC = () => {
 
       paymentCompletedSent.current = paymentKey;
       setPaymentCompleted(rawPayInHash, rozoPaymentId);
-      setPaymentRozoCompleted(true);
       onSuccess();
     }
   }, [done, onSuccess, paymentStateContext, rawPayInHash, rozoPaymentId]);
@@ -279,7 +276,6 @@ const Confirmation: React.FC = () => {
 
       payoutCompletedSent.current = payoutKey;
       setPaymentPayoutCompleted(payoutTxHash, rozoPaymentId);
-      setPayoutRozoCompleted(true);
     }
   }, [done, payoutTxHash, rozoPaymentId]);
 

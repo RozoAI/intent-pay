@@ -294,7 +294,15 @@ export function formatPaymentResponseToHydratedOrder(
   order: PaymentResponse
 ): RozoPayHydratedOrderWithOrg {
   // Source amount is in the same units as the destination amount without fee
-  const sourceAmountUnits = order.source?.amount ?? "0";
+  const sourceAmountUnits =
+    order.source?.amount ?? order.destination?.amountUnits ?? "0";
+
+  // Destination Intent Address
+  const intentAddress =
+    order.metadata?.receivingAddress ?? order.source?.receiverAddress;
+
+  // Destination Intent Memo
+  const intentMemo = order.metadata?.memo ?? order.source?.receiverMemo;
 
   // Destination address is where the payment will be received
   const destAddress = order.source?.receiverAddress;
@@ -312,13 +320,16 @@ export function formatPaymentResponseToHydratedOrder(
   return {
     id: BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)),
     mode: RozoPayOrderMode.HYDRATED,
-    intentAddr: destAddress ?? "",
+    intentAddr: intentAddress ?? "",
+    memo: intentMemo ?? null,
+    preferredChainId: order.source?.chainId ?? null,
+    preferredTokenAddress: order.source?.tokenAddress ?? null,
     destFinalCallTokenAmount: {
       token: {
         chainId: token ? token.chainId : baseUSDC.chainId,
         token: token ? token.token : baseUSDC.token,
         symbol: token ? token.symbol : baseUSDC.symbol,
-        usd: 1,
+        usd: Number(sourceAmountUnits),
         priceFromUsd: 1,
         decimals: token ? token.decimals : baseUSDC.decimals,
         displayDecimals: 2,
@@ -339,24 +350,25 @@ export function formatPaymentResponseToHydratedOrder(
       value: BigInt("0"),
       data: "0x",
     },
-    refundAddr: (order.source?.senderAddress as `0x${string}`) || null,
+    refundAddr: (order.source?.senderAddress as any) || null,
     nonce: BigInt(order.nonce ?? 0),
+    intentStatus: RozoPayIntentStatus.UNPAID,
     sourceFulfillerAddr: null,
     sourceTokenAmount: null,
-    sourceInitiateTxHash: null,
+    sourceInitiateTxHash: order.sourceInitiateTxHash ?? null,
     sourceStatus: RozoPayOrderStatusSource.WAITING_PAYMENT,
+    sourceStartTxHash: order.sourceStartTxHash ?? null,
     destStatus: RozoPayOrderStatusDest.PENDING,
-    intentStatus: RozoPayIntentStatus.UNPAID,
-    destFastFinishTxHash: null,
-    destClaimTxHash: null,
+    destFastFinishTxHash: order.destFastFinishTxHash ?? null,
+    destClaimTxHash: order.destClaimTxHash ?? null,
     redirectUri: null,
     createdAt: Math.floor(new Date(order.createdAt).getTime() / 1000),
     lastUpdatedAt: Math.floor(new Date(order.updatedAt).getTime() / 1000),
     orgId: order.orgId ?? "",
     metadata: {
       ...(order?.metadata ?? {}),
-      receivingAddress: order.source?.receiverAddress,
-      memo: order.source?.receiverMemo ?? null,
+      receivingAddress: intentAddress ?? "",
+      memo: intentMemo ?? null,
     } as any,
     externalId: order.externalId ?? null,
     userMetadata: order.userMetadata as RozoPayUserMetadata | null,

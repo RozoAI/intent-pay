@@ -920,7 +920,7 @@ export const supportedPayoutTokens: Map<number, Token[]> = new Map([
   [ethereum.chainId, [ethereumUSDC]],
   [base.chainId, [baseUSDC]],
   [polygon.chainId, [polygonUSDC]],
-  [solana.chainId, [solanaUSDC]],
+  // [solana.chainId, [solanaUSDC]],
   [rozoSolana.chainId, [rozoSolanaUSDC]],
   [rozoStellar.chainId, [rozoStellarUSDC]],
 ]);

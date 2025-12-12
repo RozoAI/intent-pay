@@ -1,5 +1,6 @@
 import {
   DepositAddressPaymentOptions,
+  FeeType,
   generateEVMDeepLink,
   getAddressContraction,
   getChainName,
@@ -78,8 +79,8 @@ export default function WaitingDepositAddress() {
     paymentState: rozoPaymentState,
     reset,
     createPreviewOrder,
-    setPaymentRozoCompleted,
     setPaymentCompleted,
+    setPaymentPayoutCompleted,
   } = useRozoPay();
 
   // Detect Optimism USDT0 under-payment: the order has received some funds
@@ -176,7 +177,7 @@ export default function WaitingDepositAddress() {
           depAddr?.externalId
         );
         const isMugglePay = depAddr?.externalId.includes("mugglepay_order");
-        const response = await getPayment(depAddr?.externalId);
+        const response = await getPayment(depAddr?.externalId, "v2");
 
         context.log("[PAYMENT POLLING] Debug - API Response:", {
           status: response.status,
@@ -324,7 +325,9 @@ export default function WaitingDepositAddress() {
         if (amount && payParams?.appId) {
           try {
             const feeResponse = await getFee({
-              amount,
+              currency: "USD",
+              type: payParams?.feeType ?? FeeType.ExactIn,
+              toUnits: amount.toString(),
               appId: payParams.appId,
               toChain: selectedDepositAddressOption.chainId,
             });
@@ -482,8 +485,8 @@ export default function WaitingDepositAddress() {
       context.log(
         "[PAYMENT COMPLETED] Payment completed, navigating to next step"
       );
-      setPaymentRozoCompleted(true);
       setPaymentCompleted(payinTransactionHash, rozoPaymentId);
+      setPaymentPayoutCompleted(payinTransactionHash, rozoPaymentId);
       const tokenMode =
         selectedDepositAddressOption?.id === DepositAddressPaymentOptions.SOLANA
           ? "solana"

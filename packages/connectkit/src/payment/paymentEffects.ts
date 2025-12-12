@@ -1,4 +1,5 @@
 import {
+  ApiVersion,
   assert,
   baseUSDC,
   CreateNewPaymentParams,
@@ -18,6 +19,8 @@ import {
   RozoPayOrderStatusDest,
   RozoPayOrderStatusSource,
   RozoPayOrderWithOrg,
+  rozoSolana,
+  rozoStellar,
   TokenLogo,
 } from "@rozoai/intent-common";
 import { Address, formatUnits, parseUnits } from "viem";
@@ -49,12 +52,14 @@ function stopPoller(key: string) {
  * @param store The payment store to subscribe to.
  * @param trpc TRPC client pointing to the Rozo Pay API.
  * @param log The logger to use for logging.
+ * @param apiVersion The API version to use for payment operations.
  * @returns A function that can be used to unsubscribe from the store.
  */
 export function attachPaymentEffectHandlers(
   store: PaymentStore,
   trpc: TrpcClient,
-  log: (msg: string) => void
+  log: (msg: string) => void,
+  apiVersion: "v1" | "v2" = "v2"
 ): () => void {
   const unsubscribe = store.subscribe(({ prev, next, event }) => {
     log(
@@ -92,16 +97,22 @@ export function attachPaymentEffectHandlers(
      * -------------------------------------------------- */
     switch (event.type) {
       case "set_pay_params":
-        runSetPayParamsEffects(store, trpc, event);
+        runSetPayParamsEffects(store, trpc, event, apiVersion);
         break;
       case "set_pay_id":
-        runSetPayIdEffects(store, trpc, event);
+        runSetPayIdEffects(store, trpc, event, apiVersion);
         break;
       case "hydrate_order": {
         if (prev.type === "preview") {
-          runHydratePayParamsEffects(store, trpc, prev, event, log);
+          runHydratePayParamsEffects(store, trpc, prev, event, log, apiVersion);
         } else if (prev.type === "unhydrated") {
-          runHydratePayIdEffects(store, trpc, prev, event);
+          runHydratePayIdEffects(store, trpc, prev, event, apiVersion);
+        } else if (prev.type === "payment_started") {
+          // Order is already hydrated in payment_started state, no effect needed
+          // This can happen when user goes back and selects the same payment method again
+          log(
+            `[EFFECT] skipping ${event.type} on state ${prev.type} - order already hydrated`
+          );
         } else {
           log(`[EFFECT] invalid event ${event.type} on state ${prev.type}`);
         }
@@ -207,7 +218,8 @@ async function pollRefreshOrder(
 async function runSetPayParamsEffects(
   store: PaymentStore,
   trpc: TrpcClient,
-  event: Extract<PaymentEvent, { type: "set_pay_params" }>
+  event: Extract<PaymentEvent, { type: "set_pay_params" }>,
+  apiVersion: ApiVersion = "v2"
 ) {
   const payParams = event.payParams;
   // toUnits is undefined if and only if we're in deposit flow.
@@ -319,6 +331,8 @@ async function runSetPayParamsEffects(
         toSolanaAddress: payParams.toSolanaAddress,
         toAddress: payParams.toAddress,
         feeType: payParams.feeType,
+        receiverMemo: payParams.receiverMemo,
+        metadata: payParams.metadata,
       },
     });
   } catch (e: any) {
@@ -333,7 +347,8 @@ async function runSetPayParamsEffects(
 async function runSetPayIdEffects(
   store: PaymentStore,
   trpc: TrpcClient,
-  event: Extract<PaymentEvent, { type: "set_pay_id" }>
+  event: Extract<PaymentEvent, { type: "set_pay_id" }>,
+  apiVersion: ApiVersion = "v2"
 ) {
   try {
     const { order } = await trpc.getOrder.query({
@@ -358,7 +373,8 @@ async function runHydratePayParamsEffects(
   trpc: TrpcClient,
   prev: Extract<PaymentState, { type: "preview" }>,
   event: Extract<PaymentEvent, { type: "hydrate_order" }>,
-  log: (msg: string) => void
+  log: (msg: string) => void,
+  apiVersion: ApiVersion = "v2"
 ) {
   const order = prev.order;
   const payParams = prev.payParamsData;
@@ -369,6 +385,10 @@ async function runHydratePayParamsEffects(
     BigInt(order.destFinalCallTokenAmount.amount),
     order.destFinalCallTokenAmount.token.decimals
   );
+  const calculatedToUnits =
+    feeType === FeeType.ExactIn
+      ? Number(toUnits)
+      : Number(toUnits) - Number(walletOption?.fees.usd ?? 0);
 
   const toChain = getOrderDestChainId(order);
   const toToken = order.destFinalCallTokenAmount.token.token;
@@ -391,27 +411,43 @@ async function runHydratePayParamsEffects(
     walletOption?.required.token.chainId ?? baseUSDC.chainId;
   const preferredTokenAddress =
     walletOption?.required.token.token ?? baseUSDC.token;
+  const title =
+    payParams?.metadata?.intent ??
+    generateIntentTitle({
+      toChainId: toChain,
+      toTokenAddress: toToken,
+      preferredChainId: preferredChain,
+      preferredTokenAddress: preferredTokenAddress,
+    });
 
   try {
-    log?.("[Payment Effect]: createRozoPayment");
+    log?.(
+      `[Payment Effect]: createRozoPayment: ${JSON.stringify(
+        payParams,
+        null,
+        2
+      )}`
+    );
+    const isAbleToIncludeReceiverMemo = [
+      rozoSolana.chainId,
+      rozoStellar.chainId,
+    ].includes(toChain);
+
     const payload: CreateNewPaymentParams = {
+      title,
+      apiVersion,
       appId: payParams?.appId ?? DEFAULT_ROZO_APP_ID,
-      title:
-        payParams?.metadata?.intent ??
-        generateIntentTitle({
-          toChainId: toChain,
-          toTokenAddress: toToken,
-          preferredChainId: preferredChain,
-          preferredTokenAddress: preferredTokenAddress,
-        }),
       description: payParams?.metadata?.description ?? "",
-      type: feeType,
+      feeType,
       toChain,
       toToken,
       toAddress,
+      toUnits: calculatedToUnits.toFixed(2),
       preferredChain,
       preferredTokenAddress,
-      toUnits,
+      ...(isAbleToIncludeReceiverMemo && payParams?.receiverMemo
+        ? { receiverMemo: payParams.receiverMemo }
+        : {}),
       metadata: mergedMetadata({
         ...(order?.metadata ?? {}),
       }),
@@ -469,7 +505,8 @@ async function runHydratePayIdEffects(
   store: PaymentStore,
   trpc: TrpcClient,
   prev: Extract<PaymentState, { type: "unhydrated" }>,
-  event: Extract<PaymentEvent, { type: "hydrate_order" }>
+  event: Extract<PaymentEvent, { type: "hydrate_order" }>,
+  apiVersion: ApiVersion = "v2"
 ) {
   const order = prev.order;
 
@@ -479,7 +516,7 @@ async function runHydratePayIdEffects(
     //   refundAddress: event.refundAddress,
     // });
 
-    const orderData = await getPayment(order.id.toString());
+    const orderData = await getPayment(order.id.toString(), apiVersion);
     if (!orderData?.data) {
       throw new Error("Order not found");
     }
@@ -493,6 +530,8 @@ async function runHydratePayIdEffects(
       id: order.id ?? BigInt(orderData.data.id),
       mode: RozoPayOrderMode.HYDRATED,
       intentAddr: orderData.data.source.receiverAddress as Address,
+      preferredChainId: order.preferredChainId ?? null,
+      preferredTokenAddress: order.preferredTokenAddress ?? null,
       // handoffAddr: orderData.data.metadata.receivingAddress as Address,
       // escrowContractAddress: orderData.data.metadata
       //   .receivingAddress as `0x${string}`,
@@ -551,7 +590,7 @@ async function runHydratePayIdEffects(
       sourceTokenAmount: null,
       sourceFulfillerAddr: null,
       sourceInitiateTxHash: null,
-      // sourceStartTxHash: null,
+      sourceStartTxHash: null,
       sourceStatus: RozoPayOrderStatusSource.WAITING_PAYMENT,
       destStatus: RozoPayOrderStatusDest.PENDING,
       intentStatus: RozoPayIntentStatus.UNPAID,
