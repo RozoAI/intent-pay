@@ -1,6 +1,6 @@
 import { getChainById } from "../chain";
 import { ApiResponse } from "./base";
-import { FeeType } from "./payment";
+import { FeeType } from "./types";
 
 /**
  * Fee response data type (success case)

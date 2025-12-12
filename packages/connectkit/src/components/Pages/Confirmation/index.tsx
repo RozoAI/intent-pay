@@ -17,6 +17,7 @@ import {
   getPayment,
   rozoSolana,
   rozoStellar,
+  updatePaymentPayInTxHash,
 } from "@rozoai/intent-common";
 import { motion } from "framer-motion";
 import {
@@ -242,6 +243,10 @@ const Confirmation: React.FC = () => {
     }
   }, [txURL, order, done, rozoPaymentId, showProcessingPayout]);
 
+  /**
+   * Sets the payment completed state.
+   * This is called when the payment is confirmed and the transaction hash is available.
+   */
   useEffect(() => {
     if (done && rawPayInHash && rozoPaymentId) {
       // Only call once per unique payment hash to prevent duplicate state updates
@@ -256,11 +261,26 @@ const Confirmation: React.FC = () => {
       });
 
       paymentCompletedSent.current = paymentKey;
+
+      // Update payment pay-in transaction hash on the server
+      updatePaymentPayInTxHash(rozoPaymentId, rawPayInHash, "v2").catch(
+        (error) => {
+          context.log(
+            "[CONFIRMATION] Failed to update payment pay-in tx hash:",
+            error
+          );
+        }
+      );
+
       setPaymentCompleted(rawPayInHash, rozoPaymentId);
       onSuccess();
     }
-  }, [done, onSuccess, paymentStateContext, rawPayInHash, rozoPaymentId]);
+  }, [done, paymentStateContext, rawPayInHash, rozoPaymentId]);
 
+  /**
+   * Sets the payout completed state.
+   * This is called when the payout is confirmed and the transaction hash is available.
+   */
   useEffect(() => {
     if (done && payoutTxHash && rozoPaymentId) {
       // Only call once per unique payout hash to prevent duplicate state updates
