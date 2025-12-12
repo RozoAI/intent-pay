@@ -14,7 +14,6 @@ import {
   getAddressContraction,
   getChainExplorerTxUrl,
   getOrderDestChainId,
-  getPayment,
   rozoSolana,
   rozoStellar,
   updatePaymentPayInTxHash,
@@ -31,12 +30,11 @@ import {
   ROZO_INVOICE_URL,
 } from "../../../constants/rozoConfig";
 import { useRozoPay } from "../../../hooks/useDaimoPay";
+import { usePayoutPolling } from "../../../hooks/usePayoutPolling";
 import { useSupportedChains } from "../../../hooks/useSupportedChains";
 import styled from "../../../styles/styled";
 import Button from "../../Common/Button";
 import PoweredByFooter from "../../Common/PoweredByFooter";
-
-const poolDelay = 1000;
 
 const Confirmation: React.FC = () => {
   const {
@@ -55,14 +53,6 @@ const Confirmation: React.FC = () => {
   } = useRozoPay();
 
   const [isConfirming, setIsConfirming] = useState<boolean>(true);
-
-  const [payoutLoading, setPayoutLoading] = useState<boolean>(false);
-  const [payoutTxHashUrl, setPayoutTxHashUrl] = useState<string | undefined>(
-    undefined
-  );
-  const [payoutTxHash, setPayoutTxHash] = useState<string | undefined>(
-    undefined
-  );
 
   // Track if completion events have been sent to prevent duplicate calls
   const paymentCompletedSent = React.useRef<string | null>(null);
@@ -173,75 +163,16 @@ const Confirmation: React.FC = () => {
     return undefined;
   }, [rozoPaymentId, receiptUrl]);
 
-  useEffect(() => {
-    if (order && done && rozoPaymentId && showProcessingPayout) {
-      triggerResize();
-      context.log(
-        "[CONFIRMATION] Starting payout polling for order:",
-        order.externalId
-      );
-      setPayoutLoading(true);
-
-      let isActive = true;
-      let timeoutId: NodeJS.Timeout;
-
-      const pollPayout = async () => {
-        if (!isActive || !rozoPaymentId) return;
-
-        try {
-          context.log(
-            "[CONFIRMATION] Polling for payout transaction:",
-            rozoPaymentId
-          );
-          const response = await getPayment(rozoPaymentId, "v2");
-          context.log("[CONFIRMATION] Payout polling response:", response.data);
-
-          if (
-            isActive &&
-            response.data &&
-            response.data.destination.txHash &&
-            typeof response.data.destination.txHash === "string"
-          ) {
-            const url = getChainExplorerTxUrl(
-              Number(response.data.destination.chainId),
-              response.data.destination.txHash
-            );
-            context.log(
-              "[CONFIRMATION] Found payout transaction:",
-              response.data.destination.txHash,
-              "URL:",
-              url
-            );
-            setPayoutTxHash(response.data.destination.txHash);
-            setPayoutTxHashUrl(url);
-            setPayoutLoading(false);
-            triggerResize();
-            return;
-          }
-
-          // Schedule next poll
-          if (isActive) {
-            timeoutId = setTimeout(pollPayout, poolDelay);
-          }
-        } catch (error) {
-          console.error("[CONFIRMATION] Payout polling error:", error);
-          if (isActive) {
-            timeoutId = setTimeout(pollPayout, poolDelay);
-          }
-        }
-      };
-
-      // Start polling
-      timeoutId = setTimeout(pollPayout, 0);
-
-      return () => {
-        isActive = false;
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-      };
-    }
-  }, [txURL, order, done, rozoPaymentId, showProcessingPayout]);
+  // Use payout polling hook
+  const { payoutLoading, payoutTxHash, payoutTxHashUrl } = usePayoutPolling({
+    enabled: showProcessingPayout,
+    rozoPaymentId,
+    order,
+    done,
+    showProcessingPayout,
+    log: context.log,
+    triggerResize,
+  });
 
   /**
    * Sets the payment completed state.
