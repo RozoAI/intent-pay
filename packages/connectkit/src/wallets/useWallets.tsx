@@ -64,7 +64,7 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
       });
     }
 
-    function addIfNotPresent(idList: string) {
+    const addIfNotPresent = (idList: string) => {
       if (mobileWallets.find((w) => idList.includes(w.id))) return;
       if (mobileWallets.length >= 3) return;
       const wallet = assertNotNull(
@@ -75,7 +75,7 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
         id: idList,
         ...wallet,
       });
-    }
+    };
 
     addIfNotPresent(
       "metaMask, metaMask-io, io.metamask, io.metamask.mobile, metaMaskSDK"

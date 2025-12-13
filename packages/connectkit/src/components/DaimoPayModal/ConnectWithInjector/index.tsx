@@ -122,8 +122,8 @@ const ConnectWithInjector: React.FC<{
               }
             }
           }
-        } else if (data) {
         }
+
         setTimeout(triggerResize, 100);
       },
     },
@@ -161,8 +161,8 @@ const ConnectWithInjector: React.FC<{
     forceState
       ? forceState
       : !wallet?.isInstalled
-        ? states.UNAVAILABLE
-        : states.CONNECTING,
+      ? states.UNAVAILABLE
+      : states.CONNECTING
   );
 
   const locales = useLocales({

@@ -49,25 +49,25 @@ const WaitingExternal: React.FC = () => {
     } else {
       // on desktop: open in a popup window in
       // portrait mode in the center of the screen
-      let width = 500;
-      let height = 700;
+      const width = 500;
+      const height = 700;
       // if (isPaymentApp) {
       //   height = 800;
       //   width = 800;
       // }
       const left = Math.max(
         0,
-        Math.floor((window.innerWidth - width) / 2) + window.screenX,
+        Math.floor((window.innerWidth - width) / 2) + window.screenX
       );
       const top = Math.max(
         0,
-        Math.floor((window.innerHeight - height) / 2) + window.screenY,
+        Math.floor((window.innerHeight - height) / 2) + window.screenY
       );
 
       window.open(
         url,
         "popupWindow",
-        `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`,
+        `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
       );
     }
   };

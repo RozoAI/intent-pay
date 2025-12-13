@@ -752,21 +752,17 @@ export function usePaymentState({
     }
 
     const paymentTxHash = await (async () => {
-      try {
-        const serializedTx = await trpc.getSolanaSwapAndBurnTx.query({
-          orderId: pay.order.id.toString(),
-          userPublicKey: assertNotNull(
-            payerPublicKey,
-            "[PAY SOLANA] wallet.publicKey cannot be null"
-          ).toString(),
-          inputTokenMint: inputToken,
-        });
-        const tx = VersionedTransaction.deserialize(hexToBytes(serializedTx));
-        const txHash = await solanaWallet.sendTransaction(tx, connection);
-        return txHash;
-      } catch (e) {
-        throw e;
-      }
+      const serializedTx = await trpc.getSolanaSwapAndBurnTx.query({
+        orderId: pay.order.id.toString(),
+        userPublicKey: assertNotNull(
+          payerPublicKey,
+          "[PAY SOLANA] wallet.publicKey cannot be null"
+        ).toString(),
+        inputTokenMint: inputToken,
+      });
+      const tx = VersionedTransaction.deserialize(hexToBytes(serializedTx));
+      const txHash = await solanaWallet.sendTransaction(tx, connection);
+      return txHash;
     })();
 
     try {

@@ -354,8 +354,9 @@ export const RozoPayModal: React.FC<{
     return () => {
       try {
         document.head.removeChild(title);
-      } catch {}
-      //if (appIcon) document.head.removeChild(icon);
+      } catch (error) {
+        console.error(error);
+      }
     };
   }, [context.open]);
 

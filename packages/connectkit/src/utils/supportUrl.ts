@@ -4,7 +4,7 @@ import { rozoPayVersion } from "./exports";
 export function getSupportUrl(payId: RozoPayOrderID, screen: string): string {
   const email = "hi@rozo.ai";
   const subject = `Support${payId ? ` #${payId}` : ""}`;
-  let body = [
+  const body = [
     `Transaction: ${screen}`,
     `Version: ${rozoPayVersion}`,
     ``,

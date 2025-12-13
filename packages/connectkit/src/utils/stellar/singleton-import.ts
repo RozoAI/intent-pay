@@ -3,8 +3,8 @@ import { WalletConnectAllowedMethods, WalletConnectModule } from ".";
 
 // Global singleton to ensure only one instance exists across the entire app
 declare global {
-  var __ROZO_STELLAR_KIT_INSTANCE__: StellarWalletsKit | undefined;
-  var __ROZO_STELLAR_KIT_LOADING__: Promise<StellarWalletsKit> | undefined;
+  let __ROZO_STELLAR_KIT_INSTANCE__: StellarWalletsKit | undefined;
+  let __ROZO_STELLAR_KIT_LOADING__: Promise<StellarWalletsKit> | undefined;
 }
 
 /**
@@ -20,19 +20,19 @@ export async function getStellarKitInstance(config?: {
   // Return existing instance if available
   if (
     typeof window !== "undefined" &&
-    globalThis.__ROZO_STELLAR_KIT_INSTANCE__
+    (globalThis as any).__ROZO_STELLAR_KIT_INSTANCE__
   ) {
     config?.log?.("[Rozo] Using existing StellarWalletsKit instance");
-    return globalThis.__ROZO_STELLAR_KIT_INSTANCE__;
+    return (globalThis as any).__ROZO_STELLAR_KIT_INSTANCE__;
   }
 
   // If already loading, wait for it
   if (
     typeof window !== "undefined" &&
-    globalThis.__ROZO_STELLAR_KIT_LOADING__
+    (globalThis as any).__ROZO_STELLAR_KIT_LOADING__
   ) {
     config?.log?.("[Rozo] Waiting for StellarWalletsKit initialization...");
-    return globalThis.__ROZO_STELLAR_KIT_LOADING__;
+    return (globalThis as any).__ROZO_STELLAR_KIT_LOADING__;
   }
 
   // Check if custom element is already registered
@@ -83,7 +83,7 @@ export async function getStellarKitInstance(config?: {
 
       // Store globally
       if (typeof window !== "undefined") {
-        globalThis.__ROZO_STELLAR_KIT_INSTANCE__ = newKit;
+        (globalThis as any).__ROZO_STELLAR_KIT_INSTANCE__ = newKit;
       }
 
       config?.log?.("[Rozo] StellarWalletsKit initialized successfully");
@@ -93,13 +93,13 @@ export async function getStellarKitInstance(config?: {
       throw error;
     } finally {
       if (typeof window !== "undefined") {
-        globalThis.__ROZO_STELLAR_KIT_LOADING__ = undefined;
+        (globalThis as any).__ROZO_STELLAR_KIT_LOADING__ = undefined;
       }
     }
   })();
 
   if (typeof window !== "undefined") {
-    globalThis.__ROZO_STELLAR_KIT_LOADING__ = loadingPromise;
+    (globalThis as any).__ROZO_STELLAR_KIT_LOADING__ = loadingPromise;
   }
 
   return loadingPromise;
@@ -110,7 +110,7 @@ export async function getStellarKitInstance(config?: {
  */
 export function destroyStellarKitInstance(): void {
   if (typeof window !== "undefined") {
-    globalThis.__ROZO_STELLAR_KIT_INSTANCE__ = undefined;
-    globalThis.__ROZO_STELLAR_KIT_LOADING__ = undefined;
+    (globalThis as any).__ROZO_STELLAR_KIT_INSTANCE__ = undefined;
+    (globalThis as any).__ROZO_STELLAR_KIT_LOADING__ = undefined;
   }
 }

@@ -23,4 +23,4 @@ export default function WalletIcon({ ...props }) {
       <circle cx="10.3863" cy="10.1894" r="1.32574" fill="currentColor" />
     </svg>
   );
-};
+}

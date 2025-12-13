@@ -1,11 +1,11 @@
 import { ROUTES } from "../constants/routes";
-import { usePayContext } from "./usePayContext";
 import {
   useConnectCallback,
   useConnectCallbackProps,
 } from "./useConnectCallback";
+import { usePayContext } from "./usePayContext";
 
-type UseModalProps = {} & useConnectCallbackProps;
+type UseModalProps = useConnectCallbackProps;
 
 /** Opens and closes the payment modal. */
 export const useModal = ({ onConnect, onDisconnect }: UseModalProps = {}) => {

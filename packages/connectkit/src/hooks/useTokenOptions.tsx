@@ -30,7 +30,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     setSelectedStellarTokenOption,
   } = paymentState;
 
-  let optionsList: Option[] = [];
+  const optionsList: Option[] = [];
   let isLoading = false;
   let hasAnyData = false;
 

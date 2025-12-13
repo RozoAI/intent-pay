@@ -25,7 +25,7 @@ import { useWallet, WALLET_ID_MOBILE_WALLETS } from "../../wallets/useWallets";
  *   that the user can scan from their phone. This opens the flow in eg. mobile
  *   Safari, letting them pick which app they want to use & finish there.
  */
-const ConnectWithQRCode: React.FC<{}> = () => {
+const ConnectWithQRCode: React.FC = () => {
   const context = usePayContext();
   const { pendingConnectorId } = context;
   const wallet = useWallet(pendingConnectorId ?? "");

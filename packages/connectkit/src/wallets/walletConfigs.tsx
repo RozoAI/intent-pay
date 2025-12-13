@@ -20,9 +20,8 @@ function getRozoPayUrl(payId: string, appId?: string) {
 }
 
 function getEncodedRozoPayUrl(payId: string, appId?: string) {
-  let url = getRozoPayUrl(payId, appId);
-  let encodedUrl = encodeURIComponent(url);
-  return encodedUrl;
+  const url = getRozoPayUrl(payId, appId);
+  return encodeURIComponent(url);
 }
 
 export type WalletConfigProps = {

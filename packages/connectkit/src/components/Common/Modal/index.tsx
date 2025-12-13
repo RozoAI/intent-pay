@@ -402,13 +402,14 @@ const Modal: React.FC<ModalProps> = ({
       case ROUTES.STELLAR_SELECT_AMOUNT:
       case ROUTES.SELECT_WALLET_AMOUNT:
         return "Select Amount";
-      case ROUTES.PAY_WITH_TOKEN:
+      case ROUTES.PAY_WITH_TOKEN: {
         if (selectedTokenOption == null) return undefined;
 
         const chainName = getChainName(
           selectedTokenOption.balance.token.chainId
         );
         return `Pay with ${chainName} ${selectedTokenOption.balance.token.symbol}`;
+      }
       case ROUTES.CONFIRMATION:
         return "Payment Successful";
       case ROUTES.ERROR:
