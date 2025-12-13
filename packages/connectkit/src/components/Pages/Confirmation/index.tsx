@@ -31,6 +31,7 @@ import {
 } from "../../../constants/rozoConfig";
 import { useRozoPay } from "../../../hooks/useDaimoPay";
 import { usePayoutPolling } from "../../../hooks/usePayoutPolling";
+import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useSupportedChains } from "../../../hooks/useSupportedChains";
 import styled from "../../../styles/styled";
 import Button from "../../Common/Button";
@@ -57,6 +58,14 @@ const Confirmation: React.FC = () => {
   // Track if completion events have been sent to prevent duplicate calls
   const paymentCompletedSent = React.useRef<string | null>(null);
   const payoutCompletedSent = React.useRef<string | null>(null);
+
+  // Local state for Pusher payout transaction hash
+  const [pusherPayoutTxHash, setPusherPayoutTxHash] = useState<
+    string | undefined
+  >(undefined);
+  const [pusherPayoutTxHashUrl, setPusherPayoutTxHashUrl] = useState<
+    string | undefined
+  >(undefined);
 
   const showProcessingPayout = useMemo(() => {
     const { payParams, tokenMode } = paymentStateContext;
@@ -165,13 +174,49 @@ const Confirmation: React.FC = () => {
 
   // Use payout polling hook
   const { payoutLoading, payoutTxHash, payoutTxHashUrl } = usePayoutPolling({
-    enabled: showProcessingPayout,
+    enabled: false,
     rozoPaymentId,
     order,
     done,
     showProcessingPayout,
     log: context.log,
     triggerResize,
+  });
+
+  // Use Pusher hook for real-time status updates
+  const enablePusher = context.options?.enablePusher ?? false;
+  usePusherPayout({
+    enabled: enablePusher,
+    rozoPaymentId,
+    onPayoutCompleted: (payload) => {
+      context.log("[CONFIRMATION] Pusher payout completed:", payload);
+      // If we receive payout completed from Pusher and have the destination txhash,
+      // we can use it to update the payout state
+      if (payload.destination_txhash && rozoPaymentId) {
+        const payoutKey = `${payload.destination_txhash}-${rozoPaymentId}`;
+        if (payoutCompletedSent.current !== payoutKey) {
+          payoutCompletedSent.current = payoutKey;
+
+          // Update local state for UI display
+          setPusherPayoutTxHash(payload.destination_txhash);
+
+          // Generate transaction URL if we have the order
+          if (order) {
+            const destChainId = getOrderDestChainId(order);
+            const txUrl = getChainExplorerTxUrl(
+              destChainId,
+              payload.destination_txhash
+            );
+            setPusherPayoutTxHashUrl(txUrl);
+          }
+
+          // Update payment state
+          setPaymentPayoutCompleted(payload.destination_txhash, rozoPaymentId);
+          triggerResize();
+        }
+      }
+    },
+    log: context.log,
   });
 
   /**
@@ -297,14 +342,17 @@ const Confirmation: React.FC = () => {
                     <ModalBody>
                       {payoutLoading ? (
                         <LoadingText>Processing payout...</LoadingText>
-                      ) : payoutTxHashUrl && payoutTxHash ? (
+                      ) : (pusherPayoutTxHashUrl && pusherPayoutTxHash) ||
+                        (payoutTxHashUrl && payoutTxHash) ? (
                         <Link
-                          href={payoutTxHashUrl}
+                          href={pusherPayoutTxHashUrl || payoutTxHashUrl || "#"}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{ fontSize: 14, fontWeight: 400 }}
                         >
-                          {getAddressContraction(payoutTxHash)}
+                          {getAddressContraction(
+                            pusherPayoutTxHash || payoutTxHash || ""
+                          )}
                           <ExternalIcon />
                         </Link>
                       ) : (

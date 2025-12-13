@@ -7,7 +7,7 @@ import { visualizer } from "rollup-plugin-visualizer";
 export default [
   // Build a folder of files for better tree-shaking
   {
-    input: ["./src/index.ts", "./src/world.ts"],
+    input: ["./src/index.ts"],
     external: [
       "@creit.tech/stellar-wallets-kit",
       "@reown/appkit",
@@ -35,6 +35,7 @@ export default [
       "styled-components",
       "wagmi",
       "react",
+      "pusher-js",
     ],
     output: [
       {
