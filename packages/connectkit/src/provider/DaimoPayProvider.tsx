@@ -133,7 +133,6 @@ const RozoPayUIProvider = ({
     walletOnboardingUrl: undefined,
     overlayBlur: undefined,
     disableMobileInjector: false,
-    enablePusher: false,
   };
 
   const opts: RozoPayContextOptions = Object.assign(

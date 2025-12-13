@@ -49,8 +49,6 @@ export type RozoPayContextOptions = {
   overlayBlur?: number;
   /** Disable mobile wallet injector detection */
   disableMobileInjector?: boolean;
-  /** Enable Pusher real-time payment status updates */
-  enablePusher?: boolean;
 };
 
 /** Modal UI options, set on the pay button triggering that modal. */

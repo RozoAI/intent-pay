@@ -184,9 +184,8 @@ const Confirmation: React.FC = () => {
   });
 
   // Use Pusher hook for real-time status updates
-  const enablePusher = context.options?.enablePusher ?? false;
   usePusherPayout({
-    enabled: enablePusher,
+    enabled: true,
     rozoPaymentId,
     onPayoutCompleted: (payload) => {
       context.log("[CONFIRMATION] Pusher payout completed:", payload);
