@@ -306,6 +306,15 @@ export function formatPaymentResponseToHydratedOrder(
 
   // Destination address is where the payment will be received
   const destAddress = order.source?.receiverAddress;
+  const destToken = getKnownToken(
+    Number(order.destination.chainId),
+    String(order.destination.tokenAddress)
+  );
+  if (!destToken) {
+    throw new Error(
+      `Unsupported token ${order.destination.tokenAddress} for chain ${order.destination.chainId}`
+    );
+  }
 
   // Determine the chain from metadata or default to the source chain
   const requiredChain = order.source?.chainId || baseUSDC.chainId;
@@ -326,21 +335,23 @@ export function formatPaymentResponseToHydratedOrder(
     preferredTokenAddress: order.source?.tokenAddress ?? null,
     destFinalCallTokenAmount: {
       token: {
-        chainId: token ? token.chainId : baseUSDC.chainId,
-        token: token ? token.token : baseUSDC.token,
-        symbol: token ? token.symbol : baseUSDC.symbol,
+        chainId: destToken ? destToken.chainId : baseUSDC.chainId,
+        token: destToken ? destToken.token : baseUSDC.token,
+        symbol: destToken ? destToken.symbol : baseUSDC.symbol,
         usd: Number(sourceAmountUnits),
         priceFromUsd: 1,
-        decimals: token ? token.decimals : baseUSDC.decimals,
+        decimals: destToken ? destToken.decimals : baseUSDC.decimals,
         displayDecimals: 2,
-        logoSourceURI: token ? token.logoSourceURI : baseUSDC.logoSourceURI,
-        logoURI: token ? token.logoURI : baseUSDC.logoURI,
+        logoSourceURI: destToken
+          ? destToken.logoSourceURI
+          : baseUSDC.logoSourceURI,
+        logoURI: destToken ? destToken.logoURI : baseUSDC.logoURI,
         maxAcceptUsd: 100000,
         maxSendUsd: 0,
       },
       amount: parseUnits(
         sourceAmountUnits,
-        token ? token.decimals : baseUSDC.decimals
+        destToken ? destToken.decimals : baseUSDC.decimals
       ).toString() as `${bigint}`,
       usd: Number(sourceAmountUnits),
     },

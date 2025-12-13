@@ -10,6 +10,7 @@ import { OptionsList } from "../../Common/OptionsList";
 import { OrderHeader } from "../../Common/OrderHeader";
 import PoweredByFooter from "../../Common/PoweredByFooter";
 import SelectAnotherMethodButton from "../../Common/SelectAnotherMethodButton";
+import TokenChainLogo from "../../Common/TokenChainLogo";
 
 const SelectDepositAddressChain: React.FC = () => {
   const { setRoute, paymentState } = usePayContext();
@@ -61,7 +62,7 @@ const SelectDepositAddressChain: React.FC = () => {
             .map((option) => ({
               id: option.id,
               title: option.id,
-              icons: [option.logoURI],
+              icons: [<TokenChainLogo key={option.id} token={option.token} />],
               disabled:
                 option.minimumUsd <= 0 ||
                 (order?.mode === RozoPayOrderMode.HYDRATED &&

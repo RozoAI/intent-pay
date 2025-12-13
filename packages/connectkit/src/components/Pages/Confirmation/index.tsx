@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePayContext } from "../../../hooks/usePayContext";
 
 import {
@@ -56,8 +56,8 @@ const Confirmation: React.FC = () => {
   const [isConfirming, setIsConfirming] = useState<boolean>(true);
 
   // Track if completion events have been sent to prevent duplicate calls
-  const paymentCompletedSent = React.useRef<string | null>(null);
-  const payoutCompletedSent = React.useRef<string | null>(null);
+  const paymentCompletedSent = useRef<string | null>(null);
+  const payoutCompletedSent = useRef<string | null>(null);
 
   // Local state for Pusher payout transaction hash
   const [pusherPayoutTxHash, setPusherPayoutTxHash] = useState<
@@ -66,6 +66,16 @@ const Confirmation: React.FC = () => {
   const [pusherPayoutTxHashUrl, setPusherPayoutTxHashUrl] = useState<
     string | undefined
   >(undefined);
+
+  // Track Pusher initialization and data activity for timeout logic
+  const [pusherEnabled, setPusherEnabled] = useState<boolean>(true);
+  const [pollingEnabled, setPollingEnabled] = useState<boolean>(false);
+  const pusherInitializedTimeRef = useRef<number | null>(null);
+  const pusherDataReceivedRef = useRef<boolean>(false);
+  const pusherUnsubscribeRef = useRef<(() => void) | null>(null);
+  const payoutCompletedRef = useRef<boolean>(false);
+  const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
+  const pusherEnabledRef = useRef<boolean>(true);
 
   const showProcessingPayout = useMemo(() => {
     const { payParams, tokenMode } = paymentStateContext;
@@ -81,8 +91,22 @@ const Confirmation: React.FC = () => {
   }, [paymentStateContext]);
 
   const rozoPaymentId = useMemo(() => {
-    return order?.externalId || paymentStateContext.rozoPaymentId;
-  }, [order, paymentStateContext]);
+    const id = order?.externalId || paymentStateContext.rozoPaymentId;
+    return id;
+  }, [order?.externalId, paymentStateContext.rozoPaymentId]);
+
+  // Debug: Log when rozoPaymentId changes
+  useEffect(() => {
+    if (rozoPaymentId) {
+      context.log("[CONFIRMATION] rozoPaymentId available:", rozoPaymentId);
+    } else {
+      context.log("[CONFIRMATION] rozoPaymentId not available yet", {
+        orderExternalId: order?.externalId,
+        contextRozoPaymentId: paymentStateContext.rozoPaymentId,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rozoPaymentId, order?.externalId, paymentStateContext.rozoPaymentId]);
 
   const { tokens: supportedTokens } = useSupportedChains(
     paymentStateContext.payParams?.appId ?? DEFAULT_ROZO_APP_ID,
@@ -174,7 +198,7 @@ const Confirmation: React.FC = () => {
 
   // Use payout polling hook
   const { payoutLoading, payoutTxHash, payoutTxHashUrl } = usePayoutPolling({
-    enabled: false,
+    enabled: pollingEnabled,
     rozoPaymentId,
     order,
     done,
@@ -184,9 +208,15 @@ const Confirmation: React.FC = () => {
   });
 
   // Use Pusher hook for real-time status updates
-  usePusherPayout({
-    enabled: true,
+  // Start with Pusher enabled, will switch to polling after 1 minute if no data received
+  const { unsubscribe: pusherUnsubscribe } = usePusherPayout({
+    enabled: pusherEnabled && !!rozoPaymentId,
     rozoPaymentId,
+    onDataReceived: () => {
+      // Track that we received data from Pusher
+      pusherDataReceivedRef.current = true;
+      context.log("[CONFIRMATION] Pusher data received");
+    },
     onPayoutCompleted: (payload) => {
       context.log("[CONFIRMATION] Pusher payout completed:", payload);
       // If we receive payout completed from Pusher and have the destination txhash,
@@ -195,6 +225,7 @@ const Confirmation: React.FC = () => {
         const payoutKey = `${payload.destination_txhash}-${rozoPaymentId}`;
         if (payoutCompletedSent.current !== payoutKey) {
           payoutCompletedSent.current = payoutKey;
+          payoutCompletedRef.current = true;
 
           // Update local state for UI display
           setPusherPayoutTxHash(payload.destination_txhash);
@@ -212,11 +243,133 @@ const Confirmation: React.FC = () => {
           // Update payment state
           setPaymentPayoutCompleted(payload.destination_txhash, rozoPaymentId);
           triggerResize();
+
+          // Unsubscribe from Pusher since payout is completed
+          if (pusherUnsubscribeRef.current) {
+            context.log(
+              "[CONFIRMATION] Payout completed via Pusher, unsubscribing"
+            );
+            pusherUnsubscribeRef.current();
+          }
+          pusherEnabledRef.current = false;
+          setPusherEnabled(false);
+
+          // Clear timeout since payout is completed
+          if (timeoutIdRef.current) {
+            clearTimeout(timeoutIdRef.current);
+            timeoutIdRef.current = null;
+          }
         }
       }
     },
     log: context.log,
   });
+
+  // Store unsubscribe function in ref
+  useEffect(() => {
+    pusherUnsubscribeRef.current = pusherUnsubscribe;
+  }, [pusherUnsubscribe]);
+
+  // Initialize Pusher timer when Pusher is enabled and rozoPaymentId is available
+  // This effect sets up the timeout to switch to polling after 1 minute if no data is received
+  useEffect(() => {
+    // Only proceed if we have a payment ID and Pusher is enabled
+    if (!rozoPaymentId || !pusherEnabled) {
+      context.log("[CONFIRMATION] Timeout setup skipped:", {
+        rozoPaymentId: !!rozoPaymentId,
+        pusherEnabled,
+      });
+      return;
+    }
+
+    // Only set timeout once per payment ID
+    if (timeoutIdRef.current !== null) {
+      context.log(
+        "[CONFIRMATION] Timeout already set, skipping",
+        timeoutIdRef.current
+      );
+      return;
+    }
+
+    // Initialize timer on first Pusher connection
+    if (pusherInitializedTimeRef.current === null) {
+      pusherInitializedTimeRef.current = Date.now();
+      context.log(
+        "[CONFIRMATION] Pusher initialized, starting 1-minute timeout at",
+        new Date(pusherInitializedTimeRef.current).toISOString()
+      );
+    }
+
+    // Set up timeout to switch to polling after 1 minute if no data received
+    context.log("[CONFIRMATION] Setting up 1-minute timeout");
+    timeoutIdRef.current = setTimeout(() => {
+      context.log(
+        "[CONFIRMATION] Timeout fired at",
+        new Date().toISOString(),
+        "- checking conditions for polling switch"
+      );
+
+      // Only switch to polling if payout hasn't been completed and Pusher is still enabled
+      if (
+        !pusherDataReceivedRef.current &&
+        pusherEnabledRef.current &&
+        !payoutCompletedRef.current
+      ) {
+        context.log(
+          "[CONFIRMATION] 1 minute elapsed with no Pusher data, switching to polling"
+        );
+
+        // Unsubscribe from Pusher
+        if (pusherUnsubscribeRef.current) {
+          context.log("[CONFIRMATION] Unsubscribing from Pusher");
+          pusherUnsubscribeRef.current();
+        }
+
+        // Disable Pusher and enable polling
+        pusherEnabledRef.current = false;
+        setPusherEnabled(false);
+        setPollingEnabled(true);
+      } else {
+        context.log("[CONFIRMATION] Timeout fired but conditions not met:", {
+          pusherDataReceived: pusherDataReceivedRef.current,
+          pusherEnabled: pusherEnabledRef.current,
+          payoutCompleted: payoutCompletedRef.current,
+        });
+      }
+      timeoutIdRef.current = null;
+    }, 60000); // 1 minute = 60000ms
+
+    context.log(
+      "[CONFIRMATION] Timeout set successfully, will fire in 60 seconds"
+    );
+
+    return () => {
+      // Clear timeout when dependencies change or component unmounts
+      if (timeoutIdRef.current) {
+        context.log("[CONFIRMATION] Clearing timeout in cleanup");
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
+      }
+    };
+  }, [rozoPaymentId, pusherEnabled, context.log]);
+
+  // Reset tracking when rozoPaymentId changes
+  useEffect(() => {
+    context.log("[CONFIRMATION] Resetting tracking for new payment ID");
+    pusherInitializedTimeRef.current = null;
+    pusherDataReceivedRef.current = false;
+    payoutCompletedRef.current = false;
+    pusherEnabledRef.current = true;
+    setPusherEnabled(true);
+    setPollingEnabled(false);
+    if (timeoutIdRef.current) {
+      context.log(
+        "[CONFIRMATION] Clearing existing timeout on payment ID change"
+      );
+      clearTimeout(timeoutIdRef.current);
+      timeoutIdRef.current = null;
+    }
+  }, [rozoPaymentId, context.log]);
 
   /**
    * Sets the payment completed state.
@@ -270,9 +423,26 @@ const Confirmation: React.FC = () => {
       });
 
       payoutCompletedSent.current = payoutKey;
+      payoutCompletedRef.current = true;
       setPaymentPayoutCompleted(payoutTxHash, rozoPaymentId);
+
+      // Unsubscribe from Pusher since payout is completed via polling
+      if (pusherUnsubscribeRef.current && pusherEnabled) {
+        context.log(
+          "[CONFIRMATION] Payout completed via polling, unsubscribing from Pusher"
+        );
+        pusherUnsubscribeRef.current();
+      }
+      pusherEnabledRef.current = false;
+      setPusherEnabled(false);
+
+      // Clear timeout since payout is completed
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
+      }
     }
-  }, [done, payoutTxHash, rozoPaymentId]);
+  }, [done, payoutTxHash, rozoPaymentId, pusherEnabled]);
 
   useEffect(() => {
     if (debugMode) {
@@ -355,7 +525,7 @@ const Confirmation: React.FC = () => {
                           <ExternalIcon />
                         </Link>
                       ) : (
-                        <PlaceholderText>Pending...</PlaceholderText>
+                        <LoadingText>Processing payout...</LoadingText>
                       )}
                     </ModalBody>
                   </ListItem>

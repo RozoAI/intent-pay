@@ -99,7 +99,10 @@ export const OptionButton = styled(motion.button)`
   }
 `;
 
-export const OptionLabel = styled(motion.span)`
+export const OptionLabel = styled(motion.span)<{
+  $hasRightIcons?: boolean;
+  $iconsPosition?: "left" | "right";
+}>`
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -107,7 +110,12 @@ export const OptionLabel = styled(motion.span)`
   width: 100%;
   overflow: hidden;
   padding: 2px 0;
-  padding-right: 38px;
+  padding-left: ${(props) => (props.$iconsPosition === "left" ? "42px" : "0")};
+  padding-right: ${(props) => {
+    if (props.$hasRightIcons) return "38px";
+    if (props.$iconsPosition === "right") return "38px";
+    return "0";
+  }};
 `;
 
 export const OptionTitle = styled(motion.span)`

@@ -5,7 +5,13 @@ import { ModalContent, PageContent } from "../../Common/Modal/styles";
 
 import WalletPaymentSpinner from "../../Spinners/WalletPaymentSpinner";
 
-import { Ethereum, Solana } from "../../../assets/chains";
+import {
+  Base,
+  BinanceSmartChain,
+  Ethereum,
+  Polygon,
+  Solana,
+} from "../../../assets/chains";
 import { ROUTES } from "../../../constants/routes";
 import { WalletProps } from "../../../wallets/useWallets";
 import { OptionsList } from "../../Common/OptionsList";
@@ -36,17 +42,28 @@ const SelectWalletChain: React.FC = () => {
       setRoute(ROUTES.SOLANA_CONNECTOR);
     }
   }
+
   const options = [
     {
       id: "ethereum",
       title: "Ethereum",
       icons: [<Ethereum key="ethereum" />],
+      rightIcons: [
+        <Base key="base" />,
+        <Polygon key="polygon" />,
+        // Phantom doesn't support BSC, so we don't show it for Phantom
+        ...(wallet.id !== "app.phantom"
+          ? [<BinanceSmartChain key="bnb" />]
+          : []),
+      ],
+      iconsPosition: "left" as const,
       onClick: () => handleSelect("evm"),
     },
     {
       id: "solana",
       title: "Solana",
       icons: [<Solana key="solana" />],
+      iconsPosition: "left" as const,
       onClick: () => handleSelect("solana"),
     },
   ];

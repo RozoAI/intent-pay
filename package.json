@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "build": "pnpm --filter @rozoai/intent-common build && pnpm --filter @rozoai/intent-pay build",
-    "dev": "pnpm --concurrent --filter '@rozoai/*' dev",
+    "dev": "pnpm -r --parallel --filter '@rozoai/*' dev",
     "dev:common": "pnpm --filter @rozoai/intent-common build --watch",
     "dev:pay": "pnpm --filter @rozoai/intent-pay dev",
     "dev:example": "pnpm --filter @rozoai/pay-nextjs-app-example dev",
