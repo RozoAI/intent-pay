@@ -83,6 +83,7 @@ export const RozoPayModal: React.FC<{
     setSelectedStellarTokenOption,
     setSelectedDepositAddressOption,
     setSelectedWallet,
+    setSelectedChainId,
   } = paymentState;
   const { paymentState: paymentFsmState } = useRozoPay();
 
@@ -322,16 +323,33 @@ export const RozoPayModal: React.FC<{
     ) {
       if (isEthConnected) {
         paymentState.setTokenMode("evm");
+        // Preserve chainId from routeMeta if it exists (from SelectWalletChain),
+        // otherwise use the current chain ID
+        const chainId = context.routeMeta?.chainId ?? chain?.id;
         context.setRoute(ROUTES.SELECT_TOKEN, {
           event: "connected",
           walletId: connector?.id,
-          chainId: chain?.id,
+          chainId,
           address,
         });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEthConnected, context.route, connector?.id, chain?.id, address]);
+
+  // Extract chainId from routeMeta when navigating to SELECT_TOKEN
+  useEffect(() => {
+    if (context.route === ROUTES.SELECT_TOKEN && context.routeMeta?.chainId) {
+      const chainId = context.routeMeta.chainId as number;
+      setSelectedChainId(chainId);
+    } else if (
+      context.route !== ROUTES.SELECT_TOKEN &&
+      context.route !== ROUTES.SELECT_WALLET_CHAIN
+    ) {
+      // Clear selectedChainId when leaving SELECT_TOKEN or SELECT_WALLET_CHAIN
+      setSelectedChainId(undefined);
+    }
+  }, [context.route, context.routeMeta, setSelectedChainId]);
 
   useEffect(() => setMode(mode), [mode, setMode]);
   useEffect(() => setTheme(theme), [theme, setTheme]);

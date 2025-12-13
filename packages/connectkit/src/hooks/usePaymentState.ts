@@ -142,6 +142,8 @@ export interface PaymentState {
   setPaymentWaitingMessage: (message: string | undefined) => void;
   tokenMode: "evm" | "solana" | "stellar" | "all";
   setTokenMode: (mode: "evm" | "solana" | "stellar" | "all") => void;
+  selectedChainId: number | undefined;
+  setSelectedChainId: (chainId: number | undefined) => void;
   setSelectedWallet: (wallet: WalletConfigProps | undefined) => void;
   setSelectedWalletDeepLink: (deepLink: string | undefined) => void;
   setSelectedExternalOption: (
@@ -290,6 +292,10 @@ export function usePaymentState({
   const [tokenMode, setTokenMode] = useState<
     "evm" | "solana" | "stellar" | "all"
   >("evm");
+
+  const [selectedChainId, setSelectedChainId] = useState<number | undefined>(
+    undefined
+  );
 
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
   const [rozoPaymentId, setRozoPaymentId] = useState<string | undefined>(
@@ -1300,6 +1306,8 @@ export function usePaymentState({
     payParams: currPayParams,
     tokenMode,
     setTokenMode,
+    selectedChainId,
+    setSelectedChainId,
     generatePreviewOrder,
     isDepositFlow,
     paymentWaitingMessage,
