@@ -1,6 +1,8 @@
 import {
   getChainName,
   RozoPayToken,
+  rozoSolana,
+  solana,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import { useCallback, useEffect, useRef } from "react";
@@ -110,10 +112,14 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
 
   if (shouldIncludeSolana) {
     // Filter Solana options by selectedChainId if provided
+    // Note: solana (501) and rozoSolana (900) are both Solana chains
+    // The API returns rozoSolana options, so we need to accept both chainIds
     const solanaOptionsRaw = solanaPaymentOptions.options ?? [];
     const filteredSolanaOptions = selectedChainId
       ? solanaOptionsRaw.filter(
-          (option) => option.balance.token.chainId === selectedChainId
+          (option) =>
+            option.balance.token.chainId === solana.chainId ||
+            option.balance.token.chainId === rozoSolana.chainId
         )
       : solanaOptionsRaw;
 
