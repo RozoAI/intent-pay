@@ -10,9 +10,12 @@ import {
   DepositAddressPaymentOptionMetadata,
   DepositAddressPaymentOptions,
   ethereum,
+  ethereumUSDC,
+  ethereumUSDT,
   ExternalPaymentOptionMetadata,
   ExternalPaymentOptions,
   ExternalPaymentOptionsString,
+  FeeResponseData,
   FeeType,
   formatPaymentResponseToHydratedOrder,
   generateEVMDeepLink,
@@ -22,18 +25,17 @@ import {
   mergedMetadata,
   PaymentResponse,
   PlatformType,
-  polygonUSDC,
   readRozoPayOrderID,
   RozoPayHydratedOrderWithOrg,
   RozoPayOrder,
   rozoSolana,
   rozoSolanaUSDC,
+  rozoSolanaUSDT,
   rozoStellar,
   rozoStellarUSDC,
   solana,
   Token,
   WalletPaymentOption,
-  worldchainUSDC,
   writeRozoPayOrderID,
 } from "@rozoai/intent-common";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -167,7 +169,9 @@ export interface PaymentState {
   payWithExternal: (option: ExternalPaymentOptions) => Promise<string>;
   payWithDepositAddress: (
     option: DepositAddressPaymentOptions,
-    store: Store<PaymentState, PaymentEvent>
+    store: Store<PaymentState, PaymentEvent>,
+    fees: FeeResponseData | null,
+    log?: (message: string) => void
   ) => Promise<
     | (DepositAddressPaymentOptionData & { externalId: string; memo: string })
     | null
@@ -1059,11 +1063,13 @@ export function usePaymentState({
 
   const payWithDepositAddress = async (
     option: DepositAddressPaymentOptions,
-    store: Store<PaymentState, PaymentEvent>
+    store: Store<PaymentState, PaymentEvent>,
+    fees: FeeResponseData | null,
+    log?: (message: string) => void
   ) => {
     // Prevent duplicate calls for the same option
     if (depositAddressCallRef.current.has(option)) {
-      log(
+      log?.(
         `[PAY DEPOSIT ADDRESS] Already processing ${option}, skipping duplicate call`
       );
       return null;
@@ -1071,34 +1077,39 @@ export function usePaymentState({
 
     // Mark this option as being processed
     depositAddressCallRef.current.add(option);
-    log(`[PAY DEPOSIT ADDRESS] Starting processing for ${option}`);
+    log?.(`[PAY DEPOSIT ADDRESS] Starting processing for ${option}`);
 
     try {
       let token: Token = baseUSDC;
 
-      if (option === DepositAddressPaymentOptions.SOLANA) {
+      // Map option to correct token, mimicking useDepositAddressOptions.ts
+      if (option === DepositAddressPaymentOptions.ETHEREUM_USDT) {
+        token = ethereumUSDT;
+      } else if (option === DepositAddressPaymentOptions.ETHEREUM_USDC) {
+        token = ethereumUSDC;
+      } else if (option === DepositAddressPaymentOptions.BASE_USDC) {
+        token = baseUSDC;
+      } else if (option === DepositAddressPaymentOptions.SOLANA_USDT) {
+        token = rozoSolanaUSDT;
+      } else if (option === DepositAddressPaymentOptions.SOLANA_USDC) {
         token = rozoSolanaUSDC;
-      } else if (option === DepositAddressPaymentOptions.STELLAR) {
-        token = rozoStellarUSDC;
-      } else if (option === DepositAddressPaymentOptions.POLYGON) {
-        token = polygonUSDC;
-      } else if (option === DepositAddressPaymentOptions.BSC) {
-        token = bscUSDT;
-      } else if (option === DepositAddressPaymentOptions.WORLD) {
-        token = worldchainUSDC;
       }
 
-      log("[PAY DEPOSIT ADDRESS] hydrating order");
+      log?.("[PAY DEPOSIT ADDRESS] hydrating order");
 
       const { order } = await pay.hydrateOrder(undefined, {
         required: {
           token: {
             token: token.token,
+            chainId: token.chainId,
           } as any,
         } as any,
+        fees: {
+          usd: fees?.fee ?? 0,
+        },
       } as any);
 
-      log(
+      log?.(
         `[PAY DEPOSIT ADDRESS] hydrated order ${order.id} for ${order.usdValue} USD, checking out with deposit address: ${option}`
       );
 
@@ -1109,7 +1120,7 @@ export function usePaymentState({
 
       const chain = getChainById(token.chainId);
 
-      log(order);
+      log?.(`[PAY DEPOSIT ADDRESS] order: ${debugJson(order)}`);
 
       const evmDeeplink = generateEVMDeepLink({
         amountUnits: order.destFinalCallTokenAmount.amount,
@@ -1138,7 +1149,7 @@ export function usePaymentState({
     } finally {
       // Remove from processing set when done (allow retries after completion/failure)
       depositAddressCallRef.current.delete(option);
-      log(`[PAY DEPOSIT ADDRESS] Finished processing for ${option}`);
+      log?.(`[PAY DEPOSIT ADDRESS] Finished processing for ${option}`);
     }
   };
 

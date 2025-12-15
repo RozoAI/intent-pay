@@ -4,7 +4,7 @@ import {
   Chain,
   ethereum,
   polygon,
-  rozoSolana,
+  solana,
   supportedTokens,
 } from "@rozoai/intent-common";
 import React, { useCallback, useMemo } from "react";
@@ -65,9 +65,9 @@ const SelectWalletChain: React.FC = () => {
           availableChainIds.has(bsc.chainId) && wallet?.id !== "app.phantom",
       },
       {
-        chain: rozoSolana,
+        chain: solana,
         icon: <Solana key="solana" />,
-        supported: availableChainIds.has(rozoSolana.chainId),
+        supported: availableChainIds.has(solana.chainId),
       },
     ],
     [availableChainIds, wallet?.id]

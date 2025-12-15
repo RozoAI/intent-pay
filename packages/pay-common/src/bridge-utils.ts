@@ -1,6 +1,5 @@
 import { parseUnits } from "viem";
 import {
-  baseUSDC,
   getChainById,
   getKnownToken,
   isChainSupported,
@@ -316,16 +315,6 @@ export function formatPaymentResponseToHydratedOrder(
     );
   }
 
-  // Determine the chain from metadata or default to the source chain
-  const requiredChain = order.source?.chainId || baseUSDC.chainId;
-
-  const token = getKnownToken(
-    Number(requiredChain),
-    Number(requiredChain) === rozoStellarUSDC.chainId
-      ? rozoStellarUSDC.token
-      : order.source?.tokenAddress || ""
-  );
-
   return {
     id: BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)),
     mode: RozoPayOrderMode.HYDRATED,
@@ -335,23 +324,21 @@ export function formatPaymentResponseToHydratedOrder(
     preferredTokenAddress: order.source?.tokenAddress ?? null,
     destFinalCallTokenAmount: {
       token: {
-        chainId: destToken ? destToken.chainId : baseUSDC.chainId,
-        token: destToken ? destToken.token : baseUSDC.token,
-        symbol: destToken ? destToken.symbol : baseUSDC.symbol,
+        chainId: destToken.chainId,
+        token: destToken.token,
+        symbol: destToken.symbol,
         usd: Number(sourceAmountUnits),
         priceFromUsd: 1,
-        decimals: destToken ? destToken.decimals : baseUSDC.decimals,
+        decimals: destToken.decimals,
         displayDecimals: 2,
-        logoSourceURI: destToken
-          ? destToken.logoSourceURI
-          : baseUSDC.logoSourceURI,
-        logoURI: destToken ? destToken.logoURI : baseUSDC.logoURI,
+        logoSourceURI: destToken.logoSourceURI,
+        logoURI: destToken.logoURI,
         maxAcceptUsd: 100000,
         maxSendUsd: 0,
       },
       amount: parseUnits(
         sourceAmountUnits,
-        destToken ? destToken.decimals : baseUSDC.decimals
+        destToken.decimals
       ).toString() as `${bigint}`,
       usd: Number(sourceAmountUnits),
     },

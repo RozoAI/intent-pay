@@ -241,6 +241,7 @@ export default function WaitingDepositAddress() {
 
   // If we selected a deposit address option, generate the address...
   const generateDepositAddress = async () => {
+    console.log("selectedDepositAddressOption", selectedDepositAddressOption);
     if (selectedDepositAddressOption == null) {
       if (order == null || !isHydrated(order)) return;
       if (order.sourceTokenAmount == null) return;
@@ -266,15 +267,17 @@ export default function WaitingDepositAddress() {
         expirationS = Number(order.expirationTs);
       }
 
+      console.log("order", order);
+
       const evmDeepLink = generateEVMDeepLink({
         amountUnits: order.destFinalCallTokenAmount.amount,
         chainId: order.destFinalCallTokenAmount.token.chainId,
-        recipientAddress: order.destFinalCall.to,
+        recipientAddress: order.intentAddr,
         tokenAddress: order.destFinalCallTokenAmount.token.token,
       });
 
       setDepAddr({
-        address: order.destFinalCall.to,
+        address: order.intentAddr,
         amount: String(order.usdValue),
         underpayment: {
           unitsPaid: order.destFinalCallTokenAmount.amount,
@@ -287,14 +290,14 @@ export default function WaitingDepositAddress() {
         uri: evmDeepLink,
         displayToken: order.destFinalCallTokenAmount.token,
         logoURI: "", // Not needed for underpaid orders
-        memo: order.metadata?.memo || "",
+        memo: order.memo || order.metadata?.memo || undefined,
       });
     } else {
       // Prevent multiple executions for the same deposit option
       if (isLoading || hasExecutedDepositCall) return;
 
       const displayToken = getKnownToken(
-        selectedDepositAddressOption.chainId,
+        selectedDepositAddressOption.token.chainId,
         selectedDepositAddressOption.token.token
       );
       const logoURI = selectedDepositAddressOption.logoURI;
@@ -321,6 +324,7 @@ export default function WaitingDepositAddress() {
       });
 
       try {
+        let feeData: FeeResponseData | null = null;
         // Fetch fee using amount and appId before generating deposit address
         if (amount && payParams?.appId) {
           try {
@@ -329,10 +333,11 @@ export default function WaitingDepositAddress() {
               type: payParams?.feeType ?? FeeType.ExactIn,
               toUnits: amount.toString(),
               appId: payParams.appId,
-              toChain: selectedDepositAddressOption.chainId,
+              toChain: selectedDepositAddressOption.token.chainId,
             });
 
             if (feeResponse.data) {
+              feeData = feeResponse.data;
               setFeeData(feeResponse.data);
               setFeeError(null);
             } else if (feeResponse.error) {
@@ -368,7 +373,9 @@ export default function WaitingDepositAddress() {
 
         const details = await payWithDepositAddress(
           selectedDepositAddressOption.id,
-          store as any
+          store as any,
+          feeData,
+          context.log
         );
         if (details) {
           const shouldShowMemo = ![DepositAddressPaymentOptions.BSC].includes(
@@ -414,10 +421,8 @@ export default function WaitingDepositAddress() {
   // Reset payment hash when deposit option changes
   useEffect(() => {
     setPayinTransactionHash(null);
-  }, [selectedDepositAddressOption]);
 
-  // Reset execution flag when selectedDepositAddressOption changes
-  useEffect(() => {
+    // Reset execution flag when selectedDepositAddressOption changes
     if (selectedDepositAddressOption) {
       setHasExecutedDepositCall(false);
       setFailed(false);
@@ -446,13 +451,7 @@ export default function WaitingDepositAddress() {
       reset();
       createPreviewOrder(payParams);
     }
-  }, [
-    selectedDepositAddressOption,
-    rozoPaymentState,
-    payParams,
-    reset,
-    createPreviewOrder,
-  ]);
+  }, [selectedDepositAddressOption, rozoPaymentState, payParams]);
 
   // Generate deposit address when conditions are met
   useEffect(() => {
