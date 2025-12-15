@@ -21,6 +21,7 @@ import {
   generateEVMDeepLink,
   generateIntentTitle,
   getChainById,
+  getKnownToken,
   isValidSolanaAddress,
   mergedMetadata,
   PaymentResponse,
@@ -1122,11 +1123,27 @@ export function usePaymentState({
 
       log?.(`[PAY DEPOSIT ADDRESS] order: ${debugJson(order)}`);
 
+      if (!order.preferredChainId || !order.preferredTokenAddress) {
+        throw new Error("Preferred chain or token address not found");
+      }
+
+      const preferredToken = getKnownToken(
+        Number(order.preferredChainId),
+        order.preferredTokenAddress
+      );
+
+      if (!preferredToken) {
+        throw new Error("Preferred token not found");
+      }
+
       const evmDeeplink = generateEVMDeepLink({
-        amountUnits: order.destFinalCallTokenAmount.amount,
-        chainId: order.destFinalCallTokenAmount.token.chainId,
+        amountUnits: parseUnits(
+          order.destFinalCallTokenAmount.usd.toString(),
+          preferredToken.decimals
+        ).toString(),
+        chainId: preferredToken.chainId,
         recipientAddress: order.intentAddr,
-        tokenAddress: order.destFinalCallTokenAmount.token.token,
+        tokenAddress: preferredToken.token,
       });
 
       return {

@@ -380,9 +380,6 @@ async function runHydratePayParamsEffects(
   const payParams = prev.payParamsData;
   const walletOption = event.walletPaymentOption;
   const feeType = payParams.feeType ?? FeeType.ExactIn;
-  console.log("walletOption", walletOption);
-  console.log("order", JSON.stringify(order, null, 2));
-  console.log("payParams", JSON.stringify(payParams, null, 2));
 
   const toUnits = formatUnits(
     BigInt(order.destFinalCallTokenAmount.amount),
@@ -392,8 +389,7 @@ async function runHydratePayParamsEffects(
     feeType === FeeType.ExactIn
       ? Number(toUnits)
       : Number(toUnits) - Number(walletOption?.fees.usd ?? 0);
-  console.log("toUnits", toUnits);
-  console.log("calculatedToUnits", calculatedToUnits);
+
   const toChain = getOrderDestChainId(order);
   const toToken = order.destFinalCallTokenAmount.token.token;
 

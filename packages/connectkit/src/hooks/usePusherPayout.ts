@@ -12,7 +12,7 @@ interface PusherChannel {
 
 interface PusherStatusUpdatePayload {
   payment_id: string;
-  status: PaymentStatus.PaymentPayoutCompleted;
+  status: PaymentStatus;
   source_txhash?: string;
   destination_txhash?: string;
 }
@@ -24,6 +24,8 @@ export interface UsePusherPayoutOptions {
   rozoPaymentId: string | undefined;
   /** Callback when payout completed status is received */
   onPayoutCompleted?: (payload: PusherStatusUpdatePayload) => void;
+  /** Callback when payin is detected (source_txhash is received) */
+  onPayinDetected?: (payload: PusherStatusUpdatePayload) => void;
   /** Callback when any data is received (to track activity) */
   onDataReceived?: () => void;
   /** Logging function */
@@ -58,8 +60,14 @@ const PUSHER_CONFIG = {
 export const usePusherPayout = (
   options: UsePusherPayoutOptions
 ): UsePusherPayoutResult => {
-  const { enabled, rozoPaymentId, onPayoutCompleted, onDataReceived, log } =
-    options;
+  const {
+    enabled,
+    rozoPaymentId,
+    onPayoutCompleted,
+    onPayinDetected,
+    onDataReceived,
+    log,
+  } = options;
 
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [lastStatusUpdate, setLastStatusUpdate] =
@@ -75,12 +83,14 @@ export const usePusherPayout = (
 
   // Store callbacks in refs to prevent infinite loops
   const onPayoutCompletedRef = useRef(onPayoutCompleted);
+  const onPayinDetectedRef = useRef(onPayinDetected);
   const onDataReceivedRef = useRef(onDataReceived);
   const logRef = useRef(log);
 
   // Update refs when callbacks change (without triggering re-renders)
   useEffect(() => {
     onPayoutCompletedRef.current = onPayoutCompleted;
+    onPayinDetectedRef.current = onPayinDetected;
     onDataReceivedRef.current = onDataReceived;
     logRef.current = log;
   });
@@ -251,7 +261,21 @@ export const usePusherPayout = (
             return;
           }
 
-          // Only process payout completed status
+          // Notify that data was received (for tracking activity)
+          if (onDataReceivedRef.current) {
+            onDataReceivedRef.current();
+          }
+
+          // Process payin detection (when source_txhash is received)
+          if (data.source_txhash && onPayinDetectedRef.current) {
+            logRef.current(
+              "[PUSHER] Payin detected (source_txhash received):",
+              data.source_txhash
+            );
+            onPayinDetectedRef.current(data);
+          }
+
+          // Process payout completed status
           if (data.status === PaymentStatus.PaymentPayoutCompleted) {
             setLastStatusUpdate(data);
 
@@ -259,16 +283,8 @@ export const usePusherPayout = (
             if (onPayoutCompletedRef.current) {
               onPayoutCompletedRef.current(data);
             }
-
-            // Notify that data was received (for tracking activity)
-            if (onDataReceivedRef.current) {
-              onDataReceivedRef.current();
-            }
           } else {
-            logRef.current(
-              `[PUSHER] Ignoring status update (not payout completed):`,
-              data.status
-            );
+            logRef.current(`[PUSHER] Status update received:`, data.status);
           }
         };
 

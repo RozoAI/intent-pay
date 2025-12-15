@@ -6,7 +6,6 @@ import {
   getChainName,
   getFee,
   getKnownToken,
-  getPayment,
   isHydrated,
   type FeeErrorData,
   type FeeResponseData,
@@ -14,11 +13,13 @@ import {
 } from "@rozoai/intent-common";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { keyframes } from "styled-components";
+import { parseUnits } from "viem";
 import { AlertIcon, WarningIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
 import { useRozoPay } from "../../../hooks/useDaimoPay";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { usePayContext } from "../../../hooks/usePayContext";
+import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import styled from "../../../styles/styled";
 import { formatUsd } from "../../../utils/format";
 import Button from "../../Common/Button";
@@ -98,13 +99,52 @@ export default function WaitingDepositAddress() {
   const [isLoading, setIsLoading] = useState(false);
   const [depoChain, setDepoChain] = useState<string>();
   const [hasExecutedDepositCall, setHasExecutedDepositCall] = useState(false);
-  const [payinTransactionHash, setPayinTransactionHash] = useState<
-    string | null
-  >(null);
   const [feeData, setFeeData] = useState<FeeResponseData | null>(null);
   const [feeError, setFeeError] = useState<FeeErrorData | null>(null);
 
-  const [isPollingPayment, setIsPollingPayment] = useState(false);
+  // Use Pusher to detect payin in real-time
+  const pusherEnabled = !!(
+    depAddr?.externalId &&
+    (rozoPaymentId || depAddr?.externalId) &&
+    rozoPaymentState !== "payment_started" &&
+    rozoPaymentState !== "payment_completed"
+  );
+
+  usePusherPayout({
+    enabled: pusherEnabled,
+    rozoPaymentId: rozoPaymentId || depAddr?.externalId,
+    onPayinDetected: (payload) => {
+      if (payload.source_txhash && selectedDepositAddressOption) {
+        context.log(
+          "[PAYIN DETECTED] Payment received via Pusher:",
+          payload.source_txhash
+        );
+        setPaymentCompleted(
+          payload.source_txhash,
+          rozoPaymentId || payload.payment_id
+        );
+        setPaymentPayoutCompleted(
+          payload.source_txhash,
+          rozoPaymentId || payload.payment_id
+        );
+        const tokenMode =
+          selectedDepositAddressOption?.id ===
+          DepositAddressPaymentOptions.SOLANA
+            ? "solana"
+            : selectedDepositAddressOption?.id ===
+              DepositAddressPaymentOptions.STELLAR
+            ? "stellar"
+            : "evm";
+        setTokenMode(tokenMode);
+        setTxHash(payload.source_txhash);
+        context.setRoute(ROUTES.CONFIRMATION);
+      }
+    },
+    onDataReceived: () => {
+      context.log("[PUSHER] Data received for deposit address payment");
+    },
+    log: context.log,
+  });
 
   useEffect(() => {
     if (rozoPaymentState === "error") {
@@ -112,136 +152,8 @@ export default function WaitingDepositAddress() {
     }
   }, [rozoPaymentState]);
 
-  // Safe polling for payment status when externalId exists
-  const shouldPoll = !!(
-    depAddr?.externalId &&
-    !payinTransactionHash &&
-    depAddr?.expirationS
-  );
-
-  // Polling effect - check every 5 seconds for payinTransactionHash (only during countdown)
-  useEffect(() => {
-    if (!shouldPoll) {
-      setIsPollingPayment(false);
-      return;
-    }
-
-    // Check if countdown is still active
-    const isCountdownActive = () => {
-      if (!depAddr?.expirationS) return false;
-      const remainingTime = depAddr.expirationS - Date.now() / 1000;
-      return remainingTime > 0;
-    };
-
-    if (!isCountdownActive()) {
-      context.log("[PAYMENT POLLING] Countdown expired, stopping polling");
-      setIsPollingPayment(false);
-      return;
-    }
-
-    context.log(
-      "[PAYMENT POLLING] Starting payment polling for externalId:",
-      depAddr?.externalId
-    );
-    setIsPollingPayment(true);
-
-    let isActive = true;
-    let timeoutId: NodeJS.Timeout;
-
-    const pollPayment = async () => {
-      context.log("[PAYMENT POLLING] Polling for payment transaction:", {
-        isActive,
-        externalId: depAddr?.externalId,
-        isCountdownActive: isCountdownActive(),
-      });
-
-      if (!isActive || !depAddr?.externalId) {
-        context.log(
-          "[PAYMENT POLLING] No active polling or missing externalId, stopping polling"
-        );
-        return;
-      }
-
-      // Stop polling if countdown expired
-      if (!isCountdownActive()) {
-        context.log(
-          "[PAYMENT POLLING] Countdown expired during polling, stopping"
-        );
-        setIsPollingPayment(false);
-        return;
-      }
-
-      try {
-        context.log(
-          "[PAYMENT POLLING] Polling for payment transaction:",
-          depAddr?.externalId
-        );
-        const isMugglePay = depAddr?.externalId.includes("mugglepay_order");
-        const response = await getPayment(depAddr?.externalId, "v2");
-
-        context.log("[PAYMENT POLLING] Debug - API Response:", {
-          status: response.status,
-          hasData: !!response.data,
-          hasError: !!response.error,
-          errorMessage: response.error?.message,
-          payinTransactionHash: response.data?.payinTransactionHash || null,
-          fullData: response.data,
-        });
-
-        const payInHash = isMugglePay
-          ? response.data?.metadata?.source_tx_hash
-          : response.data?.payinTransactionHash;
-
-        if (isActive && response.data && payInHash) {
-          context.log(
-            "[PAYMENT POLLING] ✅ Found payinTransactionHash:",
-            payInHash
-          );
-          setPayinTransactionHash(payInHash as string);
-          setIsPollingPayment(false);
-          // TODO: Decide which route to navigate to when transaction hash is found
-          context.log(
-            "[PAYMENT POLLING] 🎉 Payment confirmed - ready to navigate to next step"
-          );
-          return;
-        }
-
-        context.log(
-          "[PAYMENT POLLING] ⏳ Payment not yet confirmed, scheduling next poll"
-        );
-        // Schedule next poll
-        if (isActive && isCountdownActive()) {
-          timeoutId = setTimeout(pollPayment, 7000);
-        }
-      } catch (error) {
-        console.error("[PAYMENT POLLING] ❌ Error during polling:", error);
-        // Continue polling on error, but only if countdown is still active
-        if (isActive && isCountdownActive()) {
-          timeoutId = setTimeout(pollPayment, 7000);
-        }
-      }
-    };
-
-    // Start polling immediately
-    timeoutId = setTimeout(pollPayment, 0);
-
-    // Cleanup on unmount or when dependencies change
-    return () => {
-      context.log(
-        "[PAYMENT POLLING] 🧹 Cleaning up polling for:",
-        depAddr?.externalId || "unknown"
-      );
-      isActive = false;
-      setIsPollingPayment(false);
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, [shouldPoll, depAddr?.expirationS, depAddr?.externalId]);
-
   // If we selected a deposit address option, generate the address...
   const generateDepositAddress = async () => {
-    console.log("selectedDepositAddressOption", selectedDepositAddressOption);
     if (selectedDepositAddressOption == null) {
       if (order == null || !isHydrated(order)) return;
       if (order.sourceTokenAmount == null) return;
@@ -267,13 +179,27 @@ export default function WaitingDepositAddress() {
         expirationS = Number(order.expirationTs);
       }
 
-      console.log("order", order);
+      if (!order.preferredChainId || !order.preferredTokenAddress) {
+        throw new Error("Preferred chain or token address not found");
+      }
 
-      const evmDeepLink = generateEVMDeepLink({
-        amountUnits: order.destFinalCallTokenAmount.amount,
-        chainId: order.destFinalCallTokenAmount.token.chainId,
+      const preferredToken = getKnownToken(
+        Number(order.preferredChainId),
+        order.preferredTokenAddress
+      );
+
+      if (!preferredToken) {
+        throw new Error("Preferred token not found");
+      }
+
+      const evmDeeplink = generateEVMDeepLink({
+        amountUnits: parseUnits(
+          order.destFinalCallTokenAmount.usd.toString(),
+          preferredToken.decimals
+        ).toString(),
+        chainId: preferredToken.chainId,
         recipientAddress: order.intentAddr,
-        tokenAddress: order.destFinalCallTokenAmount.token.token,
+        tokenAddress: preferredToken.token,
       });
 
       setDepAddr({
@@ -283,11 +209,11 @@ export default function WaitingDepositAddress() {
           unitsPaid: order.destFinalCallTokenAmount.amount,
           coin: order.destFinalCallTokenAmount.token.symbol,
         },
-        coins: `${
-          order.destFinalCallTokenAmount.token.symbol
-        } on ${getChainName(order.destFinalCallTokenAmount.token.chainId)}`,
+        coins: `${preferredToken.symbol} on ${getChainName(
+          preferredToken.chainId
+        )}`,
         expirationS: expirationS,
-        uri: evmDeepLink,
+        uri: evmDeeplink,
         displayToken: order.destFinalCallTokenAmount.token,
         logoURI: "", // Not needed for underpaid orders
         memo: order.memo || order.metadata?.memo || undefined,
@@ -395,13 +321,10 @@ export default function WaitingDepositAddress() {
           });
           setRozoPaymentId(details.externalId);
           setDepoChain(selectedDepositAddressOption.id);
-
-          // Polling will automatically start via shouldPoll calculation
         } else if (details === null) {
           // Duplicate call was prevented - reset loading states
           setIsLoading(false);
           setHasExecutedDepositCall(false);
-          // Polling will automatically stop when externalId is missing
           return;
         } else {
           setFailed(true);
@@ -418,10 +341,8 @@ export default function WaitingDepositAddress() {
   // Track which deposit option we're currently processing to prevent double execution
   const processingOptionRef = useRef<string | null>(null);
 
-  // Reset payment hash when deposit option changes
+  // Reset execution flag when deposit option changes
   useEffect(() => {
-    setPayinTransactionHash(null);
-
     // Reset execution flag when selectedDepositAddressOption changes
     if (selectedDepositAddressOption) {
       setHasExecutedDepositCall(false);
@@ -478,14 +399,18 @@ export default function WaitingDepositAddress() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(triggerResize, [depAddr, failed, feeData, feeError]);
 
-  // Completed payment effect
+  // Navigate to confirmation when payment state changes to started or completed
   useEffect(() => {
-    if (payinTransactionHash && selectedDepositAddressOption) {
+    if (
+      (rozoPaymentState === "payment_started" ||
+        rozoPaymentState === "payment_completed") &&
+      selectedDepositAddressOption &&
+      order &&
+      isHydrated(order)
+    ) {
       context.log(
-        "[PAYMENT COMPLETED] Payment completed, navigating to next step"
+        "[PAYMENT] Payment state changed, navigating to confirmation"
       );
-      setPaymentCompleted(payinTransactionHash, rozoPaymentId);
-      setPaymentPayoutCompleted(payinTransactionHash, rozoPaymentId);
       const tokenMode =
         selectedDepositAddressOption?.id === DepositAddressPaymentOptions.SOLANA
           ? "solana"
@@ -494,10 +419,24 @@ export default function WaitingDepositAddress() {
           ? "stellar"
           : "evm";
       setTokenMode(tokenMode);
-      setTxHash(payinTransactionHash);
+
+      // Extract transaction hash from order if available
+      const txHash = order.sourceStartTxHash || order.sourceInitiateTxHash;
+
+      if (txHash) {
+        setTxHash(txHash);
+      }
+
       context.setRoute(ROUTES.CONFIRMATION);
     }
-  }, [payinTransactionHash]);
+  }, [
+    rozoPaymentState,
+    selectedDepositAddressOption,
+    order,
+    context,
+    setTokenMode,
+    setTxHash,
+  ]);
 
   return (
     <PageContent>
