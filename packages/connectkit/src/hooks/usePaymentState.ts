@@ -223,6 +223,9 @@ export interface PaymentState {
     option: WalletPaymentOption,
     store: Store<PaymentState, PaymentEvent>
   ) => Promise<PaymentResponse | undefined>;
+
+  // Clear payment options cache to prevent stale balances
+  clearPaymentOptionsCache: () => void;
 }
 
 export function usePaymentState({
@@ -720,6 +723,7 @@ export function usePaymentState({
 
     // Set transaction hash and return result
     setTxHash(paymentTxHash);
+    clearPaymentOptionsCache();
     return { txHash: paymentTxHash, success: true };
   };
 
@@ -962,6 +966,7 @@ export function usePaymentState({
       const tx = Transaction.from(bs58.decode(serializedTransaction));
       const txHash = await solanaWallet.sendTransaction(tx, connection);
       log("[PAY SOLANA] Transaction sent! Hash:", txHash);
+      clearPaymentOptionsCache();
       return { txHash: txHash, success: true };
     } catch (error) {
       console.error(`[PAY SOLANA] Error: ${error}`);
@@ -1278,6 +1283,12 @@ export function usePaymentState({
     await pay.createPreviewOrder(currPayParams);
   };
 
+  const clearPaymentOptionsCache = () => {
+    walletPaymentOptions.clearCache();
+    solanaPaymentOptions.clearCache();
+    stellarPaymentOptions.clearCache();
+  };
+
   const resetOrder = useCallback(
     async (payParams?: Partial<PayParams>) => {
       const mergedPayParams: PayParams | undefined =
@@ -1382,5 +1393,6 @@ export function usePaymentState({
     solanaPubKey,
     stellarPubKey,
     orderUsdAmount,
+    clearPaymentOptionsCache,
   };
 }

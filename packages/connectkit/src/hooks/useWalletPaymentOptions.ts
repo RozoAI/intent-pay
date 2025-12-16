@@ -177,6 +177,14 @@ export function useWalletPaymentOptions({
     isApiCallInProgress,
   });
 
+  // Clear cache function to reset balance state and tracking
+  // This is called when payment completes for EVM tokens to prevent stale balances
+  const clearCache = useCallback(() => {
+    setOptions(null);
+    lastExecutedParams.current = null;
+    isApiCallInProgress.current = false;
+  }, []);
+
   // Initial fetch when hook mounts with valid parameters or when key parameters change
   useEffect(() => {
     if (
@@ -193,5 +201,6 @@ export function useWalletPaymentOptions({
     options: filteredOptions,
     isLoading,
     refreshOptions,
+    clearCache,
   };
 }

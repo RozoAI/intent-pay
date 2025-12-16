@@ -45,6 +45,7 @@ const PayWithStellarToken: React.FC = () => {
   const {
     selectedStellarTokenOption,
     payWithStellarToken,
+    clearPaymentOptionsCache,
     setTxHash,
     payParams,
     rozoPaymentId,
@@ -248,6 +249,7 @@ const PayWithStellarToken: React.FC = () => {
         );
 
         if (response.successful) {
+          clearPaymentOptionsCache();
           setPayState(PayState.RequestSuccessful);
           setTxHash(response.hash);
           setTxURL(getChainExplorerTxUrl(stellar.chainId, response.hash));

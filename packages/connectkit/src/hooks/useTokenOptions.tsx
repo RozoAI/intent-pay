@@ -123,14 +123,13 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
         )
       : solanaOptionsRaw;
 
-    const solanaOptions = solanaPaymentOptions.isLoading
-      ? []
-      : getSolanaTokenOptions(
-          filteredSolanaOptions,
-          isDepositFlow,
-          setSelectedSolanaTokenOption,
-          setRoute
-        );
+    // Don't clear options when loading - keep existing options visible to prevent flickering
+    const solanaOptions = getSolanaTokenOptions(
+      filteredSolanaOptions,
+      isDepositFlow,
+      setSelectedSolanaTokenOption,
+      setRoute
+    );
     optionsList.push(...solanaOptions);
     isLoading ||= solanaPaymentOptions.isLoading;
     hasAnyData ||= filteredSolanaOptions.length > 0;

@@ -73,7 +73,7 @@ export function useDepositAddressOptions({
       {
         id: DepositAddressPaymentOptions.BASE_USDC,
         logoURI: baseUSDC.logoURI,
-        minimumUsd: 0.01,
+        minimumUsd: 0.1,
         chainId: base.chainId,
         token: baseUSDC,
       },
