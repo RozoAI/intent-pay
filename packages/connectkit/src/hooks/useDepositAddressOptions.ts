@@ -11,6 +11,7 @@ import {
   rozoSolanaUSDT,
 } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
 
 export interface UseDepositAddressOptionsParams {
@@ -18,6 +19,7 @@ export interface UseDepositAddressOptionsParams {
   usdRequired: number | undefined;
   mode: RozoPayOrderMode | undefined;
   appId?: string;
+  payParams: PayParams | undefined;
 }
 
 export interface UseDepositAddressOptionsReturn {
@@ -44,6 +46,7 @@ export function useDepositAddressOptions({
   usdRequired,
   mode,
   appId,
+  payParams,
 }: UseDepositAddressOptionsParams): UseDepositAddressOptionsReturn {
   const [options, setOptions] = useState<DepositAddressPaymentOptionMetadata[]>(
     []

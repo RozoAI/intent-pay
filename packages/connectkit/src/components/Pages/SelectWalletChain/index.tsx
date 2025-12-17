@@ -1,11 +1,12 @@
 import {
+  arbitrum,
   base,
   bsc,
   Chain,
   ethereum,
+  knownChains,
   polygon,
   solana,
-  supportedTokens,
 } from "@rozoai/intent-common";
 import React, { useCallback, useMemo } from "react";
 import { usePayContext } from "../../../hooks/usePayContext";
@@ -15,6 +16,7 @@ import { ModalContent, PageContent } from "../../Common/Modal/styles";
 import WalletPaymentSpinner from "../../Spinners/WalletPaymentSpinner";
 
 import {
+  Arbitrum,
   Base,
   BinanceSmartChain,
   Ethereum,
@@ -30,12 +32,6 @@ const SelectWalletChain: React.FC = () => {
     usePayContext();
   const { selectedWallet } = paymentState;
 
-  // Get available chain IDs from supportedTokens (must be called before early returns)
-  const availableChainIds = useMemo(
-    () => new Set(Array.from(supportedTokens.keys())),
-    []
-  );
-
   // Narrow the wallet type to include solanaConnectorName.
   const wallet = selectedWallet as WalletProps | undefined;
 
@@ -45,32 +41,40 @@ const SelectWalletChain: React.FC = () => {
       {
         chain: ethereum,
         icon: <Ethereum key="ethereum" />,
-        supported: availableChainIds.has(ethereum.chainId),
+        supported: knownChains.includes(ethereum.chainId),
       },
       {
         chain: base,
         icon: <Base key="base" />,
-        supported: availableChainIds.has(base.chainId),
+        supported: knownChains.includes(base.chainId),
       },
       {
         chain: polygon,
         icon: <Polygon key="polygon" />,
-        supported: availableChainIds.has(polygon.chainId),
+        supported: knownChains.includes(polygon.chainId),
+      },
+      {
+        chain: arbitrum,
+        icon: <Arbitrum key="arbitrum" />,
+        // Phantom doesn't support Arbitrum, so we don't show it for Phantom
+        supported:
+          knownChains.includes(arbitrum.chainId) &&
+          wallet?.id !== "app.phantom",
       },
       {
         chain: bsc,
         icon: <BinanceSmartChain key="bnb" />,
         // Phantom doesn't support BSC, so we don't show it for Phantom
         supported:
-          availableChainIds.has(bsc.chainId) && wallet?.id !== "app.phantom",
+          knownChains.includes(bsc.chainId) && wallet?.id !== "app.phantom",
       },
       {
         chain: solana,
         icon: <Solana key="solana" />,
-        supported: availableChainIds.has(solana.chainId),
+        supported: knownChains.includes(solana.chainId),
       },
     ],
-    [availableChainIds, wallet?.id]
+    [knownChains, wallet?.id]
   );
 
   // Filter to only supported chains

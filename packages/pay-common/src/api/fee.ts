@@ -1,4 +1,3 @@
-import { getChainById } from "../chain";
 import { ApiResponse } from "./base";
 import { FeeType } from "./types";
 
@@ -51,9 +50,6 @@ export const getFee = async (
   const { toUnits, appId, currency = "USDC", toChain, type } = params;
 
   try {
-    const chain = getChainById(Number(toChain));
-    const toChainName = chain.name.toLowerCase();
-
     const queryParams = new URLSearchParams({
       ...(appId ? { appId } : {}),
       ...(type === FeeType.ExactIn
@@ -61,7 +57,7 @@ export const getFee = async (
         : { type: "exactOut" }),
       amount: toUnits,
       currency,
-      tochain: toChainName,
+      destinationChainId: toChain.toString(),
     });
 
     const response = await fetch(

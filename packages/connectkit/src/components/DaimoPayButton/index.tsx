@@ -14,6 +14,7 @@ import {
   RozoPayHydratedOrderWithOrg,
   rozoSolana,
   rozoStellar,
+  TokenSymbol,
   writeRozoPayOrderID,
 } from "@rozoai/intent-common";
 import { AnimatePresence, Variants } from "framer-motion";
@@ -90,6 +91,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         paymentOptions,
         preferredChains,
         preferredTokens,
+        preferredSymbol,
         feeType,
         externalId,
         metadata,
@@ -106,6 +108,10 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         paymentOptions,
         preferredChains,
         preferredTokens,
+        preferredSymbol: preferredSymbol ?? [
+          TokenSymbol.USDC,
+          TokenSymbol.USDT,
+        ], // Default to USDC and USDT
         evmChains: undefined,
         externalId,
         metadata,

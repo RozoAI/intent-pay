@@ -113,7 +113,7 @@ export async function createPayment(
       ...(receiverMemo ? { receiverMemo } : {}),
     },
     display: {
-      currency: "USD",
+      currency: destinationToken.fiatISO ?? "USD",
       title: title ?? "Pay",
       ...(description ? { description } : {}),
     },

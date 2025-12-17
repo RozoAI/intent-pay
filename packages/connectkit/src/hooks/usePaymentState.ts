@@ -411,9 +411,12 @@ export function usePaymentState({
     address: ethWalletAddress,
     usdRequired,
     destChainId,
-    preferredChains: pay.order?.metadata.payer?.preferredChains,
-    preferredTokens: pay.order?.metadata.payer?.preferredTokens,
-    evmChains: pay.order?.metadata.payer?.evmChains,
+    preferredChains:
+      stablePayParams?.preferredChains ??
+      pay.order?.metadata.payer?.preferredChains,
+    preferredTokens:
+      stablePayParams?.preferredTokens ??
+      pay.order?.metadata.payer?.preferredTokens,
     isDepositFlow,
     payParams: stablePayParams,
     log,
@@ -437,6 +440,7 @@ export function usePaymentState({
     usdRequired,
     mode: pay.order?.mode,
     appId: stableAppId,
+    payParams: stablePayParams,
   });
 
   const chainOrderUsdLimits = useOrderUsdLimits({ trpc });

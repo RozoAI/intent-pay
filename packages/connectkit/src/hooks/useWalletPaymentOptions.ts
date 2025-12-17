@@ -31,7 +31,6 @@ export function useWalletPaymentOptions({
   destChainId,
   preferredChains,
   preferredTokens,
-  evmChains,
   isDepositFlow,
   payParams,
   log,
@@ -42,7 +41,6 @@ export function useWalletPaymentOptions({
   destChainId: number | undefined;
   preferredChains: number[] | undefined;
   preferredTokens: { chain: number; address: string }[] | undefined;
-  evmChains: number[] | undefined;
   isDepositFlow: boolean;
   payParams: PayParams | undefined;
   log: (msg: string) => void;
@@ -74,11 +72,6 @@ export function useWalletPaymentOptions({
     () => preferredTokens,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [JSON.stringify(preferredTokens)]
-  );
-  const memoizedEvmChains = useMemo(
-    () => evmChains,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(evmChains)]
   );
 
   const { chains, tokens } = useSupportedChains();
@@ -143,8 +136,7 @@ export function useWalletPaymentOptions({
         usdRequired: isDepositFlow ? undefined : usdRequired,
         destChainId,
         preferredChains: memoizedPreferredChains,
-        preferredTokens: memoizedPreferredTokens,
-        evmChains: memoizedEvmChains,
+        preferredTokenAddress: memoizedPreferredTokens,
         appId: stableAppId,
       });
 
@@ -164,7 +156,6 @@ export function useWalletPaymentOptions({
     isDepositFlow,
     memoizedPreferredChains,
     memoizedPreferredTokens,
-    memoizedEvmChains,
     stableAppId,
   ]);
 

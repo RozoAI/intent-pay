@@ -311,8 +311,8 @@ export default function DemoBasic() {
                     console.log("✓ Payout completed:", e);
                   }}
                   feeType={FeeType.ExactOut}
-                  resetOnSuccess={true}
                   metadata={metadata}
+                  resetOnSuccess
                   showProcessingPayout
                 >
                   {(renderProps) => (

@@ -1,6 +1,6 @@
-import { rozoSolanaUSDC, WalletPaymentOption } from "@rozoai/intent-common";
+import { TokenSymbol, WalletPaymentOption } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PayParams } from "../payment/paymentFsm";
+import { PayParams, PreferredTokenSymbol } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
 import {
   createRefreshFunction,
@@ -41,8 +41,19 @@ export function useSolanaPaymentOptions({
   const filteredOptions = useMemo(() => {
     if (!options) return [];
 
+    // Get preferred symbols from payParams, default to ["USDC", "USDT"]
+    const preferredSymbols = payParams?.preferredSymbol ?? [
+      TokenSymbol.USDC,
+      TokenSymbol.USDT,
+    ];
+
     return options
-      .filter((option) => option.balance.token.token === rozoSolanaUSDC.token)
+      .filter((option) => {
+        const tokenSymbol = option.balance.token.symbol;
+
+        // Filter by preferredSymbols (default: USDC, USDT)
+        return preferredSymbols.includes(tokenSymbol as PreferredTokenSymbol);
+      })
       .map((item) => {
         const usd = isDepositFlow ? 0 : usdRequired || 0;
 
@@ -63,7 +74,7 @@ export function useSolanaPaymentOptions({
 
         return value;
       }) as WalletPaymentOption[];
-  }, [options, isDepositFlow, usdRequired]);
+  }, [options, isDepositFlow, usdRequired, payParams?.preferredSymbol]);
 
   // Shared fetch function for Solana payment options
   const fetchBalances = useCallback(async () => {
