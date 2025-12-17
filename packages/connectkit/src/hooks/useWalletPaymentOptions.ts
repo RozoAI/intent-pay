@@ -156,9 +156,9 @@ export function useWalletPaymentOptions({
         usdRequired: isDepositFlow ? undefined : usdRequired,
         destChainId,
         preferredChains: memoizedPreferredChains,
-        preferredTokenAddress: (memoizedPreferredTokens ?? [])?.map(
-          (t) => t.token
-        ),
+        // preferredTokenAddress: (memoizedPreferredTokens ?? [])?.map(
+        //   (t) => t.token
+        // ),
         appId: stableAppId,
       });
 

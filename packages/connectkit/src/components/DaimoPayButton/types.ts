@@ -6,6 +6,7 @@ import {
   PaymentPayoutCompletedEvent,
   PaymentStartedEvent,
   Token,
+  TokenSymbol,
 } from "@rozoai/intent-common";
 import { ReactElement } from "react";
 import { Address } from "viem";
@@ -93,6 +94,11 @@ type CommonPaymentProps = {
    * Preferred tokens. These appear first in the token list.
    */
   preferredTokens?: Token[];
+  /**
+   * Preferred token symbols. These will be converted to preferredTokens internally.
+   * Only USDC, USDT, and EURC are allowed. Defaults to [USDC, USDT].
+   */
+  preferredSymbol?: TokenSymbol[];
   /**
    * Only allow payments on these EVM chains.
    */

@@ -316,8 +316,6 @@ export default function SelectMethod() {
       options.push(depositAddressOption);
     }
 
-    console.log("showStellarPaymentMethod", showStellarPaymentMethod);
-
     if (showStellarPaymentMethod) {
       options.push({
         id: "stellar",

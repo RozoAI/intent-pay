@@ -181,7 +181,7 @@ function NoTokensAvailable({
   // Get supported token symbols from preferredTokens if available
   const supportedSymbols = useMemo(() => {
     if (preferredTokens && preferredTokens.length > 0) {
-      return preferredTokens.map((pt) => pt.symbol);
+      return Array.from(new Set(preferredTokens.map((pt) => pt.symbol)));
     }
     return [];
   }, [preferredTokens]);

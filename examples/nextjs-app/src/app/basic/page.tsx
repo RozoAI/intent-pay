@@ -8,6 +8,7 @@ import {
   knownTokens,
   rozoSolana,
   rozoStellar,
+  TokenSymbol,
 } from "@rozoai/intent-common";
 import {
   isEvmChain,
@@ -312,7 +313,7 @@ export default function DemoBasic() {
                   }}
                   feeType={FeeType.ExactOut}
                   metadata={metadata}
-                  // preferredTokens={[baseEURC, baseUSDC, rozoStellarEURC]}
+                  preferredSymbol={[TokenSymbol.EURC]}
                   resetOnSuccess
                   showProcessingPayout
                 >
