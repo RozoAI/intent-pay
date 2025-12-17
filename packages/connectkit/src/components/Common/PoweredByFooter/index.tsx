@@ -28,7 +28,9 @@ const PoweredByFooter = ({
           "Hi, I need help with my payment.",
           "",
           `Version: ${rozoPayVersion}`,
-          `Order ID: ${pay.order?.externalId?.toString()}`,
+          pay.order?.externalId
+            ? `Order ID: ${pay.order.externalId.toString()}`
+            : null,
           preFilledMessage,
         ]
           .filter(Boolean)

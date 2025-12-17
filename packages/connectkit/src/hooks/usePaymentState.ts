@@ -225,6 +225,9 @@ export interface PaymentState {
   ) => Promise<PaymentResponse | undefined>;
 }
 
+export const SELECTED_CHAIN_ID_STORAGE_KEY =
+  "rozo-intent-pay-selected-chain-id";
+
 export function usePaymentState({
   trpc,
   lockPayParams,
@@ -298,9 +301,43 @@ export function usePaymentState({
     "evm" | "solana" | "stellar" | "all"
   >("evm");
 
-  const [selectedChainId, setSelectedChainId] = useState<number | undefined>(
-    undefined
-  );
+  // Initialize selectedChainId from localStorage to persist across page refreshes
+  const [selectedChainId, setSelectedChainIdState] = useState<
+    number | undefined
+  >(() => {
+    if (typeof window === "undefined") return undefined;
+    try {
+      const saved = localStorage.getItem(SELECTED_CHAIN_ID_STORAGE_KEY);
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed)) {
+          return parsed;
+        }
+      }
+    } catch (error) {
+      // Ignore localStorage errors
+    }
+    return undefined;
+  });
+
+  // Wrapper function to persist selectedChainId to localStorage
+  const setSelectedChainId = useCallback((chainId: number | undefined) => {
+    setSelectedChainIdState(chainId);
+    if (typeof window !== "undefined") {
+      try {
+        if (chainId !== undefined) {
+          localStorage.setItem(
+            SELECTED_CHAIN_ID_STORAGE_KEY,
+            chainId.toString()
+          );
+        } else {
+          localStorage.removeItem(SELECTED_CHAIN_ID_STORAGE_KEY);
+        }
+      } catch (error) {
+        // Ignore localStorage errors
+      }
+    }
+  }, []);
 
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
   const [rozoPaymentId, setRozoPaymentId] = useState<string | undefined>(

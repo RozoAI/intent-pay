@@ -1,4 +1,4 @@
-import { rozoStellarUSDC, WalletPaymentOption } from "@rozoai/intent-common";
+import { rozoStellar, WalletPaymentOption } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
@@ -7,6 +7,7 @@ import {
   setupRefreshState,
   shouldSkipRefresh,
 } from "./refreshUtils";
+import { useSupportedChains } from "./useSupportedChains";
 
 /** Wallet payment options. User picks one. */
 export function useStellarPaymentOptions({
@@ -22,6 +23,8 @@ export function useStellarPaymentOptions({
   isDepositFlow: boolean;
   payParams: PayParams | undefined;
 }) {
+  const { tokens } = useSupportedChains();
+
   const [options, setOptions] = useState<WalletPaymentOption[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -39,7 +42,13 @@ export function useStellarPaymentOptions({
     if (!options) return [];
 
     return options
-      .filter((option) => option.balance.token.token === rozoStellarUSDC.token)
+      .filter((option) =>
+        tokens.some(
+          (t) =>
+            t.token === option.balance.token.token &&
+            t.chainId === rozoStellar.chainId
+        )
+      )
       .map((item) => {
         const usd = isDepositFlow ? 0 : usdRequired || 0;
 

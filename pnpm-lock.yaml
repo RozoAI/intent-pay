@@ -45,11 +45,11 @@ importers:
         specifier: ^2.2.8
         version: 2.2.10(@tanstack/react-query@5.90.12(react@18.2.0))(@types/react@18.3.27)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.9.3)(viem@2.43.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))(wagmi@2.19.5(@react-native-async-storage/async-storage@1.24.0(react-native@0.83.0(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.2.0)(utf-8-validate@5.0.10)))(@tanstack/query-core@5.90.12)(@tanstack/react-query@5.90.12(react@18.2.0))(@types/react@18.3.27)(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(react-native@0.83.0(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.2.0)(utf-8-validate@5.0.10))(react@18.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.43.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.76))
       '@rozoai/intent-common':
-        specifier: 0.1.6
-        version: 0.1.6(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
+        specifier: workspace:*
+        version: link:../../packages/pay-common
       '@rozoai/intent-pay':
-        specifier: 0.1.5
-        version: 0.1.5(b651de1f806d142fcaab41798c5f30b6)
+        specifier: workspace:*
+        version: link:../../packages/connectkit
       '@tanstack/react-query':
         specifier: ^5.51.11
         version: 5.90.12(react@18.2.0)
@@ -127,8 +127,8 @@ importers:
         specifier: ^12.1.2
         version: 12.3.0(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.3)
       '@rozoai/intent-common':
-        specifier: 0.1.6
-        version: 0.1.6(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
+        specifier: workspace:*
+        version: link:../pay-common
       '@solana/spl-token':
         specifier: ^0.4.14
         version: 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -1439,21 +1439,6 @@ packages:
     peerDependenciesMeta:
       rollup:
         optional: true
-
-  '@rozoai/intent-common@0.1.6':
-    resolution: {integrity: sha512-vbQMOE+tKlYRjHVSlIuA6DpszgpdrZVNsYtz7zKrVmJ7JAFBsiOUPRwRlJI9DRbvR7E0Ed0lNFPuHnPTQlx/3A==}
-
-  '@rozoai/intent-pay@0.1.5':
-    resolution: {integrity: sha512-tG98Ck0gZAwZZvOe6m7HegBb4mHunjdP4D1g25kIr7UwH/01/UDShMOODeH0QNKATRcCkcn+HS2nZsX7WnwcRQ==}
-    engines: {node: '>=12.4'}
-    peerDependencies:
-      '@creit.tech/stellar-wallets-kit': ^1.9.5
-      '@stellar/stellar-sdk': ^14.2.0
-      '@tanstack/react-query': '>=5.0.0'
-      react: 18.x || 19.x
-      react-dom: 18.x || 19.x
-      viem: 2.x
-      wagmi: 2.x
 
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
@@ -9488,89 +9473,6 @@ snapshots:
       picomatch: 4.0.3
     optionalDependencies:
       rollup: 3.29.5
-
-  '@rozoai/intent-common@0.1.6(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@scure/base': 1.2.6
-      '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@stellar/stellar-sdk': 14.4.2
-      viem: 2.43.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - typescript
-      - utf-8-validate
-
-  '@rozoai/intent-pay@0.1.5(b651de1f806d142fcaab41798c5f30b6)':
-    dependencies:
-      '@albedo-link/intent': 0.13.0
-      '@creit.tech/stellar-wallets-kit': 1.9.5(2179b12ceceff177c1a2389ba1ba0cb1)
-      '@reown/appkit': 1.8.15(@react-native-async-storage/async-storage@1.24.0(react-native@0.83.0(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.2.0)(utf-8-validate@5.0.10)))(@types/react@18.3.27)(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(react@18.2.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.76)
-      '@rollup/plugin-typescript': 12.3.0(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.3)
-      '@rozoai/intent-common': 0.1.6(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@solana/spl-token': 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@solana/wallet-adapter-base': 0.9.27(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10))
-      '@solana/wallet-adapter-react': 0.15.39(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10))(bs58@6.0.0)(fastestsmallesttextencoderdecoder@1.0.22)(react-native@0.83.0(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.2.0)(utf-8-validate@5.0.10))(react@18.2.0)(typescript@5.9.3)
-      '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@tanstack/react-query': 5.90.12(react@18.2.0)
-      '@trpc/client': 11.8.0(@trpc/server@11.8.0(typescript@5.9.3))(typescript@5.9.3)
-      '@trpc/server': 11.8.0(typescript@5.9.3)
-      '@walletconnect/sign-client': 2.23.1(@react-native-async-storage/async-storage@1.24.0(react-native@0.83.0(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.2.0)(utf-8-validate@5.0.10)))(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      '@worldcoin/minikit-js': 1.9.9(@types/react@18.3.27)(react@18.2.0)(typescript@5.9.3)(viem@2.43.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
-      bs58: 6.0.0
-      buffer: 6.0.3
-      detect-browser: 5.3.0
-      framer-motion: 11.18.2(@emotion/is-prop-valid@1.4.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      pino-pretty: 10.3.1
-      pusher-js: 8.4.0
-      qrcode: 1.5.4
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      react-transition-state: 1.1.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react-use-measure: 2.1.7(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      resize-observer-polyfill: 1.5.1
-      styled-components: 5.3.11(@babel/core@7.28.5)(react-dom@18.2.0(react@18.2.0))(react-is@18.3.1)(react@18.2.0)
-      viem: 2.43.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      wagmi: 2.19.5(@react-native-async-storage/async-storage@1.24.0(react-native@0.83.0(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.2.0)(utf-8-validate@5.0.10)))(@tanstack/query-core@5.90.12)(@tanstack/react-query@5.90.12(react@18.2.0))(@types/react@18.3.27)(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(react-native@0.83.0(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.2.0)(utf-8-validate@5.0.10))(react@18.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.43.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.76)
-    transitivePeerDependencies:
-      - '@azure/app-configuration'
-      - '@azure/cosmos'
-      - '@azure/data-tables'
-      - '@azure/identity'
-      - '@azure/keyvault-secrets'
-      - '@azure/storage-blob'
-      - '@babel/core'
-      - '@capacitor/preferences'
-      - '@deno/kv'
-      - '@emotion/is-prop-valid'
-      - '@netlify/blobs'
-      - '@planetscale/database'
-      - '@react-native-async-storage/async-storage'
-      - '@types/react'
-      - '@upstash/redis'
-      - '@vercel/blob'
-      - '@vercel/functions'
-      - '@vercel/kv'
-      - aws4fetch
-      - bufferutil
-      - db0
-      - debug
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - immer
-      - ioredis
-      - react-is
-      - react-native
-      - rollup
-      - tslib
-      - typescript
-      - uploadthing
-      - use-sync-external-store
-      - utf-8-validate
-      - ws
-      - zod
 
   '@rtsao/scc@1.1.0': {}
 

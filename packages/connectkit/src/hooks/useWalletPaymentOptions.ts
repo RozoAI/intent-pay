@@ -81,10 +81,7 @@ export function useWalletPaymentOptions({
     [JSON.stringify(evmChains)]
   );
 
-  const { chains, tokens } = useSupportedChains(
-    stableAppId,
-    memoizedPreferredChains ?? []
-  );
+  const { chains, tokens } = useSupportedChains();
 
   const filteredOptions = useMemo(() => {
     if (!options) return [];
@@ -96,6 +93,7 @@ export function useWalletPaymentOptions({
           c.chainId === o.balance.token.chainId &&
           tokens.some((t) => t.token === o.balance.token.token)
       );
+
     return options.filter(isSupported).map((item) => {
       const usd = isDepositFlow ? 0 : usdRequired || 0;
 

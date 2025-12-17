@@ -780,7 +780,22 @@ export const rozoStellarUSDC: Token = token({
   logoURI: TokenLogo.USDC,
 });
 
-const stellarTokens: Token[] = [stellarXLM, stellarUSDC, rozoStellarUSDC];
+export const rozoStellarEURC: Token = token({
+  chainId: rozoStellar.chainId,
+  token: "EURC:GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2",
+  decimals: 6,
+  fiatISO: "EUR",
+  name: "EURC",
+  symbol: "EURC",
+  logoURI: TokenLogo.EURC,
+});
+
+const stellarTokens: Token[] = [
+  stellarXLM,
+  stellarUSDC,
+  rozoStellarUSDC,
+  rozoStellarEURC,
+];
 
 //
 // Worldchain
@@ -903,7 +918,7 @@ const avalancheTokens: Token[] = [avalancheAVAX, avalancheUSDC, avalancheUSDT];
 export const supportedTokens: Map<number, Token[]> = new Map([
   [arbitrum.chainId, [arbitrumUSDC, arbitrumUSDT]],
   // [avalanche.chainId, [avalancheUSDC, avalancheUSDT]],
-  [base.chainId, [baseUSDC]],
+  [base.chainId, [baseUSDC, baseEURC]],
   [bsc.chainId, [bscUSDC, bscUSDT]],
   [ethereum.chainId, [ethereumUSDC, ethereumUSDT]],
   // [gnosis.chainId, [gnosisUSDC, gnosisUSDT]],
@@ -913,16 +928,16 @@ export const supportedTokens: Map<number, Token[]> = new Map([
 
   [solana.chainId, [solanaUSDC, solanaUSDT]],
   [rozoSolana.chainId, [rozoSolanaUSDC, rozoSolanaUSDT]],
-  [rozoStellar.chainId, [rozoStellarUSDC]],
+  [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC]],
 ]);
 
 export const supportedPayoutTokens: Map<number, Token[]> = new Map([
   [ethereum.chainId, [ethereumUSDC]],
-  [base.chainId, [baseUSDC]],
+  [base.chainId, [baseUSDC, baseEURC]],
   [polygon.chainId, [polygonUSDC]],
   // [solana.chainId, [solanaUSDC]],
   [rozoSolana.chainId, [rozoSolanaUSDC]],
-  [rozoStellar.chainId, [rozoStellarUSDC]],
+  [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC]],
 ]);
 
 // const knownTokensByChain = new Map<number, Token[]>([
@@ -970,6 +985,7 @@ enum TokenType {
   WRAPPED_NATIVE = "WRAPPED_NATIVE",
   NATIVE_USDC = "NATIVE_USDC",
   BRIDGED_USDC = "BRIDGED_USDC",
+  NATIVE_EURC = "NATIVE_EURC",
   AXL_USDC = "AXL_USDC",
   DAI = "DAI",
 }
@@ -998,6 +1014,7 @@ const tokensByChainAndType: Map<
       [TokenType.BRIDGED_USDC]: baseUSDbC,
       [TokenType.AXL_USDC]: baseAxlUSDC,
       [TokenType.DAI]: baseDAI,
+      [TokenType.NATIVE_EURC]: baseEURC,
     },
   ],
   [
@@ -1096,6 +1113,7 @@ const tokensByChainAndType: Map<
     {
       [TokenType.NATIVE]: stellarXLM,
       [TokenType.NATIVE_USDC]: rozoStellarUSDC,
+      [TokenType.NATIVE_EURC]: rozoStellarEURC,
     },
   ],
   [

@@ -269,10 +269,12 @@ export const RozoPayModal: React.FC<{
       (!isMobile || !disableMobileInjector)
     ) {
       paymentState.setTokenMode("evm");
+      // Use selectedChainId if it exists (from previous selection), otherwise use current chain
+      const chainId = paymentState.selectedChainId ?? chain?.id;
       context.setRoute(ROUTES.SELECT_TOKEN, {
         event: "eth_connected_on_open",
         walletId: connector?.id,
-        chainId: chain?.id,
+        chainId,
         address,
       });
     } else if (
@@ -324,12 +326,15 @@ export const RozoPayModal: React.FC<{
       if (isEthConnected) {
         paymentState.setTokenMode("evm");
         // Preserve chainId from routeMeta if it exists (from SelectWalletChain),
-        // If chainId is explicitly null, don't use fallback to current chain ID (show all chains)
-        // otherwise use the current chain ID
+        // If chainId is explicitly null, don't use fallback (show all chains)
+        // Otherwise, use selectedChainId if it exists (from previous selection),
+        // or fall back to current chain ID
         const chainId =
           context.routeMeta?.chainId === null
             ? undefined
-            : context.routeMeta?.chainId ?? chain?.id;
+            : context.routeMeta?.chainId ??
+              paymentState.selectedChainId ??
+              chain?.id;
         context.setRoute(ROUTES.SELECT_TOKEN, {
           event: "connected",
           walletId: connector?.id,
@@ -341,9 +346,16 @@ export const RozoPayModal: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEthConnected, context.route, connector?.id, chain?.id, address]);
 
-  // Extract chainId from routeMeta when navigating to SELECT_TOKEN
+  // Extract chainId from routeMeta when navigating to CONNECT or SELECT_TOKEN
+  // This preserves the selected chain when user selects a chain in SelectWalletChain
   useEffect(() => {
-    if (context.route === ROUTES.SELECT_TOKEN) {
+    // Set selectedChainId when navigating to CONNECT with a chainId (from SelectWalletChain)
+    if (context.route === ROUTES.CONNECT) {
+      if (context.routeMeta?.chainId != null) {
+        const chainId = context.routeMeta.chainId as number;
+        setSelectedChainId(chainId);
+      }
+    } else if (context.route === ROUTES.SELECT_TOKEN) {
       // Only set selectedChainId if chainId is explicitly provided and not null/undefined
       if (context.routeMeta?.chainId != null) {
         const chainId = context.routeMeta.chainId as number;
@@ -354,9 +366,13 @@ export const RozoPayModal: React.FC<{
       }
     } else if (
       context.route !== ROUTES.SELECT_TOKEN &&
-      context.route !== ROUTES.SELECT_WALLET_CHAIN
+      context.route !== ROUTES.SELECT_WALLET_CHAIN &&
+      context.route !== ROUTES.CONNECT &&
+      context.route !== ROUTES.SELECT_METHOD
     ) {
-      // Clear selectedChainId when leaving SELECT_TOKEN or SELECT_WALLET_CHAIN
+      // Clear selectedChainId when leaving SELECT_TOKEN, SELECT_WALLET_CHAIN, CONNECT, or SELECT_METHOD
+      // but preserve it when navigating between these routes (including SELECT_METHOD)
+      // This allows the selected chain to persist when the modal closes and reopens
       setSelectedChainId(undefined);
     }
   }, [context.route, context.routeMeta, setSelectedChainId]);
