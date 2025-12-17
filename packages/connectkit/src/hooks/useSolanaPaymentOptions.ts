@@ -31,6 +31,9 @@ export function useSolanaPaymentOptions({
   // Track if we're currently making an API call to prevent concurrent requests
   const isApiCallInProgress = useRef<boolean>(false);
 
+  // Track if we have initial data to prevent clearing options on refresh (prevents flickering)
+  const hasInitialData = useRef<boolean>(false);
+
   const stableAppId = useMemo(() => {
     return payParams?.appId;
   }, [payParams]);
@@ -66,8 +69,15 @@ export function useSolanaPaymentOptions({
   const fetchBalances = useCallback(async () => {
     if (address == null || usdRequired == null || stableAppId == null) return;
 
-    setOptions(null);
-    setIsLoading(true);
+    // Only clear options if we don't have initial data yet to prevent flickering
+    // If we already have options, keep them visible while loading new data
+    if (!hasInitialData.current) {
+      setOptions(null);
+      setIsLoading(true);
+    } else {
+      // Keep existing options visible, just set loading state
+      setIsLoading(true);
+    }
 
     try {
       const newOptions = await trpc.getSolanaPaymentOptions.query({
@@ -77,9 +87,13 @@ export function useSolanaPaymentOptions({
         appId: stableAppId,
       });
       setOptions(newOptions);
+      hasInitialData.current = true;
     } catch (error) {
       console.error(error);
-      setOptions([]);
+      // Only set empty array if we don't have initial data
+      if (!hasInitialData.current) {
+        setOptions([]);
+      }
     } finally {
       isApiCallInProgress.current = false;
       setIsLoading(false);
@@ -91,6 +105,13 @@ export function useSolanaPaymentOptions({
     lastExecutedParams,
     isApiCallInProgress,
   });
+
+  // Reset hasInitialData when address changes to allow clearing options for new address
+  useEffect(() => {
+    if (address) {
+      hasInitialData.current = false;
+    }
+  }, [address]);
 
   // Smart clearing: only clear if we don't have data for this address
   useEffect(() => {
@@ -132,7 +153,8 @@ export function useSolanaPaymentOptions({
     if (address != null && usdRequired != null && stableAppId != null) {
       refreshOptions();
     }
-  }, [address, usdRequired, stableAppId]);
+    // refreshOptions is stable (created from fetchBalances which only changes when dependencies change)
+  }, [address, usdRequired, stableAppId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     options: filteredOptions,

@@ -107,16 +107,18 @@ export default function SelectToken() {
         show={effectiveTokenMode}
         excludeLogos={["stellar"]}
       />
-      <OptionsList
-        requiredSkeletons={3}
-        isLoading={isLoading}
-        options={optionsList}
-        scrollHeight={
-          isAnotherMethodButtonVisible && isMobileFormat ? 225 : 300
-        }
-        orDivider={isAnotherMethodButtonVisible}
-        hideBottomLine={!isAnotherMethodButtonVisible}
-      />
+      {(optionsList.length > 0 || isLoading) && (
+        <OptionsList
+          requiredSkeletons={3}
+          isLoading={isLoading}
+          options={optionsList}
+          scrollHeight={
+            isAnotherMethodButtonVisible && isMobileFormat ? 225 : 300
+          }
+          orDivider={isAnotherMethodButtonVisible}
+          hideBottomLine={!isAnotherMethodButtonVisible}
+        />
+      )}
       {showInsufficientBalance && !noConnectedWallet && (
         <InsufficientBalance onRefresh={refreshOptions} />
       )}
@@ -168,7 +170,7 @@ function InsufficientBalance({
         gap: 16,
       }}
     >
-      <ModalH1>Insufficient balance.</ModalH1>
+      <ModalH1>Insufficient balance</ModalH1>
       <Button
         variant="secondary"
         onClick={handleRefresh}
@@ -179,7 +181,6 @@ function InsufficientBalance({
       >
         {isRefreshing ? "Refreshing..." : "Refresh Balance"}
       </Button>
-      <SelectAnotherMethodButton />
     </ModalContent>
   );
 }

@@ -43,6 +43,7 @@ const PayWithSolanaToken: React.FC = () => {
     setRozoPaymentId,
     setTxHash,
     createPayment,
+    solanaPaymentOptions,
   } = paymentState;
   const {
     store,
@@ -218,6 +219,9 @@ const PayWithSolanaToken: React.FC = () => {
             setPaymentCompleted(result.txHash, rozoPaymentId);
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-solana" });
           }, 200);
+          setTimeout(() => {
+            solanaPaymentOptions.refreshOptions();
+          }, 1000);
         } else {
           setPayState(PayState.RequestCancelled);
         }

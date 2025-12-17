@@ -190,8 +190,7 @@ export function paymentReducer(
     default:
       // Exhaustive check: Using `never` will cause lint failure if not all
       // state types are handled
-      const _exhaustive: never = state;
-      return _exhaustive;
+      throw new Error(`Unhandled state: ${JSON.stringify(state)}`);
   }
 }
 

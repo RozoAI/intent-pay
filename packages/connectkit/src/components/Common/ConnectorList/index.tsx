@@ -130,16 +130,25 @@ const ConnectorItem = ({
     const meta = { event: "connector-list-click", walletId: wallet.id };
 
     // Desktop multi-chain wallet flow: prompt for chain selection.
-    if (wallet.solanaConnectorName && !isMobile) {
-      const supportsEvm = wallet.connector?.name != null;
+    if (!isMobile) {
+      if (wallet.solanaConnectorName) {
+        const supportsEvm = wallet.connector?.name != null;
 
-      if (supportsEvm) {
-        context.paymentState.setSelectedWallet(wallet);
-        context.setRoute(ROUTES.SELECT_WALLET_CHAIN, meta);
-        return;
+        if (supportsEvm) {
+          context.paymentState.setSelectedWallet(wallet);
+          context.setRoute(ROUTES.SELECT_WALLET_CHAIN, meta);
+          return;
+        } else {
+          context.setSolanaConnector(wallet.solanaConnectorName);
+          context.setRoute(ROUTES.SOLANA_CONNECTOR, meta);
+          return;
+        }
       } else {
-        context.setSolanaConnector(wallet.solanaConnectorName);
-        context.setRoute(ROUTES.SOLANA_CONNECTOR, meta);
+        // EVM-only wallet: clear selectedChainId to show all available tokens
+        context.paymentState.setSelectedChainId(undefined);
+        context.setPendingConnectorId(wallet.id);
+        // Explicitly set chainId to null to indicate we want all chains, not just the current one
+        context.setRoute(ROUTES.CONNECT, { ...meta, chainId: null });
         return;
       }
     }

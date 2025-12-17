@@ -1,0 +1,7 @@
+node_modules
+build
+dist
+*.d.ts
+rollup.config.js
+bundle-analysis.html
+

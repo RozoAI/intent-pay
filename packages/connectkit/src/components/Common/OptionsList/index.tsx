@@ -19,6 +19,8 @@ export interface Option {
   title: string;
   subtitle?: string;
   icons: (React.ReactNode | string)[];
+  rightIcons?: (React.ReactNode | string)[];
+  iconsPosition?: "left" | "right";
   onClick: () => void;
   disabled?: boolean;
 }
@@ -131,9 +133,18 @@ const OptionItem = ({ option }: { option: Option }) => {
     return icon;
   });
 
+  const hydratedRightIcons =
+    option.rightIcons?.map((icon, index) => {
+      if (typeof icon === "string") {
+        return <img key={`${option.id}-right-${index}`} src={icon} alt="" />;
+      }
+      return icon;
+    }) || [];
+
+  const iconsPosition = option.iconsPosition || "right";
   const iconContent = (() => {
     return (
-      <IconStackContainer>
+      <IconStackContainer $position={iconsPosition}>
         {hydratedIcons.map((icon, index) => (
           <IconStackItem
             key={index}
@@ -147,6 +158,21 @@ const OptionItem = ({ option }: { option: Option }) => {
     );
   })();
 
+  const rightIconContent =
+    hydratedRightIcons.length > 0 ? (
+      <RightIconStackContainer>
+        {hydratedRightIcons.map((icon, index) => (
+          <RightIconStackItem
+            key={index}
+            $marginRight={index !== hydratedRightIcons.length - 1 ? -8 : 0}
+            $zIndex={hydratedRightIcons.length - index}
+          >
+            {icon}
+          </RightIconStackItem>
+        ))}
+      </RightIconStackContainer>
+    ) : null;
+
   return (
     <OptionButton
       type="button"
@@ -154,15 +180,29 @@ const OptionItem = ({ option }: { option: Option }) => {
       disabled={option.disabled}
     >
       {iconContent}
-      <OptionLabel>
+      <OptionLabel
+        $hasRightIcons={hydratedRightIcons.length > 0}
+        $iconsPosition={iconsPosition}
+      >
         <OptionTitle>{option.title}</OptionTitle>
         {option.subtitle && <OptionSubtitle>{option.subtitle}</OptionSubtitle>}
       </OptionLabel>
+      {rightIconContent}
     </OptionButton>
   );
 };
 
-const IconStackContainer = styled(motion.div)`
+const IconStackContainer = styled(motion.div)<{
+  $position?: "left" | "right";
+}>`
+  position: absolute;
+  ${(props) => (props.$position === "left" ? "left: 20px;" : "right: 20px;")}
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const RightIconStackContainer = styled(motion.div)`
   position: absolute;
   right: 20px;
   display: flex;
@@ -184,6 +224,33 @@ const IconStackItem = styled(motion.div)<{
   z-index: ${(props) => props.$zIndex || 2};
   width: 32px;
   height: 32px;
+  overflow: hidden;
+  svg,
+  img {
+    display: block;
+    position: relative;
+    pointer-events: none;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+  }
+  border-radius: 22.5%;
+`;
+
+const RightIconStackItem = styled(motion.div)<{
+  $marginRight?: number;
+  $zIndex?: number;
+}>`
+  display: block;
+  overflow: hidden;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: ${(props) => props.$marginRight || 0}px;
+  z-index: ${(props) => props.$zIndex || 2};
+  width: 24px;
+  height: 24px;
   overflow: hidden;
   svg,
   img {

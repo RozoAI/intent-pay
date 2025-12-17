@@ -1,6 +1,8 @@
 import {
   getChainName,
   RozoPayToken,
+  rozoSolana,
+  solana,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import { useCallback, useEffect, useRef } from "react";
@@ -28,9 +30,10 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     setSelectedTokenOption,
     setSelectedSolanaTokenOption,
     setSelectedStellarTokenOption,
+    selectedChainId,
   } = paymentState;
 
-  let optionsList: Option[] = [];
+  const optionsList: Option[] = [];
   let isLoading = false;
   let hasAnyData = false;
 
@@ -86,45 +89,72 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   })();
 
   if (shouldIncludeEvm) {
+    // Filter EVM options by selectedChainId if provided
+    const evmOptionsRaw = walletPaymentOptions.options ?? [];
+    const filteredEvmOptions = selectedChainId
+      ? evmOptionsRaw.filter(
+          (option) => option.balance.token.chainId === selectedChainId
+        )
+      : evmOptionsRaw;
+
     const evmOptions = walletPaymentOptions.isLoading
       ? []
       : getEvmTokenOptions(
-          walletPaymentOptions.options ?? [],
+          filteredEvmOptions,
           isDepositFlow,
           setSelectedTokenOption,
           setRoute
         );
     optionsList.push(...evmOptions);
     isLoading ||= walletPaymentOptions.isLoading;
-    hasAnyData ||= (walletPaymentOptions.options?.length ?? 0) > 0;
+    hasAnyData ||= filteredEvmOptions.length > 0;
   }
 
   if (shouldIncludeSolana) {
-    const solanaOptions = solanaPaymentOptions.isLoading
-      ? []
-      : getSolanaTokenOptions(
-          solanaPaymentOptions.options ?? [],
-          isDepositFlow,
-          setSelectedSolanaTokenOption,
-          setRoute
-        );
+    // Filter Solana options by selectedChainId if provided
+    // Note: solana (501) and rozoSolana (900) are both Solana chains
+    // The API returns rozoSolana options, so we need to accept both chainIds
+    const solanaOptionsRaw = solanaPaymentOptions.options ?? [];
+    const filteredSolanaOptions = selectedChainId
+      ? solanaOptionsRaw.filter(
+          (option) =>
+            option.balance.token.chainId === solana.chainId ||
+            option.balance.token.chainId === rozoSolana.chainId
+        )
+      : solanaOptionsRaw;
+
+    // Don't clear options when loading - keep existing options visible to prevent flickering
+    const solanaOptions = getSolanaTokenOptions(
+      filteredSolanaOptions,
+      isDepositFlow,
+      setSelectedSolanaTokenOption,
+      setRoute
+    );
     optionsList.push(...solanaOptions);
     isLoading ||= solanaPaymentOptions.isLoading;
-    hasAnyData ||= (solanaPaymentOptions.options?.length ?? 0) > 0;
+    hasAnyData ||= filteredSolanaOptions.length > 0;
   }
 
   if (shouldIncludeStellar) {
+    // Filter Stellar options by selectedChainId if provided
+    const stellarOptionsRaw = stellarPaymentOptions.options ?? [];
+    const filteredStellarOptions = selectedChainId
+      ? stellarOptionsRaw.filter(
+          (option) => option.balance.token.chainId === selectedChainId
+        )
+      : stellarOptionsRaw;
+
     const stellarOptions = stellarPaymentOptions.isLoading
       ? []
       : getStellarTokenOptions(
-          stellarPaymentOptions.options ?? [],
+          filteredStellarOptions,
           isDepositFlow,
           setSelectedStellarTokenOption,
           setRoute
         );
     optionsList.push(...stellarOptions);
     isLoading ||= stellarPaymentOptions.isLoading;
-    hasAnyData ||= (stellarPaymentOptions.options?.length ?? 0) > 0;
+    hasAnyData ||= filteredStellarOptions.length > 0;
   }
 
   optionsList.sort((a, b) => {

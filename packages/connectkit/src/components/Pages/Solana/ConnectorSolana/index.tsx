@@ -19,7 +19,8 @@ const ConnectSolana: React.FC = () => {
   const solanaWallets = useWallet();
   const isConnected = solanaWallets.connected;
 
-  const { solanaConnector, setRoute, paymentState } = usePayContext();
+  const { solanaConnector, setRoute, paymentState, routeMeta } =
+    usePayContext();
   const { setTokenMode } = paymentState;
 
   const selectedWallet = solanaWallets.wallets.find(
@@ -65,6 +66,8 @@ const ConnectSolana: React.FC = () => {
     const meta = {
       event: "wait-solana-connected",
       walletName: solanaWallets.wallet?.adapter.name,
+      // Preserve chainId from routeMeta if it exists
+      ...(routeMeta?.chainId && { chainId: routeMeta.chainId }),
     };
     setTimeout(() => {
       setTokenMode("solana");

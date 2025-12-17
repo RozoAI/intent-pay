@@ -94,12 +94,12 @@ export const OrderHeader = ({
     );
   };
 
-  let walletIcon = renderIcon(connector?.icon);
-  let solanaIcon = renderIcon(
+  const walletIcon = renderIcon(connector?.icon);
+  const solanaIcon = renderIcon(
     solanaWallet?.adapter.icon || <Solana />,
     solanaWallet?.adapter.name
   );
-  let stellarIcon = renderIcon(
+  const stellarIcon = renderIcon(
     stellarConnector?.icon || <Stellar />,
     stellarConnector?.name
   );

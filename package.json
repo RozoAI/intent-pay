@@ -5,23 +5,31 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "bun --filter @rozoai/intent-common build && bun --filter @rozoai/intent-pay build",
-    "dev": "bun --concurrent --filter '@rozoai/*' dev",
-    "dev:common": "bun --filter @rozoai/intent-common build --watch",
-    "dev:pay": "bun --filter @rozoai/intent-pay dev",
-    "dev:example": "bun --filter @rozoai/pay-nextjs-app-example dev",
-    "install:local": "bun install",
-    "release": "bun build && bun --filter @rozoai/intent-common publish && bun --filter @rozoai/intent-pay release",
+    "build": "pnpm --filter @rozoai/intent-common build && pnpm --filter @rozoai/intent-pay build",
+    "dev": "pnpm -r --parallel --filter '@rozoai/*' dev",
+    "dev:common": "pnpm --filter @rozoai/intent-common build --watch",
+    "dev:pay": "pnpm --filter @rozoai/intent-pay dev",
+    "dev:example": "pnpm --filter @rozoai/pay-nextjs-app-example dev",
+    "install:local": "pnpm install",
+    "prepare": "husky",
+    "release": "pnpm build && pnpm --filter @rozoai/intent-common publish && pnpm --filter @rozoai/intent-pay release",
     "clean": "find . -name 'node_modules' -type d -prune -exec rm -rf '{}' +",
-    "clean:full": "bun clean && rm -f bun.lock",
+    "clean:full": "pnpm clean && rm -f bun.lock",
     "clean:deps": "find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && find . -name 'dist' -type d -prune -exec rm -rf '{}' + && find . -name 'build' -type d -prune -exec rm -rf '{}' + && find . -name '.next' -type d -prune -exec rm -rf '{}' +",
     "clean:all": "find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && find . -name 'dist' -type d -prune -exec rm -rf '{}' + && find . -name 'build' -type d -prune -exec rm -rf '{}' + && find . -name '.next' -type d -prune -exec rm -rf '{}' + && rm -f pnpm-lock.yaml"
+  },
+  "lint-staged": {
+    "packages/connectkit/**/*.{js,jsx,ts,tsx}": [
+      "cd packages/connectkit && pnpm exec eslint --quiet"
+    ]
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "bumpp": "^10.1.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "viem": "^2.23.2",
@@ -30,5 +38,6 @@
   "workspaces": [
     "packages/*",
     "examples/nextjs-app"
-  ]
+  ],
+  "packageManager": "pnpm@10.26.0+sha512.3b3f6c725ebe712506c0ab1ad4133cf86b1f4b687effce62a9b38b4d72e3954242e643190fc51fa1642949c735f403debd44f5cb0edd657abe63a8b6a7e1e402"
 }

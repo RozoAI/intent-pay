@@ -1,6 +1,5 @@
 import { parseUnits } from "viem";
 import {
-  baseUSDC,
   getChainById,
   getKnownToken,
   isChainSupported,
@@ -306,16 +305,15 @@ export function formatPaymentResponseToHydratedOrder(
 
   // Destination address is where the payment will be received
   const destAddress = order.source?.receiverAddress;
-
-  // Determine the chain from metadata or default to the source chain
-  const requiredChain = order.source?.chainId || baseUSDC.chainId;
-
-  const token = getKnownToken(
-    Number(requiredChain),
-    Number(requiredChain) === rozoStellarUSDC.chainId
-      ? rozoStellarUSDC.token
-      : order.source?.tokenAddress || ""
+  const destToken = getKnownToken(
+    Number(order.destination.chainId),
+    String(order.destination.tokenAddress)
   );
+  if (!destToken) {
+    throw new Error(
+      `Unsupported token ${order.destination.tokenAddress} for chain ${order.destination.chainId}`
+    );
+  }
 
   return {
     id: BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)),
@@ -326,21 +324,21 @@ export function formatPaymentResponseToHydratedOrder(
     preferredTokenAddress: order.source?.tokenAddress ?? null,
     destFinalCallTokenAmount: {
       token: {
-        chainId: token ? token.chainId : baseUSDC.chainId,
-        token: token ? token.token : baseUSDC.token,
-        symbol: token ? token.symbol : baseUSDC.symbol,
+        chainId: destToken.chainId,
+        token: destToken.token,
+        symbol: destToken.symbol,
         usd: Number(sourceAmountUnits),
         priceFromUsd: 1,
-        decimals: token ? token.decimals : baseUSDC.decimals,
+        decimals: destToken.decimals,
         displayDecimals: 2,
-        logoSourceURI: token ? token.logoSourceURI : baseUSDC.logoSourceURI,
-        logoURI: token ? token.logoURI : baseUSDC.logoURI,
+        logoSourceURI: destToken.logoSourceURI,
+        logoURI: destToken.logoURI,
         maxAcceptUsd: 100000,
         maxSendUsd: 0,
       },
       amount: parseUnits(
         sourceAmountUnits,
-        token ? token.decimals : baseUSDC.decimals
+        destToken.decimals
       ).toString() as `${bigint}`,
       usd: Number(sourceAmountUnits),
     },

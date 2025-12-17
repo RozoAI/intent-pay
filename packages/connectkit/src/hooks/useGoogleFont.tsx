@@ -27,7 +27,9 @@ export function useGoogleFont(font: string) {
         document.head.removeChild(googleapis);
         document.head.removeChild(gstatic);
         document.head.removeChild(link);
-      } catch {}
+      } catch (error) {
+        console.error(error);
+      }
     };
   }, [font]);
 }

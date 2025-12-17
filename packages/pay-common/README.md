@@ -316,76 +316,6 @@ Based on [ROZO API Documentation](https://docs.rozo.ai/integration/api-doc/suppo
 | Base         | `8453`   | `base`        | EVM     | ✅           |
 | Rozo Stellar | `1500`   | `rozoStellar` | Stellar | ✅ (7 dec)   |
 
-### Token Addresses
-
-<details>
-<summary><strong>Ethereum (Chain ID: 1)</strong></summary>
-
-| Token | Address                                      | Decimals | Constant       |
-| ----- | -------------------------------------------- | -------- | -------------- |
-| USDC  | `0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48` | 6        | `ethereumUSDC` |
-| USDT  | `0xdac17f958d2ee523a2206206994597c13d831ec7` | 6        | `ethereumUSDT` |
-
-</details>
-
-<details>
-<summary><strong>Arbitrum (Chain ID: 42161)</strong></summary>
-
-| Token | Address                                      | Decimals | Constant       |
-| ----- | -------------------------------------------- | -------- | -------------- |
-| USDC  | `0xaf88d065e77c8cc2239327c5edb3a432268e5831` | 6        | `arbitrumUSDC` |
-| USDT  | `0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9` | 6        | `arbitrumUSDT` |
-
-</details>
-
-<details>
-<summary><strong>Base (Chain ID: 8453)</strong></summary>
-
-| Token | Address                                      | Decimals | Constant   |
-| ----- | -------------------------------------------- | -------- | ---------- |
-| USDC  | `0x833589fcd6edb6e08f4c7c32d4f71b54bda02913` | 6        | `baseUSDC` |
-
-</details>
-
-<details>
-<summary><strong>BSC (Chain ID: 56)</strong></summary>
-
-| Token | Address                                      | Decimals | Constant  |
-| ----- | -------------------------------------------- | -------- | --------- |
-| USDC  | `0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d` | 18       | `bscUSDC` |
-| USDT  | `0x55d398326f99059ff775485246999027b3197955` | 18       | `bscUSDT` |
-
-</details>
-
-<details>
-<summary><strong>Polygon (Chain ID: 137)</strong></summary>
-
-| Token | Address                                      | Decimals | Constant      |
-| ----- | -------------------------------------------- | -------- | ------------- |
-| USDC  | `0x3c499c542cef5e3811e1192ce70d8cc03d5c3359` | 6        | `polygonUSDC` |
-| USDT  | `0xc2132d05d31c914a87c6611c10748aeb04b58e8f` | 6        | `polygonUSDT` |
-
-</details>
-
-<details>
-<summary><strong>Rozo Solana (Chain ID: 900)</strong></summary>
-
-| Token | Address                                        | Decimals | Constant         |
-| ----- | ---------------------------------------------- | -------- | ---------------- |
-| USDC  | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` | 6        | `rozoSolanaUSDC` |
-| USDT  | `Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB` | 6        | `rozoSolanaUSDT` |
-
-</details>
-
-<details>
-<summary><strong>Rozo Stellar (Chain ID: 1500)</strong></summary>
-
-| Token | Address                                                         | Decimals | Constant          |
-| ----- | --------------------------------------------------------------- | -------- | ----------------- |
-| USDC  | `USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN` | 7        | `rozoStellarUSDC` |
-
-</details>
-
 ---
 
 ## 🛠️ Utility Functions
@@ -436,44 +366,6 @@ const config = createPaymentBridgeConfig({
 console.log(config.preferred); // Source payment details
 console.log(config.destination); // Destination payment details
 ```
-
----
-
-## 🔐 Webhook Verification
-
-When using webhooks, verify incoming requests using HMAC-SHA256:
-
-```typescript
-import crypto from "crypto";
-
-function verifyWebhook(
-  payload: string,
-  signature: string,
-  secret: string
-): boolean {
-  const hmac = crypto.createHmac("sha256", secret);
-  const digest = hmac.update(payload).digest("hex");
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
-}
-
-// In your webhook handler
-app.post("/api/webhooks/payment", (req, res) => {
-  const signature = req.headers["x-rozo-signature"];
-  const payload = JSON.stringify(req.body);
-
-  if (!verifyWebhook(payload, signature, payment.webhookSecret)) {
-    return res.status(401).send("Invalid signature");
-  }
-
-  // Process webhook
-  const { status, id } = req.body;
-  console.log(`Payment ${id} status: ${status}`);
-
-  res.status(200).send("OK");
-});
-```
-
----
 
 ## 📚 TypeScript Support
 

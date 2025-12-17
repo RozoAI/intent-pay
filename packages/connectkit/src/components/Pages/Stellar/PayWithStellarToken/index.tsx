@@ -50,6 +50,7 @@ const PayWithStellarToken: React.FC = () => {
     rozoPaymentId,
     setRozoPaymentId,
     createPayment,
+    stellarPaymentOptions,
   } = paymentState;
   const {
     store,
@@ -256,6 +257,9 @@ const PayWithStellarToken: React.FC = () => {
             setPaymentCompleted(response.hash, rozoPaymentId);
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
           }, 200);
+          setTimeout(() => {
+            stellarPaymentOptions.refreshOptions();
+          }, 1000);
         } else {
           setPayState(PayState.RequestFailed);
         }
