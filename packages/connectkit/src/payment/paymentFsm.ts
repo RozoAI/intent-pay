@@ -12,13 +12,10 @@ import {
   RozoPayUserMetadata,
   SolanaPublicKey,
   StellarPublicKey,
-  TokenSymbol,
+  Token,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import { Address, Hex, parseUnits } from "viem";
-
-/** Allowed token symbols for preferredSymbol prop */
-export type PreferredTokenSymbol = TokenSymbol;
 
 /** Payment parameters. The payment is created only after user taps pay. */
 export interface PayParams {
@@ -48,9 +45,7 @@ export interface PayParams {
   /** Preferred chain IDs. */
   preferredChains?: number[];
   /** Preferred tokens. These appear first in the token list. */
-  preferredTokens?: { chain: number; address: Address | string }[];
-  /** Preferred token symbols to filter. Only tokens with these symbols will be shown. Default: ["USDC", "USDT"] */
-  preferredSymbol?: PreferredTokenSymbol[];
+  preferredTokens?: Token[];
   /** Only allow payments on these EVM chains. */
   evmChains?: number[];
   /** External ID. E.g. a correlation ID. */

@@ -1,6 +1,6 @@
-import { TokenSymbol, WalletPaymentOption } from "@rozoai/intent-common";
+import { WalletPaymentOption } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PayParams, PreferredTokenSymbol } from "../payment/paymentFsm";
+import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
 import {
   createRefreshFunction,
@@ -41,18 +41,23 @@ export function useSolanaPaymentOptions({
   const filteredOptions = useMemo(() => {
     if (!options) return [];
 
-    // Get preferred symbols from payParams, default to ["USDC", "USDT"]
-    const preferredSymbols = payParams?.preferredSymbol ?? [
-      TokenSymbol.USDC,
-      TokenSymbol.USDT,
-    ];
+    const preferredTokens = payParams?.preferredTokens;
+    const normalizeAddress = (addr: string) => addr.toLowerCase();
 
     return options
       .filter((option) => {
-        const tokenSymbol = option.balance.token.symbol;
+        // If preferredTokens is not provided or empty, show all options
+        if (!preferredTokens || preferredTokens.length === 0) {
+          return true;
+        }
 
-        // Filter by preferredSymbols (default: USDC, USDT)
-        return preferredSymbols.includes(tokenSymbol as PreferredTokenSymbol);
+        // Filter by matching chainId and token address
+        return preferredTokens.some(
+          (pt) =>
+            pt.chainId === option.balance.token.chainId &&
+            normalizeAddress(pt.token) ===
+              normalizeAddress(option.balance.token.token)
+        );
       })
       .map((item) => {
         const usd = isDepositFlow ? 0 : usdRequired || 0;
@@ -74,7 +79,7 @@ export function useSolanaPaymentOptions({
 
         return value;
       }) as WalletPaymentOption[];
-  }, [options, isDepositFlow, usdRequired, payParams?.preferredSymbol]);
+  }, [options, isDepositFlow, usdRequired, payParams?.preferredTokens]);
 
   // Shared fetch function for Solana payment options
   const fetchBalances = useCallback(async () => {

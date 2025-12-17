@@ -141,7 +141,7 @@ export default function SelectMethod() {
           setRoute(ROUTES.SELECT_TOKEN, {
             event: "click-wallet",
             walletId: connector?.id,
-            chainId: chain?.id,
+            chainId: paymentState.selectedChainId ?? chain?.id,
             address: address,
           });
         },
@@ -315,6 +315,8 @@ export default function SelectMethod() {
       );
       options.push(depositAddressOption);
     }
+
+    console.log("showStellarPaymentMethod", showStellarPaymentMethod);
 
     if (showStellarPaymentMethod) {
       options.push({

@@ -1,10 +1,6 @@
-import {
-  rozoStellar,
-  TokenSymbol,
-  WalletPaymentOption,
-} from "@rozoai/intent-common";
+import { rozoStellar, WalletPaymentOption } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PayParams, PreferredTokenSymbol } from "../payment/paymentFsm";
+import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
 import {
   createRefreshFunction,
@@ -51,12 +47,7 @@ export function useStellarPaymentOptions({
   const filteredOptions = useMemo(() => {
     if (!options) return [];
 
-    // Get preferred symbols from payParams, default to ["USDC", "USDT"]
-    const preferredSymbols = payParams?.preferredSymbol ?? [
-      TokenSymbol.USDC,
-      TokenSymbol.USDT,
-    ];
-
+    const preferredTokens = payParams?.preferredTokens;
     // Helper to normalize token addresses for comparison
     const normalizeAddress = (addr: string) => addr.toLowerCase();
 
@@ -64,23 +55,14 @@ export function useStellarPaymentOptions({
       .filter((option) => {
         const tokenChainId = option.balance.token.chainId;
         const tokenAddress = option.balance.token.token;
-        const tokenSymbol = option.balance.token.symbol;
 
-        // First check if token symbol is in preferredSymbols
-        if (!preferredSymbols.includes(tokenSymbol as PreferredTokenSymbol)) {
-          // Allow EURC if it's explicitly in preferredTokens
-          if (tokenSymbol === "EURC") {
-            const preferredTokens = payParams?.preferredTokens;
-            if (preferredTokens && preferredTokens.length > 0) {
-              return preferredTokens.some(
-                (pt) =>
-                  pt.chain === tokenChainId &&
-                  normalizeAddress(pt.address) ===
-                    normalizeAddress(tokenAddress)
-              );
-            }
-          }
-          return false;
+        // If preferredTokens is provided and not empty, filter by matching chainId and token address
+        if (preferredTokens && preferredTokens.length > 0) {
+          return preferredTokens.some(
+            (pt) =>
+              pt.chainId === tokenChainId &&
+              normalizeAddress(pt.token) === normalizeAddress(tokenAddress)
+          );
         }
 
         // Otherwise, check against supported tokens
@@ -110,14 +92,7 @@ export function useStellarPaymentOptions({
 
         return value;
       }) as WalletPaymentOption[];
-  }, [
-    options,
-    isDepositFlow,
-    usdRequired,
-    tokens,
-    payParams?.preferredSymbol,
-    payParams?.preferredTokens,
-  ]);
+  }, [options, isDepositFlow, usdRequired, tokens, payParams?.preferredTokens]);
 
   // Shared fetch function for Stellar payment options
   const fetchBalances = useCallback(async () => {
@@ -132,7 +107,9 @@ export function useStellarPaymentOptions({
         // API expects undefined for deposit flow.
         usdRequired: isDepositFlow ? undefined : usdRequired,
         appId: stableAppId,
-        preferredTokenAddress: memoizedPreferredTokens,
+        preferredTokenAddress: (memoizedPreferredTokens ?? []).map(
+          (t) => t.token
+        ),
       });
       setOptions(newOptions);
     } catch (error) {

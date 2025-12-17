@@ -5,10 +5,10 @@ import {
   PaymentCompletedEvent,
   PaymentPayoutCompletedEvent,
   PaymentStartedEvent,
+  Token,
 } from "@rozoai/intent-common";
 import { ReactElement } from "react";
 import { Address } from "viem";
-import { PreferredTokenSymbol } from "../../payment/paymentFsm";
 import { CustomTheme, Mode, Theme } from "../../types";
 
 /** Chain-specific props for EVM chains (Base, Ethereum, Polygon) */
@@ -92,12 +92,7 @@ type CommonPaymentProps = {
   /**
    * Preferred tokens. These appear first in the token list.
    */
-  preferredTokens?: { chain: number; address: Address | string }[];
-  /**
-   * Preferred token symbols to filter. Only tokens with these symbols will be shown.
-   * Default: [TokenSymbol.USDC, TokenSymbol.USDT]
-   */
-  preferredSymbol?: PreferredTokenSymbol[];
+  preferredTokens?: Token[];
   /**
    * Only allow payments on these EVM chains.
    */

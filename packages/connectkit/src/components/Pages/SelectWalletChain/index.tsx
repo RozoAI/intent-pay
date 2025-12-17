@@ -36,8 +36,8 @@ const SelectWalletChain: React.FC = () => {
   const wallet = selectedWallet as WalletProps | undefined;
 
   // Define chain options with their icons (must be called before early returns)
-  const chainConfigs = useMemo(
-    () => [
+  const chainConfigs = useMemo(() => {
+    const available = [
       {
         chain: ethereum,
         icon: <Ethereum key="ethereum" />,
@@ -73,9 +73,21 @@ const SelectWalletChain: React.FC = () => {
         icon: <Solana key="solana" />,
         supported: knownChains.includes(solana.chainId),
       },
-    ],
-    [knownChains, wallet?.id]
-  );
+    ];
+
+    if (
+      paymentState.payParams?.preferredTokens &&
+      paymentState.payParams?.preferredTokens.length > 0
+    ) {
+      return available.filter((config) =>
+        paymentState.payParams?.preferredTokens?.some(
+          (pt) => pt.chainId === config.chain.chainId
+        )
+      );
+    }
+
+    return available;
+  }, [knownChains, wallet?.id, paymentState.payParams?.preferredTokens]);
 
   // Filter to only supported chains
   const supportedChains = useMemo(

@@ -365,10 +365,13 @@ export const RozoPayModal: React.FC<{
         setSelectedChainId(undefined);
       }
     } else if (
-      context.route !== ROUTES.SELECT_TOKEN &&
-      context.route !== ROUTES.SELECT_WALLET_CHAIN &&
-      context.route !== ROUTES.CONNECT &&
-      context.route !== ROUTES.SELECT_METHOD
+      ![
+        ROUTES.SELECT_TOKEN,
+        ROUTES.SELECT_WALLET_CHAIN,
+        ROUTES.CONNECT,
+        ROUTES.SELECT_METHOD,
+        ROUTES.SELECT_DEPOSIT_ADDRESS_CHAIN,
+      ].includes(context.route as ROUTES)
     ) {
       // Clear selectedChainId when leaving SELECT_TOKEN, SELECT_WALLET_CHAIN, CONNECT, or SELECT_METHOD
       // but preserve it when navigating between these routes (including SELECT_METHOD)

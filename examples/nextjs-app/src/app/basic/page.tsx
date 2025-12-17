@@ -312,6 +312,7 @@ export default function DemoBasic() {
                   }}
                   feeType={FeeType.ExactOut}
                   metadata={metadata}
+                  // preferredTokens={[baseEURC, baseUSDC, rozoStellarEURC]}
                   resetOnSuccess
                   showProcessingPayout
                 >

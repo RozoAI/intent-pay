@@ -92,6 +92,7 @@ import { useRozoPay } from "./useDaimoPay";
 import { useDepositAddressOptions } from "./useDepositAddressOptions";
 import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
 import useIsMobile from "./useIsMobile";
+import { useLocalStorage } from "./useLocalStorage";
 import { useOrderUsdLimits } from "./useOrderUsdLimits";
 import { useSolanaPaymentOptions } from "./useSolanaPaymentOptions";
 import { useStellarPaymentOptions } from "./useStellarPaymentOptions";
@@ -252,6 +253,13 @@ export function usePaymentState({
     new Set()
   );
 
+  // Local storage state.
+  const {
+    data: selectedChainIdLocalStorage,
+    update,
+    clear,
+  } = useLocalStorage(SELECTED_CHAIN_ID_STORAGE_KEY);
+
   // Browser state.
   const [platform, setPlatform] = useState<PlatformType>();
   useEffect(() => {
@@ -302,40 +310,33 @@ export function usePaymentState({
   >("evm");
 
   // Initialize selectedChainId from localStorage to persist across page refreshes
-  const [selectedChainId, setSelectedChainIdState] = useState<
-    number | undefined
-  >(() => {
-    if (typeof window === "undefined") return undefined;
-    try {
-      const saved = localStorage.getItem(SELECTED_CHAIN_ID_STORAGE_KEY);
-      if (saved) {
-        const parsed = parseInt(saved, 10);
-        if (!isNaN(parsed)) {
-          return parsed;
-        }
-      }
-    } catch (error) {
-      // Ignore localStorage errors
+  // useLocalStorage returns an array, so we extract the first element if it exists
+  const selectedChainId = useMemo(() => {
+    if (
+      !selectedChainIdLocalStorage ||
+      !Array.isArray(selectedChainIdLocalStorage) ||
+      selectedChainIdLocalStorage.length === 0
+    ) {
+      return undefined;
+    }
+    const firstItem = selectedChainIdLocalStorage[0];
+    // Handle number directly or string that can be parsed
+    if (typeof firstItem === "number") {
+      return firstItem;
+    }
+    if (typeof firstItem === "string") {
+      const parsed = parseInt(firstItem, 10);
+      return !isNaN(parsed) ? parsed : undefined;
     }
     return undefined;
-  });
+  }, [selectedChainIdLocalStorage]);
 
   // Wrapper function to persist selectedChainId to localStorage
   const setSelectedChainId = useCallback((chainId: number | undefined) => {
-    setSelectedChainIdState(chainId);
-    if (typeof window !== "undefined") {
-      try {
-        if (chainId !== undefined) {
-          localStorage.setItem(
-            SELECTED_CHAIN_ID_STORAGE_KEY,
-            chainId.toString()
-          );
-        } else {
-          localStorage.removeItem(SELECTED_CHAIN_ID_STORAGE_KEY);
-        }
-      } catch (error) {
-        // Ignore localStorage errors
-      }
+    if (chainId !== undefined) {
+      update([chainId]);
+    } else {
+      clear();
     }
   }, []);
 
@@ -361,12 +362,25 @@ export function usePaymentState({
   }, [paymentOptions, pay.order]);
 
   const showStellarPaymentMethod = useMemo(() => {
+    const preferredTokens = currPayParams?.preferredTokens;
+
+    // If preferredTokens exists and has no Stellar tokens, don't show Stellar method
+    if (preferredTokens && preferredTokens.length > 0) {
+      const hasStellarToken = preferredTokens.some(
+        (t) => t.chainId === rozoStellar.chainId
+      );
+      if (!hasStellarToken) {
+        return false;
+      }
+    }
+
+    // Otherwise, show based on paymentOptions and order
     return (
       (paymentOptions == null ||
         paymentOptions.includes(ExternalPaymentOptions.Stellar)) &&
       pay.order != null
     );
-  }, [paymentOptions, pay.order]);
+  }, [paymentOptions, pay.order, currPayParams?.preferredTokens]);
 
   // Memoize usdRequired and destChainId to prevent unnecessary refetches when order object reference changes
   const usdRequired = useMemo(
@@ -411,12 +425,6 @@ export function usePaymentState({
     address: ethWalletAddress,
     usdRequired,
     destChainId,
-    preferredChains:
-      stablePayParams?.preferredChains ??
-      pay.order?.metadata.payer?.preferredChains,
-    preferredTokens:
-      stablePayParams?.preferredTokens ??
-      pay.order?.metadata.payer?.preferredTokens,
     isDepositFlow,
     payParams: stablePayParams,
     log,

@@ -29,8 +29,6 @@ export function useWalletPaymentOptions({
   address,
   usdRequired,
   destChainId,
-  preferredChains,
-  preferredTokens,
   isDepositFlow,
   payParams,
   log,
@@ -39,8 +37,6 @@ export function useWalletPaymentOptions({
   address: string | undefined;
   usdRequired: number | undefined;
   destChainId: number | undefined;
-  preferredChains: number[] | undefined;
-  preferredTokens: { chain: number; address: string }[] | undefined;
   isDepositFlow: boolean;
   payParams: PayParams | undefined;
   log: (msg: string) => void;
@@ -64,20 +60,22 @@ export function useWalletPaymentOptions({
   // Notice the load-bearing JSON.stringify() to prevent a visible infinite
   // refresh glitch on the SelectMethod screen. Replace this useEffect().
   const memoizedPreferredChains = useMemo(
-    () => preferredChains,
+    () => payParams?.preferredChains,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(preferredChains)]
+    [payParams]
   );
   const memoizedPreferredTokens = useMemo(
-    () => preferredTokens,
+    () => payParams?.preferredTokens,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(preferredTokens)]
+    [payParams]
   );
 
   const { chains, tokens } = useSupportedChains();
 
   const filteredOptions = useMemo(() => {
     if (!options) return [];
+
+    const normalizeAddress = (addr: string) => addr.toLowerCase();
 
     // Filter out chains/tokens we don't support yet in wallet payment options
     const isSupported = (o: WalletPaymentOption) =>
@@ -87,27 +85,49 @@ export function useWalletPaymentOptions({
           tokens.some((t) => t.token === o.balance.token.token)
       );
 
-    return options.filter(isSupported).map((item) => {
-      const usd = isDepositFlow ? 0 : usdRequired || 0;
-
-      const value: WalletPaymentOption = {
-        ...item,
-        required: {
-          ...item.required,
-          usd,
-        },
-      };
-
-      // Set `disabledReason` manually (based on current usdRequired state, not API Request)
-      if (item.balance.usd < usd) {
-        value.disabledReason = `Balance too low: $${item.balance.usd.toFixed(
-          2
-        )}`;
+    // If preferredTokens is provided and not empty, filter by matching chainId and token address
+    const matchesPreferredTokens = (o: WalletPaymentOption) => {
+      if (!memoizedPreferredTokens || memoizedPreferredTokens.length === 0) {
+        return true; // Show all if no memoizedPreferredTokens specified
       }
+      return memoizedPreferredTokens.some(
+        (pt) =>
+          pt.chainId === o.balance.token.chainId &&
+          normalizeAddress(pt.token) === normalizeAddress(o.balance.token.token)
+      );
+    };
 
-      return value;
-    }) as WalletPaymentOption[];
-  }, [options, chains, tokens, isDepositFlow, usdRequired]);
+    return options
+      .filter(isSupported)
+      .filter(matchesPreferredTokens)
+      .map((item) => {
+        const usd = isDepositFlow ? 0 : usdRequired || 0;
+
+        const value: WalletPaymentOption = {
+          ...item,
+          required: {
+            ...item.required,
+            usd,
+          },
+        };
+
+        // Set `disabledReason` manually (based on current usdRequired state, not API Request)
+        if (item.balance.usd < usd) {
+          value.disabledReason = `Balance too low: $${item.balance.usd.toFixed(
+            2
+          )}`;
+        }
+
+        return value;
+      }) as WalletPaymentOption[];
+  }, [
+    options,
+    chains,
+    tokens,
+    isDepositFlow,
+    usdRequired,
+    memoizedPreferredTokens,
+  ]);
 
   // Smart clearing: only clear if we don't have data for this address
   useEffect(() => {
@@ -136,7 +156,9 @@ export function useWalletPaymentOptions({
         usdRequired: isDepositFlow ? undefined : usdRequired,
         destChainId,
         preferredChains: memoizedPreferredChains,
-        preferredTokenAddress: memoizedPreferredTokens,
+        preferredTokenAddress: (memoizedPreferredTokens ?? [])?.map(
+          (t) => t.token
+        ),
         appId: stableAppId,
       });
 

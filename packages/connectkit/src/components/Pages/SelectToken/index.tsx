@@ -1,4 +1,4 @@
-import { getChainById, TokenSymbol } from "@rozoai/intent-common";
+import { getChainName, Token } from "@rozoai/intent-common";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useMemo, useState } from "react";
 import { injected, useAccount } from "wagmi";
@@ -130,7 +130,7 @@ export default function SelectToken() {
         <NoTokensAvailable
           onRefresh={refreshOptions}
           chainId={paymentState.selectedChainId}
-          preferredSymbol={paymentState.payParams?.preferredSymbol}
+          preferredTokens={paymentState.payParams?.preferredTokens}
         />
       )}
       {!isLoading && !isConnected && effectiveTokenMode === "all" && (
@@ -158,12 +158,12 @@ function NoConnectedWallet() {
 
 function NoTokensAvailable({
   onRefresh,
-  preferredSymbol,
+  preferredTokens,
   chainId,
 }: {
   onRefresh: () => Promise<void>;
   chainId: number | undefined;
-  preferredSymbol?: string[];
+  preferredTokens?: Token[];
 }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -178,10 +178,13 @@ function NoTokensAvailable({
     }
   };
 
-  // Get supported token symbols from payParams, default to USDC and USDT
+  // Get supported token symbols from preferredTokens if available
   const supportedSymbols = useMemo(() => {
-    return preferredSymbol ?? [TokenSymbol.USDC, TokenSymbol.USDT];
-  }, [preferredSymbol]);
+    if (preferredTokens && preferredTokens.length > 0) {
+      return preferredTokens.map((pt) => pt.symbol);
+    }
+    return [];
+  }, [preferredTokens]);
 
   // Format token symbols for display
   const formattedTokens = useMemo(() => {
@@ -210,8 +213,11 @@ function NoTokensAvailable({
     );
   }, [supportedSymbols]);
 
-  const selectedChain = useMemo(() => {
-    return chainId ? getChainById(chainId) : undefined;
+  const formattedChainName = useMemo(() => {
+    if (chainId) {
+      return getChainName(chainId);
+    }
+    return null;
   }, [chainId]);
 
   return (
@@ -234,7 +240,7 @@ function NoTokensAvailable({
         }}
       >
         We can&apos;t find any supported tokens ({formattedTokens}) in your
-        account.
+        account {formattedChainName ? `on ${formattedChainName}` : ""}.
       </ModalBody>
       <Button
         variant="secondary"
