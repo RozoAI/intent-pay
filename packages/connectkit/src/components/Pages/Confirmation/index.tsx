@@ -20,9 +20,9 @@ import {
 } from "@rozoai/intent-common";
 import { motion } from "framer-motion";
 import {
+  BadgeCheckIcon,
   ExternalLinkIcon,
   LoadingCircleIcon,
-  TickIcon,
 } from "../../../assets/icons";
 import defaultTheme from "../../../constants/defaultTheme";
 import {
@@ -468,8 +468,8 @@ const Confirmation: React.FC = () => {
       >
         <AnimationContainer>
           <InsetContainer>
-            <Spinner $status={done} />
-            <SuccessIcon $status={done} />
+            {!done && <Spinner $status={done} />}
+            {done && <SuccessIcon $status={done} />}
           </InsetContainer>
         </AnimationContainer>
 
@@ -568,9 +568,9 @@ const AnimationContainer = styled(motion.div)`
 const InsetContainer = styled(motion.div)`
   position: absolute;
   overflow: hidden;
-  inset: 6px;
+  inset: 0;
   border-radius: 50px;
-  background: var(--ck-body-background);
+  // background: var(--ck-body-background);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -581,12 +581,13 @@ const InsetContainer = styled(motion.div)`
   }
 `;
 
-const SuccessIcon = styled(TickIcon)<{ $status: boolean }>`
-  color: var(--ck-body-color-valid);
+const SuccessIcon = styled(BadgeCheckIcon)<{ $status: boolean }>`
   transition: all 0.2s ease-in-out;
   position: absolute;
   opacity: ${(props) => (props.$status ? 1 : 0)};
   transform: ${(props) => (props.$status ? "scale(1)" : "scale(0.5)")};
+  fill: #0052ff;
+  stroke: #ffffff;
 `;
 
 const Spinner = styled(LoadingCircleIcon)<{ $status: boolean }>`

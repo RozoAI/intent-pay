@@ -28,7 +28,8 @@ enum PayState {
 const PayWithToken: React.FC = () => {
   const walletChainId = useChainId();
   const { triggerResize, paymentState, setRoute, log } = usePayContext();
-  const { payWithToken, selectedTokenOption } = paymentState;
+  const { payWithToken, selectedTokenOption, walletPaymentOptions } =
+    paymentState;
   const { switchChainAsync } = useSwitchChain();
   const {
     store,
@@ -118,6 +119,10 @@ const PayWithToken: React.FC = () => {
           setTimeout(() => {
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-token" });
           }, 200);
+          // Refresh wallet payment options after 1 second to prevent stale balances
+          setTimeout(() => {
+            walletPaymentOptions.refreshOptions();
+          }, 2000);
         } else {
           setPayState(PayState.RequestFailed);
         }
@@ -143,6 +148,10 @@ const PayWithToken: React.FC = () => {
                     event: "wait-pay-with-token",
                   });
                 }, 200);
+                // Refresh wallet payment options after 1 second to prevent stale balances
+                setTimeout(() => {
+                  walletPaymentOptions.refreshOptions();
+                }, 2000);
               } else {
                 setPayState(PayState.RequestFailed);
               }

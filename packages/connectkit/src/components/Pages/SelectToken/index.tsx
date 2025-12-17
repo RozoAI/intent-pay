@@ -170,7 +170,7 @@ function InsufficientBalance({
         gap: 16,
       }}
     >
-      <ModalH1>Insufficient balance.</ModalH1>
+      <ModalH1>Insufficient balance</ModalH1>
       <Button
         variant="secondary"
         onClick={handleRefresh}

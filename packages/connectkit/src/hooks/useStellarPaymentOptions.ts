@@ -92,14 +92,6 @@ export function useStellarPaymentOptions({
     isApiCallInProgress,
   });
 
-  // Clear cache function to reset balance state and tracking
-  // This is called when payment completes for Stellar tokens to prevent stale balances
-  const clearCache = useCallback(() => {
-    setOptions(null);
-    lastExecutedParams.current = null;
-    isApiCallInProgress.current = false;
-  }, []);
-
   // Smart clearing: only clear if we don't have data for this address
   useEffect(() => {
     if (address && !options) {
@@ -146,6 +138,5 @@ export function useStellarPaymentOptions({
     options: filteredOptions,
     isLoading,
     refreshOptions,
-    clearCache,
   };
 }

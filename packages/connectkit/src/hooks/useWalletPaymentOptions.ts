@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
-import { createRefreshFunction } from "./refreshUtils";
 import { useSupportedChains } from "./useSupportedChains";
 
 /**
@@ -171,19 +170,11 @@ export function useWalletPaymentOptions({
     stableAppId,
   ]);
 
-  // Create refresh function using shared utility
-  const refreshOptions = createRefreshFunction(fetchBalances, {
-    lastExecutedParams,
-    isApiCallInProgress,
-  });
-
-  // Clear cache function to reset balance state and tracking
-  // This is called when payment completes for EVM tokens to prevent stale balances
-  const clearCache = useCallback(() => {
-    setOptions(null);
-    lastExecutedParams.current = null;
-    isApiCallInProgress.current = false;
-  }, []);
+  // // Create refresh function using shared utility
+  // const refreshOptions = createRefreshFunction(fetchBalances, {
+  //   lastExecutedParams,
+  //   isApiCallInProgress,
+  // });
 
   // Initial fetch when hook mounts with valid parameters or when key parameters change
   useEffect(() => {
@@ -193,14 +184,13 @@ export function useWalletPaymentOptions({
       destChainId != null &&
       stableAppId != null
     ) {
-      refreshOptions();
+      fetchBalances();
     }
   }, [address, usdRequired, destChainId, stableAppId]);
 
   return {
     options: filteredOptions,
     isLoading,
-    refreshOptions,
-    clearCache,
+    refreshOptions: fetchBalances,
   };
 }

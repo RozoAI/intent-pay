@@ -106,15 +106,6 @@ export function useSolanaPaymentOptions({
     isApiCallInProgress,
   });
 
-  // Clear cache function to reset balance state and tracking
-  // This is called when payment completes for Solana tokens to prevent stale balances
-  const clearCache = useCallback(() => {
-    setOptions(null);
-    lastExecutedParams.current = null;
-    isApiCallInProgress.current = false;
-    hasInitialData.current = false;
-  }, []);
-
   // Reset hasInitialData when address changes to allow clearing options for new address
   useEffect(() => {
     if (address) {
@@ -169,6 +160,5 @@ export function useSolanaPaymentOptions({
     options: filteredOptions,
     isLoading,
     refreshOptions,
-    clearCache,
   };
 }

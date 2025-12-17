@@ -1,7 +1,7 @@
 {
   "name": "@rozoai/intent-pay",
   "private": false,
-  "version": "0.1.5-beta.4",
+  "version": "0.1.5-beta.8",
   "author": "RozoAI",
   "homepage": "https://github.com/RozoAI/intent-pay",
   "license": "BSD-2-Clause",
