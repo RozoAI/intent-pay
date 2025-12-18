@@ -1,5 +1,5 @@
 import { RozoPayEvent, getChainExplorerByChainId } from "@rozoai/intent-common";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { isAddress } from "viem";
 
 export const APP_ID = "rozoDemo"; // Your public app ID. Use pay-demo for prototyping only.
@@ -55,14 +55,17 @@ export function usePersistedConfig<T>(
     }
   }, [key]);
 
-  const setConfig = (newConfig: T) => {
-    setConfigState(newConfig);
-    try {
-      localStorage.setItem(key, JSON.stringify(newConfig));
-    } catch {
-      // Handle localStorage errors silently
-    }
-  };
+  const setConfig = useCallback(
+    (newConfig: T) => {
+      setConfigState(newConfig);
+      try {
+        localStorage.setItem(key, JSON.stringify(newConfig));
+      } catch {
+        // Handle localStorage errors silently
+      }
+    },
+    [key]
+  );
 
   return [config, setConfig];
 }

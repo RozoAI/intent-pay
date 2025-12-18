@@ -30,6 +30,7 @@ type Config = {
   chainId: number; // Destination chain ID
   tokenAddress: string;
   amount: string;
+  preferredSymbol: TokenSymbol[];
 };
 
 /**
@@ -118,6 +119,9 @@ export default function YourComponent() {
       toToken={${tokenCode}}
       toAddress={${addressCode}}
       toUnits="${config.amount}"
+      preferredSymbol={[${config.preferredSymbol
+        .map((s: TokenSymbol) => `TokenSymbol.${s}`)
+        .join(", ")}]}
       onPaymentStarted={(event) => {
         console.log("Payment started:", event);
       }}
@@ -179,11 +183,20 @@ export default function DemoBasic() {
   } as Config);
   const [parsedConfig, setParsedConfig] = useState<Config | null>(null);
   const { resetPayment } = useRozoPayUI();
+  const [preferredSymbol, setPreferredSymbol] = useState<TokenSymbol[]>([
+    TokenSymbol.USDC,
+    TokenSymbol.USDT,
+  ]);
 
   const handleSetConfig = useCallback(
-    (newConfig: Config) => {
-      setConfig(newConfig);
-      setParsedConfig(newConfig);
+    (newConfig: Config, symbols?: TokenSymbol[]) => {
+      const symbolsToUse = symbols ?? preferredSymbol;
+      const configWithSymbols = {
+        ...newConfig,
+        preferredSymbol: symbolsToUse,
+      };
+      setConfig(configWithSymbols);
+      setParsedConfig(configWithSymbols);
 
       // NOTE: This is used to reset the payment state when the config changes
       const isEvm = isEvmChain(newConfig.chainId);
@@ -198,16 +211,16 @@ export default function DemoBasic() {
       } else {
         payParams.toAddress = newConfig.recipientAddress;
         payParams.toToken = newConfig.tokenAddress;
-        // if (isStellarChain(newConfig.chainId)) {
-        //   payParams.toStellarAddress = newConfig.recipientAddress;
-        // } else if (isSolanaChain(newConfig.chainId)) {
-        //   payParams.toSolanaAddress = newConfig.recipientAddress;
-        // }
       }
 
-      resetPayment(payParams);
+      const params = {
+        ...payParams,
+        preferredSymbol: symbolsToUse,
+      };
+      console.log("params", params);
+      resetPayment(params);
     },
-    [setConfig, resetPayment]
+    [setConfig, resetPayment, preferredSymbol]
   );
 
   useEffect(() => {
@@ -234,6 +247,10 @@ export default function DemoBasic() {
         chainId: getConfig.chainId || 0,
         tokenAddress: getConfig.tokenAddress || "",
         amount: getConfig.amount || "",
+        preferredSymbol: getConfig.preferredSymbol || [
+          TokenSymbol.USDC,
+          TokenSymbol.USDT,
+        ],
       };
 
       // Validate and clean up config
@@ -246,6 +263,9 @@ export default function DemoBasic() {
       ) {
         setConfig(parsedConfig);
         setParsedConfig(parsedConfig);
+        if (parsedConfig.preferredSymbol) {
+          setPreferredSymbol(parsedConfig.preferredSymbol);
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -272,6 +292,17 @@ export default function DemoBasic() {
     []
   );
 
+  // Toggle between [USDC, USDT] and [EURC]
+  const handleChangeCurrency = useCallback(() => {
+    const nextSymbols =
+      preferredSymbol.length === 1 && preferredSymbol[0] === TokenSymbol.EURC
+        ? [TokenSymbol.USDC, TokenSymbol.USDT]
+        : [TokenSymbol.EURC];
+
+    setPreferredSymbol(nextSymbols);
+    handleSetConfig(config, nextSymbols);
+  }, [config, preferredSymbol, handleSetConfig]);
+
   return (
     <Container className="max-w-4xl mx-auto p-6">
       {/* Header Section */}
@@ -285,6 +316,8 @@ export default function DemoBasic() {
           to get started.
         </Text>
       </div>
+
+      <button onClick={handleChangeCurrency}>Change currency</button>
 
       {/* Main Content */}
       <div className="flex flex-col items-center gap-6">
@@ -312,8 +345,8 @@ export default function DemoBasic() {
                     console.log("✓ Payout completed:", e);
                   }}
                   feeType={FeeType.ExactOut}
+                  preferredSymbol={preferredSymbol}
                   metadata={metadata}
-                  preferredSymbol={[TokenSymbol.EURC]}
                   resetOnSuccess
                   showProcessingPayout
                 >
@@ -485,7 +518,7 @@ export default function DemoBasic() {
           configType="payment"
           isOpen={isConfigOpen}
           onClose={() => setIsConfigOpen(false)}
-          onConfirm={handleSetConfig}
+          onConfirm={(config) => handleSetConfig(config as Config)}
           defaultRecipientAddress={config.recipientAddress}
         />
       </div>

@@ -141,7 +141,6 @@ export default function SelectMethod() {
           setRoute(ROUTES.SELECT_TOKEN, {
             event: "click-wallet",
             walletId: connector?.id,
-            chainId: paymentState.selectedChainId ?? chain?.id,
             address: address,
           });
         },

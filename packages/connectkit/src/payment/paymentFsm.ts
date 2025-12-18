@@ -13,6 +13,7 @@ import {
   SolanaPublicKey,
   StellarPublicKey,
   Token,
+  TokenSymbol,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import { Address, Hex, parseUnits } from "viem";
@@ -46,6 +47,8 @@ export interface PayParams {
   preferredChains?: number[];
   /** Preferred tokens. These appear first in the token list. */
   preferredTokens?: Token[];
+  /** Preferred token symbols to filter. Only tokens with these symbols will be shown. Default: ["USDC", "USDT"] */
+  preferredSymbol?: TokenSymbol[];
   /** Only allow payments on these EVM chains. */
   evmChains?: number[];
   /** External ID. E.g. a correlation ID. */

@@ -6,7 +6,6 @@ import { useAccount } from "wagmi";
 import {
   Base,
   BinanceSmartChain,
-  chainToLogo,
   Ethereum,
   Polygon,
   Solana,
@@ -18,7 +17,6 @@ import { useRozoPay } from "../../../hooks/useDaimoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
 import { useStellar } from "../../../provider/StellarContextProvider";
 import styled from "../../../styles/styled";
-import { EVM_CHAIN_IDS, NON_EVM_CHAIN_IDS } from "../../../types/chainAddress";
 import { formatUsd } from "../../../utils/format";
 
 /** Shows payment amount. */
@@ -56,31 +54,6 @@ export const OrderHeader = ({
   );
   const orderUsd = order?.destFinalCallTokenAmount.usd;
   const appId = paymentState.payParams?.appId;
-  const selectedChainId = paymentState.selectedChainId;
-
-  // Get chain logo component based on chainId
-  const getChainLogo = (
-    chainId: number | undefined
-  ): React.ReactNode | null => {
-    if (!chainId) return null;
-
-    switch (chainId) {
-      case EVM_CHAIN_IDS.BASE:
-        return <Base />;
-      case EVM_CHAIN_IDS.ETHEREUM:
-        return <Ethereum />;
-      case EVM_CHAIN_IDS.POLYGON:
-        return <Polygon />;
-      case 56: // BSC
-        return <BinanceSmartChain />;
-      case NON_EVM_CHAIN_IDS.SOLANA:
-        return <Solana />;
-      case NON_EVM_CHAIN_IDS.STELLAR:
-        return <Stellar />;
-      default:
-        return null;
-    }
-  };
 
   const titleAmountContent = (() => {
     if (paymentState.isDepositFlow) {
@@ -106,27 +79,18 @@ export const OrderHeader = ({
       return null;
     }
 
-    const chainLogo = selectedChainId ? chainToLogo[selectedChainId] : null;
-
     return (
-      <WalletIconWrapper>
-        <LogoContainer
-          $size={size}
-          $zIndex={1}
-          style={{ borderRadius: "22.5%" }}
-        >
-          {typeof icon === "string" ? (
-            <img
-              src={icon}
-              alt={name || "wallet"}
-              style={{ maxWidth: "100%", maxHeight: "100%" }}
-            />
-          ) : (
-            icon
-          )}
-        </LogoContainer>
-        {chainLogo && <ChainLogoBadge>{chainLogo}</ChainLogoBadge>}
-      </WalletIconWrapper>
+      <LogoContainer $size={size} $zIndex={1} style={{ borderRadius: "22.5%" }}>
+        {typeof icon === "string" ? (
+          <img
+            src={icon}
+            alt={name || "wallet"}
+            style={{ maxWidth: "100%", maxHeight: "100%" }}
+          />
+        ) : (
+          icon
+        )}
+      </LogoContainer>
     );
   };
 
@@ -344,31 +308,4 @@ const SubtitleContainer = styled.div`
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-`;
-
-const WalletIconWrapper = styled.div`
-  position: relative;
-  display: inline-block;
-`;
-
-const ChainLogoBadge = styled(motion.div)`
-  position: absolute;
-  bottom: -5px;
-  right: 0px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 15px;
-  height: 15px;
-  overflow: hidden;
-  z-index: 10;
-  svg,
-  img {
-    display: block;
-    position: relative;
-    pointer-events: none;
-    overflow: hidden;
-    width: 100%;
-    height: 100%;
-  }
 `;

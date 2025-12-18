@@ -1,14 +1,4 @@
-import {
-  arbitrum,
-  base,
-  bsc,
-  Chain,
-  ethereum,
-  knownChains,
-  polygon,
-  solana,
-} from "@rozoai/intent-common";
-import React, { useCallback, useMemo } from "react";
+import React from "react";
 import { usePayContext } from "../../../hooks/usePayContext";
 
 import { ModalContent, PageContent } from "../../Common/Modal/styles";
@@ -16,7 +6,6 @@ import { ModalContent, PageContent } from "../../Common/Modal/styles";
 import WalletPaymentSpinner from "../../Spinners/WalletPaymentSpinner";
 
 import {
-  Arbitrum,
   Base,
   BinanceSmartChain,
   Ethereum,
@@ -32,104 +21,53 @@ const SelectWalletChain: React.FC = () => {
     usePayContext();
   const { selectedWallet } = paymentState;
 
-  // Narrow the wallet type to include solanaConnectorName.
-  const wallet = selectedWallet as WalletProps | undefined;
-
-  // Define chain options with their icons (must be called before early returns)
-  const chainConfigs = useMemo(() => {
-    const available = [
-      {
-        chain: ethereum,
-        icon: <Ethereum key="ethereum" />,
-        supported: knownChains.includes(ethereum.chainId),
-      },
-      {
-        chain: base,
-        icon: <Base key="base" />,
-        supported: knownChains.includes(base.chainId),
-      },
-      {
-        chain: polygon,
-        icon: <Polygon key="polygon" />,
-        supported: knownChains.includes(polygon.chainId),
-      },
-      {
-        chain: arbitrum,
-        icon: <Arbitrum key="arbitrum" />,
-        // Phantom doesn't support Arbitrum, so we don't show it for Phantom
-        supported:
-          knownChains.includes(arbitrum.chainId) &&
-          wallet?.id !== "app.phantom",
-      },
-      {
-        chain: bsc,
-        icon: <BinanceSmartChain key="bnb" />,
-        // Phantom doesn't support BSC, so we don't show it for Phantom
-        supported:
-          knownChains.includes(bsc.chainId) && wallet?.id !== "app.phantom",
-      },
-      {
-        chain: solana,
-        icon: <Solana key="solana" />,
-        supported: knownChains.includes(solana.chainId),
-      },
-    ];
-
-    if (
-      paymentState.payParams?.preferredTokens &&
-      paymentState.payParams?.preferredTokens.length > 0
-    ) {
-      return available.filter((config) =>
-        paymentState.payParams?.preferredTokens?.some(
-          (pt) => pt.chainId === config.chain.chainId
-        )
-      );
-    }
-
-    return available;
-  }, [knownChains, wallet?.id, paymentState.payParams?.preferredTokens]);
-
-  // Filter to only supported chains
-  const supportedChains = useMemo(
-    () => chainConfigs.filter((config) => config.supported),
-    [chainConfigs]
-  );
-
-  // Handle chain selection
-  const handleSelect = useCallback(
-    (chain: Chain) => {
-      if (!wallet) return;
-      if (chain.type === "evm") {
-        setPendingConnectorId(wallet.id);
-        setRoute(ROUTES.CONNECT, { chainId: chain.chainId });
-      } else if (chain.type === "solana") {
-        setSolanaConnector(wallet.solanaConnectorName);
-        setRoute(ROUTES.SOLANA_CONNECTOR, { chainId: chain.chainId });
-      }
-    },
-    [wallet, setPendingConnectorId, setRoute, setSolanaConnector]
-  );
-
-  const options = useMemo(
-    () =>
-      supportedChains.map((config) => ({
-        id: `chain-${config.chain.chainId}`,
-        title: config.chain.name,
-        icons: [config.icon],
-        iconsPosition: "left" as const,
-        onClick: () => handleSelect(config.chain),
-      })),
-    [supportedChains, handleSelect]
-  );
-
   if (selectedWallet == null) {
     return <PageContent></PageContent>;
   }
 
+  // Narrow the wallet type to include solanaConnectorName.
+  const wallet = selectedWallet as WalletProps;
+
   // If wallet only supports one chain, skip this page (fallback safety)
-  if (!wallet || !wallet.solanaConnectorName) {
+  if (!wallet.solanaConnectorName) {
     return <PageContent></PageContent>;
   }
+
+  function handleSelect(chain: "evm" | "solana") {
+    if (chain === "evm") {
+      setPendingConnectorId(wallet.id);
+      setRoute(ROUTES.CONNECT);
+    } else {
+      setSolanaConnector(wallet.solanaConnectorName);
+      setRoute(ROUTES.SOLANA_CONNECTOR);
+    }
+  }
+
+  const options = [
+    {
+      id: "ethereum",
+      title: "Ethereum",
+      icons: [<Ethereum key="ethereum" />],
+      rightIcons: [
+        <Base key="base" />,
+        <Polygon key="polygon" />,
+        // Phantom doesn't support BSC, so we don't show it for Phantom
+        ...(wallet.id !== "app.phantom"
+          ? [<BinanceSmartChain key="bnb" />]
+          : []),
+      ],
+      iconsPosition: "left" as const,
+      onClick: () => handleSelect("evm"),
+    },
+    {
+      id: "solana",
+      title: "Solana",
+      icons: [<Solana key="solana" />],
+      rightIcons: [<Solana key="solana" />],
+      iconsPosition: "left" as const,
+      onClick: () => handleSelect("solana"),
+    },
+  ];
 
   return (
     <PageContent>

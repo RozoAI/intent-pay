@@ -14,9 +14,6 @@ import {
   RozoPayHydratedOrderWithOrg,
   rozoSolana,
   rozoStellar,
-  supportedTokens,
-  Token,
-  TokenSymbol,
   writeRozoPayOrderID,
 } from "@rozoai/intent-common";
 import { AnimatePresence, Variants } from "framer-motion";
@@ -36,59 +33,6 @@ import {
 import { validatePayoutToken } from "../../utils/validatePayoutToken";
 import ThemedButton, { ThemeContainer } from "../Common/ThemedButton";
 import { RozoPayButtonCustomProps, RozoPayButtonProps } from "./types";
-
-/**
- * Converts preferredSymbol array to preferredTokens array.
- * Only USDC, USDT, and EURC symbols are allowed.
- * Finds tokens matching the symbols across supported chains (Base, Polygon, Ethereum, Solana, Stellar).
- */
-function convertPreferredSymbolsToTokens(
-  symbols: TokenSymbol[] | undefined,
-  existingPreferredTokens: Token[] | undefined
-): Token[] | undefined {
-  // If preferredTokens is explicitly provided, it takes precedence
-  // Even if it's an empty array, we respect it (means "no preferred tokens")
-  if (existingPreferredTokens !== undefined) {
-    return existingPreferredTokens;
-  }
-
-  // If no preferredSymbol provided, return undefined (will use defaults later)
-  if (!symbols || symbols.length === 0) {
-    return undefined;
-  }
-
-  // Validate that only allowed symbols are used
-  const allowedSymbols = [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.EURC];
-  const invalidSymbols = symbols.filter((s) => !allowedSymbols.includes(s));
-  if (invalidSymbols.length > 0) {
-    console.warn(
-      `[RozoPayButton] Invalid preferredSymbol values: ${invalidSymbols.join(
-        ", "
-      )}. Only USDC, USDT, and EURC are allowed.`
-    );
-    // Filter out invalid symbols
-    symbols = symbols.filter((s) => allowedSymbols.includes(s));
-    if (symbols.length === 0) {
-      return undefined;
-    }
-  }
-
-  // Filter supportedTokens by the provided symbols
-  // supportedTokens is a Map<chainId, Token[]> - this is what's used for wallet payment options
-  const tokens: Token[] = [];
-  const symbolSet = new Set(symbols);
-
-  // Iterate through all supported tokens (organized by chain)
-  for (const chainTokens of supportedTokens.values()) {
-    for (const token of chainTokens) {
-      if (symbolSet.has(token.symbol as TokenSymbol)) {
-        tokens.push(token);
-      }
-    }
-  }
-
-  return tokens.length > 0 ? tokens : undefined;
-}
 
 /**
  * A button that shows the Rozo Pay checkout. Replaces the traditional
@@ -154,21 +98,6 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         receiverMemo,
       } = props;
 
-      // Convert preferredSymbol to preferredTokens if needed
-      // Default to [USDC, USDT] if neither preferredSymbol nor preferredTokens is provided
-      // If preferredTokens is explicitly provided (even if empty array), it takes precedence
-      const symbolsToUse: TokenSymbol[] | undefined =
-        preferredTokens !== undefined
-          ? undefined // preferredTokens takes precedence, don't use preferredSymbol
-          : preferredSymbol !== undefined
-          ? preferredSymbol
-          : [TokenSymbol.USDC, TokenSymbol.USDT]; // Default to USDC and USDT
-
-      const finalPreferredTokens = convertPreferredSymbolsToTokens(
-        symbolsToUse,
-        preferredTokens
-      );
-
       const commonParams = {
         appId,
         toChain,
@@ -177,7 +106,8 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         intent,
         paymentOptions,
         preferredChains,
-        preferredTokens: finalPreferredTokens,
+        preferredTokens,
+        preferredSymbol,
         evmChains: undefined,
         externalId,
         metadata,

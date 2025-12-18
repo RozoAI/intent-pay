@@ -62,6 +62,7 @@ import {
   useSwitchChain,
   useWriteContract,
 } from "wagmi";
+import { convertPreferredSymbolsToTokens } from "../utils/token";
 
 import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
 import {
@@ -92,7 +93,6 @@ import { useRozoPay } from "./useDaimoPay";
 import { useDepositAddressOptions } from "./useDepositAddressOptions";
 import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
 import useIsMobile from "./useIsMobile";
-import { useLocalStorage } from "./useLocalStorage";
 import { useOrderUsdLimits } from "./useOrderUsdLimits";
 import { useSolanaPaymentOptions } from "./useSolanaPaymentOptions";
 import { useStellarPaymentOptions } from "./useStellarPaymentOptions";
@@ -146,8 +146,6 @@ export interface PaymentState {
   setPaymentWaitingMessage: (message: string | undefined) => void;
   tokenMode: "evm" | "solana" | "stellar" | "all";
   setTokenMode: (mode: "evm" | "solana" | "stellar" | "all") => void;
-  selectedChainId: number | undefined;
-  setSelectedChainId: (chainId: number | undefined) => void;
   setSelectedWallet: (wallet: WalletConfigProps | undefined) => void;
   setSelectedWalletDeepLink: (deepLink: string | undefined) => void;
   setSelectedExternalOption: (
@@ -226,9 +224,6 @@ export interface PaymentState {
   ) => Promise<PaymentResponse | undefined>;
 }
 
-export const SELECTED_CHAIN_ID_STORAGE_KEY =
-  "rozo-intent-pay-selected-chain-id";
-
 export function usePaymentState({
   trpc,
   lockPayParams,
@@ -252,13 +247,6 @@ export function usePaymentState({
   const depositAddressCallRef = useRef<Set<DepositAddressPaymentOptions>>(
     new Set()
   );
-
-  // Local storage state.
-  const {
-    data: selectedChainIdLocalStorage,
-    update,
-    clear,
-  } = useLocalStorage(SELECTED_CHAIN_ID_STORAGE_KEY);
 
   // Browser state.
   const [platform, setPlatform] = useState<PlatformType>();
@@ -308,37 +296,6 @@ export function usePaymentState({
   const [tokenMode, setTokenMode] = useState<
     "evm" | "solana" | "stellar" | "all"
   >("evm");
-
-  // Initialize selectedChainId from localStorage to persist across page refreshes
-  // useLocalStorage returns an array, so we extract the first element if it exists
-  const selectedChainId = useMemo(() => {
-    if (
-      !selectedChainIdLocalStorage ||
-      !Array.isArray(selectedChainIdLocalStorage) ||
-      selectedChainIdLocalStorage.length === 0
-    ) {
-      return undefined;
-    }
-    const firstItem = selectedChainIdLocalStorage[0];
-    // Handle number directly or string that can be parsed
-    if (typeof firstItem === "number") {
-      return firstItem;
-    }
-    if (typeof firstItem === "string") {
-      const parsed = parseInt(firstItem, 10);
-      return !isNaN(parsed) ? parsed : undefined;
-    }
-    return undefined;
-  }, [selectedChainIdLocalStorage]);
-
-  // Wrapper function to persist selectedChainId to localStorage
-  const setSelectedChainId = useCallback((chainId: number | undefined) => {
-    if (chainId !== undefined) {
-      update([chainId]);
-    } else {
-      clear();
-    }
-  }, []);
 
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
   const [rozoPaymentId, setRozoPaymentId] = useState<string | undefined>(
@@ -1314,11 +1271,21 @@ export function usePaymentState({
     if (!payParams || lockPayParams) return;
     assert(payParams != null, "[SET PAY PARAMS] payParams cannot be null");
 
-    log("[SET PAY PARAMS] setting payParams", payParams);
+    // Convert preferredSymbol to preferredTokens if needed
+    const finalPreferredTokens = convertPreferredSymbolsToTokens(
+      payParams.preferredSymbol,
+      payParams.preferredTokens
+    );
+    const updatedPayParams = {
+      ...payParams,
+      preferredTokens: finalPreferredTokens,
+    };
+
+    log("[SET PAY PARAMS] setting payParams", updatedPayParams);
     pay.reset();
-    await pay.createPreviewOrder(payParams);
-    setCurrPayParams(payParams);
-    setIsDepositFlow(payParams.toUnits == null);
+    await pay.createPreviewOrder(updatedPayParams);
+    setCurrPayParams(updatedPayParams);
+    setIsDepositFlow(updatedPayParams.toUnits == null);
   };
 
   const generatePreviewOrder = async () => {
@@ -1331,7 +1298,16 @@ export function usePaymentState({
     async (payParams?: Partial<PayParams>) => {
       const mergedPayParams: PayParams | undefined =
         payParams != null && currPayParams != null
-          ? { ...currPayParams, ...payParams }
+          ? {
+              ...currPayParams,
+              // If we are providing new preferredSymbols but NOT providing new preferredTokens,
+              // we must clear the inherited preferredTokens so they can be recalculated from the symbols.
+              ...(payParams.preferredSymbol !== undefined &&
+              payParams.preferredTokens === undefined
+                ? { preferredTokens: undefined }
+                : {}),
+              ...payParams,
+            }
           : currPayParams;
 
       // Clear the old order & state
@@ -1347,21 +1323,31 @@ export function usePaymentState({
 
       // Set the new payParams
       if (mergedPayParams) {
-        if (mergedPayParams.toChain === rozoStellar.chainId) {
-          mergedPayParams.toStellarAddress = mergedPayParams.toAddress;
-          mergedPayParams.toAddress = getAddress(
+        // Convert preferredSymbol to preferredTokens if needed
+        const finalPreferredTokens = convertPreferredSymbolsToTokens(
+          mergedPayParams.preferredSymbol,
+          mergedPayParams.preferredTokens
+        );
+        const updatedPayParams = {
+          ...mergedPayParams,
+          preferredTokens: finalPreferredTokens,
+        };
+
+        if (updatedPayParams.toChain === rozoStellar.chainId) {
+          updatedPayParams.toStellarAddress = updatedPayParams.toAddress;
+          updatedPayParams.toAddress = getAddress(
             "0x0000000000000000000000000000000000000000"
           );
-        } else if (mergedPayParams.toChain === rozoSolana.chainId) {
-          mergedPayParams.toSolanaAddress = mergedPayParams.toAddress;
-          mergedPayParams.toAddress = getAddress(
+        } else if (updatedPayParams.toChain === rozoSolana.chainId) {
+          updatedPayParams.toSolanaAddress = updatedPayParams.toAddress;
+          updatedPayParams.toAddress = getAddress(
             "0x0000000000000000000000000000000000000000"
           );
         }
 
-        await pay.createPreviewOrder(mergedPayParams);
-        setCurrPayParams(mergedPayParams);
-        setIsDepositFlow(mergedPayParams.toUnits == null);
+        await pay.createPreviewOrder(updatedPayParams);
+        setCurrPayParams(updatedPayParams);
+        setIsDepositFlow(updatedPayParams.toUnits == null);
       }
 
       setRoute(ROUTES.SELECT_METHOD);
@@ -1383,8 +1369,6 @@ export function usePaymentState({
     payParams: currPayParams,
     tokenMode,
     setTokenMode,
-    selectedChainId,
-    setSelectedChainId,
     generatePreviewOrder,
     isDepositFlow,
     paymentWaitingMessage,

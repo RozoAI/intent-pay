@@ -1,4 +1,4 @@
-import { getChainName, Token } from "@rozoai/intent-common";
+import { Token } from "@rozoai/intent-common";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useMemo, useState } from "react";
 import { injected, useAccount } from "wagmi";
@@ -129,7 +129,6 @@ export default function SelectToken() {
       {isEmptyOptionsList && !noConnectedWallet && (
         <NoTokensAvailable
           onRefresh={refreshOptions}
-          chainId={paymentState.selectedChainId}
           preferredTokens={paymentState.payParams?.preferredTokens}
         />
       )}
@@ -159,10 +158,8 @@ function NoConnectedWallet() {
 function NoTokensAvailable({
   onRefresh,
   preferredTokens,
-  chainId,
 }: {
   onRefresh: () => Promise<void>;
-  chainId: number | undefined;
   preferredTokens?: Token[];
 }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -213,13 +210,6 @@ function NoTokensAvailable({
     );
   }, [supportedSymbols]);
 
-  const formattedChainName = useMemo(() => {
-    if (chainId) {
-      return getChainName(chainId);
-    }
-    return null;
-  }, [chainId]);
-
   return (
     <ModalContent
       style={{
@@ -240,7 +230,7 @@ function NoTokensAvailable({
         }}
       >
         We can&apos;t find any supported tokens ({formattedTokens}) in your
-        account {formattedChainName ? `on ${formattedChainName}` : ""}.
+        account.
       </ModalBody>
       <Button
         variant="secondary"
