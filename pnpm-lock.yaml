@@ -45,11 +45,11 @@ importers:
         specifier: ^2.2.8
         version: 2.2.10(@tanstack/react-query@5.90.12(react@18.2.0))(@types/react@18.3.27)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.9.3)(viem@2.43.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))(wagmi@2.19.5(@react-native-async-storage/async-storage@1.24.0(react-native@0.83.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@5.0.10)))(@tanstack/query-core@5.90.12)(@tanstack/react-query@5.90.12(react@18.2.0))(@types/react@18.3.27)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(react-native@0.83.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@5.0.10))(react@18.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.43.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))(ws@8.18.3(bufferutil@4.1.0)(utf-8-validate@5.0.10))(zod@3.25.76))
       '@rozoai/intent-common':
-        specifier: 0.1.7-beta.2
-        version: 0.1.7-beta.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+        specifier: 0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@rozoai/intent-pay':
-        specifier: 0.1.7-beta.7
-        version: 0.1.7-beta.7(bfb1684fa1f65a6a0ae3a9f23c74d5fa)
+        specifier: 0.1.7
+        version: 0.1.7(bfb1684fa1f65a6a0ae3a9f23c74d5fa)
       '@tanstack/react-query':
         specifier: ^5.51.11
         version: 5.90.12(react@18.2.0)
@@ -127,8 +127,8 @@ importers:
         specifier: ^12.1.2
         version: 12.3.0(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.3)
       '@rozoai/intent-common':
-        specifier: 0.1.7-beta.2
-        version: 0.1.7-beta.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+        specifier: 0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@solana/spl-token':
         specifier: ^0.4.14
         version: 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -1440,11 +1440,11 @@ packages:
       rollup:
         optional: true
 
-  '@rozoai/intent-common@0.1.7-beta.2':
-    resolution: {integrity: sha512-SCILy4hnWADcqAyth1XcQeLNNC3lvfjWBLb9UBnERQz80P6XFEaBx9MwUXO8/70XxCkU/uowywpdJd+HW5gGog==}
+  '@rozoai/intent-common@0.1.7':
+    resolution: {integrity: sha512-TRS8bPxvDziehrsT/Jd0ew8XJAB9ijaLtphNpvckWWxeXtECfIsAm2yBz1JlfnOQ5TjpzeqHyVIwMWzoIO/R9w==}
 
-  '@rozoai/intent-pay@0.1.7-beta.7':
-    resolution: {integrity: sha512-vsjzfsTEhtweUsmMCcYPJNDMo77BGHVreo/wecLJcF2ewpoOBwNYH07fX9bh2khSxQ0lBnhf5bzKFxtocid53w==}
+  '@rozoai/intent-pay@0.1.7':
+    resolution: {integrity: sha512-l0ZnxcN94dzV/vywFm4FndPi1m6voSnPM08qM28BTqY4PDQ23xfNSW5R0I7tOHMjUtnk21kd2S4IDN7j5atq2Q==}
     engines: {node: '>=12.4'}
     peerDependencies:
       '@creit.tech/stellar-wallets-kit': ^1.9.5
@@ -9201,7 +9201,7 @@ snapshots:
     optionalDependencies:
       rollup: 3.29.5
 
-  '@rozoai/intent-common@0.1.7-beta.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
+  '@rozoai/intent-common@0.1.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@scure/base': 1.2.6
       '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -9215,13 +9215,13 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@rozoai/intent-pay@0.1.7-beta.7(bfb1684fa1f65a6a0ae3a9f23c74d5fa)':
+  '@rozoai/intent-pay@0.1.7(bfb1684fa1f65a6a0ae3a9f23c74d5fa)':
     dependencies:
       '@albedo-link/intent': 0.13.0
       '@creit.tech/stellar-wallets-kit': 1.9.5(1f0d5702d8ede882cd8a7014007b62a9)
       '@reown/appkit': 1.8.15(@react-native-async-storage/async-storage@1.24.0(react-native@0.83.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@5.0.10)))(@types/react@18.3.27)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(react@18.2.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(ws@8.18.3(bufferutil@4.1.0)(utf-8-validate@5.0.10))(zod@3.25.76)
       '@rollup/plugin-typescript': 12.3.0(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.3)
-      '@rozoai/intent-common': 0.1.7-beta.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@rozoai/intent-common': 0.1.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@solana/spl-token': 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@solana/wallet-adapter-base': 0.9.27(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))
       '@solana/wallet-adapter-react': 0.15.39(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bs58@6.0.0)(fastestsmallesttextencoderdecoder@1.0.22)(react-native@0.83.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@5.0.10))(react@18.2.0)(typescript@5.9.3)
@@ -13648,7 +13648,7 @@ snapshots:
       eslint: 8.57.1
       eslint-import-resolver-node: 0.3.9
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.50.0(eslint@8.57.1)(typescript@5.9.3))(eslint@8.57.1))(eslint@8.57.1)
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.50.0(eslint@8.57.1)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.50.0(eslint@8.57.1)(typescript@5.9.3))(eslint@8.57.1))(eslint@8.57.1))(eslint@8.57.1)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.50.0(eslint@8.57.1)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@8.57.1)
       eslint-plugin-jsx-a11y: 6.10.2(eslint@8.57.1)
       eslint-plugin-react: 7.37.5(eslint@8.57.1)
       eslint-plugin-react-hooks: 5.0.0-canary-7118f5dd7-20230705(eslint@8.57.1)
@@ -13678,7 +13678,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.50.0(eslint@8.57.1)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.50.0(eslint@8.57.1)(typescript@5.9.3))(eslint@8.57.1))(eslint@8.57.1))(eslint@8.57.1)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.50.0(eslint@8.57.1)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@8.57.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -13693,7 +13693,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.50.0(eslint@8.57.1)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.50.0(eslint@8.57.1)(typescript@5.9.3))(eslint@8.57.1))(eslint@8.57.1))(eslint@8.57.1):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.50.0(eslint@8.57.1)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@8.57.1):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9

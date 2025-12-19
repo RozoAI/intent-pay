@@ -3,6 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
+import {
+  createRefreshFunction,
+  setupRefreshState,
+  shouldSkipRefresh,
+} from "./refreshUtils";
 import { useSupportedChains } from "./useSupportedChains";
 
 /**
@@ -31,7 +36,7 @@ export function useWalletPaymentOptions({
   destChainId,
   isDepositFlow,
   payParams,
-  log,
+  log: _log,
 }: {
   trpc: TrpcClient;
   address: string | undefined;
@@ -180,6 +185,7 @@ export function useWalletPaymentOptions({
       isApiCallInProgress.current = false;
       setIsLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     trpc,
     address,
@@ -190,14 +196,57 @@ export function useWalletPaymentOptions({
     memoizedPreferredTokens,
     stableAppId,
     // evmChainIds is derived from chains and is stable, so we don't need it in deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
 
-  // // Create refresh function using shared utility
-  // const refreshOptions = createRefreshFunction(fetchBalances, {
-  //   lastExecutedParams,
-  //   isApiCallInProgress,
-  // });
+  // Create refresh function using shared utility
+  const refreshOptions = createRefreshFunction(fetchBalances, {
+    lastExecutedParams,
+    isApiCallInProgress,
+  });
+
+  useEffect(() => {
+    if (
+      address == null ||
+      usdRequired == null ||
+      destChainId == null ||
+      stableAppId == null
+    )
+      return;
+
+    const fullParamsKey = JSON.stringify({
+      address,
+      usdRequired,
+      destChainId,
+      isDepositFlow,
+      stableAppId,
+      memoizedPreferredChains,
+      memoizedPreferredTokens,
+    });
+
+    // Skip if we've already executed with these exact parameters
+    if (
+      shouldSkipRefresh(fullParamsKey, {
+        lastExecutedParams,
+        isApiCallInProgress,
+      })
+    ) {
+      return;
+    }
+
+    // Set up refresh state
+    setupRefreshState(fullParamsKey, {
+      lastExecutedParams,
+      isApiCallInProgress,
+    });
+  }, [
+    address,
+    usdRequired,
+    destChainId,
+    isDepositFlow,
+    stableAppId,
+    memoizedPreferredChains,
+    memoizedPreferredTokens,
+  ]);
 
   // Initial fetch when hook mounts with valid parameters or when key parameters change
   useEffect(() => {
@@ -207,14 +256,21 @@ export function useWalletPaymentOptions({
       destChainId != null &&
       stableAppId != null
     ) {
-      fetchBalances();
+      refreshOptions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address, usdRequired, destChainId, stableAppId, memoizedPreferredTokens]);
+  }, [
+    address,
+    usdRequired,
+    destChainId,
+    stableAppId,
+    memoizedPreferredChains,
+    memoizedPreferredTokens,
+  ]);
 
   return {
     options: filteredOptions,
     isLoading,
-    refreshOptions: fetchBalances,
+    refreshOptions,
   };
 }
