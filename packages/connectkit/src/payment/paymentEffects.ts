@@ -1,6 +1,7 @@
 import {
   ApiVersion,
   assert,
+  baseEURC,
   baseUSDC,
   CreateNewPaymentParams,
   createPayment,
@@ -390,8 +391,15 @@ async function runHydratePayParamsEffects(
       ? Number(toUnits)
       : Number(toUnits) - Number(walletOption?.fees.usd ?? 0);
 
+  const toTokenAddress = order.destFinalCallTokenAmount.token.token;
   const toChain = getOrderDestChainId(order);
-  const toToken = order.destFinalCallTokenAmount.token.token;
+  const toToken = getKnownToken(toChain, toTokenAddress);
+
+  if (!toToken) {
+    throw new Error(
+      `Token not found for chain ${toChain} and token ${toTokenAddress}`
+    );
+  }
 
   /**
    * ROZO API CALL
@@ -407,15 +415,24 @@ async function runHydratePayParamsEffects(
     toAddress = payParams.toStellarAddress;
   }
 
+  // TODO: If we want to add another currency OR EUR support for other chains
+
+  const isNonUSDToken = toToken.fiatISO !== "USD";
+
   const preferredChain =
-    walletOption?.required.token.chainId ?? baseUSDC.chainId;
+    walletOption?.required.token.chainId ?? !isNonUSDToken
+      ? baseUSDC.chainId
+      : baseEURC.chainId;
   const preferredTokenAddress =
-    walletOption?.required.token.token ?? baseUSDC.token;
+    walletOption?.required.token.token ?? !isNonUSDToken
+      ? baseUSDC.token
+      : baseEURC.token;
+
   const title =
     payParams?.metadata?.intent ??
     generateIntentTitle({
       toChainId: toChain,
-      toTokenAddress: toToken,
+      toTokenAddress: toTokenAddress,
       preferredChainId: preferredChain,
       preferredTokenAddress: preferredTokenAddress,
     });
@@ -440,7 +457,7 @@ async function runHydratePayParamsEffects(
       description: payParams?.metadata?.description ?? "",
       feeType,
       toChain,
-      toToken,
+      toToken: toTokenAddress,
       toAddress,
       toUnits: calculatedToUnits.toFixed(2),
       preferredChain,

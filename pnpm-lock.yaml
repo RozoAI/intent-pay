@@ -48,8 +48,8 @@ importers:
         specifier: 0.1.7
         version: 0.1.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@rozoai/intent-pay':
-        specifier: 0.1.7
-        version: 0.1.7(bfb1684fa1f65a6a0ae3a9f23c74d5fa)
+        specifier: 0.1.8
+        version: 0.1.8(bfb1684fa1f65a6a0ae3a9f23c74d5fa)
       '@tanstack/react-query':
         specifier: ^5.51.11
         version: 5.90.12(react@18.2.0)
@@ -1443,8 +1443,8 @@ packages:
   '@rozoai/intent-common@0.1.7':
     resolution: {integrity: sha512-TRS8bPxvDziehrsT/Jd0ew8XJAB9ijaLtphNpvckWWxeXtECfIsAm2yBz1JlfnOQ5TjpzeqHyVIwMWzoIO/R9w==}
 
-  '@rozoai/intent-pay@0.1.7':
-    resolution: {integrity: sha512-l0ZnxcN94dzV/vywFm4FndPi1m6voSnPM08qM28BTqY4PDQ23xfNSW5R0I7tOHMjUtnk21kd2S4IDN7j5atq2Q==}
+  '@rozoai/intent-pay@0.1.8':
+    resolution: {integrity: sha512-nL1RFiPDm4D6UqOf5Li5L0UB6JETHFE5dZFCpl0oqFGQh8G4V0cUc8khZ9/YG8mYiM2nzveHiy3BhOD9+Fw/4g==}
     engines: {node: '>=12.4'}
     peerDependencies:
       '@creit.tech/stellar-wallets-kit': ^1.9.5
@@ -3242,8 +3242,8 @@ packages:
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
-  baseline-browser-mapping@2.9.10:
-    resolution: {integrity: sha512-2VIKvDx8Z1a9rTB2eCkdPE5nSe28XnA+qivGnWHoB40hMMt/h1hSz0960Zqsn6ZyxWXUie0EBdElKv8may20AA==}
+  baseline-browser-mapping@2.9.11:
+    resolution: {integrity: sha512-Sg0xJUNDU1sJNGdfGWhVHX0kkZ+HWcvmVymJbj6NSgZZmW/8S9Y2HQ5euytnIgakgxN6papOAWiwDo1ctFDcoQ==}
     hasBin: true
 
   bchaddrjs@0.5.2:
@@ -9215,7 +9215,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@rozoai/intent-pay@0.1.7(bfb1684fa1f65a6a0ae3a9f23c74d5fa)':
+  '@rozoai/intent-pay@0.1.8(bfb1684fa1f65a6a0ae3a9f23c74d5fa)':
     dependencies:
       '@albedo-link/intent': 0.13.0
       '@creit.tech/stellar-wallets-kit': 1.9.5(1f0d5702d8ede882cd8a7014007b62a9)
@@ -12822,7 +12822,7 @@ snapshots:
 
   base64-js@1.5.1: {}
 
-  baseline-browser-mapping@2.9.10: {}
+  baseline-browser-mapping@2.9.11: {}
 
   bchaddrjs@0.5.2:
     dependencies:
@@ -12898,7 +12898,7 @@ snapshots:
 
   browserslist@4.28.1:
     dependencies:
-      baseline-browser-mapping: 2.9.10
+      baseline-browser-mapping: 2.9.11
       caniuse-lite: 1.0.30001761
       electron-to-chromium: 1.5.267
       node-releases: 2.0.27
