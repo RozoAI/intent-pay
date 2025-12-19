@@ -55,3 +55,4 @@ export function convertPreferredSymbolsToTokens(
 
   return tokens.length > 0 ? tokens : undefined;
 }
+

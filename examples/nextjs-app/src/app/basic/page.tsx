@@ -502,6 +502,20 @@ export default function DemoBasic() {
                 </div>
                 <div>
                   <dt className="font-mono font-semibold text-blue-800">
+                    preferredSymbol
+                  </dt>
+                  <dd className="text-gray-700 ml-4">
+                    Preferred token symbols (USDC, USDT, EURC). These tokens
+                    will appear first in the token selection list. Defaults to{" "}
+                    <code className="bg-blue-100 px-1 rounded">
+                      [USDC, USDT]
+                    </code>
+                    . Automatically finds matching tokens across all supported
+                    chains.
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-mono font-semibold text-blue-800">
                     onPaymentStarted / onPaymentCompleted
                   </dt>
                   <dd className="text-gray-700 ml-4">

@@ -62,15 +62,22 @@ export function useWalletPaymentOptions({
   const memoizedPreferredChains = useMemo(
     () => payParams?.preferredChains,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [payParams]
+    [JSON.stringify(payParams?.preferredChains)]
   );
   const memoizedPreferredTokens = useMemo(
     () => payParams?.preferredTokens,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [payParams]
+    [JSON.stringify(payParams?.preferredTokens)]
   );
 
   const { chains, tokens } = useSupportedChains();
+
+  // Get EVM chain IDs from supported chains
+  const evmChainIds = useMemo(() => {
+    return new Set(
+      chains.filter((c) => c.type === "evm").map((c) => c.chainId)
+    );
+  }, [chains]);
 
   const filteredOptions = useMemo(() => {
     if (!options) return [];
@@ -151,14 +158,17 @@ export function useWalletPaymentOptions({
     setIsLoading(true);
 
     try {
+      // Filter preferredTokenAddress to only include EVM chain tokens
+      const evmPreferredTokenAddresses = (memoizedPreferredTokens ?? [])
+        .filter((t) => evmChainIds.has(t.chainId))
+        .map((t) => t.token);
+
       const newOptions = await trpc.getWalletPaymentOptions.query({
         payerAddress: address,
         usdRequired: isDepositFlow ? undefined : usdRequired,
         destChainId,
         preferredChains: memoizedPreferredChains,
-        // preferredTokenAddress: (memoizedPreferredTokens ?? [])?.map(
-        //   (t) => t.token
-        // ),
+        preferredTokenAddress: evmPreferredTokenAddresses,
         appId: stableAppId,
       });
 
@@ -179,6 +189,8 @@ export function useWalletPaymentOptions({
     memoizedPreferredChains,
     memoizedPreferredTokens,
     stableAppId,
+    // evmChainIds is derived from chains and is stable, so we don't need it in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
 
   // // Create refresh function using shared utility
@@ -197,7 +209,8 @@ export function useWalletPaymentOptions({
     ) {
       fetchBalances();
     }
-  }, [address, usdRequired, destChainId, stableAppId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, usdRequired, destChainId, stableAppId, memoizedPreferredTokens]);
 
   return {
     options: filteredOptions,

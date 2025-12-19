@@ -195,6 +195,9 @@ export const RozoPayModal: React.FC<{
         setSelectedStellarTokenOption(undefined);
         context.setRoute(ROUTES.SELECT_TOKEN, meta);
       }
+    } else if (context.route === ROUTES.SELECT_WALLET_CHAIN) {
+      setSelectedWallet(undefined);
+      context.setRoute(ROUTES.CONNECTORS, meta);
     } else {
       context.setRoute(ROUTES.SELECT_METHOD, meta);
     }

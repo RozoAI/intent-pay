@@ -1,6 +1,7 @@
 import {
   getChainName,
   RozoPayToken,
+  Token,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import { useCallback, useEffect, useRef } from "react";
@@ -29,6 +30,9 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     setSelectedSolanaTokenOption,
     setSelectedStellarTokenOption,
   } = paymentState;
+
+  // Get preferredTokens from payParams for prioritization
+  const preferredTokens = paymentState.payParams?.preferredTokens;
 
   const optionsList: Option[] = [];
   let isLoading = false;
@@ -94,7 +98,8 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
           evmOptionsRaw,
           isDepositFlow,
           setSelectedTokenOption,
-          setRoute
+          setRoute,
+          preferredTokens
         );
     optionsList.push(...evmOptions);
     isLoading ||= walletPaymentOptions.isLoading;
@@ -109,7 +114,8 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
       solanaOptionsRaw,
       isDepositFlow,
       setSelectedSolanaTokenOption,
-      setRoute
+      setRoute,
+      preferredTokens
     );
     optionsList.push(...solanaOptions);
     isLoading ||= solanaPaymentOptions.isLoading;
@@ -125,16 +131,50 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
           stellarOptionsRaw,
           isDepositFlow,
           setSelectedStellarTokenOption,
-          setRoute
+          setRoute,
+          preferredTokens
         );
     optionsList.push(...stellarOptions);
     isLoading ||= stellarPaymentOptions.isLoading;
     hasAnyData ||= stellarOptionsRaw.length > 0;
   }
 
+  // Helper function to check if a token option matches preferredTokens
+  const isTokenPreferred = (option: Option): boolean => {
+    if (!preferredTokens || preferredTokens.length === 0) return false;
+
+    // Extract chainId and token address from option id (format: "chainId-tokenAddress")
+    // Split on first dash only to handle edge cases where token address might contain dashes
+    const dashIndex = option.id.indexOf("-");
+    if (dashIndex === -1) return false;
+
+    const chainIdStr = option.id.substring(0, dashIndex);
+    const tokenAddress = option.id.substring(dashIndex + 1);
+    const chainId = parseInt(chainIdStr, 10);
+
+    if (isNaN(chainId)) return false;
+
+    const normalizeAddress = (addr: string) => addr.toLowerCase();
+
+    return preferredTokens.some(
+      (pt) =>
+        pt.chainId === chainId &&
+        normalizeAddress(pt.token) === normalizeAddress(tokenAddress)
+    );
+  };
+
   optionsList.sort((a, b) => {
+    // First: sort by disabled state (enabled tokens first)
     const dDisabled = (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0);
     if (dDisabled !== 0) return dDisabled;
+
+    // Second: prioritize preferred tokens (preferred tokens first)
+    const aIsPreferred = isTokenPreferred(a);
+    const bIsPreferred = isTokenPreferred(b);
+    const dPreferred = (bIsPreferred ? 1 : 0) - (aIsPreferred ? 1 : 0);
+    if (dPreferred !== 0) return dPreferred;
+
+    // Third: sort by balance USD (highest first) within each group
     const dSort = (b.sortValue ?? 0) - (a.sortValue ?? 0);
     return dSort;
   });
@@ -355,7 +395,8 @@ function getEvmTokenOptions(
   options: WalletPaymentOption[],
   isDepositFlow: boolean,
   setSelectedTokenOption: (option: WalletPaymentOption) => void,
-  setRoute: (route: ROUTES, meta?: any) => void
+  setRoute: (route: ROUTES, meta?: any) => void,
+  _preferredTokens?: Token[]
 ) {
   return options.map((option) => {
     const chainName = getChainName(option.balance.token.chainId);
@@ -406,7 +447,8 @@ function getSolanaTokenOptions(
   options: WalletPaymentOption[],
   isDepositFlow: boolean,
   setSelectedSolanaTokenOption: (option: WalletPaymentOption) => void,
-  setRoute: (route: ROUTES, meta?: any) => void
+  setRoute: (route: ROUTES, meta?: any) => void,
+  _preferredTokens?: Token[]
 ) {
   return options.map((option) => {
     const titlePrice = isDepositFlow
@@ -455,7 +497,8 @@ function getStellarTokenOptions(
   options: WalletPaymentOption[],
   isDepositFlow: boolean,
   setSelectedStellarTokenOption: (option: WalletPaymentOption) => void,
-  setRoute: (route: ROUTES, meta?: any) => void
+  setRoute: (route: ROUTES, meta?: any) => void,
+  _preferredTokens?: Token[]
 ) {
   return options.map((option) => {
     const titlePrice = isDepositFlow
