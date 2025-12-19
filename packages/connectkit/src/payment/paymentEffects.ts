@@ -417,16 +417,18 @@ async function runHydratePayParamsEffects(
 
   // TODO: If we want to add another currency OR EUR support for other chains
 
-  const isNonUSDToken = toToken.fiatISO !== "USD";
+  let preferredChain = 0;
+  let preferredTokenAddress = "";
 
-  const preferredChain =
-    walletOption?.required.token.chainId ?? !isNonUSDToken
-      ? baseUSDC.chainId
-      : baseEURC.chainId;
-  const preferredTokenAddress =
-    walletOption?.required.token.token ?? !isNonUSDToken
-      ? baseUSDC.token
-      : baseEURC.token;
+  if (walletOption) {
+    preferredChain = walletOption.required.token.chainId;
+    preferredTokenAddress = walletOption.required.token.token;
+  } else {
+    const isNonUSDToken = toToken.fiatISO !== "USD";
+
+    preferredChain = isNonUSDToken ? baseEURC.chainId : baseUSDC.chainId;
+    preferredTokenAddress = isNonUSDToken ? baseEURC.token : baseUSDC.token;
+  }
 
   const title =
     payParams?.metadata?.intent ??
