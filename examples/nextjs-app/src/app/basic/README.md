@@ -29,15 +29,19 @@ This demo showcases a minimal implementation of `RozoPayButton` that enables cro
 The main payment component that handles the entire payment flow:
 
 ```typescript
+import { TokenSymbol } from "@rozoai/intent-common";
+import { RozoPayButton } from "@rozoai/intent-pay";
+
 <RozoPayButton
   appId="your-app-id"
   toChain={chainId}
   toAddress={recipientAddress}
   toToken={tokenAddress}
   toUnits={amount}
+  preferredSymbol={[TokenSymbol.USDC, TokenSymbol.USDT]}
   onPaymentStarted={(event) => console.log(event)}
   onPaymentCompleted={(event) => console.log(event)}
-/>
+/>;
 ```
 
 ### Event Callbacks
@@ -48,6 +52,48 @@ Track payment lifecycle with built-in callbacks:
 - `onPaymentCompleted`: Triggered when payment is confirmed on-chain
 - `onPayoutCompleted`: Triggered when funds arrive at destination
 
+### Preferred Token Symbols
+
+The `preferredSymbol` prop allows you to specify which token symbols should appear first in the token selection list. This is useful for prioritizing specific stablecoins across all supported chains.
+
+**Key Features:**
+
+- **Supported Symbols**: Only `USDC`, `USDT`, and `EURC` are allowed
+- **Default Behavior**: If not provided, defaults to `[USDC, USDT]`
+- **Cross-Chain**: Automatically finds matching tokens across all supported chains (Base, Polygon, Ethereum, Solana, Stellar)
+- **Precedence**: If `preferredTokens` is explicitly provided, it takes precedence over `preferredSymbol`
+
+**Example Usage:**
+
+```typescript
+import { TokenSymbol } from "@rozoai/intent-common";
+
+// Prioritize USDC and USDT (default)
+<RozoPayButton
+  preferredSymbol={[TokenSymbol.USDC, TokenSymbol.USDT]}
+  // ... other props
+/>
+
+// Prioritize EURC only
+<RozoPayButton
+  preferredSymbol={[TokenSymbol.EURC]}
+  // ... other props
+/>
+
+// Multiple preferred symbols
+<RozoPayButton
+  preferredSymbol={[TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.EURC]}
+  // ... other props
+/>
+```
+
+**How It Works:**
+
+- The `preferredSymbol` array is internally converted to a `preferredTokens` array
+- The SDK searches for all tokens matching the specified symbols across supported chains
+- These tokens are then prioritized in the token selection UI
+- Invalid symbols are filtered out with a console warning
+
 ## Developer Notes
 
 - Uses `react-syntax-highlighter` for clean code display
@@ -57,21 +103,24 @@ Track payment lifecycle with built-in callbacks:
 
 ## Props Reference
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `appId` | `string` | Your RozoAI Intent Pay application ID |
-| `toChain` | `number` | Destination blockchain network ID |
-| `toAddress` | `Address` | Recipient wallet address (checksummed) |
-| `toToken` | `Address` | Token contract address to receive |
-| `toUnits` | `string` | Amount in token's smallest unit |
-| `onPaymentStarted` | `(event) => void` | Payment initiation callback |
-| `onPaymentCompleted` | `(event) => void` | Payment completion callback |
+| Prop                 | Type              | Description                                                                                                                         |
+| -------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `appId`              | `string`          | Your RozoAI Intent Pay application ID                                                                                               |
+| `toChain`            | `number`          | Destination blockchain network ID                                                                                                   |
+| `toAddress`          | `Address`         | Recipient wallet address (checksummed)                                                                                              |
+| `toToken`            | `Address`         | Token contract address to receive                                                                                                   |
+| `toUnits`            | `string`          | Amount in token's smallest unit                                                                                                     |
+| `preferredSymbol`    | `TokenSymbol[]`   | Preferred token symbols (USDC, USDT, EURC). These tokens will appear first in the token selection list. Defaults to `[USDC, USDT]`. |
+| `onPaymentStarted`   | `(event) => void` | Payment initiation callback                                                                                                         |
+| `onPaymentCompleted` | `(event) => void` | Payment completion callback                                                                                                         |
 
 ## Cross-Chain Payments
 
 For Stellar/Solana destinations, use bridge configuration:
 
 ```typescript
+import { TokenSymbol } from "@rozoai/intent-common";
+
 <RozoPayButton
   appId="your-app-id"
   toChain={8453} // Base Chain
@@ -79,7 +128,8 @@ For Stellar/Solana destinations, use bridge configuration:
   toAddress="0x..." // Any EVM address
   toStellarAddress="GABC..." // or toSolanaAddress
   toUnits="1000000"
-/>
+  preferredSymbol={[TokenSymbol.USDC, TokenSymbol.USDT]}
+/>;
 ```
 
 ## Learn More

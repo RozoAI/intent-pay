@@ -254,6 +254,7 @@ export default function WaitingDepositAddress() {
         // Fetch fee using amount and appId before generating deposit address
         if (amount && payParams?.appId) {
           try {
+            // @TODO: Handle fee calculation for other currencies
             const feeResponse = await getFee({
               currency: "USD",
               type: payParams?.feeType ?? FeeType.ExactIn,

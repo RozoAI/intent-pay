@@ -20,13 +20,7 @@ const OptionsContainer = styled.div`
 
 export default function SelectAnotherMethodButton() {
   const { paymentState, setRoute } = usePayContext();
-  const {
-    externalPaymentOptions,
-    showSolanaPaymentMethod,
-    showStellarPaymentMethod,
-    tokenMode,
-    payParams,
-  } = paymentState;
+  const { externalPaymentOptions, tokenMode, payParams } = paymentState;
   const { connector } = useAccount();
   const { order } = useRozoPay();
   const paymentOptions = order?.metadata.payer?.paymentOptions;

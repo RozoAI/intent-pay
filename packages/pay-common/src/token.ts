@@ -59,6 +59,32 @@ export enum TokenLogo {
   XLM = "https://imagedelivery.net/AKLvTMvIg6yc9W08fHl1Tg/839e9764-9a82-4ffc-cadb-a0968a451100/public",
 }
 
+export enum TokenSymbol {
+  AVAX = "AVAX",
+  AXL_USDC = "axlUSDC",
+  BNB = "BNB",
+  CELO = "CELO",
+  cUSD = "cUSD",
+  DAI = "DAI",
+  EURC = "EURC",
+  MNT = "MNT",
+  POL = "POL",
+  SOL = "SOL",
+  USDC = "USDC",
+  USDbC = "USDbC",
+  USDCe = "USDCe",
+  USDT = "USDT",
+  WBNB = "WBNB",
+  WBTC = "WBTC",
+  WETH = "WETH",
+  WLD = "WLD",
+  WMNT = "WMNT",
+  WPOL = "WPOL",
+  WSOL = "WSOL",
+  XDAI = "XDAI",
+  XLM = "XLM",
+}
+
 /* --------------------- Tokens Constants --------------------- */
 
 //
@@ -72,7 +98,7 @@ export const arbitrumWETH: Token = token({
   token: getAddress("0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"),
   decimals: 18,
   name: "Wrapped Ether",
-  symbol: "WETH",
+  symbol: TokenSymbol.WETH,
   logoURI: TokenLogo.WETH,
 });
 
@@ -80,7 +106,7 @@ export const arbitrumUSDC: Token = token({
   chainId: arbitrum.chainId,
   token: getAddress("0xaf88d065e77c8cC2239327C5EDb3A432268e5831"),
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   fiatISO: "USD",
   decimals: 6,
   logoURI: TokenLogo.USDC,
@@ -92,7 +118,7 @@ export const arbitrumAxlUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Axelar Wrapped USDC",
-  symbol: "axlUSDC",
+  symbol: TokenSymbol.AXL_USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -102,7 +128,7 @@ export const arbitrumDAI: Token = token({
   decimals: 18,
   fiatISO: "USD",
   name: "Dai Stablecoin",
-  symbol: "DAI",
+  symbol: TokenSymbol.DAI,
   logoURI: TokenLogo.DAI,
 });
 
@@ -112,7 +138,7 @@ export const arbitrumUSDT: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Tether USD",
-  symbol: "USDT",
+  symbol: TokenSymbol.USDT,
   logoURI: TokenLogo.USDT,
 });
 
@@ -122,7 +148,7 @@ export const arbitrumUSDCe: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Bridged USD Coin",
-  symbol: "USDCe",
+  symbol: TokenSymbol.USDCe,
   logoURI: TokenLogo.USDC,
 });
 
@@ -147,7 +173,7 @@ export const baseWETH: Token = token({
   token: getAddress("0x4200000000000000000000000000000000000006"),
   decimals: 18,
   name: "Wrapped Ether",
-  symbol: "WETH",
+  symbol: TokenSymbol.WETH,
   logoURI: TokenLogo.WETH,
 });
 
@@ -155,7 +181,7 @@ export const baseUSDC: Token = token({
   chainId: base.chainId,
   token: getAddress("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   fiatISO: "USD",
   decimals: 6,
   logoURI: TokenLogo.USDC,
@@ -167,7 +193,7 @@ export const baseEURC: Token = token({
   decimals: 6,
   fiatISO: "EUR",
   name: "EURC",
-  symbol: "EURC",
+  symbol: TokenSymbol.EURC,
   logoURI: TokenLogo.EURC,
 });
 
@@ -175,7 +201,7 @@ export const baseUSDbC: Token = token({
   chainId: base.chainId,
   token: getAddress("0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA"),
   name: "Bridged USD Coin", // USDbC has a bad name & logo on CoinGecko
-  symbol: "USDbC",
+  symbol: TokenSymbol.USDbC,
   fiatISO: "USD",
   decimals: 6,
   logoURI: "https://pay.daimo.com/coin-logos/usdbc.png",
@@ -185,7 +211,7 @@ export const baseDAI: Token = token({
   chainId: base.chainId,
   token: getAddress("0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb"),
   name: "Dai Stablecoin",
-  symbol: "DAI",
+  symbol: TokenSymbol.DAI,
   fiatISO: "USD",
   decimals: 18,
   logoURI: TokenLogo.DAI,
@@ -195,7 +221,7 @@ export const baseUSDT: Token = token({
   chainId: base.chainId,
   token: getAddress("0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2"),
   name: "Tether USD",
-  symbol: "USDT",
+  symbol: TokenSymbol.USDT,
   fiatISO: "USD",
   decimals: 6,
   logoURI: TokenLogo.USDT,
@@ -207,7 +233,7 @@ export const baseAxlUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Axelar Wrapped USDC",
-  symbol: "axlUSDC",
+  symbol: TokenSymbol.AXL_USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -229,7 +255,7 @@ const baseTokens: Token[] = [
 export const bscBNB = nativeToken({
   chainId: bsc.chainId,
   name: "BNB",
-  symbol: "BNB",
+  symbol: TokenSymbol.BNB,
   logoURI: TokenLogo.BNB,
 });
 
@@ -238,7 +264,7 @@ export const bscWBNB: Token = token({
   token: getAddress("0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"),
   decimals: 18,
   name: "Wrapped BNB",
-  symbol: "WBNB",
+  symbol: TokenSymbol.WBNB,
   logoURI: TokenLogo.BNB,
 });
 
@@ -248,7 +274,7 @@ export const bscAxlUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Axelar Wrapped USDC",
-  symbol: "axlUSDC",
+  symbol: TokenSymbol.AXL_USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -258,7 +284,7 @@ export const bscUSDC: Token = token({
   decimals: 18,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -268,7 +294,7 @@ export const bscUSDT: Token = token({
   decimals: 18,
   fiatISO: "USD",
   name: "Tether USD",
-  symbol: "USDT",
+  symbol: TokenSymbol.USDT,
   logoURI: TokenLogo.USDT,
 });
 
@@ -284,7 +310,7 @@ export const celoCelo: Token = token({
   token: getAddress("0x471EcE3750Da237f93B8E339c536989b8978a438"),
   decimals: 18,
   name: "Celo",
-  symbol: "CELO",
+  symbol: TokenSymbol.CELO,
   logoURI: TokenLogo.CELO,
 });
 
@@ -294,7 +320,7 @@ export const celoAxlUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Axelar Wrapped USDC",
-  symbol: "axlUSDC",
+  symbol: TokenSymbol.AXL_USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -304,7 +330,7 @@ export const celoUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -314,7 +340,7 @@ export const celoUSDT: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Tether USD",
-  symbol: "USDT",
+  symbol: TokenSymbol.USDT,
   logoURI: TokenLogo.USDT,
 });
 
@@ -324,7 +350,7 @@ export const celoCUSD: Token = token({
   decimals: 18,
   fiatISO: "USD",
   name: "Celo Dollar",
-  symbol: "cUSD",
+  symbol: TokenSymbol.cUSD,
   logoURI: TokenLogo.cUSD,
 });
 
@@ -347,7 +373,7 @@ export const ethereumWETH: Token = token({
   token: getAddress("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
   decimals: 18,
   name: "Wrapped Ether",
-  symbol: "WETH",
+  symbol: TokenSymbol.WETH,
   logoURI: TokenLogo.WETH,
 });
 
@@ -357,7 +383,7 @@ export const ethereumUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -367,7 +393,7 @@ export const ethereumDAI: Token = token({
   decimals: 18,
   fiatISO: "USD",
   name: "Dai Stablecoin",
-  symbol: "DAI",
+  symbol: TokenSymbol.DAI,
   logoURI: TokenLogo.DAI,
 });
 
@@ -377,7 +403,7 @@ export const ethereumUSDT: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Tether USD",
-  symbol: "USDT",
+  symbol: TokenSymbol.USDT,
   logoURI: TokenLogo.USDT,
 });
 
@@ -387,7 +413,7 @@ export const ethereumEURC: Token = token({
   decimals: 6,
   fiatISO: "EUR",
   name: "EURC",
-  symbol: "EURC",
+  symbol: TokenSymbol.EURC,
   logoURI: TokenLogo.EURC,
 });
 
@@ -411,7 +437,7 @@ export const lineaWETH: Token = token({
   token: getAddress("0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f"),
   decimals: 18,
   name: "Wrapped Ether",
-  symbol: "WETH",
+  symbol: TokenSymbol.WETH,
   logoURI: TokenLogo.WETH,
 });
 
@@ -421,7 +447,7 @@ export const lineaUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -431,7 +457,7 @@ export const lineaAxlUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Axelar Wrapped USDC",
-  symbol: "axlUSDC",
+  symbol: TokenSymbol.AXL_USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -441,7 +467,7 @@ export const lineaDAI: Token = token({
   decimals: 18,
   fiatISO: "USD",
   name: "Dai Stablecoin",
-  symbol: "DAI",
+  symbol: TokenSymbol.DAI,
   logoURI: TokenLogo.DAI,
 });
 
@@ -460,7 +486,7 @@ const lineaTokens: Token[] = [
 export const mantleMNT = nativeToken({
   chainId: mantle.chainId,
   name: "Mantle",
-  symbol: "MNT",
+  symbol: TokenSymbol.MNT,
   logoURI: TokenLogo.MNT,
 });
 
@@ -469,7 +495,7 @@ export const mantleWMNT: Token = token({
   token: getAddress("0x78c1b0C915c4FAA5FffA6CAbf0219DA63d7f4cb8"),
   decimals: 18,
   name: "Wrapped Mantle",
-  symbol: "WMNT",
+  symbol: TokenSymbol.WMNT,
   logoURI: TokenLogo.MNT,
 });
 
@@ -479,7 +505,7 @@ export const mantleBridgedUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -489,7 +515,7 @@ export const mantleUSDT: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Tether USD",
-  symbol: "USDT",
+  symbol: TokenSymbol.USDT,
   logoURI: TokenLogo.USDT,
 });
 
@@ -499,7 +525,7 @@ export const mantleAxlUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Axelar Wrapped USDC",
-  symbol: "axlUSDC",
+  symbol: TokenSymbol.AXL_USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -522,7 +548,7 @@ export const optimismWETH: Token = token({
   token: getAddress("0x4200000000000000000000000000000000000006"),
   decimals: 18,
   name: "Wrapped Ether",
-  symbol: "WETH",
+  symbol: TokenSymbol.WETH,
   logoURI: TokenLogo.WETH,
 });
 
@@ -532,7 +558,7 @@ export const optimismUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -542,7 +568,7 @@ export const optimismAxlUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Axelar Wrapped USDC",
-  symbol: "axlUSDC",
+  symbol: TokenSymbol.AXL_USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -552,7 +578,7 @@ export const optimismDAI: Token = token({
   decimals: 18,
   fiatISO: "USD",
   name: "Dai Stablecoin",
-  symbol: "DAI",
+  symbol: TokenSymbol.DAI,
   logoURI: TokenLogo.DAI,
 });
 
@@ -562,7 +588,7 @@ export const optimismUSDT: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Tether USD",
-  symbol: "USDT",
+  symbol: TokenSymbol.USDT,
   logoURI: TokenLogo.USDT,
 });
 
@@ -572,7 +598,7 @@ export const optimismUSDCe: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Bridged USD Coin",
-  symbol: "USDCe",
+  symbol: TokenSymbol.USDCe,
   logoURI: TokenLogo.USDC,
 });
 
@@ -593,7 +619,7 @@ const optimismTokens = [
 export const polygonPOL = nativeToken({
   chainId: polygon.chainId,
   name: "Polygon",
-  symbol: "POL",
+  symbol: TokenSymbol.POL,
   logoURI: TokenLogo.POL,
 });
 
@@ -602,7 +628,7 @@ export const polygonWPOL: Token = token({
   token: getAddress("0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270"),
   decimals: 18,
   name: "Wrapped Polygon",
-  symbol: "WPOL",
+  symbol: TokenSymbol.WPOL,
   logoURI: TokenLogo.POL,
 });
 
@@ -611,7 +637,7 @@ export const polygonWETH: Token = token({
   token: getAddress("0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"),
   decimals: 18,
   name: "Wrapped Ether",
-  symbol: "WETH",
+  symbol: TokenSymbol.WETH,
   logoURI: TokenLogo.WETH,
 });
 
@@ -621,7 +647,7 @@ export const polygonUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -631,7 +657,7 @@ export const polygonAxlUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Axelar Wrapped USDC",
-  symbol: "axlUSDC",
+  symbol: TokenSymbol.AXL_USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -641,7 +667,7 @@ export const polygonDAI: Token = token({
   decimals: 18,
   fiatISO: "USD",
   name: "Dai Stablecoin",
-  symbol: "DAI",
+  symbol: TokenSymbol.DAI,
   logoURI: TokenLogo.DAI,
 });
 
@@ -651,7 +677,7 @@ export const polygonUSDT: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Tether USD",
-  symbol: "USDT",
+  symbol: TokenSymbol.USDT,
   logoURI: TokenLogo.USDT,
 });
 
@@ -661,7 +687,7 @@ export const polygonUSDCe: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "USD Coin (PoS)",
-  symbol: "USDCe",
+  symbol: TokenSymbol.USDCe,
   logoURI: TokenLogo.USDC,
 });
 
@@ -683,7 +709,7 @@ const polygonTokens: Token[] = [
 export const solanaSOL = nativeToken({
   chainId: solana.chainId,
   name: "Solana",
-  symbol: "SOL",
+  symbol: TokenSymbol.SOL,
   logoURI: TokenLogo.SOL,
   token: "11111111111111111111111111111111",
   decimals: 9,
@@ -694,7 +720,7 @@ export const solanaWSOL: Token = token({
   token: "So11111111111111111111111111111111111111112",
   decimals: 9,
   name: "Wrapped SOL",
-  symbol: "WSOL",
+  symbol: TokenSymbol.WSOL,
   logoURI: TokenLogo.SOL,
 });
 
@@ -704,7 +730,7 @@ export const solanaUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -714,7 +740,7 @@ export const solanaUSDT: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Tether USD",
-  symbol: "USDT",
+  symbol: TokenSymbol.USDT,
   logoURI: TokenLogo.USDT,
 });
 
@@ -724,7 +750,7 @@ export const rozoSolanaUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -734,7 +760,7 @@ export const rozoSolanaUSDT: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Tether USD",
-  symbol: "USDT",
+  symbol: TokenSymbol.USDT,
   logoURI: TokenLogo.USDT,
 });
 
@@ -754,7 +780,7 @@ const solanaTokens: Token[] = [
 export const stellarXLM = nativeToken({
   chainId: stellar.chainId,
   name: "Stellar",
-  symbol: "XLM",
+  symbol: TokenSymbol.XLM,
   logoURI: TokenLogo.XLM,
   token: "11111111111111111111111111111111",
   decimals: 9,
@@ -766,7 +792,7 @@ export const stellarUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -776,11 +802,26 @@ export const rozoStellarUSDC: Token = token({
   decimals: 7,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
-const stellarTokens: Token[] = [stellarXLM, stellarUSDC, rozoStellarUSDC];
+export const rozoStellarEURC: Token = token({
+  chainId: rozoStellar.chainId,
+  token: "EURC:GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2",
+  decimals: 6,
+  fiatISO: "EUR",
+  name: "EURC",
+  symbol: TokenSymbol.EURC,
+  logoURI: TokenLogo.EURC,
+});
+
+const stellarTokens: Token[] = [
+  stellarXLM,
+  stellarUSDC,
+  rozoStellarUSDC,
+  rozoStellarEURC,
+];
 
 //
 // Worldchain
@@ -793,7 +834,7 @@ export const worldchainWETH: Token = token({
   token: getAddress("0x4200000000000000000000000000000000000006"),
   decimals: 18,
   name: "Wrapped Ether",
-  symbol: "WETH",
+  symbol: TokenSymbol.WETH,
   logoURI: TokenLogo.WETH,
 });
 
@@ -802,7 +843,7 @@ export const worldchainWBTC: Token = token({
   token: getAddress("0x03c7054bcb39f7b2e5b2c7acb37583e32d70cfa3"),
   decimals: 8,
   name: "Wrapped Bitcoin",
-  symbol: "WBTC",
+  symbol: TokenSymbol.WBTC,
   logoURI: TokenLogo.WBTC,
 });
 
@@ -812,7 +853,7 @@ export const worldchainUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -821,7 +862,7 @@ export const worldchainWLD: Token = token({
   token: getAddress("0x2cFc85d8E48F8EAB294be644d9E25C3030863003"),
   decimals: 18,
   name: "Worldcoin",
-  symbol: "WLD",
+  symbol: TokenSymbol.WLD,
   logoURI: TokenLogo.WLD,
 });
 
@@ -840,7 +881,7 @@ const worldchainTokens: Token[] = [
 export const gnosisXDAI = nativeToken({
   chainId: gnosis.chainId,
   name: "xDAI",
-  symbol: "XDAI",
+  symbol: TokenSymbol.XDAI,
   logoURI: TokenLogo.DAI,
 });
 
@@ -850,7 +891,7 @@ export const gnosisUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -860,7 +901,7 @@ export const gnosisUSDT: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Tether USD",
-  symbol: "USDT",
+  symbol: TokenSymbol.USDT,
   logoURI: TokenLogo.USDT,
 });
 
@@ -873,7 +914,7 @@ const gnosisTokens: Token[] = [gnosisXDAI, gnosisUSDC, gnosisUSDT];
 export const avalancheAVAX = nativeToken({
   chainId: avalanche.chainId,
   name: "Avalanche",
-  symbol: "AVAX",
+  symbol: TokenSymbol.AVAX,
   logoURI: TokenLogo.AVAX,
 });
 
@@ -883,7 +924,7 @@ export const avalancheUSDC: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "USD Coin",
-  symbol: "USDC",
+  symbol: TokenSymbol.USDC,
   logoURI: TokenLogo.USDC,
 });
 
@@ -893,7 +934,7 @@ export const avalancheUSDT: Token = token({
   decimals: 6,
   fiatISO: "USD",
   name: "Tether USD",
-  symbol: "USDT",
+  symbol: TokenSymbol.USDT,
   logoURI: TokenLogo.USDT,
 });
 
@@ -903,7 +944,7 @@ const avalancheTokens: Token[] = [avalancheAVAX, avalancheUSDC, avalancheUSDT];
 export const supportedTokens: Map<number, Token[]> = new Map([
   [arbitrum.chainId, [arbitrumUSDC, arbitrumUSDT]],
   // [avalanche.chainId, [avalancheUSDC, avalancheUSDT]],
-  [base.chainId, [baseUSDC]],
+  [base.chainId, [baseUSDC, baseEURC]],
   [bsc.chainId, [bscUSDC, bscUSDT]],
   [ethereum.chainId, [ethereumUSDC, ethereumUSDT]],
   // [gnosis.chainId, [gnosisUSDC, gnosisUSDT]],
@@ -913,16 +954,16 @@ export const supportedTokens: Map<number, Token[]> = new Map([
 
   [solana.chainId, [solanaUSDC, solanaUSDT]],
   [rozoSolana.chainId, [rozoSolanaUSDC, rozoSolanaUSDT]],
-  [rozoStellar.chainId, [rozoStellarUSDC]],
+  [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC]],
 ]);
 
 export const supportedPayoutTokens: Map<number, Token[]> = new Map([
   [ethereum.chainId, [ethereumUSDC]],
-  [base.chainId, [baseUSDC]],
+  [base.chainId, [baseUSDC, baseEURC]],
   [polygon.chainId, [polygonUSDC]],
   // [solana.chainId, [solanaUSDC]],
   [rozoSolana.chainId, [rozoSolanaUSDC]],
-  [rozoStellar.chainId, [rozoStellarUSDC]],
+  [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC]],
 ]);
 
 // const knownTokensByChain = new Map<number, Token[]>([
@@ -949,7 +990,7 @@ export const supportedPayoutTokens: Map<number, Token[]> = new Map([
  * Pay is to accept all tokens with DEX liquidity on any major chain.
  */
 export const knownTokens: Token[] = Array.from(supportedTokens.values()).flat();
-
+export const knownChains: number[] = Array.from(supportedTokens.keys());
 /* --------------------- Tokens By Address --------------------- */
 
 const tokensByChainAddr = new Map<string, Token>(
@@ -970,6 +1011,7 @@ enum TokenType {
   WRAPPED_NATIVE = "WRAPPED_NATIVE",
   NATIVE_USDC = "NATIVE_USDC",
   BRIDGED_USDC = "BRIDGED_USDC",
+  NATIVE_EURC = "NATIVE_EURC",
   AXL_USDC = "AXL_USDC",
   DAI = "DAI",
 }
@@ -998,6 +1040,7 @@ const tokensByChainAndType: Map<
       [TokenType.BRIDGED_USDC]: baseUSDbC,
       [TokenType.AXL_USDC]: baseAxlUSDC,
       [TokenType.DAI]: baseDAI,
+      [TokenType.NATIVE_EURC]: baseEURC,
     },
   ],
   [
@@ -1096,6 +1139,7 @@ const tokensByChainAndType: Map<
     {
       [TokenType.NATIVE]: stellarXLM,
       [TokenType.NATIVE_USDC]: rozoStellarUSDC,
+      [TokenType.NATIVE_EURC]: rozoStellarEURC,
     },
   ],
   [

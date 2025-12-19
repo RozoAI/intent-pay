@@ -3,6 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
+import {
+  createRefreshFunction,
+  setupRefreshState,
+  shouldSkipRefresh,
+} from "./refreshUtils";
 import { useSupportedChains } from "./useSupportedChains";
 
 /**
@@ -29,20 +34,14 @@ export function useWalletPaymentOptions({
   address,
   usdRequired,
   destChainId,
-  preferredChains,
-  preferredTokens,
-  evmChains,
   isDepositFlow,
   payParams,
-  log,
+  log: _log,
 }: {
   trpc: TrpcClient;
   address: string | undefined;
   usdRequired: number | undefined;
   destChainId: number | undefined;
-  preferredChains: number[] | undefined;
-  preferredTokens: { chain: number; address: string }[] | undefined;
-  evmChains: number[] | undefined;
   isDepositFlow: boolean;
   payParams: PayParams | undefined;
   log: (msg: string) => void;
@@ -66,28 +65,29 @@ export function useWalletPaymentOptions({
   // Notice the load-bearing JSON.stringify() to prevent a visible infinite
   // refresh glitch on the SelectMethod screen. Replace this useEffect().
   const memoizedPreferredChains = useMemo(
-    () => preferredChains,
+    () => payParams?.preferredChains,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(preferredChains)]
+    [JSON.stringify(payParams?.preferredChains)]
   );
   const memoizedPreferredTokens = useMemo(
-    () => preferredTokens,
+    () => payParams?.preferredTokens,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(preferredTokens)]
-  );
-  const memoizedEvmChains = useMemo(
-    () => evmChains,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(evmChains)]
+    [JSON.stringify(payParams?.preferredTokens)]
   );
 
-  const { chains, tokens } = useSupportedChains(
-    stableAppId,
-    memoizedPreferredChains ?? []
-  );
+  const { chains, tokens } = useSupportedChains();
+
+  // Get EVM chain IDs from supported chains
+  const evmChainIds = useMemo(() => {
+    return new Set(
+      chains.filter((c) => c.type === "evm").map((c) => c.chainId)
+    );
+  }, [chains]);
 
   const filteredOptions = useMemo(() => {
     if (!options) return [];
+
+    const normalizeAddress = (addr: string) => addr.toLowerCase();
 
     // Filter out chains/tokens we don't support yet in wallet payment options
     const isSupported = (o: WalletPaymentOption) =>
@@ -96,27 +96,50 @@ export function useWalletPaymentOptions({
           c.chainId === o.balance.token.chainId &&
           tokens.some((t) => t.token === o.balance.token.token)
       );
-    return options.filter(isSupported).map((item) => {
-      const usd = isDepositFlow ? 0 : usdRequired || 0;
 
-      const value: WalletPaymentOption = {
-        ...item,
-        required: {
-          ...item.required,
-          usd,
-        },
-      };
-
-      // Set `disabledReason` manually (based on current usdRequired state, not API Request)
-      if (item.balance.usd < usd) {
-        value.disabledReason = `Balance too low: $${item.balance.usd.toFixed(
-          2
-        )}`;
+    // If preferredTokens is provided and not empty, filter by matching chainId and token address
+    const matchesPreferredTokens = (o: WalletPaymentOption) => {
+      if (!memoizedPreferredTokens || memoizedPreferredTokens.length === 0) {
+        return true; // Show all if no memoizedPreferredTokens specified
       }
+      return memoizedPreferredTokens.some(
+        (pt) =>
+          pt.chainId === o.balance.token.chainId &&
+          normalizeAddress(pt.token) === normalizeAddress(o.balance.token.token)
+      );
+    };
 
-      return value;
-    }) as WalletPaymentOption[];
-  }, [options, chains, tokens, isDepositFlow, usdRequired]);
+    return options
+      .filter(isSupported)
+      .filter(matchesPreferredTokens)
+      .map((item) => {
+        const usd = isDepositFlow ? 0 : usdRequired || 0;
+
+        const value: WalletPaymentOption = {
+          ...item,
+          required: {
+            ...item.required,
+            usd,
+          },
+        };
+
+        // Set `disabledReason` manually (based on current usdRequired state, not API Request)
+        if (item.balance.usd < usd) {
+          value.disabledReason = `Balance too low: $${item.balance.usd.toFixed(
+            2
+          )}`;
+        }
+
+        return value;
+      }) as WalletPaymentOption[];
+  }, [
+    options,
+    chains,
+    tokens,
+    isDepositFlow,
+    usdRequired,
+    memoizedPreferredTokens,
+  ]);
 
   // Smart clearing: only clear if we don't have data for this address
   useEffect(() => {
@@ -140,13 +163,17 @@ export function useWalletPaymentOptions({
     setIsLoading(true);
 
     try {
+      // Filter preferredTokenAddress to only include EVM chain tokens
+      const evmPreferredTokenAddresses = (memoizedPreferredTokens ?? [])
+        .filter((t) => evmChainIds.has(t.chainId))
+        .map((t) => t.token);
+
       const newOptions = await trpc.getWalletPaymentOptions.query({
         payerAddress: address,
         usdRequired: isDepositFlow ? undefined : usdRequired,
         destChainId,
         preferredChains: memoizedPreferredChains,
-        preferredTokens: memoizedPreferredTokens,
-        evmChains: memoizedEvmChains,
+        preferredTokenAddress: evmPreferredTokenAddresses,
         appId: stableAppId,
       });
 
@@ -158,6 +185,7 @@ export function useWalletPaymentOptions({
       isApiCallInProgress.current = false;
       setIsLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     trpc,
     address,
@@ -166,15 +194,59 @@ export function useWalletPaymentOptions({
     isDepositFlow,
     memoizedPreferredChains,
     memoizedPreferredTokens,
-    memoizedEvmChains,
     stableAppId,
+    // evmChainIds is derived from chains and is stable, so we don't need it in deps
   ]);
 
-  // // Create refresh function using shared utility
-  // const refreshOptions = createRefreshFunction(fetchBalances, {
-  //   lastExecutedParams,
-  //   isApiCallInProgress,
-  // });
+  // Create refresh function using shared utility
+  const refreshOptions = createRefreshFunction(fetchBalances, {
+    lastExecutedParams,
+    isApiCallInProgress,
+  });
+
+  useEffect(() => {
+    if (
+      address == null ||
+      usdRequired == null ||
+      destChainId == null ||
+      stableAppId == null
+    )
+      return;
+
+    const fullParamsKey = JSON.stringify({
+      address,
+      usdRequired,
+      destChainId,
+      isDepositFlow,
+      stableAppId,
+      memoizedPreferredChains,
+      memoizedPreferredTokens,
+    });
+
+    // Skip if we've already executed with these exact parameters
+    if (
+      shouldSkipRefresh(fullParamsKey, {
+        lastExecutedParams,
+        isApiCallInProgress,
+      })
+    ) {
+      return;
+    }
+
+    // Set up refresh state
+    setupRefreshState(fullParamsKey, {
+      lastExecutedParams,
+      isApiCallInProgress,
+    });
+  }, [
+    address,
+    usdRequired,
+    destChainId,
+    isDepositFlow,
+    stableAppId,
+    memoizedPreferredChains,
+    memoizedPreferredTokens,
+  ]);
 
   // Initial fetch when hook mounts with valid parameters or when key parameters change
   useEffect(() => {
@@ -184,13 +256,21 @@ export function useWalletPaymentOptions({
       destChainId != null &&
       stableAppId != null
     ) {
-      fetchBalances();
+      refreshOptions();
     }
-  }, [address, usdRequired, destChainId, stableAppId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    address,
+    usdRequired,
+    destChainId,
+    stableAppId,
+    memoizedPreferredChains,
+    memoizedPreferredTokens,
+  ]);
 
   return {
     options: filteredOptions,
     isLoading,
-    refreshOptions: fetchBalances,
+    refreshOptions,
   };
 }

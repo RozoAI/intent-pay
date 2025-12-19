@@ -104,7 +104,7 @@ export default function ErrorPage() {
         };
       default:
         return {
-          title: "Payment Error",
+          title: "Payment Unavailable",
           message: errorMsg,
           canRetry: true,
           showSupport: true,

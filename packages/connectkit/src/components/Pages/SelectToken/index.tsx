@@ -1,3 +1,4 @@
+import { Token } from "@rozoai/intent-common";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useMemo, useState } from "react";
 import { injected, useAccount } from "wagmi";
@@ -10,7 +11,13 @@ import { usePayContext } from "../../../hooks/usePayContext";
 import { useTokenOptions } from "../../../hooks/useTokenOptions";
 import { useStellar } from "../../../provider/StellarContextProvider";
 import Button from "../../Common/Button";
-import { ModalContent, ModalH1, PageContent } from "../../Common/Modal/styles";
+import { OrDivider } from "../../Common/Modal";
+import {
+  ModalBody,
+  ModalContent,
+  ModalH1,
+  PageContent,
+} from "../../Common/Modal/styles";
 import { OptionsList } from "../../Common/OptionsList";
 import { OrderHeader } from "../../Common/OrderHeader";
 import SelectAnotherMethodButton from "../../Common/SelectAnotherMethodButton";
@@ -96,7 +103,7 @@ export default function SelectToken() {
   ]);
 
   // Prevent showing "Insufficient balance" too quickly to avoid flickering
-  const showInsufficientBalance = useMemo(() => {
+  const isEmptyOptionsList = useMemo(() => {
     return !isLoading && isConnected && optionsList.length === 0;
   }, [isLoading, isConnected, optionsList.length]);
 
@@ -119,13 +126,21 @@ export default function SelectToken() {
           hideBottomLine={!isAnotherMethodButtonVisible}
         />
       )}
-      {showInsufficientBalance && !noConnectedWallet && (
-        <InsufficientBalance onRefresh={refreshOptions} />
+      {isEmptyOptionsList && !noConnectedWallet && (
+        <NoTokensAvailable
+          onRefresh={refreshOptions}
+          preferredTokens={paymentState.payParams?.preferredTokens}
+        />
       )}
       {!isLoading && !isConnected && effectiveTokenMode === "all" && (
         <ConnectButton />
       )}
-      {isAnotherMethodButtonVisible && <SelectAnotherMethodButton />}
+      {isAnotherMethodButtonVisible && (
+        <>
+          {isEmptyOptionsList && <OrDivider />}
+          <SelectAnotherMethodButton />
+        </>
+      )}
       {noConnectedWallet && <NoConnectedWallet />}
     </PageContent>
   );
@@ -140,10 +155,12 @@ function NoConnectedWallet() {
   );
 }
 
-function InsufficientBalance({
+function NoTokensAvailable({
   onRefresh,
+  preferredTokens,
 }: {
   onRefresh: () => Promise<void>;
+  preferredTokens?: Token[];
 }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -152,11 +169,46 @@ function InsufficientBalance({
     try {
       await onRefresh();
     } catch (error) {
-      console.error("Failed to refresh balances:", error);
+      console.error("Failed to refresh tokens:", error);
     } finally {
       setIsRefreshing(false);
     }
   };
+
+  // Get supported token symbols from preferredTokens if available
+  const supportedSymbols = useMemo(() => {
+    if (preferredTokens && preferredTokens.length > 0) {
+      return Array.from(new Set(preferredTokens.map((pt) => pt.symbol)));
+    }
+    return [];
+  }, [preferredTokens]);
+
+  // Format token symbols for display
+  const formattedTokens = useMemo(() => {
+    if (supportedSymbols.length === 0) {
+      return "supported tokens";
+    }
+    if (supportedSymbols.length === 1) {
+      return <strong>{supportedSymbols[0]}</strong>;
+    }
+    if (supportedSymbols.length === 2) {
+      return (
+        <>
+          <strong>{supportedSymbols[0]}</strong> and{" "}
+          <strong>{supportedSymbols[1]}</strong>
+        </>
+      );
+    }
+    // For 3+ tokens, show first two and "others"
+    const firstTwo = supportedSymbols.slice(0, 2);
+    const remaining = supportedSymbols.length - 2;
+    return (
+      <>
+        <strong>{firstTwo[0]}</strong>, <strong>{firstTwo[1]}</strong>
+        {remaining > 0 && `, and ${remaining} other${remaining > 1 ? "s" : ""}`}
+      </>
+    );
+  }, [supportedSymbols]);
 
   return (
     <ModalContent
@@ -165,12 +217,21 @@ function InsufficientBalance({
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        paddingTop: 16,
-        paddingBottom: 16,
-        gap: 16,
+        paddingTop: 24,
+        paddingBottom: 0,
+        gap: 20,
       }}
     >
-      <ModalH1>Insufficient balance</ModalH1>
+      <ModalH1>No tokens available</ModalH1>
+      <ModalBody
+        style={{
+          margin: "0 auto",
+          padding: "0 12px",
+        }}
+      >
+        We can&apos;t find any supported tokens ({formattedTokens}) in your
+        account.
+      </ModalBody>
       <Button
         variant="secondary"
         onClick={handleRefresh}

@@ -1,4 +1,4 @@
-import { rozoSolanaUSDC, WalletPaymentOption } from "@rozoai/intent-common";
+import { WalletPaymentOption } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
@@ -7,6 +7,7 @@ import {
   setupRefreshState,
   shouldSkipRefresh,
 } from "./refreshUtils";
+import { useSupportedChains } from "./useSupportedChains";
 
 /** Wallet payment options. User picks one. */
 export function useSolanaPaymentOptions({
@@ -34,15 +35,46 @@ export function useSolanaPaymentOptions({
   // Track if we have initial data to prevent clearing options on refresh (prevents flickering)
   const hasInitialData = useRef<boolean>(false);
 
+  const { chains } = useSupportedChains();
+
+  // Get Solana chain IDs from supported chains
+  const solanaChainIds = useMemo(() => {
+    return new Set(
+      chains.filter((c) => c.type === "solana").map((c) => c.chainId)
+    );
+  }, [chains]);
+
   const stableAppId = useMemo(() => {
     return payParams?.appId;
   }, [payParams]);
 
+  const memoizedPreferredTokens = useMemo(
+    () => payParams?.preferredTokens,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(payParams?.preferredTokens)]
+  );
+
   const filteredOptions = useMemo(() => {
     if (!options) return [];
 
+    const preferredTokens = payParams?.preferredTokens;
+    const normalizeAddress = (addr: string) => addr.toLowerCase();
+
     return options
-      .filter((option) => option.balance.token.token === rozoSolanaUSDC.token)
+      .filter((option) => {
+        // If preferredTokens is not provided or empty, show all options
+        if (!preferredTokens || preferredTokens.length === 0) {
+          return true;
+        }
+
+        // Filter by matching chainId and token address
+        return preferredTokens.some(
+          (pt) =>
+            pt.chainId === option.balance.token.chainId &&
+            normalizeAddress(pt.token) ===
+              normalizeAddress(option.balance.token.token)
+        );
+      })
       .map((item) => {
         const usd = isDepositFlow ? 0 : usdRequired || 0;
 
@@ -63,7 +95,7 @@ export function useSolanaPaymentOptions({
 
         return value;
       }) as WalletPaymentOption[];
-  }, [options, isDepositFlow, usdRequired]);
+  }, [options, isDepositFlow, usdRequired, payParams?.preferredTokens]);
 
   // Shared fetch function for Solana payment options
   const fetchBalances = useCallback(async () => {
@@ -80,11 +112,17 @@ export function useSolanaPaymentOptions({
     }
 
     try {
+      // Filter preferredTokenAddress to only include Solana chain tokens
+      const solanaPreferredTokenAddresses = (memoizedPreferredTokens ?? [])
+        .filter((t) => solanaChainIds.has(t.chainId))
+        .map((t) => t.token);
+
       const newOptions = await trpc.getSolanaPaymentOptions.query({
         pubKey: address,
         // API expects undefined for deposit flow.
         usdRequired: isDepositFlow ? undefined : usdRequired,
         appId: stableAppId,
+        preferredTokenAddress: solanaPreferredTokenAddresses,
       });
       setOptions(newOptions);
       hasInitialData.current = true;
@@ -98,7 +136,14 @@ export function useSolanaPaymentOptions({
       isApiCallInProgress.current = false;
       setIsLoading(false);
     }
-  }, [address, usdRequired, isDepositFlow, trpc, stableAppId]);
+  }, [
+    address,
+    usdRequired,
+    isDepositFlow,
+    trpc,
+    stableAppId,
+    memoizedPreferredTokens,
+  ]);
 
   // Create refresh function using shared utility
   const refreshOptions = createRefreshFunction(fetchBalances, {
@@ -129,6 +174,7 @@ export function useSolanaPaymentOptions({
       usdRequired,
       isDepositFlow,
       stableAppId,
+      memoizedPreferredTokens,
     });
 
     // Skip if we've already executed with these exact parameters
@@ -146,7 +192,13 @@ export function useSolanaPaymentOptions({
       lastExecutedParams,
       isApiCallInProgress,
     });
-  }, [address, usdRequired, isDepositFlow, stableAppId]);
+  }, [
+    address,
+    usdRequired,
+    isDepositFlow,
+    stableAppId,
+    memoizedPreferredTokens,
+  ]);
 
   // Initial fetch when hook mounts with valid parameters or when key parameters change
   useEffect(() => {
@@ -154,7 +206,8 @@ export function useSolanaPaymentOptions({
       refreshOptions();
     }
     // refreshOptions is stable (created from fetchBalances which only changes when dependencies change)
-  }, [address, usdRequired, stableAppId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, usdRequired, stableAppId, memoizedPreferredTokens]);
 
   return {
     options: filteredOptions,

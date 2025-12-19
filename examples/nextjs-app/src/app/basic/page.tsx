@@ -2,12 +2,16 @@
 
 import * as Tokens from "@rozoai/intent-common";
 import {
+  baseEURC,
   FeeType,
   getChainName,
   getChainNativeToken,
+  getKnownToken,
   knownTokens,
   rozoSolana,
   rozoStellar,
+  rozoStellarEURC,
+  TokenSymbol,
 } from "@rozoai/intent-common";
 import {
   isEvmChain,
@@ -29,6 +33,7 @@ type Config = {
   chainId: number; // Destination chain ID
   tokenAddress: string;
   amount: string;
+  preferredSymbol: TokenSymbol[];
 };
 
 /**
@@ -117,6 +122,9 @@ export default function YourComponent() {
       toToken={${tokenCode}}
       toAddress={${addressCode}}
       toUnits="${config.amount}"
+      preferredSymbol={[${config.preferredSymbol
+        .map((s: TokenSymbol) => `TokenSymbol.${s}`)
+        .join(", ")}]}
       onPaymentStarted={(event) => {
         console.log("Payment started:", event);
       }}
@@ -178,11 +186,42 @@ export default function DemoBasic() {
   } as Config);
   const [parsedConfig, setParsedConfig] = useState<Config | null>(null);
   const { resetPayment } = useRozoPayUI();
+  const [preferredSymbol, setPreferredSymbol] = useState<TokenSymbol[]>([
+    TokenSymbol.USDC,
+    TokenSymbol.USDT,
+  ]);
+  const [eurcValidationError, setEurcValidationError] = useState<string>("");
 
   const handleSetConfig = useCallback(
-    (newConfig: Config) => {
-      setConfig(newConfig);
-      setParsedConfig(newConfig);
+    (newConfig: Config, symbols?: TokenSymbol[]) => {
+      const symbolsToUse = symbols ?? preferredSymbol;
+
+      // Validate EURC: EURC can only be sent to EURC
+      const hasEURC = symbolsToUse.includes(TokenSymbol.EURC);
+      if (hasEURC && newConfig.tokenAddress) {
+        const destinationToken = getKnownToken(
+          newConfig.chainId,
+          newConfig.tokenAddress
+        );
+        const isDestinationEURC = destinationToken?.symbol === TokenSymbol.EURC;
+
+        if (!isDestinationEURC) {
+          setEurcValidationError(
+            `EURC can only be sent to another EURC. Please select an EURC token as the destination token.`
+          );
+          return; // Don't update config if validation fails
+        }
+      }
+
+      // Clear error if validation passes
+      setEurcValidationError("");
+
+      const configWithSymbols = {
+        ...newConfig,
+        preferredSymbol: symbolsToUse,
+      };
+      setConfig(configWithSymbols);
+      setParsedConfig(configWithSymbols);
 
       // NOTE: This is used to reset the payment state when the config changes
       const isEvm = isEvmChain(newConfig.chainId);
@@ -197,16 +236,16 @@ export default function DemoBasic() {
       } else {
         payParams.toAddress = newConfig.recipientAddress;
         payParams.toToken = newConfig.tokenAddress;
-        // if (isStellarChain(newConfig.chainId)) {
-        //   payParams.toStellarAddress = newConfig.recipientAddress;
-        // } else if (isSolanaChain(newConfig.chainId)) {
-        //   payParams.toSolanaAddress = newConfig.recipientAddress;
-        // }
       }
 
-      resetPayment(payParams);
+      const params = {
+        ...payParams,
+        preferredSymbol: symbolsToUse,
+      };
+      console.log("params", params);
+      resetPayment(params);
     },
-    [setConfig, resetPayment]
+    [setConfig, resetPayment, preferredSymbol]
   );
 
   useEffect(() => {
@@ -233,6 +272,10 @@ export default function DemoBasic() {
         chainId: getConfig.chainId || 0,
         tokenAddress: getConfig.tokenAddress || "",
         amount: getConfig.amount || "",
+        preferredSymbol: getConfig.preferredSymbol || [
+          TokenSymbol.USDC,
+          TokenSymbol.USDT,
+        ],
       };
 
       // Validate and clean up config
@@ -243,8 +286,32 @@ export default function DemoBasic() {
         "chainId" in parsedConfig &&
         "tokenAddress" in parsedConfig
       ) {
+        // Validate EURC: EURC can only be sent to EURC
+        const hasEURC = parsedConfig.preferredSymbol?.includes(
+          TokenSymbol.EURC
+        );
+        if (hasEURC && parsedConfig.tokenAddress && parsedConfig.chainId) {
+          const destinationToken = getKnownToken(
+            parsedConfig.chainId,
+            parsedConfig.tokenAddress
+          );
+          const isDestinationEURC =
+            destinationToken?.symbol === TokenSymbol.EURC;
+
+          if (!isDestinationEURC) {
+            // Reset preferredSymbol to default if EURC validation fails
+            parsedConfig.preferredSymbol = [TokenSymbol.USDC, TokenSymbol.USDT];
+            setEurcValidationError(
+              `EURC can only be sent to another EURC. Configuration has been reset to default.`
+            );
+          }
+        }
+
         setConfig(parsedConfig);
         setParsedConfig(parsedConfig);
+        if (parsedConfig.preferredSymbol) {
+          setPreferredSymbol(parsedConfig.preferredSymbol);
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -258,6 +325,41 @@ export default function DemoBasic() {
     parsedConfig.tokenAddress &&
     parsedConfig.amount;
 
+  // Check if destination token is Base EURC or Stellar EURC
+  const isDestinationEURC = useMemo(() => {
+    if (!parsedConfig || !parsedConfig.tokenAddress || !parsedConfig.chainId) {
+      return false;
+    }
+
+    const destinationToken = getKnownToken(
+      parsedConfig.chainId,
+      parsedConfig.tokenAddress
+    );
+
+    if (!destinationToken) return false;
+
+    // Check if it's Base EURC
+    if (
+      parsedConfig.chainId === baseEURC.chainId &&
+      isEvmChain(parsedConfig.chainId)
+    ) {
+      try {
+        return (
+          getAddress(destinationToken.token) === getAddress(baseEURC.token)
+        );
+      } catch {
+        return destinationToken.token === baseEURC.token;
+      }
+    }
+
+    // Check if it's Stellar EURC
+    if (parsedConfig.chainId === rozoStellarEURC.chainId) {
+      return destinationToken.token === rozoStellarEURC.token;
+    }
+
+    return false;
+  }, [parsedConfig]);
+
   // Generate code snippet when config changes
   const codeSnippet = useMemo(() => {
     if (!hasValidConfig || !parsedConfig) return "";
@@ -270,6 +372,41 @@ export default function DemoBasic() {
     }),
     []
   );
+
+  // Toggle between [USDC, USDT] and [EURC]
+  const handleChangeCurrency = useCallback(() => {
+    const nextSymbols =
+      preferredSymbol.length === 1 && preferredSymbol[0] === TokenSymbol.EURC
+        ? [TokenSymbol.USDC, TokenSymbol.USDT]
+        : [TokenSymbol.EURC];
+
+    // If switching to EURC, find and set an EURC token for the current chain
+    if (nextSymbols.includes(TokenSymbol.EURC) && config.chainId) {
+      const eurcToken = knownTokens.find(
+        (t: any) =>
+          t.chainId === config.chainId && t.symbol === TokenSymbol.EURC
+      );
+
+      if (eurcToken) {
+        const updatedConfig: Config = {
+          ...config,
+          tokenAddress: eurcToken.token,
+          preferredSymbol: nextSymbols,
+        };
+        setPreferredSymbol(nextSymbols);
+        handleSetConfig(updatedConfig, nextSymbols);
+        return;
+      } else {
+        setEurcValidationError(
+          `EURC is not available on the selected chain. Please select a chain that supports EURC (Base, Ethereum, or Stellar).`
+        );
+        return;
+      }
+    }
+
+    setPreferredSymbol(nextSymbols);
+    handleSetConfig(config, nextSymbols);
+  }, [config, preferredSymbol, handleSetConfig]);
 
   return (
     <Container className="max-w-4xl mx-auto p-6">
@@ -285,6 +422,20 @@ export default function DemoBasic() {
         </Text>
       </div>
 
+      <div className="mb-4 flex items-center gap-4">
+        <button
+          onClick={handleChangeCurrency}
+          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium mx-auto"
+        >
+          Change currency
+        </button>
+        {eurcValidationError && (
+          <div className="flex-1 bg-red-50 border border-red-200 rounded-lg p-3">
+            <p className="text-sm text-red-800">{eurcValidationError}</p>
+          </div>
+        )}
+      </div>
+
       {/* Main Content */}
       <div className="flex flex-col items-center gap-6">
         {/* Payment Button Section */}
@@ -294,6 +445,14 @@ export default function DemoBasic() {
               <h2 className="text-xl font-semibold text-gray-800 mb-4">
                 Try the Payment
               </h2>
+              {isDestinationEURC && (
+                <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <p className="text-sm text-yellow-800">
+                    <strong>⚠️ EURC Restriction:</strong> EURC can only be sent
+                    to another EURC token. The destination token must be EURC.
+                  </p>
+                </div>
+              )}
               <div className="flex flex-col gap-3">
                 <RozoPayButton.Custom
                   appId={APP_ID}
@@ -311,8 +470,9 @@ export default function DemoBasic() {
                     console.log("✓ Payout completed:", e);
                   }}
                   feeType={FeeType.ExactOut}
-                  resetOnSuccess={true}
+                  preferredSymbol={preferredSymbol}
                   metadata={metadata}
+                  resetOnSuccess
                   showProcessingPayout
                 >
                   {(renderProps) => (
@@ -467,6 +627,26 @@ export default function DemoBasic() {
                 </div>
                 <div>
                   <dt className="font-mono font-semibold text-blue-800">
+                    preferredSymbol
+                  </dt>
+                  <dd className="text-gray-700 ml-4">
+                    Preferred token symbols (USDC, USDT, EURC). These tokens
+                    will appear first in the token selection list. Defaults to{" "}
+                    <code className="bg-blue-100 px-1 rounded">
+                      [USDC, USDT]
+                    </code>
+                    . Automatically finds matching tokens across all supported
+                    chains.
+                    <br />
+                    <strong className="text-red-600">
+                      ⚠️ Important: EURC can only be sent to another EURC token.
+                      If EURC is in preferredSymbol, the destination token must
+                      also be EURC.
+                    </strong>
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-mono font-semibold text-blue-800">
                     onPaymentStarted / onPaymentCompleted
                   </dt>
                   <dd className="text-gray-700 ml-4">
@@ -483,7 +663,7 @@ export default function DemoBasic() {
           configType="payment"
           isOpen={isConfigOpen}
           onClose={() => setIsConfigOpen(false)}
-          onConfirm={handleSetConfig}
+          onConfirm={(config) => handleSetConfig(config as Config)}
           defaultRecipientAddress={config.recipientAddress}
         />
       </div>

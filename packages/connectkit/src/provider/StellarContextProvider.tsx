@@ -37,7 +37,7 @@ type StellarContextProviderValue = {
 
 export type StellarWalletName = ISupportedWallet;
 
-const STELLAR_WALLET_STORAGE_KEY = "rozo-stellar-wallet";
+export const STELLAR_WALLET_STORAGE_KEY = "rozo-stellar-wallet";
 
 const initialContext: StellarContextProviderValue = {
   kit: undefined,

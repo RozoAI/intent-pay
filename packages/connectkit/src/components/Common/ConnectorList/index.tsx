@@ -65,6 +65,7 @@ const ConnectorList = ({
     if (paymentState === "error") {
       context.setRoute(ROUTES.ERROR);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentState]);
 
   return (
@@ -144,11 +145,9 @@ const ConnectorItem = ({
           return;
         }
       } else {
-        // EVM-only wallet: clear selectedChainId to show all available tokens
-        context.paymentState.setSelectedChainId(undefined);
+        // EVM-only wallet: navigate to connect page
         context.setPendingConnectorId(wallet.id);
-        // Explicitly set chainId to null to indicate we want all chains, not just the current one
-        context.setRoute(ROUTES.CONNECT, { ...meta, chainId: null });
+        context.setRoute(ROUTES.CONNECT, meta);
         return;
       }
     }

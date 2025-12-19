@@ -1,4 +1,4 @@
-import { rozoStellarUSDC, WalletPaymentOption } from "@rozoai/intent-common";
+import { rozoStellar, WalletPaymentOption } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
@@ -7,6 +7,7 @@ import {
   setupRefreshState,
   shouldSkipRefresh,
 } from "./refreshUtils";
+import { useSupportedChains } from "./useSupportedChains";
 
 /** Wallet payment options. User picks one. */
 export function useStellarPaymentOptions({
@@ -22,6 +23,15 @@ export function useStellarPaymentOptions({
   isDepositFlow: boolean;
   payParams: PayParams | undefined;
 }) {
+  const { chains, tokens } = useSupportedChains();
+
+  // Get Stellar chain IDs from supported chains
+  const stellarChainIds = useMemo(() => {
+    return new Set(
+      chains.filter((c) => c.type === "stellar").map((c) => c.chainId)
+    );
+  }, [chains]);
+
   const [options, setOptions] = useState<WalletPaymentOption[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -35,11 +45,40 @@ export function useStellarPaymentOptions({
     return payParams?.appId;
   }, [payParams]);
 
+  const memoizedPreferredTokens = useMemo(
+    () => payParams?.preferredTokens,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(payParams?.preferredTokens)]
+  );
+
   const filteredOptions = useMemo(() => {
     if (!options) return [];
 
+    const preferredTokens = payParams?.preferredTokens;
+    // Helper to normalize token addresses for comparison
+    const normalizeAddress = (addr: string) => addr.toLowerCase();
+
     return options
-      .filter((option) => option.balance.token.token === rozoStellarUSDC.token)
+      .filter((option) => {
+        const tokenChainId = option.balance.token.chainId;
+        const tokenAddress = option.balance.token.token;
+
+        // If preferredTokens is provided and not empty, filter by matching chainId and token address
+        if (preferredTokens && preferredTokens.length > 0) {
+          return preferredTokens.some(
+            (pt) =>
+              pt.chainId === tokenChainId &&
+              normalizeAddress(pt.token) === normalizeAddress(tokenAddress)
+          );
+        }
+
+        // Otherwise, check against supported tokens
+        return tokens.some(
+          (t) =>
+            normalizeAddress(t.token) === normalizeAddress(tokenAddress) &&
+            t.chainId === rozoStellar.chainId
+        );
+      })
       .map((item) => {
         const usd = isDepositFlow ? 0 : usdRequired || 0;
 
@@ -60,7 +99,7 @@ export function useStellarPaymentOptions({
 
         return value;
       }) as WalletPaymentOption[];
-  }, [options, isDepositFlow, usdRequired]);
+  }, [options, isDepositFlow, usdRequired, tokens, payParams?.preferredTokens]);
 
   // Shared fetch function for Stellar payment options
   const fetchBalances = useCallback(async () => {
@@ -70,11 +109,17 @@ export function useStellarPaymentOptions({
     setIsLoading(true);
 
     try {
+      // Filter preferredTokenAddress to only include Stellar chain tokens
+      const stellarPreferredTokenAddresses = (memoizedPreferredTokens ?? [])
+        .filter((t) => stellarChainIds.has(t.chainId))
+        .map((t) => t.token);
+
       const newOptions = await trpc.getStellarPaymentOptions.query({
         stellarAddress: address,
         // API expects undefined for deposit flow.
         usdRequired: isDepositFlow ? undefined : usdRequired,
         appId: stableAppId,
+        preferredTokenAddress: stellarPreferredTokenAddresses,
       });
       setOptions(newOptions);
     } catch (error) {
@@ -84,7 +129,16 @@ export function useStellarPaymentOptions({
       isApiCallInProgress.current = false;
       setIsLoading(false);
     }
-  }, [address, usdRequired, isDepositFlow, trpc, stableAppId]);
+  }, [
+    address,
+    usdRequired,
+    isDepositFlow,
+    trpc,
+    stableAppId,
+    memoizedPreferredTokens,
+    // stellarChainIds is derived from chains and is stable, so we don't need it in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ]);
 
   // Create refresh function using shared utility
   const refreshOptions = createRefreshFunction(fetchBalances, {
@@ -108,6 +162,7 @@ export function useStellarPaymentOptions({
       usdRequired,
       isDepositFlow,
       stableAppId,
+      memoizedPreferredTokens,
     });
 
     // Skip if we've already executed with these exact parameters
@@ -125,14 +180,21 @@ export function useStellarPaymentOptions({
       lastExecutedParams,
       isApiCallInProgress,
     });
-  }, [address, usdRequired, isDepositFlow, stableAppId]);
+  }, [
+    address,
+    usdRequired,
+    isDepositFlow,
+    stableAppId,
+    memoizedPreferredTokens,
+  ]);
 
   // Initial fetch when hook mounts with valid parameters or when key parameters change
   useEffect(() => {
     if (address != null && usdRequired != null && stableAppId != null) {
       refreshOptions();
     }
-  }, [address, usdRequired, stableAppId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, usdRequired, stableAppId, memoizedPreferredTokens]);
 
   return {
     options: filteredOptions,

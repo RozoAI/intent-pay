@@ -62,6 +62,7 @@ import {
   useSwitchChain,
   useWriteContract,
 } from "wagmi";
+import { convertPreferredSymbolsToTokens } from "../utils/token";
 
 import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
 import {
@@ -145,8 +146,6 @@ export interface PaymentState {
   setPaymentWaitingMessage: (message: string | undefined) => void;
   tokenMode: "evm" | "solana" | "stellar" | "all";
   setTokenMode: (mode: "evm" | "solana" | "stellar" | "all") => void;
-  selectedChainId: number | undefined;
-  setSelectedChainId: (chainId: number | undefined) => void;
   setSelectedWallet: (wallet: WalletConfigProps | undefined) => void;
   setSelectedWalletDeepLink: (deepLink: string | undefined) => void;
   setSelectedExternalOption: (
@@ -298,10 +297,6 @@ export function usePaymentState({
     "evm" | "solana" | "stellar" | "all"
   >("evm");
 
-  const [selectedChainId, setSelectedChainId] = useState<number | undefined>(
-    undefined
-  );
-
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
   const [rozoPaymentId, setRozoPaymentId] = useState<string | undefined>(
     undefined
@@ -324,12 +319,25 @@ export function usePaymentState({
   }, [paymentOptions, pay.order]);
 
   const showStellarPaymentMethod = useMemo(() => {
+    const preferredTokens = currPayParams?.preferredTokens;
+
+    // If preferredTokens exists and has no Stellar tokens, don't show Stellar method
+    if (preferredTokens && preferredTokens.length > 0) {
+      const hasStellarToken = preferredTokens.some(
+        (t) => t.chainId === rozoStellar.chainId
+      );
+      if (!hasStellarToken) {
+        return false;
+      }
+    }
+
+    // Otherwise, show based on paymentOptions and order
     return (
       (paymentOptions == null ||
         paymentOptions.includes(ExternalPaymentOptions.Stellar)) &&
       pay.order != null
     );
-  }, [paymentOptions, pay.order]);
+  }, [paymentOptions, pay.order, currPayParams?.preferredTokens]);
 
   // Memoize usdRequired and destChainId to prevent unnecessary refetches when order object reference changes
   const usdRequired = useMemo(
@@ -374,9 +382,6 @@ export function usePaymentState({
     address: ethWalletAddress,
     usdRequired,
     destChainId,
-    preferredChains: pay.order?.metadata.payer?.preferredChains,
-    preferredTokens: pay.order?.metadata.payer?.preferredTokens,
-    evmChains: pay.order?.metadata.payer?.evmChains,
     isDepositFlow,
     payParams: stablePayParams,
     log,
@@ -400,6 +405,7 @@ export function usePaymentState({
     usdRequired,
     mode: pay.order?.mode,
     appId: stableAppId,
+    payParams: stablePayParams,
   });
 
   const chainOrderUsdLimits = useOrderUsdLimits({ trpc });
@@ -1265,11 +1271,21 @@ export function usePaymentState({
     if (!payParams || lockPayParams) return;
     assert(payParams != null, "[SET PAY PARAMS] payParams cannot be null");
 
-    log("[SET PAY PARAMS] setting payParams", payParams);
+    // Convert preferredSymbol to preferredTokens if needed
+    const finalPreferredTokens = convertPreferredSymbolsToTokens(
+      payParams.preferredSymbol,
+      payParams.preferredTokens
+    );
+    const updatedPayParams = {
+      ...payParams,
+      preferredTokens: finalPreferredTokens,
+    };
+
+    log("[SET PAY PARAMS] setting payParams", updatedPayParams);
     pay.reset();
-    await pay.createPreviewOrder(payParams);
-    setCurrPayParams(payParams);
-    setIsDepositFlow(payParams.toUnits == null);
+    await pay.createPreviewOrder(updatedPayParams);
+    setCurrPayParams(updatedPayParams);
+    setIsDepositFlow(updatedPayParams.toUnits == null);
   };
 
   const generatePreviewOrder = async () => {
@@ -1282,7 +1298,16 @@ export function usePaymentState({
     async (payParams?: Partial<PayParams>) => {
       const mergedPayParams: PayParams | undefined =
         payParams != null && currPayParams != null
-          ? { ...currPayParams, ...payParams }
+          ? {
+              ...currPayParams,
+              // If we are providing new preferredSymbols but NOT providing new preferredTokens,
+              // we must clear the inherited preferredTokens so they can be recalculated from the symbols.
+              ...(payParams.preferredSymbol !== undefined &&
+              payParams.preferredTokens === undefined
+                ? { preferredTokens: undefined }
+                : {}),
+              ...payParams,
+            }
           : currPayParams;
 
       // Clear the old order & state
@@ -1298,21 +1323,31 @@ export function usePaymentState({
 
       // Set the new payParams
       if (mergedPayParams) {
-        if (mergedPayParams.toChain === rozoStellar.chainId) {
-          mergedPayParams.toStellarAddress = mergedPayParams.toAddress;
-          mergedPayParams.toAddress = getAddress(
+        // Convert preferredSymbol to preferredTokens if needed
+        const finalPreferredTokens = convertPreferredSymbolsToTokens(
+          mergedPayParams.preferredSymbol,
+          mergedPayParams.preferredTokens
+        );
+        const updatedPayParams = {
+          ...mergedPayParams,
+          preferredTokens: finalPreferredTokens,
+        };
+
+        if (updatedPayParams.toChain === rozoStellar.chainId) {
+          updatedPayParams.toStellarAddress = updatedPayParams.toAddress;
+          updatedPayParams.toAddress = getAddress(
             "0x0000000000000000000000000000000000000000"
           );
-        } else if (mergedPayParams.toChain === rozoSolana.chainId) {
-          mergedPayParams.toSolanaAddress = mergedPayParams.toAddress;
-          mergedPayParams.toAddress = getAddress(
+        } else if (updatedPayParams.toChain === rozoSolana.chainId) {
+          updatedPayParams.toSolanaAddress = updatedPayParams.toAddress;
+          updatedPayParams.toAddress = getAddress(
             "0x0000000000000000000000000000000000000000"
           );
         }
 
-        await pay.createPreviewOrder(mergedPayParams);
-        setCurrPayParams(mergedPayParams);
-        setIsDepositFlow(mergedPayParams.toUnits == null);
+        await pay.createPreviewOrder(updatedPayParams);
+        setCurrPayParams(updatedPayParams);
+        setIsDepositFlow(updatedPayParams.toUnits == null);
       }
 
       setRoute(ROUTES.SELECT_METHOD);
@@ -1334,8 +1369,6 @@ export function usePaymentState({
     payParams: currPayParams,
     tokenMode,
     setTokenMode,
-    selectedChainId,
-    setSelectedChainId,
     generatePreviewOrder,
     isDepositFlow,
     paymentWaitingMessage,

@@ -436,6 +436,7 @@ export enum DepositAddressPaymentOptions {
   SOLANA_USDT = "USDT on Solana",
   SOLANA_USDC = "USDC on Solana",
   BASE_USDC = "USDC on Base",
+  BASE_EURC = "EURC on Base",
   ETHEREUM_USDT = "USDT on Ethereum",
   ETHEREUM_USDC = "USDC on Ethereum",
 

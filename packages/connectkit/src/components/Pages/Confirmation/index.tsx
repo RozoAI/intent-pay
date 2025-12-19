@@ -25,10 +25,7 @@ import {
   LoadingCircleIcon,
 } from "../../../assets/icons";
 import defaultTheme from "../../../constants/defaultTheme";
-import {
-  DEFAULT_ROZO_APP_ID,
-  ROZO_INVOICE_URL,
-} from "../../../constants/rozoConfig";
+import { ROZO_INVOICE_URL } from "../../../constants/rozoConfig";
 import { useRozoPay } from "../../../hooks/useDaimoPay";
 import { usePayoutPolling } from "../../../hooks/usePayoutPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
@@ -108,10 +105,7 @@ const Confirmation: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rozoPaymentId, order?.externalId, paymentStateContext.rozoPaymentId]);
 
-  const { tokens: supportedTokens } = useSupportedChains(
-    paymentStateContext.payParams?.appId ?? DEFAULT_ROZO_APP_ID,
-    paymentStateContext.payParams?.preferredChains
-  );
+  const { tokens: supportedTokens } = useSupportedChains();
 
   const { done, txURL, rawPayInHash } = useMemo(() => {
     const { tokenMode, txHash } = paymentStateContext;

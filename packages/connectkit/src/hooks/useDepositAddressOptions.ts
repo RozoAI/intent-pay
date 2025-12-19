@@ -1,5 +1,6 @@
 import {
   base,
+  baseEURC,
   baseUSDC,
   DepositAddressPaymentOptionMetadata,
   DepositAddressPaymentOptions,
@@ -11,6 +12,7 @@ import {
   rozoSolanaUSDT,
 } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
 
 export interface UseDepositAddressOptionsParams {
@@ -18,6 +20,7 @@ export interface UseDepositAddressOptionsParams {
   usdRequired: number | undefined;
   mode: RozoPayOrderMode | undefined;
   appId?: string;
+  payParams: PayParams | undefined;
 }
 
 export interface UseDepositAddressOptionsReturn {
@@ -44,6 +47,7 @@ export function useDepositAddressOptions({
   usdRequired,
   mode,
   appId,
+  payParams,
 }: UseDepositAddressOptionsParams): UseDepositAddressOptionsReturn {
   const [options, setOptions] = useState<DepositAddressPaymentOptionMetadata[]>(
     []
@@ -52,8 +56,8 @@ export function useDepositAddressOptions({
   const [error, setError] = useState<string | null>(null);
 
   // Memoized configuration for deposit address options
-  const depositAddressConfig = useMemo(
-    () => [
+  const depositAddressConfig = useMemo(() => {
+    const available = [
       // Ethereum Mainnet (USDT, USDC)
       {
         id: DepositAddressPaymentOptions.ETHEREUM_USDT,
@@ -69,13 +73,20 @@ export function useDepositAddressOptions({
         chainId: ethereum.chainId,
         token: ethereumUSDC,
       },
-      // Base (USDC)
+      // Base (USDC, EURC)
       {
         id: DepositAddressPaymentOptions.BASE_USDC,
         logoURI: baseUSDC.logoURI,
         minimumUsd: 0.1,
         chainId: base.chainId,
         token: baseUSDC,
+      },
+      {
+        id: DepositAddressPaymentOptions.BASE_EURC,
+        logoURI: baseEURC.logoURI,
+        minimumUsd: 0.1,
+        chainId: base.chainId,
+        token: baseEURC,
       },
       // Solana (USDT, USDC)
       {
@@ -92,9 +103,18 @@ export function useDepositAddressOptions({
         chainId: rozoSolanaUSDC.chainId,
         token: rozoSolanaUSDC,
       },
-    ],
-    [usdRequired]
-  );
+    ];
+
+    if (payParams?.preferredTokens && payParams?.preferredTokens.length > 0) {
+      return available.filter((option) =>
+        payParams?.preferredTokens?.some(
+          (pt) => pt.token === option.token.token
+        )
+      );
+    }
+
+    return available;
+  }, [usdRequired, payParams?.preferredTokens]);
 
   // Memoized refresh function to prevent unnecessary re-renders
   const refreshDepositAddressOptions = useCallback(

@@ -13,8 +13,10 @@ import {
   RozoPayUserMetadata,
   rozoSolana,
   rozoSolanaUSDC,
+  rozoStellarEURC,
   rozoStellarUSDC,
   solana,
+  TokenSymbol,
   validateAddressForChain,
 } from ".";
 
@@ -105,7 +107,7 @@ interface PaymentBridge {
  *   toAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
  *   toUnits: '1000000', // 1 USDC (6 decimals)
  *   preferredChain: polygon.chainId, // 137
- *   preferredToken: polygonUSDCe.token,
+ *   preferredTokenAddress: polygonUSDCe.token,
  * });
  *
  * // preferred = { preferredChain: '137', preferredToken: 'USDCe', preferredTokenAddress: '0x2791...' }
@@ -125,7 +127,7 @@ interface PaymentBridge {
  *   toAddress: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
  *   toUnits: '10000000', // 1 USDC (7 decimals for Stellar)
  *   preferredChain: base.chainId, // 8453
- *   preferredToken: baseUSDC.token,
+ *   preferredTokenAddress: baseUSDC.token,
  * });
  *
  * // preferred = { preferredChain: '8453', preferredToken: 'USDC', preferredTokenAddress: '0x8335...' }
@@ -142,7 +144,7 @@ interface PaymentBridge {
  *   toAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
  *   toUnits: '1000000',
  *   preferredChain: base.chainId, // 8453
- *   preferredToken: baseUSDC.token,
+ *   preferredTokenAddress: baseUSDC.token,
  * });
  *
  * // isIntentPayment = false (same chain and token)
@@ -160,33 +162,49 @@ export function createPaymentBridgeConfig({
   preferredChain,
   preferredTokenAddress,
 }: PaymentBridgeConfig): PaymentBridge {
-  const chain = getChainById(toChain);
-  const token = getKnownToken(toChain, toToken);
+  const destinationChain = getChainById(toChain);
+  const destinationToken = getKnownToken(toChain, toToken);
 
-  if (!token) {
+  if (!destinationToken) {
     throw new Error(
-      `Unsupported token ${toToken} for chain ${chain.name} (${toChain})`
+      `Unsupported token ${toToken} for chain ${destinationChain.name} (${toChain})`
     );
   }
 
   const addressValid = validateAddressForChain(toChain, toAddress);
   if (!addressValid) {
     throw new Error(
-      `Invalid address ${toAddress} for chain ${chain.name} (${toChain})`
+      `Invalid address ${toAddress} for chain ${destinationChain.name} (${toChain})`
     );
   }
 
   const preferredChainData = getChainById(preferredChain);
-  const tokenConfig = getKnownToken(preferredChain, preferredTokenAddress);
-  if (!tokenConfig) {
+  const prefferedToken = getKnownToken(preferredChain, preferredTokenAddress);
+  if (!prefferedToken) {
     throw new Error(
       `Unknown token ${preferredTokenAddress} for chain ${preferredChainData.name} (${preferredChain})`
     );
   }
 
+  // Validate EURC: EURC can only be sent to another EURC
+  const isPreferredEURC = prefferedToken.symbol === TokenSymbol.EURC;
+  const isDestinationEURC = destinationToken.symbol === TokenSymbol.EURC;
+
+  if (isPreferredEURC && !isDestinationEURC) {
+    throw new Error(
+      `EURC can only be sent to another EURC. Destination token is ${destinationToken.symbol}, not EURC.`
+    );
+  }
+
+  if (isDestinationEURC && !isPreferredEURC) {
+    throw new Error(
+      `EURC can only be received from another EURC. Preferred token is ${prefferedToken.symbol}, not EURC.`
+    );
+  }
+
   let preferred: PreferredPaymentConfig = {
     preferredChain: String(preferredChain),
-    preferredToken: tokenConfig.symbol,
+    preferredToken: prefferedToken.symbol,
     preferredTokenAddress: preferredTokenAddress,
   };
 
@@ -194,28 +212,32 @@ export function createPaymentBridgeConfig({
     destinationAddress: toAddress,
     chainId: String(toChain),
     amountUnits: toUnits,
-    tokenSymbol: token.symbol,
+    tokenSymbol: destinationToken.symbol,
     tokenAddress: toToken,
   };
 
   if (isChainSupported(toChain) && isTokenSupported(toChain, toToken)) {
     preferred = {
       preferredChain: String(
-        tokenConfig.chainId === solana.chainId
+        prefferedToken.chainId === solana.chainId
           ? rozoSolana.chainId
-          : tokenConfig.chainId
+          : prefferedToken.chainId
       ),
-      preferredToken: tokenConfig.symbol,
-      preferredTokenAddress: tokenConfig.token,
+      preferredToken: prefferedToken.symbol,
+      preferredTokenAddress: prefferedToken.token,
     };
 
     // Determine destination based on special address types
     if (isChainSupported(toChain, "stellar")) {
+      // Use EURC token if destination is EURC, otherwise use USDC
+      const stellarToken = isDestinationEURC
+        ? rozoStellarEURC
+        : rozoStellarUSDC;
       destination = {
         ...destination,
-        tokenSymbol: rozoStellarUSDC.symbol,
-        chainId: String(rozoStellarUSDC.chainId),
-        tokenAddress: rozoStellarUSDC.token,
+        tokenSymbol: stellarToken.symbol,
+        chainId: String(stellarToken.chainId),
+        tokenAddress: stellarToken.token,
       };
     } else if (isChainSupported(toChain, "solana")) {
       destination = {
@@ -227,7 +249,7 @@ export function createPaymentBridgeConfig({
     }
   } else {
     throw new Error(
-      `Unsupported chain ${chain.name} (${toChain}) or token ${token.symbol} (${toToken})`
+      `Unsupported chain ${destinationChain.name} (${toChain}) or token ${destinationToken.symbol} (${toToken})`
     );
   }
 
