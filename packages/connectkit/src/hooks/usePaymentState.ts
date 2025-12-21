@@ -1,7 +1,6 @@
 import {
   assert,
   assertNotNull,
-  baseUSDC,
   bscUSDT,
   CreateNewPaymentParams,
   createPayment,
@@ -10,8 +9,6 @@ import {
   DepositAddressPaymentOptionMetadata,
   DepositAddressPaymentOptions,
   ethereum,
-  ethereumUSDC,
-  ethereumUSDT,
   ExternalPaymentOptionMetadata,
   ExternalPaymentOptions,
   ExternalPaymentOptionsString,
@@ -31,11 +28,9 @@ import {
   RozoPayOrder,
   rozoSolana,
   rozoSolanaUSDC,
-  rozoSolanaUSDT,
   rozoStellar,
   rozoStellarUSDC,
   solana,
-  Token,
   WalletPaymentOption,
   writeRozoPayOrderID,
 } from "@rozoai/intent-common";
@@ -168,7 +163,7 @@ export interface PaymentState {
   ) => Promise<{ txHash: Hex; success: boolean }>;
   payWithExternal: (option: ExternalPaymentOptions) => Promise<string>;
   payWithDepositAddress: (
-    option: DepositAddressPaymentOptions,
+    option: DepositAddressPaymentOptionMetadata,
     store: Store<PaymentState, PaymentEvent>,
     fees: FeeResponseData | null,
     log?: (message: string) => void
@@ -1069,13 +1064,13 @@ export function usePaymentState({
   };
 
   const payWithDepositAddress = async (
-    option: DepositAddressPaymentOptions,
+    option: DepositAddressPaymentOptionMetadata,
     store: Store<PaymentState, PaymentEvent>,
     fees: FeeResponseData | null,
     log?: (message: string) => void
   ) => {
     // Prevent duplicate calls for the same option
-    if (depositAddressCallRef.current.has(option)) {
+    if (depositAddressCallRef.current.has(option.id)) {
       log?.(
         `[PAY DEPOSIT ADDRESS] Already processing ${option}, skipping duplicate call`
       );
@@ -1083,32 +1078,17 @@ export function usePaymentState({
     }
 
     // Mark this option as being processed
-    depositAddressCallRef.current.add(option);
+    depositAddressCallRef.current.add(option.id);
     log?.(`[PAY DEPOSIT ADDRESS] Starting processing for ${option}`);
 
     try {
-      let token: Token = baseUSDC;
-
-      // Map option to correct token, mimicking useDepositAddressOptions.ts
-      if (option === DepositAddressPaymentOptions.ETHEREUM_USDT) {
-        token = ethereumUSDT;
-      } else if (option === DepositAddressPaymentOptions.ETHEREUM_USDC) {
-        token = ethereumUSDC;
-      } else if (option === DepositAddressPaymentOptions.BASE_USDC) {
-        token = baseUSDC;
-      } else if (option === DepositAddressPaymentOptions.SOLANA_USDT) {
-        token = rozoSolanaUSDT;
-      } else if (option === DepositAddressPaymentOptions.SOLANA_USDC) {
-        token = rozoSolanaUSDC;
-      }
-
       log?.("[PAY DEPOSIT ADDRESS] hydrating order");
 
       const { order } = await pay.hydrateOrder(undefined, {
         required: {
           token: {
-            token: token.token,
-            chainId: token.chainId,
+            token: option.token.token,
+            chainId: option.token.chainId,
           } as any,
         } as any,
         fees: {
@@ -1125,7 +1105,7 @@ export function usePaymentState({
       //   option,
       // });
 
-      const chain = getChainById(token.chainId);
+      const chain = getChainById(option.token.chainId);
 
       log?.(`[PAY DEPOSIT ADDRESS] order: ${debugJson(order)}`);
 
@@ -1155,7 +1135,7 @@ export function usePaymentState({
       return {
         address: order.intentAddr,
         amount: String(order.usdValue),
-        suffix: `${token.symbol} ${chain.name}`,
+        suffix: `${option.token.symbol} ${chain.name}`,
         uri: evmDeeplink,
         expirationS: Math.floor(Date.now() / 1000) + 300,
         externalId: order.externalId ?? "",
@@ -1171,7 +1151,7 @@ export function usePaymentState({
       return null;
     } finally {
       // Remove from processing set when done (allow retries after completion/failure)
-      depositAddressCallRef.current.delete(option);
+      depositAddressCallRef.current.delete(option.id);
       log?.(`[PAY DEPOSIT ADDRESS] Finished processing for ${option}`);
     }
   };
