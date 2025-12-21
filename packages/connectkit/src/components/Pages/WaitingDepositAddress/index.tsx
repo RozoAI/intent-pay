@@ -299,7 +299,7 @@ export default function WaitingDepositAddress() {
         }
 
         const details = await payWithDepositAddress(
-          selectedDepositAddressOption.id,
+          selectedDepositAddressOption,
           store as any,
           feeData,
           context.log
