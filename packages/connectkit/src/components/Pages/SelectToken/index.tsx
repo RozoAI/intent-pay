@@ -114,7 +114,7 @@ export default function SelectToken() {
         show={effectiveTokenMode}
         excludeLogos={["stellar"]}
       />
-      {(optionsList.length > 0 || isLoading) && (
+      {(!isEmptyOptionsList || isLoading) && (
         <OptionsList
           requiredSkeletons={3}
           isLoading={isLoading}
@@ -126,7 +126,7 @@ export default function SelectToken() {
           hideBottomLine={!isAnotherMethodButtonVisible}
         />
       )}
-      {isEmptyOptionsList && !noConnectedWallet && (
+      {!isLoading && isEmptyOptionsList && !noConnectedWallet && (
         <NoTokensAvailable
           onRefresh={refreshOptions}
           preferredTokens={paymentState.payParams?.preferredTokens}

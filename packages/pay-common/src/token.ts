@@ -23,7 +23,7 @@ export type Token = {
   /** Chain ID, eg 10 for OP Mainnet */
   chainId: number;
   /** Ethereum (capitalized) or Solana token address */
-  token: `0x${string}` | string;
+  token: string;
   /** Name, eg "Wrapped Bitcoin" */
   name?: string;
   /** Symbol, eg "WBTC" */
@@ -192,7 +192,7 @@ export const baseEURC: Token = token({
   token: getAddress("0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42"),
   decimals: 6,
   fiatISO: "EUR",
-  name: "EURC",
+  name: "EUR Coin",
   symbol: TokenSymbol.EURC,
   logoURI: TokenLogo.EURC,
 });
@@ -412,7 +412,7 @@ export const ethereumEURC: Token = token({
   token: getAddress("0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c"),
   decimals: 6,
   fiatISO: "EUR",
-  name: "EURC",
+  name: "EUR Coin",
   symbol: TokenSymbol.EURC,
   logoURI: TokenLogo.EURC,
 });
@@ -789,7 +789,7 @@ export const stellarXLM = nativeToken({
 export const stellarUSDC: Token = token({
   chainId: stellar.chainId,
   token: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
-  decimals: 6,
+  decimals: 7,
   fiatISO: "USD",
   name: "USD Coin",
   symbol: TokenSymbol.USDC,
@@ -811,7 +811,7 @@ export const rozoStellarEURC: Token = token({
   token: "EURC:GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2",
   decimals: 6,
   fiatISO: "EUR",
-  name: "EURC",
+  name: "EUR Coin",
   symbol: TokenSymbol.EURC,
   logoURI: TokenLogo.EURC,
 });

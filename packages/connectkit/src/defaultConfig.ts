@@ -1,13 +1,10 @@
 import { type CreateConfigParameters, CreateConnectorFn, http } from "wagmi";
 import {
   arbitrum,
-  avalanche,
   base,
   bsc,
   Chain,
-  gnosis,
   mainnet,
-  optimism,
   polygon,
   worldchain,
 } from "wagmi/chains";
@@ -41,12 +38,12 @@ type DefaultConfigProps = {
  */
 export const REQUIRED_CHAINS: CreateConfigParameters["chains"] = [
   arbitrum,
-  avalanche,
+  // avalanche,
   base,
   bsc,
-  gnosis,
+  // gnosis,
   mainnet,
-  optimism,
+  // optimism,
   polygon,
   worldchain,
 ];

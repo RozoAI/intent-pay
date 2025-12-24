@@ -35,7 +35,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   const preferredTokens = paymentState.payParams?.preferredTokens;
 
   const optionsList: Option[] = [];
-  let isLoading = false;
+  let isLoading = true;
   let hasAnyData = false;
 
   // Determine which token types should be included based on mode and paymentOptions
