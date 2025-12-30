@@ -161,7 +161,15 @@ const Confirmation: React.FC = () => {
     }
 
     return { done: false, txURL: undefined, rawPayInHash: undefined };
-  }, [paymentState, order, paymentStateContext, isConfirming, rozoPaymentId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    paymentState,
+    order,
+    paymentStateContext,
+    isConfirming,
+    rozoPaymentId,
+    supportedTokens,
+  ]);
 
   const receiptUrl = useMemo(() => {
     if (
@@ -262,7 +270,8 @@ const Confirmation: React.FC = () => {
   // Store unsubscribe function in ref
   useEffect(() => {
     pusherUnsubscribeRef.current = pusherUnsubscribe;
-  }, [pusherUnsubscribe]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Initialize Pusher timer when Pusher is enabled and rozoPaymentId is available
   // This effect sets up the timeout to switch to polling after 1 minute if no data is received
@@ -345,7 +354,8 @@ const Confirmation: React.FC = () => {
         timeoutIdRef.current = null;
       }
     };
-  }, [rozoPaymentId, pusherEnabled, context.log]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rozoPaymentId, pusherEnabled]);
 
   // Reset tracking when rozoPaymentId changes
   useEffect(() => {
@@ -363,7 +373,8 @@ const Confirmation: React.FC = () => {
       clearTimeout(timeoutIdRef.current);
       timeoutIdRef.current = null;
     }
-  }, [rozoPaymentId, context.log]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rozoPaymentId]);
 
   /**
    * Sets the payment completed state.
@@ -397,6 +408,7 @@ const Confirmation: React.FC = () => {
       setPaymentCompleted(rawPayInHash, rozoPaymentId);
       onSuccess();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [done, paymentStateContext, rawPayInHash, rozoPaymentId]);
 
   /**
@@ -436,12 +448,14 @@ const Confirmation: React.FC = () => {
         timeoutIdRef.current = null;
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [done, payoutTxHash, rozoPaymentId, pusherEnabled]);
 
   useEffect(() => {
     if (debugMode) {
       context.log(`[ORDER] Order: `, order);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order, debugMode]);
 
   return (

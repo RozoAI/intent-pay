@@ -4,7 +4,7 @@ import {
   Token,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Option } from "../components/Common/OptionsList";
 import TokenChainLogo from "../components/Common/TokenChainLogo";
 import { ROUTES } from "../constants/routes";
@@ -102,8 +102,8 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
           preferredTokens
         );
     optionsList.push(...evmOptions);
-    isLoading ||= walletPaymentOptions.isLoading;
-    hasAnyData ||= evmOptionsRaw.length > 0;
+    isLoading = walletPaymentOptions.isLoading;
+    hasAnyData = evmOptionsRaw.length > 0;
   }
 
   if (shouldIncludeSolana) {
@@ -118,8 +118,8 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
       preferredTokens
     );
     optionsList.push(...solanaOptions);
-    isLoading ||= solanaPaymentOptions.isLoading;
-    hasAnyData ||= solanaOptionsRaw.length > 0;
+    isLoading = solanaPaymentOptions.isLoading;
+    hasAnyData = solanaOptionsRaw.length > 0;
   }
 
   if (shouldIncludeStellar) {
@@ -135,8 +135,8 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
           preferredTokens
         );
     optionsList.push(...stellarOptions);
-    isLoading ||= stellarPaymentOptions.isLoading;
-    hasAnyData ||= stellarOptionsRaw.length > 0;
+    isLoading = stellarPaymentOptions.isLoading;
+    hasAnyData = stellarOptionsRaw.length > 0;
   }
 
   // Helper function to check if a token option matches preferredTokens
@@ -163,21 +163,25 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     );
   };
 
-  optionsList.sort((a, b) => {
-    // First: sort by disabled state (enabled tokens first)
-    const dDisabled = (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0);
-    if (dDisabled !== 0) return dDisabled;
+  // Memoize the sorted optionsList and reassign to optionsList to preserve invariant
+  const sortedOptionsList = useMemo(() => {
+    return [...optionsList].sort((a, b) => {
+      // First: sort by disabled state (enabled tokens first)
+      const dDisabled = (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0);
+      if (dDisabled !== 0) return dDisabled;
 
-    // Second: prioritize preferred tokens (preferred tokens first)
-    const aIsPreferred = isTokenPreferred(a);
-    const bIsPreferred = isTokenPreferred(b);
-    const dPreferred = (bIsPreferred ? 1 : 0) - (aIsPreferred ? 1 : 0);
-    if (dPreferred !== 0) return dPreferred;
+      // Second: prioritize preferred tokens (preferred tokens first)
+      const aIsPreferred = isTokenPreferred(a);
+      const bIsPreferred = isTokenPreferred(b);
+      const dPreferred = (bIsPreferred ? 1 : 0) - (aIsPreferred ? 1 : 0);
+      if (dPreferred !== 0) return dPreferred;
 
-    // Third: sort by balance USD (highest first) within each group
-    const dSort = (b.sortValue ?? 0) - (a.sortValue ?? 0);
-    return dSort;
-  });
+      // Third: sort by balance USD (highest first) within each group
+      const dSort = (b.sortValue ?? 0) - (a.sortValue ?? 0);
+      return dSort;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optionsList, preferredTokens]);
 
   // Smart refresh function that only refreshes hooks that need it
   const refreshOptions = useCallback(async () => {
@@ -217,13 +221,10 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     await Promise.all(refreshPromises);
   }, [
     mode,
-    paymentState.ethWalletAddress,
-    paymentState.solanaPubKey,
-    paymentState.stellarPubKey,
-    paymentState.orderUsdAmount,
-    walletPaymentOptions.options,
-    solanaPaymentOptions.options,
-    stellarPaymentOptions.options,
+    paymentState,
+    walletPaymentOptions,
+    solanaPaymentOptions,
+    stellarPaymentOptions,
   ]);
 
   // Smart refresh that only fetches when necessary
@@ -243,7 +244,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     // Check if we have data for the current mode
     const hasRelevantData = (() => {
       if (mode === "all") {
-        return optionsList.length > 0;
+        return sortedOptionsList.length > 0;
       } else if (mode === "evm") {
         return Boolean(
           walletPaymentOptions.options &&
@@ -296,13 +297,11 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
         isRefreshingRef.current = false;
       }
     }, 300); // 300ms debounce
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    paymentState.ethWalletAddress,
-    paymentState.solanaPubKey,
-    paymentState.stellarPubKey,
-    paymentState.orderUsdAmount,
+    paymentState,
     mode,
-    optionsList.length,
+    sortedOptionsList.length,
     walletPaymentOptions.options,
     solanaPaymentOptions.options,
     stellarPaymentOptions.options,
@@ -324,28 +323,8 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
         clearTimeout(debouncedRefreshRef.current);
       }
     };
-  }, [
-    paymentState.ethWalletAddress,
-    paymentState.solanaPubKey,
-    paymentState.stellarPubKey,
-    paymentState.orderUsdAmount,
-  ]);
-
-  // Clear options immediately when wallet addresses change to prevent stale data display
-  useEffect(() => {
-    const { ethWalletAddress, solanaPubKey, stellarPubKey } = paymentState;
-
-    // If we have wallet addresses, clear the options immediately to show loading state
-    // This prevents showing stale "insufficient balance" messages
-    if (ethWalletAddress || solanaPubKey || stellarPubKey) {
-      // The individual hooks will handle clearing their own options
-      // This effect just ensures we don't show stale data during transitions
-    }
-  }, [
-    paymentState.ethWalletAddress,
-    paymentState.solanaPubKey,
-    paymentState.stellarPubKey,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentState]);
 
   // Manual refresh function for user-triggered refreshes (like clicking refresh button)
   const manualRefresh = useCallback(async () => {
@@ -371,21 +350,95 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     }
 
     await Promise.all(refreshPromises);
-  }, [mode]);
+  }, [mode, walletPaymentOptions, solanaPaymentOptions, stellarPaymentOptions]);
 
-  // Prevent flickering by only showing loading when we have no data at all
-  // and we're actually loading, or when we have some data but are still loading more
-  // Special case: when connectedWalletOnly is true and optionsList is empty,
-  // don't show loading as it indicates no compatible wallet is connected
-  // Don't show loading if connectedWalletOnly is true and no options are available
-  // (this indicates no compatible wallet is connected)
-  const shouldShowLoading =
-    connectedWalletOnly && optionsList.length === 0
-      ? false
-      : isLoading && (!hasAnyData || optionsList.length === 0);
+  const hasRelevantHooksWithValidParams = useMemo(() => {
+    if (!connectedWalletOnly || sortedOptionsList.length > 0) return true;
+
+    // Check if any of the hooks that should be included have valid parameters to fetch
+    // In deposit flow, orderUsdAmount can be undefined, which is valid
+    if (shouldIncludeEvm) {
+      const { ethWalletAddress, orderUsdAmount } = paymentState;
+      const destChainId = paymentState.payParams?.toChain;
+      // If we should include EVM but don't have required params, hook can't fetch
+      // In deposit flow, orderUsdAmount is undefined, which is valid
+      const hasValidParams =
+        ethWalletAddress &&
+        destChainId != null &&
+        (isDepositFlow || orderUsdAmount != null);
+      if (!hasValidParams) {
+        // If hook hasn't fetched yet (options === null), it means it can't fetch
+        if (
+          walletPaymentOptions.options === null &&
+          walletPaymentOptions.isLoading
+        ) {
+          return false; // Hook is stuck loading because it can't fetch
+        }
+      }
+    }
+
+    if (shouldIncludeSolana) {
+      const { solanaPubKey, orderUsdAmount } = paymentState;
+      // In deposit flow, orderUsdAmount is undefined, which is valid
+      const hasValidParams =
+        solanaPubKey && (isDepositFlow || orderUsdAmount != null);
+      if (!hasValidParams) {
+        if (
+          solanaPaymentOptions.options === null &&
+          solanaPaymentOptions.isLoading
+        ) {
+          return false;
+        }
+      }
+    }
+
+    if (shouldIncludeStellar) {
+      const { stellarPubKey, orderUsdAmount } = paymentState;
+      // In deposit flow, orderUsdAmount is undefined, which is valid
+      const hasValidParams =
+        stellarPubKey && (isDepositFlow || orderUsdAmount != null);
+      if (!hasValidParams) {
+        if (
+          stellarPaymentOptions.options === null &&
+          stellarPaymentOptions.isLoading
+        ) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }, [
+    solanaPaymentOptions,
+    stellarPaymentOptions,
+    walletPaymentOptions,
+    paymentState,
+    connectedWalletOnly,
+    sortedOptionsList,
+    shouldIncludeEvm,
+    shouldIncludeSolana,
+    shouldIncludeStellar,
+    isDepositFlow,
+  ]);
+
+  const shouldShowLoading = useMemo(
+    () =>
+      connectedWalletOnly &&
+      sortedOptionsList.length === 0 &&
+      !hasRelevantHooksWithValidParams
+        ? false
+        : isLoading && (!hasAnyData || sortedOptionsList.length === 0),
+    [
+      connectedWalletOnly,
+      sortedOptionsList,
+      hasRelevantHooksWithValidParams,
+      isLoading,
+      hasAnyData,
+    ]
+  );
 
   return {
-    optionsList,
+    optionsList: sortedOptionsList,
     isLoading: shouldShowLoading,
     refreshOptions: manualRefresh,
   };

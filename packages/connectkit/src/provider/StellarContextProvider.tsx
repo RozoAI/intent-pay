@@ -282,6 +282,7 @@ export const StellarContextProvider = ({
       convertXlmToUsdc,
     };
     return context;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     kit,
     stellarWalletPersistence,

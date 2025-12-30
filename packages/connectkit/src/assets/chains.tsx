@@ -84,6 +84,7 @@ export const Ethereum = (props) => {
       xmlns="http://www.w3.org/2000/svg"
       style={{
         background: "var(--ck-chain-ethereum-01, #25292E)",
+        borderRadius: "50%",
       }}
     >
       <path

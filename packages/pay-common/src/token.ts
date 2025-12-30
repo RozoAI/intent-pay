@@ -958,10 +958,11 @@ export const supportedTokens: Map<number, Token[]> = new Map([
 ]);
 
 export const supportedPayoutTokens: Map<number, Token[]> = new Map([
+  [arbitrum.chainId, [arbitrumUSDC]],
   [ethereum.chainId, [ethereumUSDC]],
   [base.chainId, [baseUSDC, baseEURC]],
+  [bsc.chainId, [bscUSDC]],
   [polygon.chainId, [polygonUSDC]],
-  // [solana.chainId, [solanaUSDC]],
   [rozoSolana.chainId, [rozoSolanaUSDC]],
   [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC]],
 ]);

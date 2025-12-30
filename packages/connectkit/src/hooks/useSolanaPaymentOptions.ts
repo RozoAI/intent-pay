@@ -1,4 +1,4 @@
-import { WalletPaymentOption } from "@rozoai/intent-common";
+import { rozoSolana, solana, WalletPaymentOption } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
@@ -67,8 +67,18 @@ export function useSolanaPaymentOptions({
           return true;
         }
 
+        const filteredPreferredTokens = preferredTokens.map((pt) => {
+          if (pt.chainId === rozoSolana.chainId) {
+            return {
+              ...pt,
+              chainId: solana.chainId,
+            };
+          }
+          return pt;
+        });
+
         // Filter by matching chainId and token address
-        return preferredTokens.some(
+        return filteredPreferredTokens.some(
           (pt) =>
             pt.chainId === option.balance.token.chainId &&
             normalizeAddress(pt.token) ===
