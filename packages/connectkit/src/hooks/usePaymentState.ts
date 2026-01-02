@@ -29,6 +29,7 @@ import {
   rozoSolana,
   rozoSolanaUSDC,
   rozoStellar,
+  rozoStellarEURC,
   rozoStellarUSDC,
   solana,
   WalletPaymentOption,
@@ -1011,12 +1012,27 @@ export function usePaymentState({
       }
 
       const destinationAddress = rozoPayment.destAddress;
-      const issuer = rozoStellarUSDC.token.split(":")[1];
+      // const issuer = rozoStellarUSDC.token.split(":")[1];
 
       // Setup Stellar payment
       await stellarKit.setWallet(String(stellarConnector?.id ?? "freighter"));
       const sourceAccount = await stellarServer.loadAccount(stellarPublicKey);
-      const destAsset = new Asset("USDC", issuer);
+
+      let issuer = "";
+      if (walletPaymentOption.required.token.token === rozoStellarUSDC.token) {
+        issuer = rozoStellarUSDC.token.split(":")[1];
+      } else if (
+        walletPaymentOption.required.token.token === rozoStellarEURC.token
+      ) {
+        issuer = rozoStellarEURC.token.split(":")[1];
+      } else {
+        throw new Error("Unsupported token");
+      }
+
+      const destAsset = new Asset(
+        walletPaymentOption.required.token.symbol,
+        issuer
+      );
       const fee = String(await stellarServer.fetchBaseFee());
 
       // Build transaction
