@@ -604,7 +604,7 @@ async function runHydratePayIdEffects(
         value: BigInt("0"),
         data: "0x",
       },
-      refundAddr: (order.refundAddr as `0x${string}`) || null,
+      refundAddr: order.refundAddr || null,
       nonce: orderData.data.nonce as unknown as bigint,
       sourceTokenAmount: null,
       sourceFulfillerAddr: null,

@@ -141,15 +141,8 @@ export const usePayoutPolling = (
         clearTimeout(timeoutId);
       }
     };
-  }, [
-    enabled,
-    order,
-    done,
-    rozoPaymentId,
-    showProcessingPayout,
-    log,
-    triggerResize,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, order, done, rozoPaymentId, showProcessingPayout]);
 
   return {
     payoutLoading,

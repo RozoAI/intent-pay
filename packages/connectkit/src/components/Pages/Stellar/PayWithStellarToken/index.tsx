@@ -22,10 +22,10 @@ import {
   Transaction,
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
+import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useDaimoPay";
 import { useStellarDestination } from "../../../../hooks/useStellarDestination";
 import { useStellar } from "../../../../provider/StellarContextProvider";
-import { getSupportUrl } from "../../../../utils/supportUrl";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
@@ -61,6 +61,8 @@ const PayWithStellarToken: React.FC = () => {
     setPaymentCompleted,
     hydrateOrder,
   } = useRozoPay();
+  const handleContactClick = useContactSupport();
+
   // Get the destination address and payment direction using our custom hook
   const { destinationAddress } = useStellarDestination(payParams);
   const {
@@ -337,19 +339,7 @@ const PayWithStellarToken: React.FC = () => {
         {payState === PayState.RequestFailed && (
           <>
             <Button onClick={handleSubmitTx}>Retry Payment</Button>
-            <Button
-              onClick={() => {
-                window.open(
-                  getSupportUrl(
-                    order?.id?.toString() ?? "",
-                    `Pay with Stellar token${txURL ? ` ${txURL}` : ""}`
-                  ),
-                  "_blank"
-                );
-              }}
-            >
-              Contact Support
-            </Button>
+            <Button onClick={handleContactClick}>Contact Support</Button>
           </>
         )}
       </ModalContent>

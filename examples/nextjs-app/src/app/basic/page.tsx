@@ -4,6 +4,7 @@ import * as Tokens from "@rozoai/intent-common";
 import {
   baseEURC,
   FeeType,
+  getChainById,
   getChainName,
   getChainNativeToken,
   getKnownToken,
@@ -13,13 +14,7 @@ import {
   rozoStellarEURC,
   TokenSymbol,
 } from "@rozoai/intent-common";
-import {
-  isEvmChain,
-  isSolanaChain,
-  isStellarChain,
-  RozoPayButton,
-  useRozoPayUI,
-} from "@rozoai/intent-pay";
+import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -40,8 +35,12 @@ type Config = {
  * Generates TypeScript code snippet for implementing RozoPayButton
  */
 const generateCodeSnippet = (config: Config): string => {
-  const isEvm = isEvmChain(config.chainId);
-  const isSolana = isSolanaChain(config.chainId);
+  const chain = getChainById(config.chainId);
+
+  if (!chain) return "";
+
+  const isEvm = chain.type === "evm";
+  const isSolana = chain.type === "solana";
 
   // For EVM chains, use getAddress helper
   // For non-EVM chains, use string directly
@@ -224,7 +223,9 @@ export default function DemoBasic() {
       setParsedConfig(configWithSymbols);
 
       // NOTE: This is used to reset the payment state when the config changes
-      const isEvm = isEvmChain(newConfig.chainId);
+      const chain = getChainById(newConfig.chainId);
+      if (!chain) return;
+      const isEvm = chain.type === "evm";
       const payParams: any = {
         toChain: newConfig.chainId,
         toUnits: newConfig.amount,
@@ -247,6 +248,16 @@ export default function DemoBasic() {
     },
     [setConfig, resetPayment, preferredSymbol]
   );
+
+  const isSolanaChain = useCallback((chainId: number) => {
+    const chain = getChainById(chainId);
+    return chain?.type === "solana";
+  }, []);
+
+  const isStellarChain = useCallback((chainId: number) => {
+    const chain = getChainById(chainId);
+    return chain?.type === "stellar";
+  }, []);
 
   useEffect(() => {
     const handleEscapeKey = (event: KeyboardEvent) => {
@@ -331,6 +342,10 @@ export default function DemoBasic() {
       return false;
     }
 
+    const chain = getChainById(parsedConfig.chainId);
+    if (!chain) return false;
+    const isEvm = chain.type === "evm";
+
     const destinationToken = getKnownToken(
       parsedConfig.chainId,
       parsedConfig.tokenAddress
@@ -339,10 +354,7 @@ export default function DemoBasic() {
     if (!destinationToken) return false;
 
     // Check if it's Base EURC
-    if (
-      parsedConfig.chainId === baseEURC.chainId &&
-      isEvmChain(parsedConfig.chainId)
-    ) {
+    if (parsedConfig.chainId === baseEURC.chainId && isEvm) {
       try {
         return (
           getAddress(destinationToken.token) === getAddress(baseEURC.token)

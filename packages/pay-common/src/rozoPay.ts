@@ -200,7 +200,7 @@ export type RozoPayHydratedOrder = {
   destFinalCallTokenAmount: RozoPayTokenAmount;
   destFinalCall: OnChainCall;
   usdValue: number;
-  refundAddr: string;
+  refundAddr: string | null;
   nonce: bigint;
   sourceFulfillerAddr: string | null;
   sourceTokenAmount: RozoPayTokenAmount | null;

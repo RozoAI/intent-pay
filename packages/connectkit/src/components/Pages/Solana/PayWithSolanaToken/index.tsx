@@ -16,9 +16,9 @@ import {
   rozoSolana,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
+import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useDaimoPay";
 import { useSolanaDestination } from "../../../../hooks/useSolanaDestination";
-import { getSupportUrl } from "../../../../utils/supportUrl";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
@@ -54,6 +54,7 @@ const PayWithSolanaToken: React.FC = () => {
     setPaymentCompleted,
     hydrateOrder,
   } = useRozoPay();
+  const handleContactClick = useContactSupport();
 
   // Get the destination address and payment direction using our custom hook
   const { destinationAddress } = useSolanaDestination(payParams);
@@ -289,19 +290,7 @@ const PayWithSolanaToken: React.FC = () => {
           </Button>
         )}
         {payState === PayState.RequestFailed && (
-          <Button
-            onClick={() => {
-              window.open(
-                getSupportUrl(
-                  order?.id?.toString() ?? "",
-                  `Pay with Solana token${txURL ? ` ${txURL}` : ""}`
-                ),
-                "_blank"
-              );
-            }}
-          >
-            Contact Support
-          </Button>
+          <Button onClick={handleContactClick}>Contact Support</Button>
         )}
       </ModalContent>
     </PageContent>

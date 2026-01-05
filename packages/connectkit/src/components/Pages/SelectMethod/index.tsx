@@ -63,8 +63,8 @@ export default function SelectMethod() {
     senderEnsName,
     showStellarPaymentMethod,
     payParams,
-    paymentOptions,
     connectedWalletOnly,
+    depositAddressOptions,
   } = paymentState;
 
   // Decide whether to show the connected eth account, solana account, or both.
@@ -85,6 +85,8 @@ export default function SelectMethod() {
 
   // Memoize connected wallet options to prevent unnecessary recalculations
   const connectedWalletOptions = useMemo(() => {
+    const paymentOptions = payParams?.paymentOptions;
+
     const showChainLogo =
       (isEthConnected || isSolanaConnected || isStellarConnected) &&
       ((isEthConnected && isSolanaConnected) ||
@@ -259,7 +261,10 @@ export default function SelectMethod() {
     }
 
     return connectedOptions;
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    paymentState,
     showConnectedEth,
     showConnectedSolana,
     showConnectedStellar,
@@ -280,7 +285,7 @@ export default function SelectMethod() {
     stellarConnector?.id,
     stellarConnector?.name,
     stellarConnector?.icon,
-    paymentOptions,
+    payParams?.paymentOptions,
     // paymentState.setTokenMode,
     // setRoute,
   ]);
@@ -291,6 +296,7 @@ export default function SelectMethod() {
     options.push(...connectedWalletOptions);
 
     if (!connectedWalletOnly) {
+      // Pay with another wallet
       const unconnectedWalletOption = {
         id: "unconnectedWallet",
         title:
@@ -308,11 +314,20 @@ export default function SelectMethod() {
       options.push(unconnectedWalletOption);
 
       // Pay with Deposit Address
-      const depositAddressOption = getDepositAddressOption(
-        setRoute,
-        payParams?.appId
-      );
-      options.push(depositAddressOption);
+      // Hide if paymentOptions exists and contains ONLY Stellar
+      const paymentOptions = payParams?.paymentOptions;
+      const isOnlyStellar =
+        paymentOptions &&
+        paymentOptions.length === 1 &&
+        paymentOptions.includes(ExternalPaymentOptions.Stellar);
+
+      if (!isOnlyStellar && depositAddressOptions.options.length > 0) {
+        const depositAddressOption = getDepositAddressOption(
+          setRoute,
+          payParams?.appId
+        );
+        options.push(depositAddressOption);
+      }
     }
 
     if (showStellarPaymentMethod) {
@@ -366,6 +381,7 @@ export default function SelectMethod() {
     options.sort((a, b) => (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0));
 
     return options;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     connectedWalletOptions,
     connectedWalletOnly,
@@ -409,13 +425,11 @@ function getBestUnconnectedWalletIcons(
 ) {
   const icons: JSX.Element[] = [];
   const strippedId = connector?.id.toLowerCase(); // some connector ids can have weird casing and or suffixes and prefixes
-  const [isPhantom, isCoinbase, isMetamask, isRainbow, isTrust, isRabby] = [
+  const [isPhantom, isCoinbase, isMetamask, isRainbow] = [
     strippedId?.includes("phantom"),
     strippedId?.includes("coinbase"),
     strippedId?.includes("metamask"),
     strippedId?.includes("rainbow"),
-    strippedId?.includes("trust"),
-    strippedId?.includes("rabby"),
   ];
 
   if (isMobile) {

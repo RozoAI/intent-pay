@@ -1,10 +1,11 @@
-import { Token } from "@rozoai/intent-common";
+import { ExternalPaymentOptions, Token } from "@rozoai/intent-common";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { injected, useAccount } from "wagmi";
 import { Ethereum, Solana } from "../../../assets/chains";
 import { RetryIcon } from "../../../assets/icons";
 import defaultTheme from "../../../constants/defaultTheme";
+import { ROUTES } from "../../../constants/routes";
 import { useConnect } from "../../../hooks/useConnect";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { usePayContext } from "../../../hooks/usePayContext";
@@ -27,7 +28,7 @@ export default function SelectToken() {
   const isMobileFormat =
     isMobile || window?.innerWidth < defaultTheme.mobileWidth;
 
-  const { paymentState } = usePayContext();
+  const { paymentState, setRoute } = usePayContext();
   const { tokenMode, connectedWalletOnly, paymentOptions } = paymentState;
 
   const { isConnected: isEvmConnected } = useAccount();
@@ -107,6 +108,55 @@ export default function SelectToken() {
     return !isLoading && isConnected && optionsList.length === 0;
   }, [isLoading, isConnected, optionsList.length]);
 
+  // Redirect to connector page if paymentOptions requires a specific chain that is not connected
+  useEffect(() => {
+    // Only redirect if connectedWalletOnly is false (not in connected-wallet-only mode)
+    if (connectedWalletOnly) return;
+
+    // Only redirect if paymentOptions constrains to a specific chain
+    if (!paymentOptions || paymentOptions.length === 0) return;
+
+    // Check which chains are required by paymentOptions
+    const requiresEthereum = paymentOptions.includes(
+      ExternalPaymentOptions.Ethereum
+    );
+    const requiresSolana = paymentOptions.includes(
+      ExternalPaymentOptions.Solana
+    );
+    const requiresStellar = paymentOptions.includes(
+      ExternalPaymentOptions.Stellar
+    );
+
+    // Count how many wallet-specific chains are required
+    const requiredChains = [
+      requiresEthereum,
+      requiresSolana,
+      requiresStellar,
+    ].filter(Boolean).length;
+
+    // Only redirect if exactly one chain is required (not multiple, not zero)
+    if (requiredChains !== 1) return;
+
+    // Redirect to SELECT_METHOD if required chain is not connected
+    if (
+      (requiresStellar && !isStellarConnected) ||
+      (requiresSolana && !isSolConnected) ||
+      (requiresEthereum && !isEvmConnected)
+    ) {
+      setRoute(ROUTES.SELECT_METHOD, {
+        event: "click-select-another-method",
+      });
+      return;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    connectedWalletOnly,
+    paymentOptions,
+    isEvmConnected,
+    isSolConnected,
+    isStellarConnected,
+  ]);
+
   return (
     <PageContent>
       <OrderHeader
@@ -114,7 +164,7 @@ export default function SelectToken() {
         show={effectiveTokenMode}
         excludeLogos={["stellar"]}
       />
-      {(optionsList.length > 0 || isLoading) && (
+      {(!isEmptyOptionsList || isLoading) && !noConnectedWallet && (
         <OptionsList
           requiredSkeletons={3}
           isLoading={isLoading}
@@ -126,7 +176,7 @@ export default function SelectToken() {
           hideBottomLine={!isAnotherMethodButtonVisible}
         />
       )}
-      {isEmptyOptionsList && !noConnectedWallet && (
+      {!isLoading && isEmptyOptionsList && !noConnectedWallet && (
         <NoTokensAvailable
           onRefresh={refreshOptions}
           preferredTokens={paymentState.payParams?.preferredTokens}
@@ -230,7 +280,7 @@ function NoTokensAvailable({
         }}
       >
         We can&apos;t find any supported tokens ({formattedTokens}) in your
-        account.
+        account on the selected network/chain.
       </ModalBody>
       <Button
         variant="secondary"

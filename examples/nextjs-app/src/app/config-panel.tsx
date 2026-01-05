@@ -4,12 +4,7 @@ import {
   supportedPayoutTokens,
   Token,
 } from "@rozoai/intent-common";
-import {
-  isEvmChain,
-  isSolanaChain,
-  isStellarChain,
-  validateAddressForChain,
-} from "@rozoai/intent-pay";
+import { validateAddressForChain } from "@rozoai/intent-pay";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { isAddress } from "viem";
 
@@ -70,7 +65,9 @@ export function ConfigPanel({
 
         // Validate token address based on chain type
         if (parsed.chainId !== 0) {
-          const isEvm = isEvmChain(parsed.chainId);
+          const chain = getChainById(parsed.chainId);
+          if (!chain) return;
+          const isEvm = chain.type === "evm";
           if (isEvm && !isAddress(parsed.tokenAddress)) {
             Object.assign(parsedConfig, {
               tokenAddress: "",
@@ -141,15 +138,7 @@ export function ConfigPanel({
 
     const isValid = validateAddressForChain(chainId, address);
     if (!isValid) {
-      if (isEvmChain(chainId)) {
-        setAddressError("Invalid EVM address");
-      } else if (isSolanaChain(chainId)) {
-        setAddressError("Invalid Solana address");
-      } else if (isStellarChain(chainId)) {
-        setAddressError("Invalid Stellar address");
-      } else {
-        setAddressError("Invalid address format");
-      }
+      setAddressError("Invalid address format");
       return false;
     }
 
@@ -172,15 +161,10 @@ export function ConfigPanel({
     e.preventDefault();
 
     if (!config.recipientAddress) {
-      if (isEvmChain(config.chainId)) {
-        alert("Please enter a valid EVM address");
-      } else if (isSolanaChain(config.chainId)) {
-        alert("Please enter a valid Solana address");
-      } else if (isStellarChain(config.chainId)) {
-        alert("Please enter a valid Stellar address");
-      } else {
-        alert("Please enter a valid recipient address");
-      }
+      const chain = getChainById(config.chainId);
+      if (!chain) return;
+
+      alert("Please enter a valid recipient address");
       return;
     }
 
@@ -190,15 +174,7 @@ export function ConfigPanel({
       config.recipientAddress
     );
     if (!isValid) {
-      if (isEvmChain(config.chainId)) {
-        alert("Please enter a valid EVM address (0x... format)");
-      } else if (isSolanaChain(config.chainId)) {
-        alert("Please enter a valid Solana address (Base58 format)");
-      } else if (isStellarChain(config.chainId)) {
-        alert("Please enter a valid Stellar address (G... format)");
-      } else {
-        alert("Please enter a valid address");
-      }
+      alert("Please enter a valid address");
       return;
     }
 
@@ -329,9 +305,6 @@ export function ConfigPanel({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Recipient Address
-                {isEvmChain(config.chainId) && " (EVM)"}
-                {isSolanaChain(config.chainId) && " (Solana)"}
-                {isStellarChain(config.chainId) && " (Stellar)"}
               </label>
               <input
                 type="text"
@@ -342,29 +315,11 @@ export function ConfigPanel({
                     ? "border-red-500 focus:border-red-500 focus:ring-red-200"
                     : "border-gray-300 focus:border-primary-medium focus:ring-primary-light"
                 } focus:ring focus:ring-opacity-50`}
-                placeholder={
-                  isEvmChain(config.chainId)
-                    ? "0x..."
-                    : isSolanaChain(config.chainId)
-                    ? "Base58 address..."
-                    : isStellarChain(config.chainId)
-                    ? "G..."
-                    : "Enter address..."
-                }
+                placeholder={"Enter address..."}
                 formNoValidate
               />
               {addressError && (
                 <p className="mt-1 text-sm text-red-500">{addressError}</p>
-              )}
-              {config.chainId > 0 && !addressError && (
-                <p className="mt-1 text-xs text-gray-500">
-                  {isEvmChain(config.chainId) &&
-                    "Enter a valid EVM address (0x followed by 40 hex characters)"}
-                  {isSolanaChain(config.chainId) &&
-                    "Enter a valid Solana address (Base58 encoded, 32-44 characters)"}
-                  {isStellarChain(config.chainId) &&
-                    "Enter a valid Stellar address (starts with G, 56 characters)"}
-                </p>
               )}
             </div>
           )}

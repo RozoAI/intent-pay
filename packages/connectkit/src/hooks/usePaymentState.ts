@@ -29,6 +29,7 @@ import {
   rozoSolana,
   rozoSolanaUSDC,
   rozoStellar,
+  rozoStellarEURC,
   rozoStellarUSDC,
   solana,
   WalletPaymentOption,
@@ -274,6 +275,7 @@ export function usePaymentState({
     kit: stellarKit,
     connector: stellarConnector,
     server: stellarServer,
+    refreshAccount: refreshStellarAccount,
   } = useStellar();
   const stellarPubKey = stellarPublicKey;
 
@@ -305,15 +307,17 @@ export function usePaymentState({
   // Include by default if paymentOptions not provided. Solana bridging is only
   // supported on the destination chain.
   const showSolanaPaymentMethod = useMemo(() => {
+    const paymentOptions = currPayParams?.paymentOptions;
     return (
       (paymentOptions == null ||
-        paymentOptions.includes(ExternalPaymentOptions.Solana)) &&
+        paymentOptions?.includes(ExternalPaymentOptions.Solana)) &&
       pay.order != null
       // isCCTPV1Chain(getOrderDestChainId(pay.order))
     );
-  }, [paymentOptions, pay.order]);
+  }, [currPayParams?.paymentOptions, pay.order]);
 
   const showStellarPaymentMethod = useMemo(() => {
+    const paymentOptions = currPayParams?.paymentOptions;
     const preferredTokens = currPayParams?.preferredTokens;
 
     // If preferredTokens exists and has no Stellar tokens, don't show Stellar method
@@ -329,10 +333,14 @@ export function usePaymentState({
     // Otherwise, show based on paymentOptions and order
     return (
       (paymentOptions == null ||
-        paymentOptions.includes(ExternalPaymentOptions.Stellar)) &&
+        paymentOptions?.includes(ExternalPaymentOptions.Stellar)) &&
       pay.order != null
     );
-  }, [paymentOptions, pay.order, currPayParams?.preferredTokens]);
+  }, [
+    currPayParams?.paymentOptions,
+    pay.order,
+    currPayParams?.preferredTokens,
+  ]);
 
   // Memoize usdRequired and destChainId to prevent unnecessary refetches when order object reference changes
   const usdRequired = useMemo(
@@ -985,26 +993,46 @@ export function usePaymentState({
     }
   ): Promise<{ signedTx: string; success: boolean }> => {
     try {
-      // Initial validation
-      if (!stellarPublicKey) {
-        throw new Error("Stellar Public key is null");
-      }
-
-      if (!stellarAccount) {
-        throw new Error("Stellar Account is null");
-      }
-
       if (!stellarServer || !stellarKit) {
         throw new Error("Stellar services not initialized");
       }
 
+      if (!stellarPublicKey) {
+        throw new Error("Stellar Public key is null");
+      }
+
+      let account = stellarAccount;
+
+      if (!account) {
+        account = await refreshStellarAccount();
+      }
+
+      if (!account) {
+        throw new Error("Stellar account is null");
+      }
+
       const destinationAddress = rozoPayment.destAddress;
-      const issuer = rozoStellarUSDC.token.split(":")[1];
+      // const issuer = rozoStellarUSDC.token.split(":")[1];
 
       // Setup Stellar payment
       await stellarKit.setWallet(String(stellarConnector?.id ?? "freighter"));
       const sourceAccount = await stellarServer.loadAccount(stellarPublicKey);
-      const destAsset = new Asset("USDC", issuer);
+
+      let issuer = "";
+      if (walletPaymentOption.required.token.token === rozoStellarUSDC.token) {
+        issuer = rozoStellarUSDC.token.split(":")[1];
+      } else if (
+        walletPaymentOption.required.token.token === rozoStellarEURC.token
+      ) {
+        issuer = rozoStellarEURC.token.split(":")[1];
+      } else {
+        throw new Error("Unsupported token");
+      }
+
+      const destAsset = new Asset(
+        walletPaymentOption.required.token.symbol,
+        issuer
+      );
       const fee = String(await stellarServer.fetchBaseFee());
 
       // Build transaction

@@ -1,4 +1,4 @@
-import { WalletPaymentOption } from "@rozoai/intent-common";
+import { rozoSolana, solana, WalletPaymentOption } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
@@ -24,7 +24,7 @@ export function useSolanaPaymentOptions({
   payParams: PayParams | undefined;
 }) {
   const [options, setOptions] = useState<WalletPaymentOption[] | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Track the last executed parameters to prevent duplicate API calls
   const lastExecutedParams = useRef<string | null>(null);
@@ -67,8 +67,18 @@ export function useSolanaPaymentOptions({
           return true;
         }
 
+        const filteredPreferredTokens = preferredTokens.map((pt) => {
+          if (pt.chainId === rozoSolana.chainId) {
+            return {
+              ...pt,
+              chainId: solana.chainId,
+            };
+          }
+          return pt;
+        });
+
         // Filter by matching chainId and token address
-        return preferredTokens.some(
+        return filteredPreferredTokens.some(
           (pt) =>
             pt.chainId === option.balance.token.chainId &&
             normalizeAddress(pt.token) ===

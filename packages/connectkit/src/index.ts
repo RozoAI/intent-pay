@@ -32,21 +32,10 @@ export * from "./types";
 
 // Export chain address utilities and types
 export {
-  EVM_CHAIN_IDS,
-  getChainTypeName,
-  isEvmChain,
-  isSolanaChain,
-  isStellarChain,
   isValidEvmAddress,
   isValidSolanaAddress,
   isValidStellarAddress,
-  NON_EVM_CHAIN_IDS,
   validateAddressForChain,
-} from "./types/chainAddress";
-export type {
-  EvmChainId,
-  NonEvmChainId,
-  SupportedChainId,
 } from "./types/chainAddress";
 
 // TODO: expose this more selectively.

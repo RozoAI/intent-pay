@@ -1,52 +1,17 @@
 import { motion } from "framer-motion";
 import { keyframes } from "styled-components";
 import RozoTextLogo from "../../../assets/rozo-text";
-import { useRozoPay } from "../../../hooks/useDaimoPay";
-import { usePayContext } from "../../../hooks/usePayContext";
+import { useContactSupport } from "../../../hooks/useContactSupport";
 import styled from "../../../styles/styled";
-import { rozoPayVersion } from "../../../utils/exports";
-import IntercomInitializer from "../Intercom";
 
 const PoweredByFooter = ({
   preFilledMessage,
   showSupport = true,
 }: { preFilledMessage?: string; showSupport?: boolean } = {}) => {
-  const context = usePayContext();
-  const pay = useRozoPay();
-
-  const handleContactClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-
-    if (
-      typeof window !== "undefined" &&
-      typeof window.Intercom === "function"
-    ) {
-      context.setOpen(false);
-      window.Intercom(
-        "showNewMessage",
-        [
-          "Hi, I need help with my payment.",
-          "",
-          `Version: ${rozoPayVersion}`,
-          pay.order?.externalId
-            ? `Order ID: ${pay.order.externalId.toString()}`
-            : null,
-          preFilledMessage,
-        ]
-          .filter(Boolean)
-          .join("\n")
-      );
-    } else {
-      window.open(
-        globalThis.__SUPPORTURL__ ||
-          `https://pay.rozo.ai?ref=sdk-v${rozoPayVersion}`
-      );
-    }
-  };
+  const handleContactClick = useContactSupport(preFilledMessage);
 
   return (
     <>
-      <IntercomInitializer />
       <Container>
         <TextButton
           onClick={() => {

@@ -4,6 +4,7 @@ import { usePayContext } from "../../hooks/usePayContext";
 import { TextContainer } from "./styles";
 
 import {
+  getChainById,
   getChainExplorerTxUrl,
   getRozoPayOrderView,
   PaymentBouncedEvent,
@@ -23,13 +24,7 @@ import { useRozoPay } from "../../hooks/useDaimoPay";
 import { paymentEventEmitter } from "../../payment/paymentEventEmitter";
 import { PayParams } from "../../payment/paymentFsm";
 import { ResetContainer } from "../../styles";
-import {
-  getChainTypeName,
-  isEvmChain,
-  isSolanaChain,
-  isStellarChain,
-  validateAddressForChain,
-} from "../../types/chainAddress";
+import { validateAddressForChain } from "../../types/chainAddress";
 import { validatePayoutToken } from "../../utils/validatePayoutToken";
 import ThemedButton, { ThemeContainer } from "../Common/ThemedButton";
 import { RozoPayButtonCustomProps, RozoPayButtonProps } from "./types";
@@ -79,7 +74,12 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
     // Handle appId mode
     if ("appId" in props) {
-      const isEvm = isEvmChain(props.toChain);
+      const chain = getChainById(props.toChain);
+      if (!chain) {
+        return { payParams: null, payId: null };
+      }
+
+      const isEvm = chain.type === "evm";
       const {
         appId,
         toChain,
@@ -154,12 +154,16 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
   const isToStellar = useMemo(() => {
     if (!payParams) return false;
-    return isStellarChain(payParams.toChain);
+    const chain = getChainById(payParams.toChain);
+    if (!chain) return false;
+    return chain.type === "stellar";
   }, [payParams?.toChain]);
 
   const isToSolana = useMemo(() => {
     if (!payParams) return false;
-    return isSolanaChain(payParams.toChain);
+    const chain = getChainById(payParams.toChain);
+    if (!chain) return false;
+    return chain.type === "solana";
   }, [payParams?.toChain]);
 
   // Store validation error ref
@@ -171,14 +175,19 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
       const isValid = validateAddressForChain(props.toChain, props.toAddress);
 
       if (!isValid) {
-        const chainName = getChainTypeName(props.toChain);
+        const chain = getChainById(props.toChain);
+        if (!chain) {
+          return;
+        }
+
+        const chainName = chain.name;
         console.error(
           `[RozoPayButton] Invalid address format for ${chainName} (chain ${props.toChain}). ` +
             `Received: ${props.toAddress}. ` +
             `Expected format: ${
-              isEvmChain(props.toChain)
+              chain.type === "evm"
                 ? "0x... (EVM address)"
-                : isSolanaChain(props.toChain)
+                : chain.type === "solana"
                 ? "Base58 encoded address (32-44 chars)"
                 : "G... (Stellar address, 56 chars)"
             }`

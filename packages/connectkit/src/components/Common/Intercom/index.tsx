@@ -68,4 +68,4 @@ const IntercomInitializer = ({ user = {} }: IntercomInitializerProps): null => {
   return null; // This component doesn't render any UI
 };
 
-export default IntercomInitializer;
+export { IntercomInitializer };

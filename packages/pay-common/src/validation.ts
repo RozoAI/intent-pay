@@ -43,12 +43,16 @@ export function validateAddressForChain(
   chainId: number,
   address: string
 ): boolean {
-  if (isChainSupported(chainId, "evm")) {
-    return !!getAddress(address);
-  } else if (isChainSupported(chainId, "solana")) {
-    return isValidSolanaAddress(address);
-  } else if (isChainSupported(chainId, "stellar")) {
-    return isValidStellarAddress(address);
+  try {
+    if (isChainSupported(chainId, "evm")) {
+      return !!getAddress(address);
+    } else if (isChainSupported(chainId, "solana")) {
+      return isValidSolanaAddress(address);
+    } else if (isChainSupported(chainId, "stellar")) {
+      return isValidStellarAddress(address);
+    }
+    return false;
+  } catch (error) {
+    return false;
   }
-  return false;
 }
