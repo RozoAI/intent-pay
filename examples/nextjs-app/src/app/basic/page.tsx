@@ -3,7 +3,6 @@
 import * as Tokens from "@rozoai/intent-common";
 import {
   baseEURC,
-  ExternalPaymentOptions,
   FeeType,
   getChainById,
   getChainName,
@@ -484,7 +483,6 @@ export default function DemoBasic() {
                   }}
                   feeType={FeeType.ExactOut}
                   preferredSymbol={preferredSymbol}
-                  paymentOptions={[ExternalPaymentOptions.Stellar]}
                   metadata={metadata}
                   resetOnSuccess
                   showProcessingPayout

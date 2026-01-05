@@ -60,9 +60,6 @@ const Confirmation: React.FC = () => {
   const [pusherPayoutTxHash, setPusherPayoutTxHash] = useState<
     string | undefined
   >(undefined);
-  const [pusherPayoutTxHashUrl, setPusherPayoutTxHashUrl] = useState<
-    string | undefined
-  >(undefined);
 
   // Track Pusher initialization and data activity for timeout logic
   const [pusherEnabled, setPusherEnabled] = useState<boolean>(true);
@@ -73,6 +70,7 @@ const Confirmation: React.FC = () => {
   const payoutCompletedRef = useRef<boolean>(false);
   const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
   const pusherEnabledRef = useRef<boolean>(true);
+  const prevRozoPaymentIdRef = useRef<string | undefined>(undefined);
 
   const showProcessingPayout = useMemo(() => {
     const { payParams, tokenMode } = paymentStateContext;
@@ -86,6 +84,16 @@ const Confirmation: React.FC = () => {
 
     return false;
   }, [paymentStateContext]);
+
+  // Compute Pusher payout URL at render time to avoid stale closure issues
+  // (the onPayoutCompleted callback may have stale `order` reference)
+  const computedPusherPayoutTxHashUrl = useMemo(() => {
+    if (pusherPayoutTxHash && order) {
+      const destChainId = getOrderDestChainId(order);
+      return getChainExplorerTxUrl(destChainId, pusherPayoutTxHash);
+    }
+    return undefined;
+  }, [pusherPayoutTxHash, order]);
 
   const rozoPaymentId = useMemo(() => {
     const id = order?.externalId || paymentStateContext.rozoPaymentId;
@@ -229,18 +237,8 @@ const Confirmation: React.FC = () => {
           payoutCompletedSent.current = payoutKey;
           payoutCompletedRef.current = true;
 
-          // Update local state for UI display
+          // Update local state for UI display (URL computed at render time via useMemo)
           setPusherPayoutTxHash(payload.destination_txhash);
-
-          // Generate transaction URL if we have the order
-          if (order) {
-            const destChainId = getOrderDestChainId(order);
-            const txUrl = getChainExplorerTxUrl(
-              destChainId,
-              payload.destination_txhash
-            );
-            setPusherPayoutTxHashUrl(txUrl);
-          }
 
           // Update payment state
           setPaymentPayoutCompleted(payload.destination_txhash, rozoPaymentId);
@@ -303,7 +301,7 @@ const Confirmation: React.FC = () => {
       );
     }
 
-    // Set up timeout to switch to polling after 1 minute if no data received
+    // Set up timeout to switch to polling after 1 minute if payout not completed
     context.log("[CONFIRMATION] Setting up 1-minute timeout");
     timeoutIdRef.current = setTimeout(() => {
       context.log(
@@ -312,14 +310,12 @@ const Confirmation: React.FC = () => {
         "- checking conditions for polling switch"
       );
 
-      // Only switch to polling if payout hasn't been completed and Pusher is still enabled
-      if (
-        !pusherDataReceivedRef.current &&
-        pusherEnabledRef.current &&
-        !payoutCompletedRef.current
-      ) {
+      // Switch to polling if payout hasn't been completed and Pusher is still enabled
+      // Note: We check payoutCompletedRef, not pusherDataReceivedRef, because we may
+      // receive payin data but still need to poll for payout if it doesn't arrive via Pusher
+      if (pusherEnabledRef.current && !payoutCompletedRef.current) {
         context.log(
-          "[CONFIRMATION] 1 minute elapsed with no Pusher data, switching to polling"
+          "[CONFIRMATION] 1 minute elapsed without payout completion, switching to polling"
         );
 
         // Unsubscribe from Pusher
@@ -334,7 +330,6 @@ const Confirmation: React.FC = () => {
         setPollingEnabled(true);
       } else {
         context.log("[CONFIRMATION] Timeout fired but conditions not met:", {
-          pusherDataReceived: pusherDataReceivedRef.current,
           pusherEnabled: pusherEnabledRef.current,
           payoutCompleted: payoutCompletedRef.current,
         });
@@ -357,22 +352,30 @@ const Confirmation: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rozoPaymentId, pusherEnabled]);
 
-  // Reset tracking when rozoPaymentId changes
+  // Reset tracking when rozoPaymentId changes to a DIFFERENT value (not on initial mount)
   useEffect(() => {
-    context.log("[CONFIRMATION] Resetting tracking for new payment ID");
-    pusherInitializedTimeRef.current = null;
-    pusherDataReceivedRef.current = false;
-    payoutCompletedRef.current = false;
-    pusherEnabledRef.current = true;
-    setPusherEnabled(true);
-    setPollingEnabled(false);
-    if (timeoutIdRef.current) {
-      context.log(
-        "[CONFIRMATION] Clearing existing timeout on payment ID change"
-      );
-      clearTimeout(timeoutIdRef.current);
-      timeoutIdRef.current = null;
+    // Only reset if we're switching to a different payment ID, not on initial mount
+    if (
+      prevRozoPaymentIdRef.current &&
+      prevRozoPaymentIdRef.current !== rozoPaymentId
+    ) {
+      context.log("[CONFIRMATION] Resetting tracking for new payment ID");
+      pusherInitializedTimeRef.current = null;
+      pusherDataReceivedRef.current = false;
+      payoutCompletedRef.current = false;
+      pusherEnabledRef.current = true;
+      setPusherEnabled(true);
+      setPollingEnabled(false);
+      if (timeoutIdRef.current) {
+        context.log(
+          "[CONFIRMATION] Clearing existing timeout on payment ID change"
+        );
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
+      }
     }
+    // Update the previous value for next comparison
+    prevRozoPaymentIdRef.current = rozoPaymentId;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rozoPaymentId]);
 
@@ -519,10 +522,15 @@ const Confirmation: React.FC = () => {
                     <ModalBody>
                       {payoutLoading ? (
                         <LoadingText>Processing payout...</LoadingText>
-                      ) : (pusherPayoutTxHashUrl && pusherPayoutTxHash) ||
+                      ) : (computedPusherPayoutTxHashUrl &&
+                          pusherPayoutTxHash) ||
                         (payoutTxHashUrl && payoutTxHash) ? (
                         <Link
-                          href={pusherPayoutTxHashUrl || payoutTxHashUrl || "#"}
+                          href={
+                            computedPusherPayoutTxHashUrl ||
+                            payoutTxHashUrl ||
+                            "#"
+                          }
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{ fontSize: 14, fontWeight: 400 }}
