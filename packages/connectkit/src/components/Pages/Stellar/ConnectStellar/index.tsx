@@ -10,11 +10,7 @@ import { Stellar } from "../../../../assets/chains";
 import { SquircleIcon } from "../../../../assets/logos";
 import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
-import {
-  STELLAR_WALLET_STORAGE_KEY,
-  useStellar,
-} from "../../../../provider/StellarContextProvider";
-import * as LocalStorage from "../../../../utils/localstorage";
+import { useStellar } from "../../../../provider/StellarContextProvider";
 import { OptionsList } from "../../../Common/OptionsList";
 import { OrderHeader } from "../../../Common/OrderHeader";
 import SelectAnotherMethodButton from "../../../Common/SelectAnotherMethodButton";
@@ -22,7 +18,7 @@ import WalletPaymentSpinner from "../../../Spinners/WalletPaymentSpinner";
 
 const ConnectStellar: React.FC = () => {
   const { setStellarConnector, setRoute, log } = usePayContext();
-  const { kit, setPublicKey, setConnector } = useStellar();
+  const { kit } = useStellar();
 
   // State to store the fetched Stellar wallets
   const [stellarWallets, setStellarWallets] = useState<Array<any>>([]);
@@ -48,6 +44,7 @@ const ConnectStellar: React.FC = () => {
   }, [kit]);
 
   // Create options list from the fetched wallets
+  // Following Solana pattern: only set connector and navigate, let ConnectorStellar handle connection
   const stellarOptions = useMemo(() => {
     return stellarWallets
       .filter((wallet) => wallet.isAvailable)
@@ -63,33 +60,21 @@ const ConnectStellar: React.FC = () => {
         icons: [
           <SquircleIcon key={wallet.id} icon={wallet.icon} alt={wallet.name} />,
         ],
-        onClick: async () => {
-          log("wallet.name ", wallet.id);
+        onClick: () => {
+          log(`[ConnectStellar] Wallet selected: ${wallet.id}`);
 
-          await kit?.setWallet(wallet.id);
-          kit?.getAddress().then(({ address }) => {
-            // Stellar Provider
-            setPublicKey(address);
-            setConnector(wallet);
+          // Set the selected wallet in context (like Solana pattern)
+          // The full wallet object is stored so ConnectorStellar can use it
+          setStellarConnector(wallet);
 
-            // Save wallet connection to localStorage for persistence
-            LocalStorage.add(STELLAR_WALLET_STORAGE_KEY, {
-              walletId: wallet.id,
-              walletName: wallet.name,
-              walletIcon: wallet.icon,
-              publicKey: address,
-            });
-
-            // PayContext
-            setStellarConnector(wallet.id);
-            setRoute(ROUTES.STELLAR_CONNECTOR, {
-              event: "click-stellar-wallet",
-              walletName: wallet.name,
-            });
+          // Navigate to connector page - actual connection happens there
+          setRoute(ROUTES.STELLAR_CONNECTOR, {
+            event: "click-stellar-wallet",
+            walletName: wallet.name,
           });
         },
       }));
-  }, [stellarWallets, kit]);
+  }, [stellarWallets, log, setStellarConnector, setRoute]);
 
   return (
     <PageContent>

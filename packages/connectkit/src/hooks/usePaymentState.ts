@@ -1346,11 +1346,16 @@ export function usePaymentState({
           updatedPayParams.toAddress = getAddress(
             "0x0000000000000000000000000000000000000000"
           );
+          updatedPayParams.toSolanaAddress = undefined;
         } else if (updatedPayParams.toChain === rozoSolana.chainId) {
           updatedPayParams.toSolanaAddress = updatedPayParams.toAddress;
           updatedPayParams.toAddress = getAddress(
             "0x0000000000000000000000000000000000000000"
           );
+          updatedPayParams.toStellarAddress = undefined;
+        } else {
+          updatedPayParams.toStellarAddress = undefined;
+          updatedPayParams.toSolanaAddress = undefined;
         }
 
         await pay.createPreviewOrder(updatedPayParams);

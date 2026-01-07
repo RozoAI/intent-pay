@@ -14,7 +14,11 @@ import {
   rozoStellarEURC,
   TokenSymbol,
 } from "@rozoai/intent-common";
-import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
+import {
+  RozoPayButton,
+  useRozoConnectStellar,
+  useRozoPayUI,
+} from "@rozoai/intent-pay";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -171,6 +175,152 @@ const CodeSnippetDisplay = ({ code }: { code: string }) => {
       >
         {code}
       </SyntaxHighlighter>
+    </div>
+  );
+};
+
+/**
+ * Simple Connect Stellar Wallet Component
+ */
+const ConnectStellarWallet = () => {
+  const {
+    kit,
+    isConnected,
+    publicKey,
+    connector,
+    setConnector,
+    disconnect,
+    setPublicKey,
+  } = useRozoConnectStellar();
+  const [wallets, setWallets] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showWallets, setShowWallets] = useState(false);
+
+  // Fetch available wallets
+  useEffect(() => {
+    const fetchWallets = async () => {
+      if (!kit) return;
+      setIsLoading(true);
+      try {
+        const availableWallets = await kit.getSupportedWallets();
+        setWallets(availableWallets.filter((w: any) => w.isAvailable));
+      } catch (error) {
+        console.error("Error fetching Stellar wallets:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchWallets();
+  }, [kit]);
+
+  const handleConnect = async (wallet: any) => {
+    try {
+      if (!kit) return;
+
+      kit.setWallet(wallet.id);
+      const { address } = await kit.getAddress();
+      setPublicKey(address);
+      await setConnector(wallet);
+      setShowWallets(false);
+    } catch (error) {
+      console.error("Error connecting wallet:", error);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnect();
+    } catch (error) {
+      console.error("Error disconnecting wallet:", error);
+    }
+  };
+
+  if (isConnected && publicKey) {
+    return (
+      <div className="w-full max-w-md bg-white rounded-lg shadow-md p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">
+          Stellar Wallet Connected
+        </h3>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600">Wallet:</span>
+            <span className="text-sm text-gray-800">
+              {connector?.name || "Unknown"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600">Address:</span>
+            <span className="text-sm text-gray-800 font-mono break-all">
+              {publicKey}
+            </span>
+          </div>
+          <button
+            onClick={handleDisconnect}
+            className="w-full mt-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
+          >
+            Disconnect
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-md bg-white rounded-lg shadow-md p-6">
+      <h3 className="text-lg font-semibold text-gray-800 mb-4">
+        Connect Stellar Wallet
+      </h3>
+      {isLoading ? (
+        <p className="text-sm text-gray-600">Loading wallets...</p>
+      ) : (
+        <>
+          {!showWallets ? (
+            <button
+              onClick={() => setShowWallets(true)}
+              className="w-full px-4 py-2 bg-primary-dark text-white rounded-lg hover:bg-primary-medium transition-colors font-medium"
+            >
+              Connect Wallet
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <button
+                onClick={() => setShowWallets(false)}
+                className="mb-2 text-sm text-gray-600 hover:text-gray-800"
+              >
+                ← Back
+              </button>
+              {wallets.length === 0 ? (
+                <p className="text-sm text-gray-600">
+                  No Stellar wallets detected. Please install a Stellar wallet
+                  extension.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {wallets.map((wallet) => (
+                    <button
+                      key={wallet.id}
+                      onClick={() => handleConnect(wallet)}
+                      className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-3"
+                    >
+                      {wallet.icon && (
+                        <img
+                          src={wallet.icon}
+                          alt={wallet.name}
+                          className="w-6 h-6"
+                        />
+                      )}
+                      <span className="text-sm font-medium text-gray-800">
+                        {wallet.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };
@@ -447,6 +597,9 @@ export default function DemoBasic() {
           </div>
         )}
       </div>
+
+      {/* Connect Stellar Wallet Section */}
+      <ConnectStellarWallet />
 
       {/* Main Content */}
       <div className="flex flex-col items-center gap-6">

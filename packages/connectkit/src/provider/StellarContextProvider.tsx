@@ -159,11 +159,35 @@ export const StellarContextProvider = ({
 
     try {
       let pk = publicKey;
+      
+      // Handle both internal and external kit scenarios:
+      // 1. Internal kit: Always connect
+      // 2. External kit + not connected: Trigger wallet connection
+      // 3. External kit + already connected: Use existing connection
       if (!isUsingExternalKit) {
-        kit.setWallet(option.id);
+        // Internal kit: always call setWallet and getAddress
+        log?.(`[Rozo] Using internal kit, connecting wallet: ${option.id}`);
+        await kit.setWallet(option.id);
         const { address } = await kit.getAddress();
         pk = address;
         setPublicKey(address);
+        log?.(`[Rozo] Internal kit connected, publicKey: ${address}`);
+      } else {
+        // External kit: check if already connected
+        if (!publicKey) {
+          // Not connected yet - trigger wallet connection through external kit
+          log?.(`[Rozo] Using external kit, triggering wallet connection: ${option.id}`);
+          await kit.setWallet(option.id);
+          log?.("[Rozo] External kit setWallet completed");
+          const { address } = await kit.getAddress();
+          pk = address;
+          setPublicKey(address);
+          log?.(`[Rozo] External kit connected, publicKey: ${address}`);
+        } else {
+          // Already connected - use existing publicKey
+          log?.(`[Rozo] External kit already connected, using existing publicKey: ${publicKey}`);
+          pk = publicKey;
+        }
       }
 
       setConnector(option);
@@ -176,6 +200,8 @@ export const StellarContextProvider = ({
           publicKey: pk,
         });
       }
+      
+      log?.(`[Rozo] setWallet completed successfully for: ${option.name}`);
     } catch (err: any) {
       console.error("[Rozo] setWallet error", err);
       throw new Error(err.message || "Failed to set wallet");
