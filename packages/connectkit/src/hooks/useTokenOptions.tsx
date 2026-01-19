@@ -248,17 +248,17 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
       } else if (mode === "evm") {
         return Boolean(
           walletPaymentOptions.options &&
-            walletPaymentOptions.options.length > 0
+          walletPaymentOptions.options.length > 0
         );
       } else if (mode === "solana") {
         return Boolean(
           solanaPaymentOptions.options &&
-            solanaPaymentOptions.options.length > 0
+          solanaPaymentOptions.options.length > 0
         );
       } else if (mode === "stellar") {
         return Boolean(
           stellarPaymentOptions.options &&
-            stellarPaymentOptions.options.length > 0
+          stellarPaymentOptions.options.length > 0
         );
       }
       return false;
@@ -455,7 +455,11 @@ function getEvmTokenOptions(
     const chainName = getChainName(option.balance.token.chainId);
     const titlePrice = isDepositFlow
       ? formatUsd(option.balance.usd)
-      : roundTokenAmount(option.required.amount, option.required.token);
+      : roundTokenAmount(
+          option.required.amount,
+          option.required.token,
+          "nearest"
+        );
     const title = `${titlePrice} ${option.balance.token.symbol} on ${chainName}`;
 
     const balanceStr = `${roundTokenAmount(
@@ -506,7 +510,11 @@ function getSolanaTokenOptions(
   return options.map((option) => {
     const titlePrice = isDepositFlow
       ? formatUsd(option.balance.usd)
-      : roundTokenAmount(option.required.amount, option.required.token);
+      : roundTokenAmount(
+          option.required.amount,
+          option.required.token,
+          "nearest"
+        );
     const title = `${titlePrice} ${option.balance.token.symbol} on Solana`;
     const balanceStr = `${roundTokenAmount(
       option.balance.amount,
@@ -556,7 +564,11 @@ function getStellarTokenOptions(
   return options.map((option) => {
     const titlePrice = isDepositFlow
       ? formatUsd(option.balance.usd)
-      : roundTokenAmount(option.required.amount, option.required.token);
+      : roundTokenAmount(
+          option.required.amount,
+          option.required.token,
+          "nearest"
+        );
     const title = `${titlePrice} ${option.balance.token.symbol} on Stellar`;
     const balanceStr = `${roundTokenAmount(
       option.balance.amount,

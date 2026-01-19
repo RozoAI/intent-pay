@@ -249,8 +249,8 @@ export function useRozoPay(): UseRozoPay {
     return order?.externalId
       ? order.externalId
       : order?.id
-      ? String(order.id)
-      : null;
+        ? String(order.id)
+        : null;
   }, [order]);
 
   // Track previous order ID to detect order changes

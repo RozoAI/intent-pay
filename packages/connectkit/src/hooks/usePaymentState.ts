@@ -283,6 +283,14 @@ export function usePaymentState({
   const [buttonProps, setButtonProps] = useState<PayButtonPaymentProps>();
   const [currPayParams, setCurrPayParams] = useState<PayParams>();
 
+  // Ref to store latest payParams synchronously to avoid stale closures
+  const currPayParamsRef = useRef<PayParams>();
+
+  // Update ref whenever currPayParams changes
+  useEffect(() => {
+    currPayParamsRef.current = currPayParams;
+  }, [currPayParams]);
+
   // Modal options
   const [connectedWalletOnly, setConnectedWalletOnly] =
     useState<boolean>(false);
@@ -302,7 +310,7 @@ export function usePaymentState({
   // TODO: backend should determine whether to show solana payment method
   const paymentOptions = useMemo(() => {
     return currPayParams?.paymentOptions;
-  }, [buttonProps, currPayParams]);
+  }, [currPayParams?.paymentOptions]);
 
   // Include by default if paymentOptions not provided. Solana bridging is only
   // supported on the destination chain.
@@ -471,7 +479,8 @@ export function usePaymentState({
     walletOption: WalletPaymentOption,
     store: Store<PaymentState, PaymentEvent>
   ): Promise<PaymentResponse | undefined> => {
-    const payParams = currPayParams;
+    // Read from ref instead of closure to get latest value and avoid stale state
+    const payParams = currPayParamsRef.current;
     const order = pay.order;
 
     if (!payParams) {
@@ -1275,35 +1284,46 @@ export function usePaymentState({
   );
 
   /** Called whenever params change. */
-  const setPayParams = async (payParams: PayParams | undefined) => {
-    if (!payParams || lockPayParams) return;
-    assert(payParams != null, "[SET PAY PARAMS] payParams cannot be null");
+  const setPayParams = useCallback(
+    async (payParams: PayParams | undefined) => {
+      if (!payParams || lockPayParams) return;
+      assert(payParams != null, "[SET PAY PARAMS] payParams cannot be null");
 
-    // Convert preferredSymbol to preferredTokens if needed
-    const finalPreferredTokens = convertPreferredSymbolsToTokens(
-      payParams.preferredSymbol,
-      payParams.preferredTokens
-    );
-    const updatedPayParams = {
-      ...payParams,
-      preferredTokens: finalPreferredTokens,
-    };
+      // Convert preferredSymbol to preferredTokens if needed
+      const finalPreferredTokens = convertPreferredSymbolsToTokens(
+        payParams.preferredSymbol,
+        payParams.preferredTokens
+      );
+      const updatedPayParams = {
+        ...payParams,
+        preferredTokens: finalPreferredTokens,
+      };
 
-    log("[SET PAY PARAMS] setting payParams", updatedPayParams);
-    pay.reset();
-    await pay.createPreviewOrder(updatedPayParams);
-    setCurrPayParams(updatedPayParams);
-    setIsDepositFlow(updatedPayParams.toUnits == null);
-  };
+      // Update ref synchronously BEFORE async operations to prevent stale closures
+      currPayParamsRef.current = updatedPayParams;
 
-  const generatePreviewOrder = async () => {
+      log("[SET PAY PARAMS] setting payParams", updatedPayParams);
+      pay.reset();
+      await pay.createPreviewOrder(updatedPayParams);
+      setCurrPayParams(updatedPayParams);
+      setIsDepositFlow(updatedPayParams.toUnits == null);
+    },
+    [lockPayParams, pay, currPayParamsRef]
+  );
+
+  const generatePreviewOrder = useCallback(async () => {
     pay.reset();
     if (currPayParams == null) return;
     await pay.createPreviewOrder(currPayParams);
-  };
+  }, [pay, currPayParams]);
 
   const resetOrder = useCallback(
     async (payParams?: Partial<PayParams>) => {
+      log?.("[resetOrder] Called with params:", {
+        currentParams: currPayParams,
+        newParams: payParams,
+      });
+
       const mergedPayParams: PayParams | undefined =
         payParams != null && currPayParams != null
           ? {
@@ -1341,13 +1361,16 @@ export function usePaymentState({
           preferredTokens: finalPreferredTokens,
         };
 
+        // Handle address transformation based on destination chain
         if (updatedPayParams.toChain === rozoStellar.chainId) {
+          // Destination is Stellar - move toAddress to toStellarAddress
           updatedPayParams.toStellarAddress = updatedPayParams.toAddress;
           updatedPayParams.toAddress = getAddress(
             "0x0000000000000000000000000000000000000000"
           );
           updatedPayParams.toSolanaAddress = undefined;
         } else if (updatedPayParams.toChain === rozoSolana.chainId) {
+          // Destination is Solana - move toAddress to toSolanaAddress
           updatedPayParams.toSolanaAddress = updatedPayParams.toAddress;
           updatedPayParams.toAddress = getAddress(
             "0x0000000000000000000000000000000000000000"
@@ -1358,14 +1381,23 @@ export function usePaymentState({
           updatedPayParams.toSolanaAddress = undefined;
         }
 
-        await pay.createPreviewOrder(updatedPayParams);
-        setCurrPayParams(updatedPayParams);
-        setIsDepositFlow(updatedPayParams.toUnits == null);
+        // Update ref synchronously BEFORE async operations to prevent stale closures
+        currPayParamsRef.current = updatedPayParams;
+
+        try {
+          await pay.createPreviewOrder(updatedPayParams);
+          setCurrPayParams(updatedPayParams);
+          setIsDepositFlow(updatedPayParams.toUnits == null);
+        } catch (error) {
+          console.error("[resetOrder] Failed to create preview order:", error);
+          // Re-throw the error so the caller knows the reset failed
+          throw error;
+        }
       }
 
       setRoute(ROUTES.SELECT_METHOD);
     },
-    [setRoute, pay, currPayParams]
+    [pay, JSON.stringify(currPayParams)]
   );
 
   const orderUsdAmount = useMemo(() => {

@@ -144,13 +144,10 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
     }
 
     return { payParams: null, payId: null };
-  }, [
-    // Serialize entire props to catch all changes (simple and safe)
-    JSON.stringify(props),
-  ]);
+  }, [props, JSON.stringify(props)]);
 
   const { paymentState, log } = context;
-  const { order, paymentState: payState, rozoPaymentId } = useRozoPay();
+  const { order } = useRozoPay();
 
   const isToStellar = useMemo(() => {
     if (!payParams) return false;
@@ -188,8 +185,8 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
               chain.type === "evm"
                 ? "0x... (EVM address)"
                 : chain.type === "solana"
-                ? "Base58 encoded address (32-44 chars)"
-                : "G... (Stellar address, 56 chars)"
+                  ? "Base58 encoded address (32-44 chars)"
+                  : "G... (Stellar address, 56 chars)"
             }`
         );
       }
@@ -217,18 +214,20 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
     const payIdChanged = payId !== prevPayIdRef.current;
     const payParamsChanged = payParams !== prevPayParamsRef.current;
 
-    if (payIdChanged && payId != null) {
-      prevPayIdRef.current = payId;
-      prevPayParamsRef.current = null; // Reset when switching modes
-      paymentState.setPayId(payId);
-    } else if (payParamsChanged && payParams != null) {
-      prevPayParamsRef.current = payParams;
-      prevPayIdRef.current = null; // Reset when switching modes
-      paymentState.setPayParams(payParams);
-    }
+    (async () => {
+      if (payIdChanged && payId != null) {
+        prevPayIdRef.current = payId;
+        prevPayParamsRef.current = null; // Reset when switching modes
+        await paymentState.setPayId(payId);
+      } else if (payParamsChanged && payParams != null) {
+        prevPayParamsRef.current = payParams;
+        prevPayIdRef.current = null; // Reset when switching modes
+        await paymentState.setPayParams(payParams);
+      }
+    })();
     // Note: paymentState is not stable/memoized, so we don't include it as a dependency
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [payId, payParams]);
+  }, [payId, JSON.stringify(payParams)]);
 
   // Set the confirmation message
   const { setConfirmationMessage } = context;
@@ -349,8 +348,8 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
     return order?.externalId
       ? order.externalId
       : order?.id
-      ? String(order.id)
-      : null;
+        ? String(order.id)
+        : null;
   }, [order]);
 
   // Helper to create event objects
@@ -430,8 +429,8 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
       const destChain = isToStellar
         ? rozoStellar.chainId
         : isToSolana
-        ? rozoSolana.chainId
-        : payParams?.toChain ?? sourceChain;
+          ? rozoSolana.chainId
+          : (payParams?.toChain ?? sourceChain);
 
       // Only create event if both transaction hashes are available
       const paymentTxHash = getSourceTxHash(currentOrder);

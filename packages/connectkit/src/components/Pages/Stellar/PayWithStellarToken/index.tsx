@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
 
@@ -24,7 +24,6 @@ import {
 } from "@stellar/stellar-sdk";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useDaimoPay";
-import { useStellarDestination } from "../../../../hooks/useStellarDestination";
 import { useStellar } from "../../../../provider/StellarContextProvider";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
@@ -64,7 +63,6 @@ const PayWithStellarToken: React.FC = () => {
   const handleContactClick = useContactSupport();
 
   // Get the destination address and payment direction using our custom hook
-  const { destinationAddress } = useStellarDestination(payParams);
   const {
     server: stellarServer,
     publicKey: stellarPublicKey,
@@ -79,6 +77,19 @@ const PayWithStellarToken: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [signedTx, setSignedTx] = useState<string | undefined>();
 
+  const destinationAddress = useMemo(() => {
+    return (
+      payParams?.toStellarAddress ||
+      payParams?.toSolanaAddress ||
+      payParams?.toAddress ||
+      undefined
+    );
+  }, [
+    payParams?.toStellarAddress,
+    payParams?.toSolanaAddress,
+    payParams?.toAddress,
+  ]);
+
   useEffect(() => {
     if (state === "error") {
       setRoute(ROUTES.ERROR);
@@ -90,9 +101,24 @@ const PayWithStellarToken: React.FC = () => {
   const handleTransfer = async (option: WalletPaymentOption) => {
     setIsLoading(true);
     try {
+      // Validate we have current payParams - if not, component has stale state
+      if (!payParams) {
+        log?.(
+          "[PayWithStellarToken] No payParams available, skipping transfer"
+        );
+        setIsLoading(false);
+        return;
+      }
+
       if (!destinationAddress) {
         throw new Error("Stellar destination address is required");
       }
+
+      log?.("[PayWithStellarToken] Starting transfer with:", {
+        destinationAddress,
+        chainId: payParams.toChain,
+        toStellarAddress: payParams.toStellarAddress,
+      });
 
       if (!order) {
         throw new Error("Order not initialized");
@@ -197,8 +223,15 @@ const PayWithStellarToken: React.FC = () => {
 
       setPayState(PayState.RequestingPayment);
 
+      // Double-check destination address matches the payment direction
+      const finalDestAddress = hydratedOrder.intentAddr || destinationAddress;
+
+      log?.(
+        `[PayWithStellarToken] Payment setup - destAddress: ${finalDestAddress}, toChain: ${payParams.toChain}, token chain: ${option.required.token.chainId}`
+      );
+
       const paymentData = {
-        destAddress: hydratedOrder.intentAddr || destinationAddress,
+        destAddress: finalDestAddress,
         usdcAmount: String(option.required.usd),
       };
 
@@ -212,6 +245,8 @@ const PayWithStellarToken: React.FC = () => {
       setSignedTx(result.signedTx);
       setPayState(PayState.WaitingForConfirmation);
     } catch (error) {
+      console.error("[PayWithStellarToken] Error:", error);
+
       if (rozoPaymentId) {
         try {
           await setPaymentUnpaid(rozoPaymentId);
@@ -219,6 +254,7 @@ const PayWithStellarToken: React.FC = () => {
           console.error("Failed to set payment unpaid:", e);
         }
       }
+
       if ((error as any).message.includes("rejected")) {
         setPayState(PayState.RequestCancelled);
       } else {

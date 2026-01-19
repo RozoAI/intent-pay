@@ -284,6 +284,7 @@ export type RozoPayOrderView = {
     tokenAddress: RozoAddress;
     callData: Hex | null;
   };
+  intentAddr?: string;
   externalId: string | null;
   metadata: RozoPayUserMetadata | null;
 };
@@ -361,6 +362,7 @@ export function getRozoPayOrderView(order: RozoPayOrder): RozoPayOrderView {
       tokenAddress: order.destFinalCallTokenAmount.token.token,
       callData: order.destFinalCall.data,
     },
+    intentAddr: (order as any).intentAddr ?? undefined,
     externalId: order.externalId,
     metadata: mergedMetadata({
       ...order.metadata,
