@@ -13,9 +13,12 @@ import { Connector, useAccount, useDisconnect } from "wagmi";
 import { Base, Ethereum, Solana, Stellar } from "../../../assets/chains";
 import {
   Coinbase,
+  Freighter,
+  HotWallet,
   MetaMask,
   Phantom,
   Rainbow,
+  WalletConnect,
   WalletIcon,
 } from "../../../assets/logos";
 import useIsMobile from "../../../hooks/useIsMobile";
@@ -72,15 +75,15 @@ export default function SelectMethod() {
   // Mobile: Only show connected wallets when mobile injector is enabled (!disableMobileInjector)
   const showConnectedEth = useMemo(
     () => isEthConnected && (!isMobile || !disableMobileInjector),
-    [isEthConnected, isMobile, disableMobileInjector]
+    [isEthConnected, isMobile, disableMobileInjector],
   );
   const showConnectedSolana = useMemo(
     () => isSolanaConnected && (!isMobile || !disableMobileInjector),
-    [isSolanaConnected, isMobile, disableMobileInjector]
+    [isSolanaConnected, isMobile, disableMobileInjector],
   );
   const showConnectedStellar = useMemo(
     () => isStellarConnected && (!isMobile || !disableMobileInjector),
-    [isStellarConnected, isMobile, disableMobileInjector]
+    [isStellarConnected, isMobile, disableMobileInjector],
   );
 
   // Memoize connected wallet options to prevent unnecessary recalculations
@@ -159,7 +162,7 @@ export default function SelectMethod() {
 
     if (showConnectedSolana && showSolanaPaymentMethod) {
       const solWalletDisplayName = getAddressContraction(
-        publicKey?.toBase58() ?? ""
+        publicKey?.toBase58() ?? "",
       );
 
       // Prefer icon from walletConfigs if available
@@ -217,7 +220,7 @@ export default function SelectMethod() {
 
     if (showConnectedStellar) {
       const stellarWalletDisplayName = getAddressContraction(
-        stellarPublicKey ?? ""
+        stellarPublicKey ?? "",
       );
 
       const connectedStellarWalletOption = {
@@ -324,7 +327,7 @@ export default function SelectMethod() {
       if (!isOnlyStellar && depositAddressOptions.options.length > 0) {
         const depositAddressOption = getDepositAddressOption(
           setRoute,
-          payParams?.appId
+          payParams?.appId,
         );
         options.push(depositAddressOption);
       }
@@ -334,7 +337,7 @@ export default function SelectMethod() {
       options.push({
         id: "stellar",
         title: "Pay with Stellar",
-        icons: [<Stellar key="stellar" />],
+        icons: getStellarWalletIcons(),
         onClick: async () => {
           await disconnectAsync();
           await disconnectSolana();
@@ -402,7 +405,7 @@ export default function SelectMethod() {
   log(
     `[SELECT_METHOD] loading: ${
       externalPaymentOptions.loading
-    }, options: ${JSON.stringify(externalPaymentOptions.options)}`
+    }, options: ${JSON.stringify(externalPaymentOptions.options)}`,
   );
 
   return (
@@ -418,10 +421,19 @@ export default function SelectMethod() {
   );
 }
 
+function getStellarWalletIcons() {
+  return [
+    <Freighter key="freighter" />,
+    // <Lobstr key="lobstr" />,
+    <HotWallet key="hot-wallet" />,
+    <WalletConnect key="walletconnect" />,
+  ];
+}
+
 // Get 3 icons, skipping the one that is already connected
 function getBestUnconnectedWalletIcons(
   connector: Connector | undefined,
-  isMobile: boolean
+  isMobile: boolean,
 ) {
   const icons: JSX.Element[] = [];
   const strippedId = connector?.id.toLowerCase(); // some connector ids can have weird casing and or suffixes and prefixes
@@ -448,7 +460,7 @@ function getBestUnconnectedWalletIcons(
 
 function getDepositAddressOption(
   setRoute: (route: ROUTES, data?: Record<string, any>) => void,
-  appId?: string
+  appId?: string,
 ) {
   return {
     id: "depositAddress",
