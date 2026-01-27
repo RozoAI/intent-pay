@@ -2,11 +2,16 @@ import {
   DepositAddressPaymentOptions,
   FeeType,
   generateEVMDeepLink,
+  generateSolanaDeepLink,
   getAddressContraction,
   getChainName,
   getFee,
   getKnownToken,
   isHydrated,
+  rozoSolana,
+  rozoStellar,
+  solana,
+  stellar,
   type FeeErrorData,
   type FeeResponseData,
   type Token,
@@ -117,24 +122,24 @@ export default function WaitingDepositAddress() {
       if (payload.source_txhash && selectedDepositAddressOption) {
         context.log(
           "[PAYIN DETECTED] Payment received via Pusher:",
-          payload.source_txhash
+          payload.source_txhash,
         );
         setPaymentCompleted(
           payload.source_txhash,
-          rozoPaymentId || payload.payment_id
+          rozoPaymentId || payload.payment_id,
         );
         setPaymentPayoutCompleted(
           payload.source_txhash,
-          rozoPaymentId || payload.payment_id
+          rozoPaymentId || payload.payment_id,
         );
         const tokenMode =
           selectedDepositAddressOption?.id ===
           DepositAddressPaymentOptions.SOLANA
             ? "solana"
             : selectedDepositAddressOption?.id ===
-              DepositAddressPaymentOptions.STELLAR
-            ? "stellar"
-            : "evm";
+                DepositAddressPaymentOptions.STELLAR
+              ? "stellar"
+              : "evm";
         setTokenMode(tokenMode);
         setTxHash(payload.source_txhash);
         context.setRoute(ROUTES.CONFIRMATION);
@@ -185,22 +190,44 @@ export default function WaitingDepositAddress() {
 
       const preferredToken = getKnownToken(
         Number(order.preferredChainId),
-        order.preferredTokenAddress
+        order.preferredTokenAddress,
       );
 
       if (!preferredToken) {
         throw new Error("Preferred token not found");
       }
 
-      const evmDeeplink = generateEVMDeepLink({
-        amountUnits: parseUnits(
-          order.destFinalCallTokenAmount.usd.toString(),
-          preferredToken.decimals
-        ).toString(),
-        chainId: preferredToken.chainId,
-        recipientAddress: order.intentAddr,
-        tokenAddress: preferredToken.token,
-      });
+      let uriDeeplink: string | null = null;
+
+      // Use Solana deep link if it's a Solana chain
+      if (
+        [solana.chainId, rozoSolana.chainId].includes(preferredToken.chainId)
+      ) {
+        uriDeeplink = generateSolanaDeepLink({
+          amountUnits: order.destFinalCallTokenAmount.usd.toString(),
+          recipientAddress: order.intentAddr,
+          tokenAddress: preferredToken.token,
+          memo: order.memo || order.metadata?.memo || undefined,
+        });
+      }
+      // If Stellar, do not generate a link (set to null)
+      else if (
+        [stellar.chainId, rozoStellar.chainId].includes(preferredToken.chainId)
+      ) {
+        uriDeeplink = null;
+      }
+      // Otherwise use EVM deep link
+      else {
+        uriDeeplink = generateEVMDeepLink({
+          amountUnits: parseUnits(
+            order.destFinalCallTokenAmount.usd.toString(),
+            preferredToken.decimals,
+          ).toString(),
+          chainId: preferredToken.chainId,
+          recipientAddress: order.intentAddr,
+          tokenAddress: preferredToken.token,
+        });
+      }
 
       setDepAddr({
         address: order.intentAddr,
@@ -210,10 +237,10 @@ export default function WaitingDepositAddress() {
           coin: order.destFinalCallTokenAmount.token.symbol,
         },
         coins: `${preferredToken.symbol} on ${getChainName(
-          preferredToken.chainId
+          preferredToken.chainId,
         )}`,
         expirationS: expirationS,
-        uri: evmDeeplink,
+        uri: uriDeeplink ?? undefined,
         displayToken: order.destFinalCallTokenAmount.token,
         logoURI: "", // Not needed for underpaid orders
         memo: order.memo || order.metadata?.memo || undefined,
@@ -224,7 +251,7 @@ export default function WaitingDepositAddress() {
 
       const displayToken = getKnownToken(
         selectedDepositAddressOption.token.chainId,
-        selectedDepositAddressOption.token.token
+        selectedDepositAddressOption.token.token,
       );
       const logoURI = selectedDepositAddressOption.logoURI;
 
@@ -233,7 +260,7 @@ export default function WaitingDepositAddress() {
       setHasExecutedDepositCall(true);
       context.log(
         "Starting payWithDepositAddress for:",
-        selectedDepositAddressOption.id
+        selectedDepositAddressOption.id,
       );
 
       let amount: number | null = null;
@@ -302,11 +329,11 @@ export default function WaitingDepositAddress() {
           selectedDepositAddressOption,
           store as any,
           feeData,
-          context.log
+          context.log,
         );
         if (details) {
           const shouldShowMemo = ![DepositAddressPaymentOptions.BSC].includes(
-            selectedDepositAddressOption.id
+            selectedDepositAddressOption.id,
           );
 
           setDepAddr({
@@ -368,7 +395,7 @@ export default function WaitingDepositAddress() {
       }
 
       context.log(
-        `Resetting payment state from ${rozoPaymentState} to preview for new deposit option`
+        `Resetting payment state from ${rozoPaymentState} to preview for new deposit option`,
       );
       reset();
       createPreviewOrder(payParams);
@@ -385,7 +412,7 @@ export default function WaitingDepositAddress() {
     ) {
       context.log(
         "About to generate deposit address for:",
-        selectedDepositAddressOption.id
+        selectedDepositAddressOption.id,
       );
       processingOptionRef.current = selectedDepositAddressOption.id; // Mark as processing
       generateDepositAddress();
@@ -410,15 +437,15 @@ export default function WaitingDepositAddress() {
       isHydrated(order)
     ) {
       context.log(
-        "[PAYMENT] Payment state changed, navigating to confirmation"
+        "[PAYMENT] Payment state changed, navigating to confirmation",
       );
       const tokenMode =
         selectedDepositAddressOption?.id === DepositAddressPaymentOptions.SOLANA
           ? "solana"
           : selectedDepositAddressOption?.id ===
-            DepositAddressPaymentOptions.STELLAR
-          ? "stellar"
-          : "evm";
+              DepositAddressPaymentOptions.STELLAR
+            ? "stellar"
+            : "evm";
       setTokenMode(tokenMode);
 
       // Extract transaction hash from order if available
@@ -489,7 +516,7 @@ function TronUnderpayContent({ orderId }: { orderId?: string }) {
           onClick={() =>
             window.open(
               `mailto:hi@rozo.ai?subject=Underpaid%20USDT%20Tron%20payment%20for%20order%20${orderId}`,
-              "_blank"
+              "_blank",
             )
           }
           style={{ marginTop: 16, width: 200 }}
