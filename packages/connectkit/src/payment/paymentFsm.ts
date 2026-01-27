@@ -253,26 +253,32 @@ function reducePreview(
     case "order_refreshed":
       // Handle order_refreshed events when transitioning from preview to payment_unpaid
       // This happens when setPaymentUnpaid is called from preview state
+
+      // CRITICAL: Check terminal states FIRST (before hydration check)
+      // Terminal states (COMPLETED, BOUNCED, PAYOUT_COMPLETED) don't need intentAddr,
+      // so they can transition even if order is not fully hydrated.
+      // This fixes deposit address flow where order stays in preview until payment completes.
+      if (event.order.intentStatus === RozoPayIntentStatus.COMPLETED) {
+        return { type: "payment_completed", order: event.order as RozoPayHydratedOrderWithOrg };
+      }
+      if (event.order.intentStatus === RozoPayIntentStatus.BOUNCED) {
+        return { type: "payment_bounced", order: event.order as RozoPayHydratedOrderWithOrg };
+      }
+      if (event.order.intentStatus === RozoPayIntentStatus.PAYOUT_COMPLETED) {
+        return { type: "payout_completed", order: event.order as RozoPayHydratedOrderWithOrg };
+      }
+
+      // For non-terminal states, check hydration
       if (isHydrated(event.order)) {
-        // If order is hydrated, transition based on intentStatus
         if (event.order.intentStatus === RozoPayIntentStatus.UNPAID) {
           return { type: "payment_unpaid", order: event.order };
         }
-        // For other statuses, use getStateFromHydratedOrder logic
-        switch (event.order.intentStatus) {
-          case RozoPayIntentStatus.STARTED:
-            return { type: "payment_started", order: event.order };
-          case RozoPayIntentStatus.COMPLETED:
-            return { type: "payment_completed", order: event.order };
-          case RozoPayIntentStatus.BOUNCED:
-            return { type: "payment_bounced", order: event.order };
-          case RozoPayIntentStatus.PAYOUT_COMPLETED:
-            return { type: "payout_completed", order: event.order };
-          default:
-            return state;
+        if (event.order.intentStatus === RozoPayIntentStatus.STARTED) {
+          return { type: "payment_started", order: event.order };
         }
       }
-      // If order is not hydrated, stay in preview
+
+      // If order is not hydrated and not in terminal state, stay in preview
       return state;
     case "set_chosen_usd": {
       const token = state.order.destFinalCallTokenAmount.token;

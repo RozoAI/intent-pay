@@ -316,13 +316,16 @@ export function mergedMetadata(data: Record<string, any>): Record<string, any> {
 }
 
 export function getRozoPayOrderView(order: RozoPayOrder): RozoPayOrderView {
+  // Handle both string (base58) and bigint order IDs
+  const orderId =
+    typeof order.id === "string"
+      ? order.id
+      : writeRozoPayOrderID(order.id);
+
   return {
-    id: writeRozoPayOrderID(order.id),
+    id: orderId,
     status: order.intentStatus,
-    createdAt: assertNotNull(
-      order.createdAt,
-      `createdAt is null for order with id: ${order.id}`
-    ).toString(),
+    createdAt: (order.createdAt ?? Date.now()).toString(),
     display: {
       intent: order.metadata.intent,
       // Show 2 decimal places for USD

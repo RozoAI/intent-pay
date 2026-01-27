@@ -115,6 +115,33 @@ const Confirmation: React.FC = () => {
 
   const { tokens: supportedTokens } = useSupportedChains();
 
+  // Separate useEffect to handle payment completion (no setState in useMemo)
+  useEffect(() => {
+    const { tokenMode, txHash } = paymentStateContext;
+
+    const isRozoPayment =
+      tokenMode === "stellar" ||
+      tokenMode === "solana" ||
+      (["evm", "all"].includes(tokenMode) &&
+        order &&
+        supportedTokens.some(
+          (token) => token.token === order.destFinalCallTokenAmount?.token.token
+        ));
+
+    if (isRozoPayment && txHash && isConfirming) {
+      setPaymentCompleted(txHash, rozoPaymentId);
+      setIsConfirming(false);
+    }
+  }, [
+    isConfirming,
+    order,
+    paymentStateContext,
+    rozoPaymentId,
+    setPaymentCompleted,
+    supportedTokens,
+  ]);
+
+  // useMemo only for computation, no state changes
   const { done, txURL, rawPayInHash } = useMemo(() => {
     const { tokenMode, txHash } = paymentStateContext;
 
@@ -128,13 +155,9 @@ const Confirmation: React.FC = () => {
         ));
 
     if (isRozoPayment && txHash) {
-      // Add delay before setting payment completed to show confirming state
+      // Show confirming state briefly
       if (isConfirming) {
-        // setTimeout(() => {
-        setPaymentCompleted(txHash, rozoPaymentId);
-        setIsConfirming(false);
-        // }, 300);
-        return { done: false, txURL: undefined };
+        return { done: false, txURL: undefined, rawPayInHash: undefined };
       }
 
       // Determine chain ID based on token mode
@@ -175,7 +198,6 @@ const Confirmation: React.FC = () => {
     order,
     paymentStateContext,
     isConfirming,
-    rozoPaymentId,
     supportedTokens,
   ]);
 

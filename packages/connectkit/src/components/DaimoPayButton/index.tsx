@@ -11,6 +11,7 @@ import {
   PaymentCompletedEvent,
   PaymentPayoutCompletedEvent,
   PaymentStartedEvent,
+  PaymentStatus,
   RozoPayEventType,
   RozoPayHydratedOrderWithOrg,
   rozoSolana,
@@ -21,7 +22,10 @@ import { AnimatePresence, Variants } from "framer-motion";
 import { getAddress } from "viem";
 import { ROUTES } from "../../constants/routes";
 import { useRozoPay } from "../../hooks/useDaimoPay";
-import { paymentEventEmitter } from "../../payment/paymentEventEmitter";
+import {
+  PaymentEventData,
+  usePaymentEvents,
+} from "../../payment/paymentEventContext";
 import { PayParams } from "../../payment/paymentFsm";
 import { ResetContainer } from "../../styles";
 import { validateAddressForChain } from "../../types/chainAddress";
@@ -63,6 +67,8 @@ export function RozoPayButton(props: RozoPayButtonProps): JSX.Element {
 /** Like RozoPayButton, but with custom styling. */
 function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   const context = usePayContext();
+
+  const { subscribe, reset } = usePaymentEvents();
 
   // Memoize payParams/payId with proper dependency tracking
   // For object/array props, we serialize them to detect deep changes
@@ -187,7 +193,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
                 : chain.type === "solana"
                   ? "Base58 encoded address (32-44 chars)"
                   : "G... (Stellar address, 56 chars)"
-            }`
+            }`,
         );
       }
 
@@ -196,7 +202,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
       if (validationError) {
         console.error(
-          `[RozoPayButton] Validation error: ${validationError.message}`
+          `[RozoPayButton] Validation error: ${validationError.message}`,
         );
         validationErrorRef.current = validationError;
       } else {
@@ -265,7 +271,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
     if (validationErrorRef.current) {
       context.log(
         "[RozoPayButton] Validation error detected, showing error page",
-        validationErrorRef.current
+        validationErrorRef.current,
       );
       context.setOpen(true);
       context.setRoute(ROUTES.ERROR, {
@@ -285,18 +291,18 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
   // Type guard to check if order is hydrated
   const isHydratedOrder = (
-    order: any
+    order: any,
   ): order is RozoPayHydratedOrderWithOrg => {
     return order && typeof order === "object" && "intentAddr" in order;
   };
 
   // Helper function to safely extract transaction hash from order
   const getSourceTxHash = (order: any): string | null => {
-    // Only proceed if order is hydrated (where tx hashes would exist)
-    if (!isHydratedOrder(order)) {
+    if (!order || typeof order !== "object") {
       return null;
     }
 
+    // Check for transaction hash fields directly on the order
     if ("sourceStartTxHash" in order && order.sourceStartTxHash) {
       return order.sourceStartTxHash as string;
     }
@@ -305,6 +311,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
       return order.payinTransactionHash as string;
     }
 
+    // Check nested source object (for hydrated orders)
     if (
       "source" in order &&
       order.source &&
@@ -320,7 +327,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   };
 
   const getDestinationTxHash = (
-    order: RozoPayHydratedOrderWithOrg
+    order: RozoPayHydratedOrderWithOrg,
   ): string | null => {
     if (!isHydratedOrder(order)) {
       return null;
@@ -352,6 +359,23 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         : null;
   }, [order]);
 
+  // Helper to safely convert order ID (string or bigint) to RozoPayOrderID
+  const getOrderIdString = useCallback((orderId: string | bigint): string => {
+    return typeof orderId === "string" ? orderId : writeRozoPayOrderID(orderId);
+  }, []);
+
+  // Helper to normalize order ID for event filtering
+  // Ensures consistent comparison between event order IDs and button order IDs
+  const normalizeOrderId = useCallback((order: any): string | null => {
+    if (!order) return null;
+    // Prefer externalId (correlation ID), fallback to internal ID
+    return order.externalId
+      ? order.externalId
+      : order.id
+        ? String(order.id)
+        : null;
+  }, []);
+
   // Helper to create event objects
   const createPaymentStartedEvent = useCallback(
     (data: any): PaymentStartedEvent | null => {
@@ -360,13 +384,13 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
       return {
         type: RozoPayEventType.PaymentStarted,
-        paymentId: orderIdString || writeRozoPayOrderID(currentOrder.id),
+        paymentId: orderIdString || getOrderIdString(currentOrder.id),
         chainId: currentOrder.destFinalCallTokenAmount.token.chainId,
         txHash: null,
         payment: getRozoPayOrderView(currentOrder),
       };
     },
-    [order, orderIdString]
+    [order, orderIdString],
   );
 
   const createPaymentCompletedEvent = useCallback(
@@ -383,16 +407,15 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
       return {
         type: RozoPayEventType.PaymentCompleted,
-        paymentId:
-          currentOrder.externalId || writeRozoPayOrderID(currentOrder.id),
+        paymentId: currentOrder.externalId,
         chainId: currentOrder.destFinalCallTokenAmount.token.chainId,
         txHash,
         payment: getRozoPayOrderView(currentOrder),
         rozoPaymentId:
-          orderIdString ?? writeRozoPayOrderID(currentOrder.id) ?? null,
+          orderIdString ?? getOrderIdString(currentOrder.id) ?? null,
       };
     },
-    [order, orderIdString]
+    [order, orderIdString],
   );
 
   const createPaymentBouncedEvent = useCallback(
@@ -409,15 +432,15 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
       return {
         type: RozoPayEventType.PaymentBounced,
-        paymentId: orderIdString || writeRozoPayOrderID(currentOrder.id),
+        paymentId: orderIdString || getOrderIdString(currentOrder.id),
         chainId: currentOrder.destFinalCallTokenAmount.token.chainId,
         txHash,
         payment: getRozoPayOrderView(currentOrder),
         rozoPaymentId:
-          orderIdString ?? writeRozoPayOrderID(currentOrder.id) ?? null,
+          orderIdString ?? getOrderIdString(currentOrder.id) ?? null,
       };
     },
-    [order, orderIdString]
+    [order, orderIdString],
   );
 
   const createPayoutCompletedEvent = useCallback(
@@ -435,7 +458,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
       // Only create event if both transaction hashes are available
       const paymentTxHash = getSourceTxHash(currentOrder);
       const payoutTxHash = getDestinationTxHash(
-        currentOrder as RozoPayHydratedOrderWithOrg
+        currentOrder as RozoPayHydratedOrderWithOrg,
       );
 
       if (!paymentTxHash || !payoutTxHash) {
@@ -445,8 +468,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
       return {
         type: RozoPayEventType.PaymentPayoutCompleted,
-        paymentId:
-          currentOrder.externalId || writeRozoPayOrderID(currentOrder.id),
+        paymentId: currentOrder.externalId || getOrderIdString(currentOrder.id),
         paymentTx: {
           hash: paymentTxHash,
           chainId: sourceChain,
@@ -459,10 +481,10 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         },
         payment: getRozoPayOrderView(currentOrder),
         rozoPaymentId:
-          orderIdString ?? writeRozoPayOrderID(currentOrder.id) ?? null,
+          orderIdString ?? getOrderIdString(currentOrder.id) ?? null,
       };
     },
-    [order, isToStellar, isToSolana, payParams?.toChain, orderIdString]
+    [order, isToStellar, isToSolana, payParams?.toChain, orderIdString],
   );
 
   // Payment events: call these three event handlers.
@@ -476,62 +498,109 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   // Subscribe to payment events using Event Emitter Pattern
   // This works reliably in both workspace and built packages
   useEffect(() => {
-    if (!orderIdString || !order) {
+    if (!orderIdString) {
       return;
     }
 
-    // Subscribe to all payment events
+    /**
+     * Subscribe to all payment events
+     *
+     * Each button filters events to only process events for its own order.
+     * This prevents duplicate callback execution when multiple buttons exist on the same page.
+     */
     const unsubscribers = [
-      paymentEventEmitter.subscribe("payment_started", (data: any) => {
-        if (data.order?.externalId === orderIdString) {
-          const event = createPaymentStartedEvent(data);
-          if (event !== null) {
-            log("[PAY BUTTON] Payment Started Event", { order, event });
-            onPaymentStarted?.(event);
-          }
+      subscribe(PaymentStatus.PaymentStarted, (data: PaymentEventData) => {
+        const eventOrderId = normalizeOrderId(data.order);
+        if (!eventOrderId || eventOrderId !== orderIdString) {
+          log?.(`[PAY BUTTON] Skipping payment_started - order mismatch`, {
+            eventOrderId,
+            buttonOrderId: orderIdString,
+          });
+          return; // Skip events for other orders
+        }
+
+        const event = createPaymentStartedEvent(data);
+        if (event !== null) {
+          log("[PAY BUTTON] Payment Started Event", { order: data, event });
+          onPaymentStarted?.(event);
         }
       }),
 
-      paymentEventEmitter.subscribe("payment_completed", (data: any) => {
-        if (data.order?.externalId === orderIdString) {
-          const event = createPaymentCompletedEvent(data);
-          if (event !== null) {
-            log("[PAY BUTTON] Payment Completed Event", { order, event });
-            onPaymentCompleted?.(event);
-          }
+      subscribe(PaymentStatus.PaymentCompleted, (data: PaymentEventData) => {
+        const eventOrderId = normalizeOrderId(data.order);
+        if (!eventOrderId || eventOrderId !== orderIdString) {
+          log?.(`[PAY BUTTON] Skipping payment_completed - order mismatch`, {
+            eventOrderId,
+            buttonOrderId: orderIdString,
+          });
+          return; // Skip events for other orders
+        }
+
+        const event = createPaymentCompletedEvent(data);
+        if (event !== null) {
+          log("[PAY BUTTON] Payment Completed Event", { order: data, event });
+          onPaymentCompleted?.(event);
         }
       }),
 
-      paymentEventEmitter.subscribe("payment_bounced", (data: any) => {
-        if (data.order?.externalId === orderIdString) {
-          const event = createPaymentBouncedEvent(data);
-          if (event !== null) {
-            log("[PAY BUTTON] Payment Bounced Event", { order, event });
-            onPaymentBounced?.(event);
-          }
+      subscribe(PaymentStatus.PaymentBounced, (data: PaymentEventData) => {
+        const eventOrderId = normalizeOrderId(data.order);
+        if (!eventOrderId || eventOrderId !== orderIdString) {
+          log?.(`[PAY BUTTON] Skipping payment_bounced - order mismatch`, {
+            eventOrderId,
+            buttonOrderId: orderIdString,
+          });
+          return; // Skip events for other orders
+        }
+
+        const event = createPaymentBouncedEvent(data);
+        if (event !== null) {
+          log("[PAY BUTTON] Payment Bounced Event", { order: data, event });
+          onPaymentBounced?.(event);
         }
       }),
 
-      paymentEventEmitter.subscribe("payout_completed", (data: any) => {
-        if (data.order?.externalId === orderIdString) {
+      subscribe(
+        PaymentStatus.PaymentPayoutCompleted,
+        (data: PaymentEventData) => {
+          const eventOrderId = normalizeOrderId(data.order);
+          if (!eventOrderId || eventOrderId !== orderIdString) {
+            log?.(`[PAY BUTTON] Skipping payout_completed - order mismatch`, {
+              eventOrderId,
+              buttonOrderId: orderIdString,
+            });
+            return; // Skip events for other orders
+          }
+
           const event = createPayoutCompletedEvent(data);
           if (event !== null) {
             log("[PAY BUTTON] Payment Payout Completed Event", {
-              order,
+              order: data,
               event,
             });
             onPayoutCompleted?.(event);
           }
-        }
-      }),
+        },
+      ),
     ];
 
     // Cleanup: unsubscribe and reset events for this order
     return () => {
       unsubscribers.forEach((unsub) => unsub());
-      paymentEventEmitter.reset(orderIdString);
+      reset();
     };
-  }, [orderIdString, isToStellar, isToSolana, payParams?.toChain]);
+  }, [
+    orderIdString,
+    normalizeOrderId,
+    createPaymentStartedEvent,
+    createPaymentCompletedEvent,
+    createPaymentBouncedEvent,
+    createPayoutCompletedEvent,
+    onPaymentStarted,
+    onPaymentCompleted,
+    onPaymentBounced,
+    onPayoutCompleted,
+  ]);
 
   // Open the modal by default if the defaultOpen prop is true
   const hasAutoOpened = useRef(false);

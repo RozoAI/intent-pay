@@ -28,6 +28,7 @@ import {
 } from "../hooks/useConnectCallback";
 import { useRozoPay } from "../hooks/useDaimoPay";
 import { usePaymentState } from "../hooks/usePaymentState";
+import { PaymentEventProvider } from "../payment/paymentEventContext";
 import defaultTheme from "../styles/defaultTheme";
 import {
   CustomTheme,
@@ -503,21 +504,23 @@ export const RozoPayProvider = (props: RozoPayProviderProps) => {
 
   return (
     <PaymentProvider payApiUrl={payApiUrl} apiVersion={apiVersion} log={log}>
-      <SolanaContextProvider rpcUrl={props.solanaRpcUrl}>
-        <StellarContextProvider
-          rpcUrl={props.stellarRpcUrl}
-          kit={props.stellarKit}
-          stellarWalletPersistence={props.stellarWalletPersistence}
-          log={log}
-        >
-          <RozoPayUIProvider
-            {...props}
-            apiVersion={apiVersion}
-            payApiUrl={payApiUrl}
+      <PaymentEventProvider>
+        <SolanaContextProvider rpcUrl={props.solanaRpcUrl}>
+          <StellarContextProvider
+            rpcUrl={props.stellarRpcUrl}
+            kit={props.stellarKit}
+            stellarWalletPersistence={props.stellarWalletPersistence}
             log={log}
-          />
-        </StellarContextProvider>
-      </SolanaContextProvider>
+          >
+            <RozoPayUIProvider
+              {...props}
+              apiVersion={apiVersion}
+              payApiUrl={payApiUrl}
+              log={log}
+            />
+          </StellarContextProvider>
+        </SolanaContextProvider>
+      </PaymentEventProvider>
     </PaymentProvider>
   );
 };

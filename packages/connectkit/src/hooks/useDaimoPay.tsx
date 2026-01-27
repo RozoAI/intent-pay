@@ -1,5 +1,6 @@
 // hooks/useRozoPay.ts
 import {
+  PaymentStatus,
   RozoPayHydratedOrderWithOrg,
   RozoPayIntentStatus,
   RozoPayOrderID,
@@ -15,11 +16,10 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
   useSyncExternalStore,
 } from "react";
 import { Address, Hex } from "viem";
-import { paymentEventEmitter } from "../payment/paymentEventEmitter";
+import { usePaymentEvents } from "../payment/paymentEventContext";
 import { PaymentEvent, PaymentState, PayParams } from "../payment/paymentFsm";
 import { waitForPaymentState } from "../payment/paymentStore";
 import { PaymentContext } from "../provider/PaymentProvider";
@@ -33,7 +33,7 @@ type RozoPayFunctions = {
    * @param params - Parameters describing the payment to be created.
    */
   createPreviewOrder: (
-    params: PayParams
+    params: PayParams,
   ) => Promise<Extract<PaymentState, { type: "preview" }>>;
 
   /**
@@ -62,7 +62,7 @@ type RozoPayFunctions = {
    */
   hydrateOrder: (
     refundAddress?: string,
-    walletPaymentOption?: WalletPaymentOption
+    walletPaymentOption?: WalletPaymentOption,
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
   /**
@@ -71,7 +71,7 @@ type RozoPayFunctions = {
    */
   hydrateOrderRozo: (
     refundAddress?: string,
-    walletPaymentOption?: WalletPaymentOption
+    walletPaymentOption?: WalletPaymentOption,
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
   /** Trigger search for payment on the current order. */
@@ -126,12 +126,12 @@ type RozoPayFunctions = {
 
   setPaymentStarted: (
     rozoPaymentId: string,
-    order?: RozoPayOrderWithOrg | RozoPayHydratedOrderWithOrg
+    order?: RozoPayOrderWithOrg | RozoPayHydratedOrderWithOrg,
   ) => Promise<Extract<PaymentState, { type: "payment_started" }>>;
 
   setPaymentUnpaid: (
     rozoPaymentId: string,
-    order?: RozoPayOrderWithOrg | RozoPayHydratedOrderWithOrg
+    order?: RozoPayOrderWithOrg | RozoPayHydratedOrderWithOrg,
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
   /**
@@ -142,7 +142,7 @@ type RozoPayFunctions = {
    */
   setPaymentCompleted: (
     txHash: string,
-    rozoPaymentId?: string
+    rozoPaymentId?: string,
   ) => Promise<Extract<PaymentState, { type: "payment_completed" }>>;
 
   /**
@@ -155,7 +155,7 @@ type RozoPayFunctions = {
    */
   setPaymentPayoutCompleted: (
     payoutTxHash: string,
-    rozoPaymentId?: string
+    rozoPaymentId?: string,
   ) => Promise<Extract<PaymentState, { type: "payout_completed" }>>;
 
   /**
@@ -199,25 +199,15 @@ export type UseRozoPay = RozoPayFunctions & RozoPayState;
  * manage Rozo Pay orders and payments.
  */
 export function useRozoPay(): UseRozoPay {
-  // Track completion per order ID instead of global boolean flags
-  // This is safer because it prevents cross-order contamination and doesn't rely
-  // on React state updates that might not trigger in built packages
-  const paymentRozoCompletedByOrderId = useRef<Set<string>>(new Set());
-  const payoutRozoCompletedByOrderId = useRef<Set<string>>(new Set());
-  // Version counter to trigger re-renders when Sets are modified
-  const [completionVersion, setCompletionVersion] = useState(0);
-  // Store subscribers for completion changes (for built package compatibility)
-  const completionSubscribers = useRef<Set<() => void>>(new Set());
+  // Track last payout transaction hash to prevent duplicate calls
   const lastPayoutTxHash = useRef<string | null>(null);
   const store = useContext(PaymentContext);
   if (!store) {
     throw new Error("useRozoPay must be used within <PaymentProvider>");
   }
 
-  // Function to notify subscribers of completion changes
-  const notifyCompletionChange = useCallback(() => {
-    completionSubscribers.current.forEach((subscriber) => subscriber());
-  }, []);
+  // Use context-based event system instead of singleton
+  const { emit, reset: resetEvents } = usePaymentEvents();
 
   /* --------------------------------------------------
      Order state
@@ -227,7 +217,7 @@ export function useRozoPay(): UseRozoPay {
   const paymentFsmState = useSyncExternalStore(
     store.subscribe,
     store.getState,
-    store.getState
+    store.getState,
   );
 
   // Wrap `order` in `useMemo` for reference stability. This allows downstream
@@ -257,46 +247,6 @@ export function useRozoPay(): UseRozoPay {
   const prevOrderIdRef = useRef<string | null>(null);
 
   /* --------------------------------------------------
-     Cleanup old order tracking (prevent memory leaks)
-  ---------------------------------------------------*/
-
-  // Clean up tracking for orders that are no longer active
-  // Keep only the current order in the sets to prevent memory leaks
-  useEffect(() => {
-    let changed = false;
-    if (!orderIdString) {
-      // No order - clear all tracking
-      if (
-        paymentRozoCompletedByOrderId.current.size > 0 ||
-        payoutRozoCompletedByOrderId.current.size > 0
-      ) {
-        paymentRozoCompletedByOrderId.current.clear();
-        payoutRozoCompletedByOrderId.current.clear();
-        changed = true;
-      }
-    } else {
-      // Remove tracking for orders that are no longer current
-      // This is a safety measure - in practice, we only track the current order
-      const currentOrderId = orderIdString;
-      for (const orderId of paymentRozoCompletedByOrderId.current) {
-        if (orderId !== currentOrderId) {
-          paymentRozoCompletedByOrderId.current.delete(orderId);
-          changed = true;
-        }
-      }
-      for (const orderId of payoutRozoCompletedByOrderId.current) {
-        if (orderId !== currentOrderId) {
-          payoutRozoCompletedByOrderId.current.delete(orderId);
-          changed = true;
-        }
-      }
-    }
-    if (changed) {
-      setCompletionVersion((v) => v + 1);
-    }
-  }, [orderIdString]);
-
-  /* --------------------------------------------------
      Order event dispatch helpers
   ---------------------------------------------------*/
 
@@ -312,7 +262,7 @@ export function useRozoPay(): UseRozoPay {
       const previewOrderState = await waitForPaymentState(store, "preview");
       return previewOrderState;
     },
-    [dispatch, store]
+    [dispatch, store],
   );
 
   const setPayId = useCallback(
@@ -327,18 +277,18 @@ export function useRozoPay(): UseRozoPay {
         "payment_unpaid",
         "payment_started",
         "payment_completed",
-        "payment_bounced"
+        "payment_bounced",
       );
 
       return previewOrderState;
     },
-    [dispatch, store]
+    [dispatch, store],
   );
 
   const hydrateOrder = useCallback(
     async (
       refundAddress?: Address,
-      walletPaymentOption?: WalletPaymentOption
+      walletPaymentOption?: WalletPaymentOption,
     ) => {
       dispatch({
         type: "hydrate_order",
@@ -350,18 +300,18 @@ export function useRozoPay(): UseRozoPay {
       // has been successfully hydrated.
       const hydratedOrderState = await waitForPaymentState(
         store,
-        "payment_unpaid"
+        "payment_unpaid",
       );
 
       return hydratedOrderState;
     },
-    [dispatch, store, paymentFsmState.type, order?.id]
+    [dispatch, store, paymentFsmState.type, order?.id],
   );
 
   const hydrateOrderRozo = useCallback(
     async (
       refundAddress?: Address,
-      walletPaymentOption?: WalletPaymentOption
+      walletPaymentOption?: WalletPaymentOption,
     ) => {
       dispatch({
         type: "hydrate_order",
@@ -371,17 +321,17 @@ export function useRozoPay(): UseRozoPay {
 
       const hydratedOrderState = await waitForPaymentState(
         store,
-        "payment_unpaid"
+        "payment_unpaid",
       );
 
       return hydratedOrderState;
     },
-    []
+    [],
   );
 
   const paySource = useCallback(
     () => dispatch({ type: "pay_source" }),
-    [dispatch]
+    [dispatch],
   );
 
   const payEthSource = useCallback(
@@ -399,12 +349,12 @@ export function useRozoPay(): UseRozoPay {
         store,
         "payment_started",
         "payment_completed",
-        "payment_bounced"
+        "payment_bounced",
       );
 
       return paidState;
     },
-    [dispatch, store]
+    [dispatch, store],
   );
 
   const paySolanaSource = useCallback(
@@ -416,12 +366,12 @@ export function useRozoPay(): UseRozoPay {
         store,
         "payment_started",
         "payment_completed",
-        "payment_bounced"
+        "payment_bounced",
       );
 
       return paidState;
     },
-    [dispatch, store]
+    [dispatch, store],
   );
 
   const payStellarSource = useCallback(
@@ -463,25 +413,22 @@ export function useRozoPay(): UseRozoPay {
 
       return paidState;
     },
-    [dispatch, store]
+    [dispatch, store],
   );
 
   const reset = useCallback(() => {
     dispatch({ type: "reset" });
-    // Clear all completion tracking when resetting
-    paymentRozoCompletedByOrderId.current.clear();
-    payoutRozoCompletedByOrderId.current.clear();
-  }, []);
+  }, [dispatch]);
 
   const setChosenUsd = useCallback(
     (usd: number) => dispatch({ type: "set_chosen_usd", usd }),
-    [dispatch]
+    [dispatch],
   );
 
   const setPaymentUnpaid = useCallback(
     async (
       rozoPaymentId: string,
-      order?: RozoPayOrderWithOrg | RozoPayHydratedOrderWithOrg
+      order?: RozoPayOrderWithOrg | RozoPayHydratedOrderWithOrg,
     ) => {
       const currentState = store.getState();
 
@@ -494,7 +441,7 @@ export function useRozoPay(): UseRozoPay {
           .order;
       } else {
         throw new Error(
-          `Cannot set payment unpaid: Order must be provided when state is ${currentState.type}`
+          `Cannot set payment unpaid: Order must be provided when state is ${currentState.type}`,
         );
       }
 
@@ -512,13 +459,13 @@ export function useRozoPay(): UseRozoPay {
       const unpaidState = await waitForPaymentState(store, "payment_unpaid");
       return unpaidState;
     },
-    [dispatch, store]
+    [dispatch, store],
   );
 
   const setPaymentStarted = useCallback(
     async (
       rozoPaymentId: string,
-      order?: RozoPayOrderWithOrg | RozoPayHydratedOrderWithOrg
+      order?: RozoPayOrderWithOrg | RozoPayHydratedOrderWithOrg,
     ) => {
       const currentState = store.getState();
 
@@ -544,9 +491,25 @@ export function useRozoPay(): UseRozoPay {
       });
 
       const startedState = await waitForPaymentState(store, "payment_started");
+
+      // CRITICAL: Emit event directly after FSM transition
+      // This ensures callbacks fire even if useEffect doesn't trigger in built package
+      const orderIdForEvent = startedState.order?.externalId
+        ? startedState.order.externalId
+        : startedState.order?.id
+          ? String(startedState.order.id)
+          : null;
+
+      if (orderIdForEvent) {
+        emit(PaymentStatus.PaymentStarted, {
+          order: startedState.order,
+          rozoPaymentId: startedState.order.externalId ?? "",
+        });
+      }
+
       return startedState;
     },
-    [dispatch, store]
+    [dispatch, store],
   );
 
   const setPaymentCompleted = useCallback(
@@ -602,12 +565,27 @@ export function useRozoPay(): UseRozoPay {
       // Wait for the state to change to payment_completed
       const completedState = await waitForPaymentState(
         store,
-        "payment_completed"
+        "payment_completed",
       );
+
+      // CRITICAL: Emit event directly after FSM transition
+      // This ensures callbacks fire even if useEffect doesn't trigger in built package
+      const orderIdForEvent = completedState.order?.externalId
+        ? completedState.order.externalId
+        : completedState.order?.id
+          ? String(completedState.order.id)
+          : null;
+
+      if (orderIdForEvent) {
+        emit(PaymentStatus.PaymentCompleted, {
+          order: completedState.order,
+          rozoPaymentId: completedState.order.externalId ?? "",
+        });
+      }
 
       return completedState;
     },
-    [dispatch, store]
+    [dispatch, store],
   );
 
   const setPaymentPayoutCompleted = useCallback(
@@ -633,7 +611,6 @@ export function useRozoPay(): UseRozoPay {
       }
 
       const hydratedOrder = currentState.order as RozoPayHydratedOrderWithOrg;
-      const orderId = String(hydratedOrder.id);
 
       dispatch({
         type: "order_refreshed",
@@ -647,73 +624,43 @@ export function useRozoPay(): UseRozoPay {
 
       const payoutCompletedState = await waitForPaymentState(
         store,
-        "payout_completed"
+        "payout_completed",
       );
 
-      // Mark this order ID as having payout completed
-      if (!payoutRozoCompletedByOrderId.current.has(orderId)) {
-        payoutRozoCompletedByOrderId.current.add(orderId);
-        setCompletionVersion((v) => v + 1);
-        notifyCompletionChange();
+      // CRITICAL: Emit event directly after FSM transition
+      const orderIdForEvent = payoutCompletedState.order?.externalId
+        ? payoutCompletedState.order.externalId
+        : payoutCompletedState.order?.id
+          ? String(payoutCompletedState.order.id)
+          : null;
+
+      if (orderIdForEvent) {
+        emit(PaymentStatus.PaymentPayoutCompleted, {
+          order: payoutCompletedState.order,
+          rozoPaymentId: payoutCompletedState.order.externalId ?? "",
+        });
       }
 
       return payoutCompletedState;
     },
-    [dispatch, store, paymentFsmState.type, order?.id]
+    [dispatch, store, paymentFsmState.type, order?.id],
   );
 
   /* --------------------------------------------------
-     Emit events when payment state changes (Event Emitter Pattern)
+     Reset event emitter when order changes
   ---------------------------------------------------*/
 
-  // Emit payment events when state changes (for event emitter pattern)
+  // Reset event emitter when switching to a new order
+  // Event emissions now happen directly in callback functions (setPaymentCompleted, etc.)
+  // to prevent duplicate emissions from useEffect triggers
   useEffect(() => {
-    // Reset event emitter when order changes
     if (orderIdString !== prevOrderIdRef.current) {
       if (prevOrderIdRef.current) {
-        paymentEventEmitter.reset(prevOrderIdRef.current);
+        resetEvents();
       }
       prevOrderIdRef.current = orderIdString;
     }
-
-    if (!order || !orderIdString) return;
-
-    // Emit payment_started event
-    if (paymentState === RozoPayIntentStatus.STARTED) {
-      paymentEventEmitter.emit(RozoPayIntentStatus.STARTED, orderIdString, {
-        order,
-        rozoPaymentId: rozoPaymentId ?? order.externalId ?? null,
-      });
-    }
-
-    // Emit payment_completed event
-    if (paymentState === RozoPayIntentStatus.COMPLETED) {
-      paymentEventEmitter.emit(RozoPayIntentStatus.COMPLETED, orderIdString, {
-        order,
-        rozoPaymentId: rozoPaymentId ?? order.externalId ?? null,
-      });
-    }
-
-    // Emit payment_bounced event
-    if (paymentState === RozoPayIntentStatus.BOUNCED) {
-      paymentEventEmitter.emit(RozoPayIntentStatus.BOUNCED, orderIdString, {
-        order,
-        rozoPaymentId: rozoPaymentId ?? order.externalId ?? null,
-      });
-    }
-
-    // Emit payout_completed event
-    if (paymentState === RozoPayIntentStatus.PAYOUT_COMPLETED) {
-      paymentEventEmitter.emit(
-        RozoPayIntentStatus.PAYOUT_COMPLETED,
-        orderIdString,
-        {
-          order,
-          rozoPaymentId: rozoPaymentId ?? order.externalId ?? null,
-        }
-      );
-    }
-  }, [order, orderIdString, paymentState, rozoPaymentId]);
+  }, [orderIdString, resetEvents]);
 
   return {
     store,
