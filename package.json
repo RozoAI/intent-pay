@@ -5,20 +5,20 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "bun run build:common && bun run build:pay",
-    "build:common": "cd packages/pay-common && bun run build",
-    "build:pay": "cd packages/connectkit && bun run build",
-    "dev": "bun run dev:common & bun run dev:pay & bun run dev:example",
-    "dev:common": "cd packages/pay-common && bun run dev",
-    "dev:pay": "cd packages/connectkit && bun run dev",
-    "dev:example": "cd examples/nextjs-app && bun run dev",
-    "install:local": "bun install",
+    "build": "pnpm run build:common && pnpm run build:pay",
+    "build:common": "cd packages/pay-common && pnpm run build",
+    "build:pay": "cd packages/connectkit && pnpm run build",
+    "dev": "pnpm run dev:common & pnpm run dev:pay & pnpm run dev:example",
+    "dev:common": "cd packages/pay-common && pnpm run dev",
+    "dev:pay": "cd packages/connectkit && pnpm run dev",
+    "dev:example": "cd examples/nextjs-app && pnpm run dev",
+    "install:local": "pnpm install",
     "prepare": "husky",
-    "release": "bun run build && cd packages/pay-common && bun publish && cd ../../packages/connectkit && bun run release",
-    "clean": "bun x rimraf **/node_modules",
-    "clean:full": "bun run clean && rm -f bun.lock",
-    "clean:deps": "bun x rimraf **/node_modules **/dist **/build **/.next",
-    "clean:all": "bun run clean:deps && rm -f bun.lock && rm -f pnpm-lock.yaml"
+    "release": "pnpm run build && cd packages/pay-common && pnpm publish && cd ../../packages/connectkit && pnpm run release",
+    "clean": "pnpm exec rimraf \"**/node_modules\"",
+    "clean:full": "pnpm run clean && rm -f pnpm-lock.yaml",
+    "clean:deps": "pnpm exec rimraf \"**/node_modules\" \"**/dist\" \"**/build\" \"**/.next\"",
+    "clean:all": "pnpm run clean:deps && rm -f pnpm-lock.yaml"
   },
   "lint-staged": {
     "packages/connectkit/**/*.{js,jsx,ts,tsx}": [
@@ -30,6 +30,7 @@
   "license": "ISC",
   "devDependencies": {
     "bumpp": "^10.1.1",
+    "rimraf": "^6.0.1",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "react": "^18.2.0",
