@@ -6,8 +6,6 @@ import { PayParams } from "../payment/paymentFsm";
  * Return type for the useStellarDestination hook
  */
 interface StellarDestinationResult {
-  /** The middleware address to use for the transaction */
-  readonly destinationAddress: string | undefined;
   /** Whether this is a Stellar payment (Pay In Stellar scenarios) */
   readonly isStellarPayment: boolean;
   /** Pay In Stellar, Pay out Stellar scenario */
@@ -59,16 +57,7 @@ export function useStellarDestination(
     return isPayInStellarOutStellar || isPayInStellarOutBase;
   }, [isPayInStellarOutStellar, isPayInStellarOutBase]);
 
-  const destinationAddress = useMemo((): string | undefined => {
-    return (
-      payParams?.toStellarAddress ||
-      payParams?.toSolanaAddress ||
-      payParams?.toAddress
-    );
-  }, [payParams]);
-
   return {
-    destinationAddress,
     isStellarPayment,
     isPayInStellarOutStellar,
     isPayInStellarOutBase,

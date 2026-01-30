@@ -1,3 +1,7 @@
+import {
+  ExternalPaymentOptions,
+  ExternalPaymentOptionsString,
+} from "@rozoai/intent-common";
 import { useEffect, useMemo } from "react";
 import { ROUTES } from "../../../constants/routes";
 import { useConnect } from "../../../hooks/useConnect";
@@ -127,6 +131,25 @@ const ConnectorItem = ({
     (detectBrowser() === "safari" || detectBrowser() === "ios") &&
     isCoinbaseWalletConnector(wallet.connector?.id);
 
+  // Determine which chain types are allowed based on paymentOptions
+  const chainTypeFromPaymentOptions = useMemo(() => {
+    const paymentOptions = context.paymentState.payParams?.paymentOptions;
+
+    // If paymentOptions is empty or undefined, allow both (show chain selection)
+    if (!paymentOptions || paymentOptions.length === 0) {
+      return { hasEthereum: true, hasSolana: true };
+    }
+
+    const hasEthereum = paymentOptions.includes(
+      ExternalPaymentOptions.Ethereum as ExternalPaymentOptionsString
+    );
+    const hasSolana = paymentOptions.includes(
+      ExternalPaymentOptions.Solana as ExternalPaymentOptionsString
+    );
+
+    return { hasEthereum, hasSolana };
+  }, [context.paymentState.payParams?.paymentOptions]);
+
   const onClick = () => {
     const meta = { event: "connector-list-click", walletId: wallet.id };
 
@@ -136,6 +159,24 @@ const ConnectorItem = ({
         const supportsEvm = wallet.connector?.name != null;
 
         if (supportsEvm) {
+          // Check paymentOptions to determine if we should skip chain selection
+          const { hasEthereum, hasSolana } = chainTypeFromPaymentOptions;
+
+          // If only Ethereum is allowed, connect to EVM directly
+          if (hasEthereum && !hasSolana) {
+            context.setPendingConnectorId(wallet.id);
+            context.setRoute(ROUTES.CONNECT, meta);
+            return;
+          }
+
+          // If only Solana is allowed, connect to Solana directly
+          if (hasSolana && !hasEthereum) {
+            context.setSolanaConnector(wallet.solanaConnectorName);
+            context.setRoute(ROUTES.SOLANA_CONNECTOR, meta);
+            return;
+          }
+
+          // If both or neither are allowed, show chain selection
           context.paymentState.setSelectedWallet(wallet);
           context.setRoute(ROUTES.SELECT_WALLET_CHAIN, meta);
           return;

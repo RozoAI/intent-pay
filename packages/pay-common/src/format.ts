@@ -37,6 +37,28 @@ export function generateEVMDeepLink({
   return `ethereum:${tokenAddress}@${chainId}/transfer?address=${recipientAddress}&uint256=${amountUnits}`;
 }
 
+export function generateSolanaDeepLink({
+  amountUnits,
+  recipientAddress,
+  tokenAddress,
+  memo,
+}: {
+  tokenAddress: string;
+  recipientAddress: string;
+  amountUnits: string;
+  memo?: string | null;
+}): string {
+  const params = [
+    amountUnits ? `amount=${encodeURIComponent(amountUnits)}` : null,
+    tokenAddress ? `spl-token=${encodeURIComponent(tokenAddress)}` : null,
+    memo ? `memo=${encodeURIComponent(memo)}` : null,
+  ]
+    .filter(Boolean)
+    .join("&");
+
+  return `solana:${encodeURIComponent(recipientAddress)}${params ? "?" + params : ""}`;
+}
+
 export function generateIntentTitle({
   toChainId,
   toTokenAddress,

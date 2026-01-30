@@ -1,3 +1,4 @@
+import image from "@rollup/plugin-image";
 import json from "@rollup/plugin-json";
 import typescript from "@rollup/plugin-typescript";
 import peerDepsExternal from "rollup-plugin-peer-deps-external";
@@ -47,6 +48,7 @@ export default [
     ],
     plugins: [
       peerDepsExternal(),
+      image(),
       json(),
       typescript({
         declaration: true,

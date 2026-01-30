@@ -33,7 +33,7 @@ export function useStellarPaymentOptions({
   }, [chains]);
 
   const [options, setOptions] = useState<WalletPaymentOption[] | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Track the last executed parameters to prevent duplicate API calls
   const lastExecutedParams = useRef<string | null>(null);

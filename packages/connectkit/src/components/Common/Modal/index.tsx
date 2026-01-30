@@ -366,7 +366,7 @@ const Modal: React.FC<ModalProps> = ({
       case ROUTES.STELLAR_CONNECT:
         return "Connect Stellar Wallet";
       case ROUTES.STELLAR_CONNECTOR:
-        return context.stellarConnector ?? "Stellar Wallet";
+        return context.stellarConnector?.name ?? "Stellar Wallet";
       case ROUTES.CONNECTORS:
         return locales.connectorsScreen_heading;
       case ROUTES.MOBILECONNECTORS:

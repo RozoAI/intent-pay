@@ -71,7 +71,7 @@ export async function getStellarKitInstance(config?: {
           ...allowAllModules(),
           new WalletConnectModule({
             url: "https://rozo.ai",
-            projectId: "ab8fa47f01e6a72c58bbb76577656051",
+            projectId: "7440dd8acf85933ffcc775ec6675d4a9",
             method: WalletConnectAllowedMethods.SIGN_AND_SUBMIT,
             description: `Visa Layer for Stablecoins`,
             name: "Rozo",

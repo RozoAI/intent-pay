@@ -47,10 +47,10 @@ export const OrderHeader = ({
   const ethWalletDisplayName =
     senderEnsName ?? (address ? getAddressContraction(address) : "wallet");
   const solWalletDisplayName = getAddressContraction(
-    publicKey?.toBase58() ?? ""
+    publicKey?.toBase58() ?? "",
   );
   const stellarWalletDisplayName = getAddressContraction(
-    stellarPublicKey ?? ""
+    stellarPublicKey ?? "",
   );
   const orderUsd = order?.destFinalCallTokenAmount.usd;
   const appId = paymentState.payParams?.appId;
@@ -73,7 +73,7 @@ export const OrderHeader = ({
   const renderIcon = (
     icon: React.ReactNode | string | undefined,
     name?: string,
-    size = 32
+    size = 32,
   ): JSX.Element | null => {
     if (!icon) {
       return null;
@@ -98,12 +98,12 @@ export const OrderHeader = ({
   const solanaIcon = renderIcon(
     solanaWallet?.adapter.icon || <Solana />,
     solanaWallet?.adapter.name,
-    32
+    32,
   );
   const stellarIcon = renderIcon(
     stellarConnector?.icon || <Stellar />,
     stellarConnector?.name,
-    32
+    32,
   );
 
   if (minified) {

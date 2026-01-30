@@ -1,6 +1,11 @@
 import React from "react";
 import { Squircle } from "../components/Common/Logo/styles";
 
+import FreighterIcon from "./freighter.png";
+import HotWalletIcon from "./hot-wallet.webp";
+import LobstrIcon from "./lobstr.webp";
+import WalletConnectIcon from "./walletconnect.svg";
+
 export const MetaMask = ({ background = false, ...props }: any) => (
   <svg
     {...props}
@@ -452,6 +457,22 @@ export const OtherWallets = ({ ...props }) => {
   );
 };
 
+export const Freighter = () => (
+  <SquircleIcon icon={FreighterIcon} alt="Freighter Wallet" />
+);
+
+export const Lobstr = () => (
+  <SquircleIcon icon={LobstrIcon} alt="LOBSTR Wallet" />
+);
+
+export const HotWallet = () => (
+  <SquircleIcon icon={HotWalletIcon} alt="Hot Wallet" />
+);
+
+export const WalletConnect = () => (
+  <SquircleIcon icon={WalletConnectIcon} alt="WalletConnect" />
+);
+
 export const SquircleIcon = ({
   icon,
   alt,
@@ -490,6 +511,10 @@ const Logos = {
   Zerion,
   Rabby,
   OtherWallets,
+  Freighter,
+  Lobstr,
+  HotWallet,
+  WalletConnect,
   SquircleIcon,
 };
 

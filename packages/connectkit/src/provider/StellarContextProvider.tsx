@@ -159,12 +159,20 @@ export const StellarContextProvider = ({
 
     try {
       let pk = publicKey;
+
+      // Only connect wallet if using internal kit
+      // External kit is already connected by the consumer
       if (!isUsingExternalKit) {
+        // Internal kit: SDK manages connection
+        log?.(`[Rozo] Using internal kit, connecting wallet: ${option.id}`);
         kit.setWallet(option.id);
         const { address } = await kit.getAddress();
         pk = address;
         setPublicKey(address);
+        log?.(`[Rozo] Internal kit connected, publicKey: ${address}`);
       }
+      // External kit: consumer manages connection, we just store the state
+      // No need to call kit.setWallet() or kit.getAddress()
 
       setConnector(option);
 
@@ -176,6 +184,8 @@ export const StellarContextProvider = ({
           publicKey: pk,
         });
       }
+
+      log?.(`[Rozo] setWallet completed successfully for: ${option.name}`);
     } catch (err: any) {
       console.error("[Rozo] setWallet error", err);
       throw new Error(err.message || "Failed to set wallet");
@@ -282,6 +292,7 @@ export const StellarContextProvider = ({
       convertXlmToUsdc,
     };
     return context;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     kit,
     stellarWalletPersistence,

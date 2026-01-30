@@ -59,26 +59,44 @@ const SelectDepositAddressChain: React.FC = () => {
         options={
           depositAddressOptions.options
             ?.filter((option) => !option.id.toLowerCase().includes("tron"))
-            .map((option) => ({
-              id: option.id,
-              title: option.id,
-              icons: [<TokenChainLogo key={option.id} token={option.token} />],
-              disabled:
+            .map((option) => {
+              const isDisabledByMinimum =
                 option.minimumUsd <= 0 ||
                 (order?.mode === RozoPayOrderMode.HYDRATED &&
                   order.usdValue < option.minimumUsd) ||
                 (order?.mode === RozoPayOrderMode.SALE &&
-                  order.destFinalCallTokenAmount.usd < option.minimumUsd),
-              onClick: () => {
-                setSelectedDepositAddressOption(option as any);
-                const meta = { event: "click-option", option: option.id };
-                if (isDepositFlow) {
-                  setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_AMOUNT, meta);
-                } else {
-                  setRoute(ROUTES.WAITING_DEPOSIT_ADDRESS, meta);
+                  order.destFinalCallTokenAmount.usd < option.minimumUsd);
+
+              let disabledReason: string | undefined;
+              if (isDisabledByMinimum) {
+                if (option.minimumUsd <= 0) {
+                  disabledReason = "Minimum amount not available";
+                } else if (order?.mode === RozoPayOrderMode.HYDRATED) {
+                  disabledReason = `Minimum: $${option.minimumUsd.toFixed(2)}`;
+                } else if (order?.mode === RozoPayOrderMode.SALE) {
+                  disabledReason = `Minimum: $${option.minimumUsd.toFixed(2)}`;
                 }
-              },
-            }))
+              }
+
+              return {
+                id: option.id,
+                title: option.id,
+                subtitle: disabledReason,
+                icons: [
+                  <TokenChainLogo key={option.id} token={option.token} />,
+                ],
+                disabled: isDisabledByMinimum,
+                onClick: () => {
+                  setSelectedDepositAddressOption(option as any);
+                  const meta = { event: "click-option", option: option.id };
+                  if (isDepositFlow) {
+                    setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_AMOUNT, meta);
+                  } else {
+                    setRoute(ROUTES.WAITING_DEPOSIT_ADDRESS, meta);
+                  }
+                },
+              };
+            })
             // sort: enabled (disabled: false) appear first, then disabled (disabled: true) after
             .sort((a, b) => Number(a.disabled) - Number(b.disabled)) ?? []
         }

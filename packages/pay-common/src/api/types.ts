@@ -8,6 +8,7 @@ import { ApiVersion } from "./base";
 export enum FeeType {
   ExactIn = "exactIn",
   ExactOut = "exactOut",
+  AnyAmount = "anyAmount",
 }
 
 /**

@@ -5,6 +5,7 @@ import {
 import React, { useCallback, useEffect, useState } from "react";
 import { useChainId, useSwitchChain } from "wagmi";
 import { ROUTES } from "../../../constants/routes";
+import { useContactSupport } from "../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../hooks/useDaimoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
 import Button from "../../Common/Button";
@@ -38,6 +39,7 @@ const PayWithToken: React.FC = () => {
     order,
     paymentState: rozoPaymentState,
   } = useRozoPay();
+  const handleContactClick = useContactSupport();
 
   const [payState, setPayStateInner] = useState<PayState>(
     PayState.RequestingPayment
@@ -169,17 +171,8 @@ const PayWithToken: React.FC = () => {
         console.error("Failed to pay with token", e);
       }
     },
-    [
-      trySwitchingChain,
-      setPayState,
-      rozoPaymentId,
-      order?.externalId,
-      rozoPaymentState,
-      setPaymentUnpaid,
-      payWithToken,
-      setRoute,
-      log,
-    ]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [walletPaymentOptions, rozoPaymentId, order?.externalId, rozoPaymentState]
   );
 
   useEffect(() => {
@@ -222,21 +215,9 @@ const PayWithToken: React.FC = () => {
             Retry Payment
           </Button>
         )}
-        {/* {payState === PayState.RequestFailed && (
-          <Button
-            onClick={() => {
-              window.open(
-                getSupportUrl(
-                  order?.id?.toString() ?? "",
-                  `Pay with token${txURL ? ` ${txURL}` : ""}`,
-                ),
-                "_blank",
-              );
-            }}
-          >
-            Contact Support
-          </Button>
-        )} */}
+        {payState === PayState.RequestFailed && (
+          <Button onClick={handleContactClick}>Contact Support</Button>
+        )}
       </ModalContent>
     </PageContent>
   );

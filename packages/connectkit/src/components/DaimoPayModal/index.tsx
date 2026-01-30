@@ -10,6 +10,7 @@ import useIsMobile from "../../hooks/useIsMobile";
 import { usePayContext } from "../../hooks/usePayContext";
 import { useStellar } from "../../provider/StellarContextProvider";
 import { CustomTheme, Languages, Mode, Theme } from "../../types";
+import { IntercomInitializer } from "../Common/Intercom";
 import Modal from "../Common/Modal";
 import { RozoPayThemeProvider } from "../DaimoPayThemeProvider/DaimoPayThemeProvider";
 import About from "../Pages/About";
@@ -371,6 +372,8 @@ export const RozoPayModal: React.FC<{
         onInfo={undefined}
         onBack={showBackButton ? onBack : undefined}
       />
+
+      <IntercomInitializer />
     </RozoPayThemeProvider>
   );
 };

@@ -289,13 +289,13 @@ async function runSetPayParamsEffects(
         token: {
           chainId: payParams.toChain,
           token: payParams.toToken,
-          symbol: "USDC",
+          symbol: token?.symbol ?? "USDC",
           usd: 1,
           priceFromUsd: 1,
           decimals: token?.decimals ?? 18,
           displayDecimals: 2,
-          logoSourceURI: TokenLogo.USDC,
-          logoURI: TokenLogo.USDC,
+          logoSourceURI: token?.logoSourceURI ?? TokenLogo.USDC,
+          logoURI: token?.logoURI ?? TokenLogo.USDC,
           maxAcceptUsd: 100000,
           maxSendUsd: 0,
         },
@@ -323,10 +323,8 @@ async function runSetPayParamsEffects(
 
     store.dispatch({
       type: "preview_generated",
-      // TODO: Properly type this and fix hacky type casting
       order: orderPreview as unknown as RozoPayOrderWithOrg,
       payParamsData: {
-        // appId: payParams.appId,
         appId: payParams.appId ?? DEFAULT_ROZO_APP_ID,
         toStellarAddress: payParams.toStellarAddress,
         toSolanaAddress: payParams.toSolanaAddress,
@@ -600,11 +598,11 @@ async function runHydratePayIdEffects(
       },
       usdValue: Number(order.destFinalCallTokenAmount.usd),
       destFinalCall: {
-        to: orderData.data.source.receiverAddress as string,
+        to: orderData.data.destination.receiverAddress as string,
         value: BigInt("0"),
         data: "0x",
       },
-      refundAddr: (order.refundAddr as `0x${string}`) || null,
+      refundAddr: order.refundAddr || null,
       nonce: orderData.data.nonce as unknown as bigint,
       sourceTokenAmount: null,
       sourceFulfillerAddr: null,
