@@ -36,6 +36,18 @@ import { PaymentStore } from "./paymentStore";
 // key = `${type}:${orderId}`
 const pollers = new Map<string, PollHandle>();
 
+/** Latest set_pay_params request id. Stale preview completions must not dispatch. */
+let latestSetPayParamsRequestId: string | null = null;
+
+let previewRequestSeq = 0;
+
+/** e.g. "preview-1-a3f9" – readable and sortable in logs. */
+function nextPreviewRequestId(): string {
+  previewRequestSeq += 1;
+  const short = Math.random().toString(36).slice(2, 6);
+  return `preview-${previewRequestSeq}-${short}`;
+}
+
 enum PollerType {
   FIND_SOURCE_PAYMENT = "find_source_payment",
   REFRESH_ORDER = "refresh_order",
@@ -97,8 +109,17 @@ export function attachPaymentEffectHandlers(
      * Event-driven effects
      * -------------------------------------------------- */
     switch (event.type) {
-      case "set_pay_params":
-        runSetPayParamsEffects(store, trpc, event, apiVersion);
+      case "set_pay_params": {
+        const requestId = nextPreviewRequestId();
+        latestSetPayParamsRequestId = requestId;
+        const isLatest = () => requestId === latestSetPayParamsRequestId;
+        log(`[EFFECT] set_pay_params requestId=${requestId} toUnits=${event.payParams?.toUnits ?? "(deposit)"}`);
+        runSetPayParamsEffects(store, trpc, event, apiVersion, isLatest, log);
+        break;
+      }
+      case "reset":
+        latestSetPayParamsRequestId = null;
+        log("[EFFECT] reset – invalidating in-flight preview requests");
         break;
       case "set_pay_id":
         runSetPayIdEffects(store, trpc, event, apiVersion);
@@ -220,7 +241,9 @@ async function runSetPayParamsEffects(
   store: PaymentStore,
   trpc: TrpcClient,
   event: Extract<PaymentEvent, { type: "set_pay_params" }>,
-  apiVersion: ApiVersion = "v2"
+  apiVersion: ApiVersion = "v2",
+  isLatest: () => boolean = () => true,
+  log: (msg: string) => void = () => {}
 ) {
   const payParams = event.payParams;
   // toUnits is undefined if and only if we're in deposit flow.
@@ -321,6 +344,12 @@ async function runSetPayParamsEffects(
       refundAddr: payParams.refundAddress,
     };
 
+    if (!isLatest()) {
+      log(`[EFFECT] preview_generated skipped (stale set_pay_params, toUnits=${toUnits})`);
+      return;
+    }
+
+    log(`[EFFECT] preview_generated dispatched toUnits=${toUnits}`);
     store.dispatch({
       type: "preview_generated",
       order: orderPreview as unknown as RozoPayOrderWithOrg,

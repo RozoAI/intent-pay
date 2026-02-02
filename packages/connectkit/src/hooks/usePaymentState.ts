@@ -47,6 +47,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   erc20Abi,
+  formatUnits,
   getAddress,
   Hex,
   hexToBytes,
@@ -288,6 +289,9 @@ export function usePaymentState({
   // Ref to store latest payParams synchronously to avoid stale closures
   const currPayParamsRef = useRef<PayParams>();
 
+  /** Incremented on each setPayParams/resetOrder so only the latest completion updates state. */
+  const previewRequestIdRef = useRef(0);
+
   // Update ref whenever currPayParams changes
   useEffect(() => {
     currPayParamsRef.current = currPayParams;
@@ -502,7 +506,19 @@ export function usePaymentState({
       const feeType = payParams?.feeType ?? FeeType.ExactIn;
       const toChain = payParams.toChain;
       const toToken = payParams.toToken;
-      const toUnits = payParams.toUnits;
+      // Use order amount when present so payment always matches displayed amount (avoids race/stale payParams)
+      const fromOrder = order?.destFinalCallTokenAmount != null;
+      const toUnits = fromOrder
+        ? formatUnits(
+            BigInt(order!.destFinalCallTokenAmount.amount),
+            order!.destFinalCallTokenAmount.token.decimals,
+          )
+        : payParams.toUnits ?? "0";
+      if (fromOrder) {
+        log?.(
+          `[handleCreateRozoPayment] using amount from order (toUnits=${toUnits}) to match display`,
+        );
+      }
       const preferredChain =
         walletOption.required.token.chainId === solana.chainId
           ? rozoSolana.chainId
@@ -1326,11 +1342,18 @@ export function usePaymentState({
       // Update ref synchronously BEFORE async operations to prevent stale closures
       currPayParamsRef.current = updatedPayParams;
 
-      log("[SET PAY PARAMS] setting payParams", updatedPayParams);
+      const myId = ++previewRequestIdRef.current;
+      log?.("[SET PAY PARAMS] setting payParams", updatedPayParams);
       pay.reset();
       await pay.createPreviewOrder(updatedPayParams);
-      setCurrPayParams(updatedPayParams);
-      setIsDepositFlow(updatedPayParams.toUnits == null);
+      if (myId === previewRequestIdRef.current) {
+        setCurrPayParams(updatedPayParams);
+        setIsDepositFlow(updatedPayParams.toUnits == null);
+      } else {
+        log?.(
+          `[SET PAY PARAMS] skipped setCurrPayParams (stale request myId=${myId}, current=${previewRequestIdRef.current})`,
+        );
+      }
     },
     [lockPayParams, pay, currPayParamsRef],
   );
@@ -1408,13 +1431,21 @@ export function usePaymentState({
         // Update ref synchronously BEFORE async operations to prevent stale closures
         currPayParamsRef.current = updatedPayParams;
 
+        const myId = ++previewRequestIdRef.current;
         try {
           await pay.createPreviewOrder(updatedPayParams);
-          setCurrPayParams(updatedPayParams);
-          setIsDepositFlow(updatedPayParams.toUnits == null);
+          if (myId === previewRequestIdRef.current) {
+            setCurrPayParams(updatedPayParams);
+            setIsDepositFlow(updatedPayParams.toUnits == null);
+          } else {
+            log?.(
+              `[resetOrder] skipped setCurrPayParams (stale request myId=${myId}, current=${previewRequestIdRef.current})`,
+            );
+          }
         } catch (error) {
-          console.error("[resetOrder] Failed to create preview order:", error);
-          // Re-throw the error so the caller knows the reset failed
+          if (myId === previewRequestIdRef.current) {
+            console.error("[resetOrder] Failed to create preview order:", error);
+          }
           throw error;
         }
       }
