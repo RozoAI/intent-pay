@@ -393,10 +393,12 @@ When creating PRs, target the `master` branch.
 
 ## Important Files to Reference
 
-- `.cursorrules` - Comprehensive project documentation and patterns
-- `packages/connectkit/PAYMENT_FLOW.md` - Detailed payment flow diagrams and state transitions
-- `packages/connectkit/README.md` - Public SDK documentation
-- `CHANGELOG.md` - Version history and changes
+- **`.cursorrules`** - Comprehensive project documentation and patterns
+- **`packages/connectkit/PAYMENT_FLOW.md`** - Detailed payment flow diagrams and state transitions
+- **`packages/connectkit/README.md`** - Public SDK documentation
+- **`CHANGELOG.md`** - Version history and changes
+- **`docs/ARCHITECTURE.md`** - Deep dive into system architecture, state machine, multi-chain integration
+- **`docs/TROUBLESHOOTING.md`** - Common issues, debugging steps, and solutions
 
 ## Contract Information
 
@@ -409,6 +411,139 @@ Audit: Nethermind, 2025 Apr (see README)
 ## License
 
 BSD-2-Clause (see LICENSE file)
+
+## Critical Insights for AI Assistants
+
+When working on this codebase, keep these architectural insights in mind:
+
+### 1. State Machine is Sacred
+**Location:** `packages/connectkit/src/payment/paymentFsm.ts:168-198`
+
+The payment FSM has strict transition rules. NEVER:
+- Skip states (preview → payment_started without payment_unpaid)
+- Call `setPaymentUnpaid()` from `error` state without providing order
+- Start new payment while old one is `payment_started` (must reset first)
+
+**Why:** Violating FSM rules causes silent bugs, stuck payments, and user frustration.
+
+### 2. Three Separate Wallet Systems
+**Location:** `packages/connectkit/src/provider/DaimoPayProvider.tsx:495-523`
+
+EVM, Solana, and Stellar run in PARALLEL with NO shared state. They only share the payment store.
+
+**Implication:** When debugging wallet issues, check the specific provider (Web3/Solana/Stellar) - don't assume they behave the same way.
+
+### 3. Cross-Chain = Backend Dependency
+**Location:** `packages/pay-common/src/api/payment.ts:36-147`
+
+Cross-chain payments don't bridge on-chain. They go through Rozo's backend API:
+1. Frontend calls `createPayment()` API
+2. Backend returns deposit address (source chain)
+3. User sends to deposit address
+4. Backend bridges to destination
+5. Frontend polls for status
+
+**Implication:** Cross-chain payments are NOT trustless. Users trust Rozo's infrastructure.
+
+### 4. Component State ≠ FSM State
+**Location:** `packages/connectkit/src/components/Pages/PayWithToken/index.tsx:131-172`
+
+There are THREE layers of state:
+- **Component state:** `PayState` enum (RequestingPayment, RequestFailed, etc.)
+- **FSM state:** PaymentState type (preview, payment_unpaid, payment_started, etc.)
+- **API state:** Backend payment status (pending, processing, completed)
+
+These can diverge! Always validate FSM state via `store.getState().type` before critical operations.
+
+### 5. Stale State is a Real Threat
+**Location:** `packages/connectkit/src/components/Pages/Stellar/PayWithStellarToken/index.tsx`
+
+React batches updates. Components can render with stale props. ALWAYS validate:
+```typescript
+if (!payParams) return; // Prevent using old destination address
+if (!order?.externalId) return; // Prevent payment without order
+```
+
+**Why:** After `resetPayment()`, a component might execute with old `destinationAddress` before new state propagates. This sends funds to the wrong address.
+
+### 6. Wallet Quirks Require Defensive Code
+**Location:** `packages/connectkit/src/components/Pages/PayWithToken/index.tsx:132-168`
+
+Real wallets have bugs:
+- Rainbow: Reports wrong chain ID (ConnectorChainMismatchError)
+- Phantom: Doesn't return to browser after signing
+- Trust Wallet: Mobile deep-linking is inconsistent
+
+**Pattern:** Try-catch with specific error handling + automatic retry for known issues.
+
+### 7. Token Loading is the Performance Bottleneck
+**Location:** `packages/connectkit/src/hooks/useTokenOptions.tsx:236-308`
+
+On modal open, SDK makes 100+ RPC calls fetching balances across chains. This is the main UX pain point.
+
+**Mitigation:** Smart refresh logic with debouncing, but still slow on first load.
+
+**Improvement opportunity:** Pre-fetch balances on wallet connection, before modal opens.
+
+### 8. Polling, Not WebSockets
+**Location:** `packages/connectkit/src/payment/paymentEffects.ts`
+
+Payment status updates use pure polling (every 2 seconds). No WebSocket support.
+
+**Implication:** At scale (1000s of users), this creates significant backend load. Exponential backoff or WebSocket upgrade recommended.
+
+### 9. Order Immutability is a Security Feature
+Once `hydrateOrder()` is called, payment amount/destination cannot change without full reset.
+
+**Why:** Prevents race condition where user approves amount X but transaction sends amount Y.
+
+**Tradeoff:** Changing payment details feels "heavy" because it requires restarting the full flow.
+
+### 10. Error Recovery Requires Order Context
+**Pattern:**
+```typescript
+try {
+  await payWithToken(option, store);
+} catch (e) {
+  // WRONG: Just update UI state
+  setPayState(PayState.RequestCancelled);
+
+  // CORRECT: Also reset FSM state with order context
+  if (rozoPaymentId && order) {
+    await setPaymentUnpaid(rozoPaymentId, order);
+  }
+}
+```
+
+## Common Pitfalls to Avoid
+
+1. ❌ **Using `cat`, `grep`, `find` instead of Read/Grep/Glob tools** - Always use specialized tools
+2. ❌ **Modifying FSM transitions without understanding full flow** - Read ARCHITECTURE.md first
+3. ❌ **Assuming EVM/Solana/Stellar wallets behave the same** - They don't; check provider-specific code
+4. ❌ **Skipping validation of `payParams` before payment** - Can send to wrong address/chain
+5. ❌ **Not handling wallet-specific errors** - Rainbow, Phantom, etc. have unique quirks
+6. ❌ **Adding new chains without testing cross-chain flow** - Must verify both direct and bridged paths
+7. ❌ **Forgetting to update both component AND FSM state on error** - Causes stuck payments
+
+## When Making Changes
+
+**Before modifying payment flow:**
+1. Read `docs/ARCHITECTURE.md` sections 1-2 (State Machine & Multi-Chain)
+2. Check `docs/TROUBLESHOOTING.md` for related issues
+3. Verify change doesn't violate FSM transition rules
+4. Test with example app across EVM, Solana, Stellar
+
+**Before adding new features:**
+1. Check if it requires backend API changes (cross-chain operations do)
+2. Consider impact on all three chain providers
+3. Test wallet disconnect/reconnect scenarios
+4. Profile token loading performance impact
+
+**Before fixing bugs:**
+1. Check TROUBLESHOOTING.md for known solutions
+2. Enable logging (`log?.()` statements) to trace state
+3. Verify FSM state matches component state
+4. Test fix across different wallets (MetaMask, Phantom, Freighter)
 
 ## Credits
 
