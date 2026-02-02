@@ -97,8 +97,8 @@ import { useSolanaPaymentOptions } from "./useSolanaPaymentOptions";
 import { useStellarPaymentOptions } from "./useStellarPaymentOptions";
 import { useWalletPaymentOptions } from "./useWalletPaymentOptions";
 
-/** Wallet payment details, sent to processSourcePayment after submitting tx. */
-export type SourcePayment = Parameters<
+/** Wallet payment details, sent to processSourcePayment after submitting tx. (internal type) */
+type SourcePayment = Parameters<
   TrpcClient["processSourcePayment"]["mutate"]
 >[0];
 

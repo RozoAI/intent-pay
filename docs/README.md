@@ -37,10 +37,11 @@ Detailed guides for specialized topics:
 
 4. **[ADDING_NEW_CHAIN_SUPPORT.md](./ADDING_NEW_CHAIN_SUPPORT.md)** - How to add new blockchain support
 5. **[CHAIN_ADDRESS_USAGE.md](./CHAIN_ADDRESS_USAGE.md)** - Address handling across chains
-6. **[STELLAR_PAYOUT_IMPLEMENTATION_ANALYSIS.md](./STELLAR_PAYOUT_IMPLEMENTATION_ANALYSIS.md)** - Stellar-specific implementation details
+6. **[STELLAR_EXTERNAL_KIT_AND_CONNECT.md](./STELLAR_EXTERNAL_KIT_AND_CONNECT.md)** - Using your own Stellar kit and connecting wallets (single confirmation)
+7. **[STELLAR_PAYOUT_IMPLEMENTATION_ANALYSIS.md](./STELLAR_PAYOUT_IMPLEMENTATION_ANALYSIS.md)** - Stellar-specific implementation details
 
 ### **For Payment Flow Understanding**
-7. **[../packages/connectkit/PAYMENT_FLOW.md](../packages/connectkit/PAYMENT_FLOW.md)** - Detailed payment flow diagrams and state transitions
+8. **[../packages/connectkit/PAYMENT_FLOW.md](../packages/connectkit/PAYMENT_FLOW.md)** - Detailed payment flow diagrams and state transitions
 
 ---
 

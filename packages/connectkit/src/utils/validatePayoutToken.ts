@@ -63,17 +63,6 @@ export function validatePayoutToken(
 }
 
 /**
- * Gets user-friendly error message for validation errors
- */
-export function getValidationErrorMessage(error: ValidationError): string {
-  if (error.type === "unsupported_chain") {
-    return `The destination chain (ID: ${error.chainId}) is not currently supported for payouts. Please use one of the supported chains.`;
-  }
-
-  return `The token you're trying to receive is not supported on this chain. Please choose a supported token.`;
-}
-
-/**
  * Gets detailed error message with supported options
  */
 export function getDetailedValidationError(error: ValidationError): {
