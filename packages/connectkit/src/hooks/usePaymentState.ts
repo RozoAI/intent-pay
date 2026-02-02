@@ -279,6 +279,7 @@ export function usePaymentState({
     connector: stellarConnector,
     server: stellarServer,
     refreshAccount: refreshStellarAccount,
+    setWallet: setStellarWallet,
   } = useStellar();
   const stellarPubKey = stellarPublicKey;
 
@@ -1041,8 +1042,10 @@ export function usePaymentState({
       const destinationAddress = rozoPayment.destAddress;
       // const issuer = rozoStellarUSDC.token.split(":")[1];
 
-      // Setup Stellar payment
-      await stellarKit.setWallet(String(stellarConnector?.id ?? "freighter"));
+      // Ensure kit is on the correct wallet (idempotent — no second prompt if already connected).
+      if (stellarConnector) {
+        await setStellarWallet(stellarConnector);
+      }
       const sourceAccount = await stellarServer.loadAccount(stellarPublicKey);
 
       let issuer = "";

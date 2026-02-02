@@ -157,6 +157,13 @@ export const StellarContextProvider = ({
 
     if (!option) return;
 
+    // Idempotent: already connected with this wallet (e.g. React Strict Mode remount or payWithStellarToken) — skip kit calls to avoid double WalletConnect confirmation.
+    if (connector?.id === option.id && publicKey) {
+      setConnector(option);
+      log?.(`[Rozo] setWallet skipped (already connected): ${option.name}`);
+      return;
+    }
+
     try {
       let pk = publicKey;
 
