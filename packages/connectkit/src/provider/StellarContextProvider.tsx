@@ -160,19 +160,14 @@ export const StellarContextProvider = ({
     try {
       let pk = publicKey;
 
-      // Only connect wallet if using internal kit
-      // External kit is already connected by the consumer
-      if (!isUsingExternalKit) {
-        // Internal kit: SDK manages connection
-        log?.(`[Rozo] Using internal kit, connecting wallet: ${option.id}`);
-        kit.setWallet(option.id);
-        const { address } = await kit.getAddress();
-        pk = address;
-        setPublicKey(address);
-        log?.(`[Rozo] Internal kit connected, publicKey: ${address}`);
-      }
-      // External kit: consumer manages connection, we just store the state
-      // No need to call kit.setWallet() or kit.getAddress()
+      // Connect wallet via kit (same flow for internal or consumer-provided kit).
+      // Consumer-provided kit only supplies the instance; we still run setWallet/getAddress when user picks a wallet in the modal.
+      log?.(`[Rozo] Connecting wallet: ${option.id} (externalKit: ${isUsingExternalKit})`);
+      kit.setWallet(option.id);
+      const { address } = await kit.getAddress();
+      pk = address;
+      setPublicKey(address);
+      log?.(`[Rozo] Connected, publicKey: ${address}`);
 
       setConnector(option);
 
