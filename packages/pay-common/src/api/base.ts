@@ -25,13 +25,6 @@ export interface ApiResponse<T = any> {
   status: number | null;
 }
 
-// Request state for hooks (used in connectkit)
-export interface RequestState<T = any> extends ApiResponse<T> {
-  isLoading: boolean;
-  isError: boolean;
-  isSuccess: boolean;
-}
-
 /**
  * API Version type
  */

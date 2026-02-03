@@ -318,15 +318,24 @@ export function formatPaymentResponseToHydratedOrder(
   const sourceAmountUnits =
     order.source?.amount ?? order.destination?.amountUnits ?? "0";
 
-  // Destination Intent Address
+  // Deposit (pay-in) address – where the user actually sends funds.
+  const depositAddress = order.source?.receiverAddress ?? "";
+
+  // Final destination address – where funds are intended to end up after
+  // processing/bridging. For many flows this will be the same as the deposit
+  // address, but it can differ for cross-chain payouts.
+  const finalDestinationAddress =
+    order.destination?.receiverAddress ?? depositAddress;
+
+  // Destination Intent Address used by legacy flows and deposit deep links.
+  // This should always point to the deposit address that the user pays into.
   const intentAddress =
-    order.metadata?.receivingAddress ?? order.source?.receiverAddress;
+    (order.metadata?.receivingAddress ?? depositAddress) || "";
 
   // Destination Intent Memo
   const intentMemo = order.metadata?.memo ?? order.source?.receiverMemo;
 
-  // Destination address is where the payment will be received
-  const destAddress = order.source?.receiverAddress;
+  // Destination token (what the user ultimately receives)
   const destToken = getKnownToken(
     Number(order.destination.chainId),
     String(order.destination.tokenAddress)
@@ -340,7 +349,8 @@ export function formatPaymentResponseToHydratedOrder(
   return {
     id: BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)),
     mode: RozoPayOrderMode.HYDRATED,
-    intentAddr: intentAddress ?? "",
+    // Deposit address that the user or wallet will pay into.
+    intentAddr: intentAddress,
     memo: intentMemo ?? null,
     preferredChainId: order.source?.chainId ?? null,
     preferredTokenAddress: order.source?.tokenAddress ?? null,
@@ -366,7 +376,10 @@ export function formatPaymentResponseToHydratedOrder(
     },
     usdValue: Number(sourceAmountUnits),
     destFinalCall: {
-      to: destAddress ?? "",
+      // For backwards compatibility we keep destFinalCall.to as the deposit
+      // address. Callers that care about the ultimate payout destination
+      // should use metadata.finalDestinationAddress instead.
+      to: depositAddress,
       value: BigInt("0"),
       data: "0x",
     },
@@ -387,6 +400,15 @@ export function formatPaymentResponseToHydratedOrder(
     orgId: order.orgId ?? "",
     metadata: {
       ...(order?.metadata ?? {}),
+      // Canonical destination model for v2 payments. These fields are used by
+      // getCanonicalDestination/getRozoPayOrderView in this package and by
+      // higher-level SDKs to reason about where funds are deposited vs where
+      // they are finally received.
+      finalDestinationAddress,
+      finalDestinationChainId: Number(order.destination.chainId),
+      depositAddress,
+      depositChainId:
+        order.source?.chainId ?? Number(order.destination.chainId),
       receivingAddress: intentAddress ?? "",
       memo: intentMemo ?? null,
     } as any,

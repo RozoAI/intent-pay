@@ -1,0 +1,41 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "packages/connectkit/src/index.ts",
+    "packages/connectkit/src/world.ts",
+    "packages/pay-common/src/index.ts",
+    "examples/nextjs-app/**/*.{ts,tsx,js,jsx}"
+  ],
+  "project": [
+    "packages/connectkit/**/*.{ts,tsx}",
+    "packages/pay-common/**/*.ts",
+    "examples/nextjs-app/**/*.{ts,tsx,js,jsx}"
+  ],
+  "ignore": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "**/node_modules/**",
+    "**/build/**",
+    "**/dist/**",
+    "**/.next/**"
+  ],
+  "ignoreDependencies": [
+    "@types/*",
+    "eslint",
+    "eslint-plugin-*",
+    "@typescript-eslint/*",
+    "typescript",
+    "tape",
+    "@types/tape",
+    "ts-node",
+    "rollup",
+    "rollup-plugin-*",
+    "@rollup/*",
+    "husky",
+    "lint-staged",
+    "rimraf",
+    "bumpp"
+  ]
+}

@@ -289,6 +289,65 @@ export type RozoPayOrderView = {
   metadata: RozoPayUserMetadata | null;
 };
 
+/**
+ * Canonical destination representation for a RozoPay order.
+ *
+ * - depositAddress / depositChainId: where the user actually sends funds
+ * - finalDestinationAddress / finalDestinationChainId: where funds are intended
+ *   to end up after bridging/processing
+ *
+ * These values are derived from order metadata when available (v2 payments),
+ * and fall back to legacy fields for older orders.
+ */
+export type CanonicalDestination = {
+  depositAddress: RozoAddress | null;
+  depositChainId: number | null;
+  finalDestinationAddress: RozoAddress;
+  finalDestinationChainId: number;
+};
+
+export function getCanonicalDestination(
+  order: RozoPayOrder
+): CanonicalDestination {
+  const metadata: any = (order as any).metadata ?? {};
+
+  // For v2 payments, bridge-utils/formatPaymentResponseToHydratedOrder stores
+  // canonical destination information in metadata. Prefer those when present.
+  const metaFinalAddress: string | undefined =
+    metadata.finalDestinationAddress ?? undefined;
+  const metaFinalChainId: number | undefined =
+    metadata.finalDestinationChainId ?? undefined;
+  const metaDepositAddress: string | undefined =
+    metadata.depositAddress ?? metadata.receivingAddress ?? undefined;
+  const metaDepositChainId: number | undefined =
+    metadata.depositChainId ?? undefined;
+
+  const finalDestinationAddress: RozoAddress =
+    (metaFinalAddress as RozoAddress | undefined) ??
+    // Fallback: for legacy intents, destFinalCall.to was the destination.
+    (order.destFinalCall.to as RozoAddress);
+
+  const finalDestinationChainId: number =
+    metaFinalChainId ?? getOrderDestChainId(order);
+
+  const depositAddress: RozoAddress | null =
+    (metaDepositAddress as RozoAddress | undefined) ??
+    // Hydrated orders created by the bridge utils use intentAddr as the
+    // deposit address that the user pays into.
+    ((order as any).intentAddr as RozoAddress | undefined) ??
+    null;
+
+  const depositChainId: number | null =
+    metaDepositChainId ?? (order as any).preferredChainId ?? null;
+
+  return {
+    depositAddress,
+    depositChainId,
+    finalDestinationAddress,
+    finalDestinationChainId,
+  };
+}
+
 export function getOrderSourceChainId(
   order: RozoPayHydratedOrder
 ): number | null {
@@ -318,9 +377,9 @@ export function mergedMetadata(data: Record<string, any>): Record<string, any> {
 export function getRozoPayOrderView(order: RozoPayOrder): RozoPayOrderView {
   // Handle both string (base58) and bigint order IDs
   const orderId =
-    typeof order.id === "string"
-      ? order.id
-      : writeRozoPayOrderID(order.id);
+    typeof order.id === "string" ? order.id : writeRozoPayOrderID(order.id);
+
+  const destination = getCanonicalDestination(order);
 
   return {
     id: orderId,
@@ -351,7 +410,10 @@ export function getRozoPayOrderView(order: RozoPayOrder): RozoPayOrderView {
           }
         : null,
     destination: {
-      destinationAddress: order.destFinalCall.to,
+      // Expose canonical final destination address rather than the deposit
+      // address. For legacy orders without canonical metadata this falls back
+      // to destFinalCall.to, so behaviour remains backward compatible.
+      destinationAddress: destination.finalDestinationAddress,
       txHash:
         order.mode === RozoPayOrderMode.HYDRATED
           ? String(order.destFastFinishTxHash ?? order.destClaimTxHash)

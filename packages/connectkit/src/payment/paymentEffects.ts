@@ -1,15 +1,9 @@
 import {
   ApiVersion,
   assert,
-  baseEURC,
-  baseUSDC,
-  CreateNewPaymentParams,
   createPayment,
-  FeeType,
   formatPaymentResponseToHydratedOrder,
-  generateIntentTitle,
   getKnownToken,
-  getOrderDestChainId,
   getPayment,
   mergedMetadata,
   PaymentResponse,
@@ -20,15 +14,17 @@ import {
   RozoPayOrderStatusDest,
   RozoPayOrderStatusSource,
   RozoPayOrderWithOrg,
-  rozoSolana,
-  rozoStellar,
   TokenLogo,
 } from "@rozoai/intent-common";
-import { Address, formatUnits, parseUnits } from "viem";
+import { Address, parseUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { parseErrorMessage } from "../utils/errorParser";
 import { PollHandle, startPolling } from "../utils/polling";
 import { TrpcClient } from "../utils/trpc";
+import {
+  buildCreatePaymentPayload,
+  resolveDestinationAddress,
+} from "./createPaymentPayload";
 import { PaymentEvent, PaymentState } from "./paymentFsm";
 import { PaymentStore } from "./paymentStore";
 
@@ -113,7 +109,9 @@ export function attachPaymentEffectHandlers(
         const requestId = nextPreviewRequestId();
         latestSetPayParamsRequestId = requestId;
         const isLatest = () => requestId === latestSetPayParamsRequestId;
-        log(`[EFFECT] set_pay_params requestId=${requestId} toUnits=${event.payParams?.toUnits ?? "(deposit)"}`);
+        log(
+          `[EFFECT] set_pay_params requestId=${requestId} toUnits=${event.payParams?.toUnits ?? "(deposit)"}`
+        );
         runSetPayParamsEffects(store, trpc, event, apiVersion, isLatest, log);
         break;
       }
@@ -326,7 +324,11 @@ async function runSetPayParamsEffects(
         usd: Number(toUnits),
       },
       destFinalCall: {
-        to: payParams.toAddress,
+        // For non-EVM destinations this will typically be a placeholder; the
+        // canonical deposit address is determined during hydration via
+        // createPayment. Using the same resolver everywhere keeps behaviour
+        // consistent across flows.
+        to: resolveDestinationAddress(payParams as any),
         value: "0",
         data: payParams.toCallData || "0x",
       },
@@ -345,7 +347,9 @@ async function runSetPayParamsEffects(
     };
 
     if (!isLatest()) {
-      log(`[EFFECT] preview_generated skipped (stale set_pay_params, toUnits=${toUnits})`);
+      log(
+        `[EFFECT] preview_generated skipped (stale set_pay_params, toUnits=${toUnits})`
+      );
       return;
     }
 
@@ -407,26 +411,6 @@ async function runHydratePayParamsEffects(
   const order = prev.order;
   const payParams = prev.payParamsData;
   const walletOption = event.walletPaymentOption;
-  const feeType = payParams.feeType ?? FeeType.ExactIn;
-
-  const toUnits = formatUnits(
-    BigInt(order.destFinalCallTokenAmount.amount),
-    order.destFinalCallTokenAmount.token.decimals
-  );
-  const calculatedToUnits =
-    feeType === FeeType.ExactIn
-      ? Number(toUnits)
-      : Number(toUnits) - Number(walletOption?.fees.usd ?? 0);
-
-  const toTokenAddress = order.destFinalCallTokenAmount.token.token;
-  const toChain = getOrderDestChainId(order);
-  const toToken = getKnownToken(toChain, toTokenAddress);
-
-  if (!toToken) {
-    throw new Error(
-      `Token not found for chain ${toChain} and token ${toTokenAddress}`
-    );
-  }
 
   /**
    * ROZO API CALL
@@ -434,37 +418,6 @@ async function runHydratePayParamsEffects(
    */
   let rozoPaymentId: string | undefined = order?.externalId ?? undefined;
   let rozoPaymentResponse: PaymentResponse | undefined = undefined;
-
-  let toAddress = order.destFinalCall.to;
-  if (payParams.toSolanaAddress) {
-    toAddress = payParams.toSolanaAddress;
-  } else if (payParams.toStellarAddress) {
-    toAddress = payParams.toStellarAddress;
-  }
-
-  // TODO: If we want to add another currency OR EUR support for other chains
-
-  let preferredChain = 0;
-  let preferredTokenAddress = "";
-
-  if (walletOption) {
-    preferredChain = walletOption.required.token.chainId;
-    preferredTokenAddress = walletOption.required.token.token;
-  } else {
-    const isNonUSDToken = toToken.fiatISO !== "USD";
-
-    preferredChain = isNonUSDToken ? baseEURC.chainId : baseUSDC.chainId;
-    preferredTokenAddress = isNonUSDToken ? baseEURC.token : baseUSDC.token;
-  }
-
-  const title =
-    payParams?.metadata?.intent ??
-    generateIntentTitle({
-      toChainId: toChain,
-      toTokenAddress: toTokenAddress,
-      preferredChainId: preferredChain,
-      preferredTokenAddress: preferredTokenAddress,
-    });
 
   try {
     log?.(
@@ -474,30 +427,18 @@ async function runHydratePayParamsEffects(
         2
       )}`
     );
-    const isAbleToIncludeReceiverMemo = [
-      rozoSolana.chainId,
-      rozoStellar.chainId,
-    ].includes(toChain);
-
-    const payload: CreateNewPaymentParams = {
-      title,
+    const payload = buildCreatePaymentPayload({
+      // payParamsData only carries a subset; normalise to full PayParams
+      payParams: {
+        ...payParams,
+        appId: payParams.appId ?? DEFAULT_ROZO_APP_ID,
+      } as any,
+      order,
+      walletOption,
       apiVersion,
-      appId: payParams?.appId ?? DEFAULT_ROZO_APP_ID,
-      description: payParams?.metadata?.description ?? "",
-      feeType,
-      toChain,
-      toToken: toTokenAddress,
-      toAddress,
-      toUnits: calculatedToUnits.toFixed(2),
-      preferredChain,
-      preferredTokenAddress,
-      ...(isAbleToIncludeReceiverMemo && payParams?.receiverMemo
-        ? { receiverMemo: payParams.receiverMemo }
-        : {}),
-      metadata: mergedMetadata({
-        ...(order?.metadata ?? {}),
-      }),
-    };
+      feeTypeOverride: payParams.feeType,
+      includeOrderMetadata: true,
+    });
     log?.(`[Payment Effect]: payload: ${JSON.stringify(payload, null, 2)}`);
 
     const rozoPayment = await createPayment(payload);
