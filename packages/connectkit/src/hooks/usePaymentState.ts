@@ -205,6 +205,8 @@ export interface PaymentState {
   txHash: string | undefined;
   setRozoPaymentId: (paymentId: string) => void;
   rozoPaymentId: string | undefined;
+  setSenderAddress: (address: string | undefined) => void;
+  senderAddress: string | undefined;
 
   // Wallet addresses for refresh coordination
   ethWalletAddress: string | undefined;
@@ -308,6 +310,9 @@ export function usePaymentState({
 
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
   const [rozoPaymentId, setRozoPaymentId] = useState<string | undefined>(
+    undefined
+  );
+  const [senderAddress, setSenderAddress] = useState<string | undefined>(
     undefined
   );
 
@@ -556,6 +561,9 @@ export function usePaymentState({
       `[PAY TOKEN] paymentState is ${pay.paymentState}, must be preview, unhydrated, payment_unpaid, or payment_started`
     );
 
+    // Set sender address for tracking
+    setSenderAddress(ethWalletAddress);
+
     const { required, fees } = walletOption;
 
     // Early validation using cached validation
@@ -800,6 +808,9 @@ export function usePaymentState({
         throw new Error("Solana Public key is null");
       }
 
+      // Set sender address for tracking
+      setSenderAddress(payerPublicKey.toBase58());
+
       if (!pay.order?.id) {
         throw new Error("Order ID is null");
       }
@@ -976,6 +987,9 @@ export function usePaymentState({
       if (!stellarPublicKey) {
         throw new Error("Stellar Public key is null");
       }
+
+      // Set sender address for tracking
+      setSenderAddress(stellarPublicKey);
 
       let account = stellarAccount;
 
@@ -1346,6 +1360,7 @@ export function usePaymentState({
       setSelectedWallet(undefined);
       setSelectedWalletDeepLink(undefined);
       setPaymentWaitingMessage(undefined);
+      setSenderAddress(undefined);
 
       // Set the new payParams
       if (mergedPayParams) {
@@ -1445,6 +1460,8 @@ export function usePaymentState({
     setTxHash,
     setRozoPaymentId,
     rozoPaymentId,
+    setSenderAddress,
+    senderAddress,
     ethWalletAddress,
     solanaPubKey,
     stellarPubKey,

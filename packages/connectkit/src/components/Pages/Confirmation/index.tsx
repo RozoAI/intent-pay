@@ -125,7 +125,8 @@ const Confirmation: React.FC = () => {
       (["evm", "all"].includes(tokenMode) &&
         order &&
         supportedTokens.some(
-          (token) => token.token === order.destFinalCallTokenAmount?.token.token
+          (token) =>
+            token.token === order.destFinalCallTokenAmount?.token.token,
         ));
 
     if (isRozoPayment && txHash && isConfirming) {
@@ -151,7 +152,8 @@ const Confirmation: React.FC = () => {
       (["evm", "all"].includes(tokenMode) &&
         order &&
         supportedTokens.some(
-          (token) => token.token === order.destFinalCallTokenAmount?.token.token
+          (token) =>
+            token.token === order.destFinalCallTokenAmount?.token.token,
         ));
 
     if (isRozoPayment && txHash) {
@@ -168,7 +170,7 @@ const Confirmation: React.FC = () => {
         chainId = rozoSolana.chainId;
       } else {
         chainId = Number(
-          paymentStateContext.selectedTokenOption?.required.token.chainId
+          paymentStateContext.selectedTokenOption?.required.token.chainId,
         );
       }
 
@@ -183,7 +185,7 @@ const Confirmation: React.FC = () => {
         const destChainId = getOrderDestChainId(order);
         assert(
           txHash != null,
-          `[CONFIRMATION] paymentState: ${paymentState}, but missing txHash`
+          `[CONFIRMATION] paymentState: ${paymentState}, but missing txHash`,
         );
         const txURL = getChainExplorerTxUrl(destChainId, txHash);
 
@@ -193,13 +195,7 @@ const Confirmation: React.FC = () => {
 
     return { done: false, txURL: undefined, rawPayInHash: undefined };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    paymentState,
-    order,
-    paymentStateContext,
-    isConfirming,
-    supportedTokens,
-  ]);
+  }, [paymentState, order, paymentStateContext, isConfirming, supportedTokens]);
 
   const receiptUrl = useMemo(() => {
     if (
@@ -269,7 +265,7 @@ const Confirmation: React.FC = () => {
           // Unsubscribe from Pusher since payout is completed
           if (pusherUnsubscribeRef.current) {
             context.log(
-              "[CONFIRMATION] Payout completed via Pusher, unsubscribing"
+              "[CONFIRMATION] Payout completed via Pusher, unsubscribing",
             );
             pusherUnsubscribeRef.current();
           }
@@ -309,7 +305,7 @@ const Confirmation: React.FC = () => {
     if (timeoutIdRef.current !== null) {
       context.log(
         "[CONFIRMATION] Timeout already set, skipping",
-        timeoutIdRef.current
+        timeoutIdRef.current,
       );
       return;
     }
@@ -319,7 +315,7 @@ const Confirmation: React.FC = () => {
       pusherInitializedTimeRef.current = Date.now();
       context.log(
         "[CONFIRMATION] Pusher initialized, starting 1-minute timeout at",
-        new Date(pusherInitializedTimeRef.current).toISOString()
+        new Date(pusherInitializedTimeRef.current).toISOString(),
       );
     }
 
@@ -329,7 +325,7 @@ const Confirmation: React.FC = () => {
       context.log(
         "[CONFIRMATION] Timeout fired at",
         new Date().toISOString(),
-        "- checking conditions for polling switch"
+        "- checking conditions for polling switch",
       );
 
       // Switch to polling if payout hasn't been completed and Pusher is still enabled
@@ -337,7 +333,7 @@ const Confirmation: React.FC = () => {
       // receive payin data but still need to poll for payout if it doesn't arrive via Pusher
       if (pusherEnabledRef.current && !payoutCompletedRef.current) {
         context.log(
-          "[CONFIRMATION] 1 minute elapsed without payout completion, switching to polling"
+          "[CONFIRMATION] 1 minute elapsed without payout completion, switching to polling",
         );
 
         // Unsubscribe from Pusher
@@ -360,7 +356,7 @@ const Confirmation: React.FC = () => {
     }, 60000); // 1 minute = 60000ms
 
     context.log(
-      "[CONFIRMATION] Timeout set successfully, will fire in 60 seconds"
+      "[CONFIRMATION] Timeout set successfully, will fire in 60 seconds",
     );
 
     return () => {
@@ -390,7 +386,7 @@ const Confirmation: React.FC = () => {
       setPollingEnabled(false);
       if (timeoutIdRef.current) {
         context.log(
-          "[CONFIRMATION] Clearing existing timeout on payment ID change"
+          "[CONFIRMATION] Clearing existing timeout on payment ID change",
         );
         clearTimeout(timeoutIdRef.current);
         timeoutIdRef.current = null;
@@ -421,14 +417,17 @@ const Confirmation: React.FC = () => {
       paymentCompletedSent.current = paymentKey;
 
       // Update payment pay-in transaction hash on the server
-      updatePaymentPayInTxHash(rozoPaymentId, rawPayInHash, "v2").catch(
-        (error) => {
-          context.log(
-            "[CONFIRMATION] Failed to update payment pay-in tx hash:",
-            error
-          );
-        }
-      );
+      updatePaymentPayInTxHash({
+        paymentId: rozoPaymentId,
+        txHash: rawPayInHash,
+        senderAddress: paymentStateContext.senderAddress || undefined,
+        apiVersion: "v2",
+      }).catch((error) => {
+        context.log(
+          "[CONFIRMATION] Failed to update payment pay-in tx hash:",
+          error,
+        );
+      });
 
       setPaymentCompleted(rawPayInHash, rozoPaymentId);
       onSuccess();
@@ -460,7 +459,7 @@ const Confirmation: React.FC = () => {
       // Unsubscribe from Pusher since payout is completed via polling
       if (pusherUnsubscribeRef.current && pusherEnabled) {
         context.log(
-          "[CONFIRMATION] Payout completed via polling, unsubscribing from Pusher"
+          "[CONFIRMATION] Payout completed via polling, unsubscribing from Pusher",
         );
         pusherUnsubscribeRef.current();
       }
@@ -558,7 +557,7 @@ const Confirmation: React.FC = () => {
                           style={{ fontSize: 14, fontWeight: 400 }}
                         >
                           {getAddressContraction(
-                            pusherPayoutTxHash || payoutTxHash || ""
+                            pusherPayoutTxHash || payoutTxHash || "",
                           )}
                           <ExternalIcon />
                         </Link>
