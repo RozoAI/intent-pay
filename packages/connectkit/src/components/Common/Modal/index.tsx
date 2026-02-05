@@ -326,6 +326,49 @@ const Modal: React.FC<ModalProps> = ({
     };
   }, [mounted, onClose]);
 
+  // WalletConnect modal runs in shadow DOM; global CSS doesn't apply. Find the host (light DOM) and set its z-index so it stacks above our modal (998).
+  const WCM_Z_INDEX = 9999;
+  useEffect(() => {
+    if (!mounted) return;
+
+    const applyWcmZIndex = (el: Element): boolean => {
+      if ((el as HTMLElement).id === "wcm-modal") {
+        const style = (el as HTMLElement).style;
+        style.setProperty("position", "relative", "important");
+        style.setProperty("z-index", String(WCM_Z_INDEX), "important");
+        return true;
+      }
+      if (el.shadowRoot?.getElementById?.("wcm-modal") ?? el.shadowRoot?.querySelector?.("#wcm-modal")) {
+        const style = (el as HTMLElement).style;
+        style.setProperty("position", "relative", "important");
+        style.setProperty("z-index", String(WCM_Z_INDEX), "important");
+        return true;
+      }
+      return false;
+    };
+
+    const scan = (root: Node) => {
+      const walk = (node: Node) => {
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        const el = node as Element;
+        applyWcmZIndex(el);
+        for (const child of el.children) walk(child);
+      };
+      walk(root);
+    };
+
+    const obs = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        for (const node of m.addedNodes) {
+          if (node.nodeType === Node.ELEMENT_NODE) scan(node);
+        }
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+    scan(document.body);
+    return () => obs.disconnect();
+  }, [mounted]);
+
   const dimensionsCSS = {
     "--height": dimensions.height,
     "--width": dimensions.width,

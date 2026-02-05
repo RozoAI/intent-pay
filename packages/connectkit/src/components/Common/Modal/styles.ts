@@ -410,7 +410,9 @@ export const CloseButton = styled(motion.button)`
   margin: 0;
   color: var(--ck-body-action-color);
   background: var(--ck-body-background);
-  transition: background-color 200ms ease, transform 100ms ease;
+  transition:
+    background-color 200ms ease,
+    transform 100ms ease;
   /* will-change: transform; */
   svg {
     display: block;
@@ -437,7 +439,9 @@ export const SiweButton = styled(motion.button)`
   margin: 0;
   color: var(--ck-body-action-color);
   background: var(--ck-body-background);
-  transition: background-color 200ms ease, transform 100ms ease;
+  transition:
+    background-color 200ms ease,
+    transform 100ms ease;
   /* will-change: transform; */
   svg {
     display: block;
@@ -468,7 +472,9 @@ export const BackButton = styled(motion.button)`
   margin: 0;
   color: var(--ck-body-action-color);
   background: var(--ck-body-background);
-  transition: background-color 200ms ease, transform 100ms ease;
+  transition:
+    background-color 200ms ease,
+    transform 100ms ease;
   /* will-change: transform; */
   svg {
     display: block;
@@ -501,7 +507,9 @@ export const InfoButton = styled(motion.button)`
   margin: 0;
   color: var(--ck-body-action-color);
   background: var(--ck-body-background);
-  transition: background-color 200ms ease, transform 100ms ease;
+  transition:
+    background-color 200ms ease,
+    transform 100ms ease;
   /* will-change: transform; */
   svg {
     display: block;
@@ -521,8 +529,8 @@ export const InfoButton = styled(motion.button)`
 export const Container = styled(motion.div)`
   --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
   --duration: 200ms;
-  --transition: height var(--duration) var(--ease),
-    width var(--duration) var(--ease);
+  --transition:
+    height var(--duration) var(--ease), width var(--duration) var(--ease);
   z-index: 3;
   display: block;
   pointer-events: none;

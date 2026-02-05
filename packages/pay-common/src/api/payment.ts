@@ -35,7 +35,7 @@ import {
  * ```
  */
 export async function createPayment(
-  params: CreateNewPaymentParams
+  params: CreateNewPaymentParams,
 ): Promise<PaymentResponse> {
   const {
     toChain,
@@ -75,13 +75,13 @@ export async function createPayment(
   const sourceChain = getChainById(Number(preferred.preferredChain));
   const sourceToken = getKnownToken(
     Number(preferred.preferredChain),
-    preferred.preferredTokenAddress
+    preferred.preferredTokenAddress,
   );
 
   const destinationChain = getChainById(Number(destination.chainId));
   const destinationToken = getKnownToken(
     Number(destination.chainId),
-    destination.tokenAddress
+    destination.tokenAddress,
   );
   const destinationAddress = destination.destinationAddress ?? toAddress;
 
@@ -137,7 +137,7 @@ export async function createPayment(
   // Create payment via API
   const response = await apiClient.post<PaymentResponse>(
     "/payment-api",
-    paymentData
+    paymentData,
   );
 
   if (!response?.data?.id) {
@@ -155,7 +155,7 @@ export async function createPayment(
  */
 export const getPayment = (
   paymentId: string,
-  apiVersion?: ApiVersion
+  apiVersion?: ApiVersion,
 ): Promise<ApiResponse<PaymentResponse>> => {
   // Set API version if provided
   if (apiVersion) {
@@ -180,17 +180,28 @@ export const getPayment = (
  *
  * @param paymentId - The payment ID to update (e.g., "pay_abc123")
  * @param txHash - The transaction hash to associate with the payment
+ * @param senderAddress - The sender address to associate with the payment
  * @param apiVersion - Optional API version ("v2" or "v4"), defaults to "v4" if not specified
  * @returns Promise with updated payment response
  *
  * Example usage:
- *   await updatePaymentPayInTxHash("pay_abc123", "0x1234567890abcdef...");
+ *   await updatePaymentPayInTxHash({
+ *     paymentId: "pay_abc123",
+ *     txHash: "0x1234567890abcdef...",
+ *     senderAddress: "0x1234567890abcdef...",
+ *   });
  */
-export const updatePaymentPayInTxHash = async (
-  paymentId: string,
-  txHash: string,
-  apiVersion?: ApiVersion
-): Promise<ApiResponse<PaymentResponse>> => {
+export const updatePaymentPayInTxHash = async ({
+  paymentId,
+  txHash,
+  apiVersion,
+  senderAddress,
+}: {
+  paymentId: string;
+  txHash: string;
+  senderAddress: string | undefined;
+  apiVersion?: ApiVersion;
+}): Promise<ApiResponse<PaymentResponse>> => {
   // Set API version if provided
   if (apiVersion) {
     setApiConfig({ version: apiVersion });
@@ -199,14 +210,18 @@ export const updatePaymentPayInTxHash = async (
   // Only support v2/v4 (not v1)
   if (apiVersion === "v1") {
     throw new Error(
-      "updatePaymentPayInTxHash is only available on API version v2 or later."
+      "updatePaymentPayInTxHash is only available on API version v2 or later.",
     );
   }
 
   const endpoint = `/payment-api/payments/${paymentId}/payin`;
-  const payload = {
+  const payload: { txHash: string; senderAddress?: string } = {
     txHash,
   };
+
+  if (senderAddress) {
+    payload.senderAddress = senderAddress;
+  }
 
   return apiClient.post<PaymentResponse>(endpoint, payload);
 };
@@ -229,7 +244,7 @@ export const updatePaymentPayInTxHash = async (
 export const updatePaymentEmail = async (
   paymentId: string,
   email: string,
-  apiVersion?: ApiVersion
+  apiVersion?: ApiVersion,
 ): Promise<ApiResponse<PaymentResponse>> => {
   // Set API version if provided
   if (apiVersion) {
@@ -239,7 +254,7 @@ export const updatePaymentEmail = async (
   // Only support v2/v4 (not v1)
   if (apiVersion === "v1") {
     throw new Error(
-      "updatePaymentEmail is only available on API version v2 or later."
+      "updatePaymentEmail is only available on API version v2 or later.",
     );
   }
 

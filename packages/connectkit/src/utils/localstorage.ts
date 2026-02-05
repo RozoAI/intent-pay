@@ -50,13 +50,6 @@ export const add = (storageKey: string, item: any) => {
   return get(storageKey);
 };
 
-export const remove = (storageKey: string, item: any) => {
-  const data = get(storageKey);
-  const newData = data.filter((i: any) => i.ckStoreKey !== item.ckStoreKey);
-  save(storageKey, newData);
-  return get(storageKey);
-};
-
 export const clear = (storageKey: string) => {
   save(storageKey, []);
   return get(storageKey);

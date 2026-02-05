@@ -18,7 +18,7 @@
     "clean": "pnpm exec rimraf \"**/node_modules\"",
     "clean:full": "pnpm run clean && rm -f pnpm-lock.yaml",
     "clean:deps": "pnpm exec rimraf \"**/node_modules\" \"**/dist\" \"**/build\" \"**/.next\"",
-    "clean:all": "pnpm run clean:deps && rm -f pnpm-lock.yaml"
+    "clean:all": "find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && find . -name 'dist' -type d -prune -exec rm -rf '{}' + && find . -name 'build' -type d -prune -exec rm -rf '{}' + && find . -name '.next' -type d -prune -exec rm -rf '{}' + && rm -f pnpm-lock.yaml"
   },
   "lint-staged": {
     "packages/connectkit/**/*.{js,jsx,ts,tsx}": [
@@ -29,14 +29,12 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "bumpp": "^10.1.1",
-    "rimraf": "^6.0.1",
+    "depcheck": "^1.4.7",
     "husky": "^9.1.7",
+    "knip": "^5.83.0",
     "lint-staged": "^16.2.7",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "viem": "^2.23.2",
-    "wagmi": "^2.14.11"
+    "rimraf": "^6.0.1",
+    "ts-prune": "^0.10.3"
   },
   "workspaces": [
     "packages/*",

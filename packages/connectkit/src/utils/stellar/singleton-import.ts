@@ -104,13 +104,3 @@ export async function getStellarKitInstance(config?: {
 
   return loadingPromise;
 }
-
-/**
- * Destroys the singleton instance (useful for testing)
- */
-export function destroyStellarKitInstance(): void {
-  if (typeof window !== "undefined") {
-    (globalThis as any).__ROZO_STELLAR_KIT_INSTANCE__ = undefined;
-    (globalThis as any).__ROZO_STELLAR_KIT_LOADING__ = undefined;
-  }
-}

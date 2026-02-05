@@ -217,10 +217,7 @@ const ConnectStellarWallet = () => {
   const handleConnect = async (wallet: any) => {
     try {
       if (!kit) return;
-
-      kit.setWallet(wallet.id);
-      const { address } = await kit.getAddress();
-      setPublicKey(address);
+      // Use SDK's setWallet (setConnector) so connection is idempotent and avoids double WalletConnect confirmation
       await setConnector(wallet);
       setShowWallets(false);
     } catch (error) {

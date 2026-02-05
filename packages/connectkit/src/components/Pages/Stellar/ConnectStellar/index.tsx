@@ -108,7 +108,19 @@ const ConnectStellar: React.FC = () => {
           {/* Show wallet options when not on mobile adapter */}
           {stellarOptions.length > 0 && (
             <>
-              <OrderHeader minified show="stellar" />
+              <OrderHeader
+                minified
+                excludeLogos={[
+                  "tron",
+                  "arbitrum",
+                  "optimism",
+                  "base",
+                  "bsc",
+                  "polygon",
+                  "solana",
+                  "ethereum",
+                ]}
+              />
               <OptionsList options={stellarOptions} />
             </>
           )}
