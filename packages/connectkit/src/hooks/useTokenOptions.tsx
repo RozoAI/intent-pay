@@ -423,11 +423,15 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
 
   const shouldShowLoading = useMemo(
     () =>
-      connectedWalletOnly &&
-      sortedOptionsList.length === 0 &&
-      !hasRelevantHooksWithValidParams
+      // Once we have options, don't show loading/skeletons (avoids extra skeleton when
+      // e.g. EVM+Solana are done but Stellar is still loading in mode "all")
+      sortedOptionsList.length > 0
         ? false
-        : isLoading && (!hasAnyData || sortedOptionsList.length === 0),
+        : connectedWalletOnly &&
+            sortedOptionsList.length === 0 &&
+            !hasRelevantHooksWithValidParams
+          ? false
+          : isLoading && (!hasAnyData || sortedOptionsList.length === 0),
     [
       connectedWalletOnly,
       sortedOptionsList,

@@ -1,7 +1,7 @@
 {
   "name": "@rozoai/intent-pay",
   "private": false,
-  "version": "0.1.16",
+  "version": "0.1.17-beta.1",
   "author": "RozoAI",
   "homepage": "https://github.com/RozoAI/intent-pay",
   "license": "BSD-2-Clause",
@@ -28,7 +28,9 @@
     "build": "rollup --config rollup.config.js",
     "prepare": "npm run build",
     "lint": "eslint 'src/**/*.{js,jsx,ts,tsx}' --quiet",
-    "release": "bumpp"
+    "release": "bumpp",
+    "publish:beta": "pnpm publish --no-git-checks --tag beta",
+    "publish:latest": "pnpm publish --no-git-checks --tag latest"
   },
   "keywords": [
     "ens",
