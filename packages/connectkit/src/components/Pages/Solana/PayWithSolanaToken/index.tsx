@@ -60,7 +60,7 @@ const PayWithSolanaToken: React.FC = () => {
   const { destinationAddress } = useSolanaDestination(payParams);
 
   const [payState, setPayStateInner] = useState<PayState>(
-    PayState.PreparingTransaction
+    PayState.PreparingTransaction,
   );
   const [txURL, setTxURL] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
@@ -85,8 +85,14 @@ const PayWithSolanaToken: React.FC = () => {
   // @NOTE: This is Pay In Solana by Rozo
   // FOR TRANSFER ACTION
   const handleTransfer = useCallback(
-    async (option: WalletPaymentOption) => {
+    async (option: WalletPaymentOption, isRetry: boolean = false) => {
       setIsLoading(true);
+      if (isRetry) {
+        setPayState(PayState.PreparingTransaction);
+      }
+      // Hoist so the catch block can reference the payment ID resolved in this
+      // attempt, instead of the stale React state value captured in the closure.
+      let resolvedPaymentId: string | undefined;
       try {
         if (!destinationAddress) {
           throw new Error("Solana destination address is required");
@@ -130,7 +136,9 @@ const PayWithSolanaToken: React.FC = () => {
           throw new Error("Payment not found");
         }
 
-        const newId = paymentId ?? hydratedOrder.externalId;
+        const newId = paymentId ?? hydratedOrder.externalId ?? undefined;
+        resolvedPaymentId = newId;
+
         if (newId) {
           setRozoPaymentId(newId);
 
@@ -150,7 +158,7 @@ const PayWithSolanaToken: React.FC = () => {
                 // State might have changed during async operations
                 console.warn(
                   "[PayWithSolanaToken] State transition failed, attempting direct start:",
-                  e
+                  e,
                 );
                 // Try to set started directly if state is already unpaid
                 try {
@@ -158,7 +166,7 @@ const PayWithSolanaToken: React.FC = () => {
                 } catch (e2) {
                   console.error(
                     "[PayWithSolanaToken] Could not start payment:",
-                    e2
+                    e2,
                   );
                   throw e2;
                 }
@@ -176,7 +184,7 @@ const PayWithSolanaToken: React.FC = () => {
               } catch (e) {
                 console.error(
                   "[PayWithSolanaToken] Could not start payment:",
-                  e
+                  e,
                 );
                 throw e;
               }
@@ -186,7 +194,7 @@ const PayWithSolanaToken: React.FC = () => {
               await setPaymentStarted(String(newId), hydratedOrder);
             } else {
               log(
-                `[PayWithSolanaToken] Skipping setPaymentStarted - state is ${stateBeforeTransition}, needs to be payment_unpaid`
+                `[PayWithSolanaToken] Skipping setPaymentStarted - state is ${stateBeforeTransition}, needs to be payment_unpaid`,
               );
             }
           }
@@ -209,15 +217,18 @@ const PayWithSolanaToken: React.FC = () => {
         log(
           "[PAY SOLANA] Result",
           result,
-          getChainExplorerTxUrl(rozoSolana.chainId, result.txHash)
+          getChainExplorerTxUrl(rozoSolana.chainId, result.txHash),
         );
         setTxURL(getChainExplorerTxUrl(rozoSolana.chainId, result.txHash));
 
         if (result.success) {
           setPayState(PayState.RequestSuccessful);
           setTxHash(result.txHash);
+          // Use `newId` (resolved this attempt) instead of the stale
+          // `rozoPaymentId` React state captured in the useCallback closure.
+          const completedPaymentId = newId ?? undefined;
           setTimeout(() => {
-            setPaymentCompleted(result.txHash, rozoPaymentId);
+            setPaymentCompleted(result.txHash, completedPaymentId);
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-solana" });
           }, 200);
           setTimeout(() => {
@@ -228,9 +239,12 @@ const PayWithSolanaToken: React.FC = () => {
         }
       } catch (error) {
         console.error("Failed to pay with solana token", error);
-        if (rozoPaymentId) {
+        // Use `resolvedPaymentId` (the ID from this attempt) rather than
+        // the stale `rozoPaymentId` from the React state closure.
+        const paymentIdToReset = resolvedPaymentId ?? rozoPaymentId;
+        if (paymentIdToReset) {
           try {
-            await setPaymentUnpaid(rozoPaymentId);
+            await setPaymentUnpaid(paymentIdToReset);
           } catch (e) {
             console.error("Failed to set payment unpaid:", e);
           }
@@ -244,7 +258,7 @@ const PayWithSolanaToken: React.FC = () => {
         setIsLoading(false);
       }
     },
-    [destinationAddress, order, state, rozoPaymentId]
+    [destinationAddress, order, state, rozoPaymentId],
   );
 
   useEffect(() => {
@@ -252,7 +266,7 @@ const PayWithSolanaToken: React.FC = () => {
 
     const transferTimeout = setTimeout(
       () => handleTransfer(selectedSolanaTokenOption),
-      100
+      100,
     );
     return () => clearTimeout(transferTimeout);
   }, [selectedSolanaTokenOption]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -285,7 +299,9 @@ const PayWithSolanaToken: React.FC = () => {
         )}
         <PaymentBreakdown paymentOption={selectedSolanaTokenOption} />
         {payState === PayState.RequestCancelled && !isLoading && (
-          <Button onClick={() => handleTransfer(selectedSolanaTokenOption)}>
+          <Button
+            onClick={() => handleTransfer(selectedSolanaTokenOption, true)}
+          >
             Retry Payment
           </Button>
         )}

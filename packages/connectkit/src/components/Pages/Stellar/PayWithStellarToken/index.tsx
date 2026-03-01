@@ -100,6 +100,9 @@ const PayWithStellarToken: React.FC = () => {
   // FOR TRANSFER ACTION
   const handleTransfer = async (option: WalletPaymentOption) => {
     setIsLoading(true);
+    // Hoist so the catch block can reference the payment ID resolved in this
+    // attempt, instead of the stale React state value captured in the closure.
+    let resolvedPaymentId: string | undefined;
     try {
       // Validate we have current payParams - if not, component has stale state
       if (!payParams) {
@@ -157,7 +160,9 @@ const PayWithStellarToken: React.FC = () => {
         throw new Error("Payment not found");
       }
 
-      const newId = paymentId ?? hydratedOrder.externalId;
+      const newId = paymentId ?? hydratedOrder.externalId ?? undefined;
+      resolvedPaymentId = newId;
+
       if (newId) {
         setRozoPaymentId(newId);
 
@@ -247,9 +252,12 @@ const PayWithStellarToken: React.FC = () => {
     } catch (error) {
       console.error("[PayWithStellarToken] Error:", error);
 
-      if (rozoPaymentId) {
+      // Use `resolvedPaymentId` (the ID from this attempt) rather than
+      // the stale `rozoPaymentId` from the React state closure.
+      const paymentIdToReset = resolvedPaymentId ?? rozoPaymentId;
+      if (paymentIdToReset) {
         try {
-          await setPaymentUnpaid(rozoPaymentId);
+          await setPaymentUnpaid(paymentIdToReset);
         } catch (e) {
           console.error("Failed to set payment unpaid:", e);
         }
@@ -370,11 +378,27 @@ const PayWithStellarToken: React.FC = () => {
           </Button>
         )}
         {payState === PayState.RequestCancelled && (
-          <Button onClick={handleSubmitTx}>Retry Payment</Button>
+          <Button
+            onClick={
+              signedTx
+                ? handleSubmitTx
+                : () => handleTransfer(selectedStellarTokenOption)
+            }
+          >
+            Retry Payment
+          </Button>
         )}
         {payState === PayState.RequestFailed && (
           <>
-            <Button onClick={handleSubmitTx}>Retry Payment</Button>
+            <Button
+              onClick={
+                signedTx
+                  ? handleSubmitTx
+                  : () => handleTransfer(selectedStellarTokenOption)
+              }
+            >
+              Retry Payment
+            </Button>
             <Button onClick={handleContactClick}>Contact Support</Button>
           </>
         )}
