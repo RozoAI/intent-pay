@@ -28,6 +28,53 @@ export interface UseDepositAddressOptionsReturn {
   loading: boolean;
   error: string | null;
 }
+const fallbackOptions = [
+  // Ethereum Mainnet (USDT, USDC)
+  {
+    id: DepositAddressPaymentOptions.ETHEREUM_USDT,
+    logoURI: ethereumUSDT.logoURI,
+    minimumUsd: 0.01,
+    chainId: ethereum.chainId,
+    token: ethereumUSDT,
+  },
+  {
+    id: DepositAddressPaymentOptions.ETHEREUM_USDC,
+    logoURI: ethereumUSDC.logoURI,
+    minimumUsd: 0.01,
+    chainId: ethereum.chainId,
+    token: ethereumUSDC,
+  },
+  // Base (USDC, EURC)
+  {
+    id: DepositAddressPaymentOptions.BASE_USDC,
+    logoURI: baseUSDC.logoURI,
+    minimumUsd: 0.01,
+    chainId: base.chainId,
+    token: baseUSDC,
+  },
+  {
+    id: DepositAddressPaymentOptions.BASE_EURC,
+    logoURI: baseEURC.logoURI,
+    minimumUsd: 0.01,
+    chainId: base.chainId,
+    token: baseEURC,
+  },
+  // Solana (USDT, USDC)
+  {
+    id: DepositAddressPaymentOptions.SOLANA_USDT,
+    logoURI: rozoSolanaUSDT.logoURI,
+    minimumUsd: 0.01,
+    chainId: rozoSolanaUSDT.chainId,
+    token: rozoSolanaUSDT,
+  },
+  {
+    id: DepositAddressPaymentOptions.SOLANA_USDC,
+    logoURI: rozoSolanaUSDC.logoURI,
+    minimumUsd: 0.01,
+    chainId: rozoSolanaUSDC.chainId,
+    token: rozoSolanaUSDC,
+  },
+];
 
 /**
  * Hook for managing deposit address payment options.
@@ -50,71 +97,23 @@ export function useDepositAddressOptions({
   payParams,
 }: UseDepositAddressOptionsParams): UseDepositAddressOptionsReturn {
   const [options, setOptions] = useState<DepositAddressPaymentOptionMetadata[]>(
-    []
+    [],
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Memoized configuration for deposit address options
-  const depositAddressConfig = useMemo(() => {
-    const available = [
-      // Ethereum Mainnet (USDT, USDC)
-      {
-        id: DepositAddressPaymentOptions.ETHEREUM_USDT,
-        logoURI: ethereumUSDT.logoURI,
-        minimumUsd: 1,
-        chainId: ethereum.chainId,
-        token: ethereumUSDT,
-      },
-      {
-        id: DepositAddressPaymentOptions.ETHEREUM_USDC,
-        logoURI: ethereumUSDC.logoURI,
-        minimumUsd: 1,
-        chainId: ethereum.chainId,
-        token: ethereumUSDC,
-      },
-      // Base (USDC, EURC)
-      {
-        id: DepositAddressPaymentOptions.BASE_USDC,
-        logoURI: baseUSDC.logoURI,
-        minimumUsd: 0.1,
-        chainId: base.chainId,
-        token: baseUSDC,
-      },
-      {
-        id: DepositAddressPaymentOptions.BASE_EURC,
-        logoURI: baseEURC.logoURI,
-        minimumUsd: 0.1,
-        chainId: base.chainId,
-        token: baseEURC,
-      },
-      // Solana (USDT, USDC)
-      {
-        id: DepositAddressPaymentOptions.SOLANA_USDT,
-        logoURI: rozoSolanaUSDT.logoURI,
-        minimumUsd: 0.1,
-        chainId: rozoSolanaUSDT.chainId,
-        token: rozoSolanaUSDT,
-      },
-      {
-        id: DepositAddressPaymentOptions.SOLANA_USDC,
-        logoURI: rozoSolanaUSDC.logoURI,
-        minimumUsd: 0.1,
-        chainId: rozoSolanaUSDC.chainId,
-        token: rozoSolanaUSDC,
-      },
-    ];
-
+  const filteredOptions = useMemo(() => {
     if (payParams?.preferredTokens && payParams?.preferredTokens.length > 0) {
-      return available.filter((option) =>
+      return options.filter((option) =>
         payParams?.preferredTokens?.some(
-          (pt) => pt.token === option.token.token
-        )
+          (pt) => pt.token === option.token.token,
+        ),
       );
     }
 
-    return available;
-  }, [usdRequired, payParams?.preferredTokens]);
+    return options;
+  }, [options, payParams?.preferredTokens]);
 
   // Memoized refresh function to prevent unnecessary re-renders
   const refreshDepositAddressOptions = useCallback(
@@ -123,11 +122,10 @@ export function useDepositAddressOptions({
       setError(null);
 
       try {
-        // TODO: Uncomment when API endpoint is ready
-        // const apiOptions = await trpc.getDepositAddressOptions.query({
-        //   usdRequired: usd,
-        //   mode,
-        // });
+        const apiOptions = await trpc.getDepositAddressOptions.query({
+          usdRequired: usd,
+          mode,
+        });
 
         // For now, use static configuration
         // Filter options based on minimum USD requirements
@@ -135,7 +133,7 @@ export function useDepositAddressOptions({
         //   (option) => usd >= option.minimumUsd
         // );
 
-        setOptions(depositAddressConfig);
+        setOptions(apiOptions);
       } catch (err) {
         const errorMessage =
           err instanceof Error
@@ -145,12 +143,12 @@ export function useDepositAddressOptions({
         console.error("Error loading deposit address options:", err);
 
         // Fallback to static options on error
-        setOptions(depositAddressConfig);
+        setOptions(fallbackOptions);
       } finally {
         setLoading(false);
       }
     },
-    [depositAddressConfig]
+    [],
   );
 
   // Effect to refresh options when dependencies change
@@ -161,7 +159,7 @@ export function useDepositAddressOptions({
   }, [usdRequired, mode, refreshDepositAddressOptions]);
 
   return {
-    options: depositAddressConfig,
+    options: filteredOptions,
     loading,
     error,
   };
