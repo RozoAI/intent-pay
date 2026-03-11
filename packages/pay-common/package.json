@@ -1,6 +1,6 @@
 {
   "name": "@rozoai/intent-common",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Intent Pay shared types and utilities",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,7 +14,9 @@
     "test": "tape -r ts-node/register/transpile-only test/**/*.test.ts",
     "lint": "npm run lint:deps && npm run lint:style",
     "lint:deps": "npx depcheck --ignores @tsconfig/node20,@types/tape,ts-node",
-    "lint:style": "eslint --max-warnings=0"
+    "lint:style": "eslint --max-warnings=0",
+    "publish:beta": "pnpm publish --no-git-checks --tag beta",
+    "publish:latest": "pnpm publish --no-git-checks --tag latest"
   },
   "files": [
     "dist",

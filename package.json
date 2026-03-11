@@ -8,10 +8,11 @@
     "build": "pnpm run build:common && pnpm run build:pay",
     "build:common": "cd packages/pay-common && pnpm run build",
     "build:pay": "cd packages/connectkit && pnpm run build",
-    "dev": "pnpm run dev:common & pnpm run dev:pay & pnpm run dev:example",
+    "dev": "pnpm run dev:common & pnpm run dev:pay & pnpm run dev:example:16",
     "dev:common": "cd packages/pay-common && pnpm run dev",
     "dev:pay": "cd packages/connectkit && pnpm run dev",
     "dev:example": "cd examples/nextjs-app && pnpm run dev",
+    "dev:example:16": "cd examples/nextjs-16 && pnpm run dev",
     "install:local": "pnpm install",
     "prepare": "husky",
     "release": "pnpm run build && cd packages/pay-common && pnpm publish && cd ../../packages/connectkit && pnpm run release",
@@ -38,7 +39,7 @@
   },
   "workspaces": [
     "packages/*",
-    "examples/nextjs-app"
+    "examples/*"
   ],
   "pnpm": {
     "overrides": {

@@ -167,22 +167,29 @@ export function createPaymentBridgeConfig({
 
   if (!destinationToken) {
     throw new Error(
-      `Unsupported token ${toToken} for chain ${destinationChain.name} (${toChain})`
+      `Unsupported token ${toToken} for chain ${destinationChain.name} (${toChain})`,
     );
   }
 
   const addressValid = validateAddressForChain(toChain, toAddress);
   if (!addressValid) {
     throw new Error(
-      `Invalid address ${toAddress} for chain ${destinationChain.name} (${toChain})`
+      `Invalid address ${toAddress} for chain ${destinationChain.name} (${toChain})`,
     );
   }
 
   const preferredChainData = getChainById(preferredChain);
-  const prefferedToken = getKnownToken(preferredChain, preferredTokenAddress);
+  const correctedPreferredChain =
+    preferredChainData.chainId === solana.chainId
+      ? rozoSolana.chainId
+      : preferredChain;
+  const prefferedToken = getKnownToken(
+    correctedPreferredChain,
+    preferredTokenAddress,
+  );
   if (!prefferedToken) {
     throw new Error(
-      `Unknown token ${preferredTokenAddress} for chain ${preferredChainData.name} (${preferredChain})`
+      `Unknown token ${preferredTokenAddress} for chain ${preferredChainData.name} (${preferredChain})`,
     );
   }
 
@@ -192,20 +199,20 @@ export function createPaymentBridgeConfig({
 
   if (isPreferredEURC && !isDestinationEURC) {
     throw new Error(
-      `EURC can only be sent to another EURC. Destination token is ${destinationToken.symbol}, not EURC.`
+      `EURC can only be sent to another EURC. Destination token is ${destinationToken.symbol}, not EURC.`,
     );
   }
 
   if (isDestinationEURC && !isPreferredEURC) {
     throw new Error(
-      `EURC can only be received from another EURC. Preferred token is ${prefferedToken.symbol}, not EURC.`
+      `EURC can only be received from another EURC. Preferred token is ${prefferedToken.symbol}, not EURC.`,
     );
   }
 
   let preferred: PreferredPaymentConfig = {
-    preferredChain: String(preferredChain),
+    preferredChain: String(prefferedToken.chainId),
     preferredToken: prefferedToken.symbol,
-    preferredTokenAddress: preferredTokenAddress,
+    preferredTokenAddress: prefferedToken.token,
   };
 
   let destination: DestinationConfig = {
@@ -221,7 +228,7 @@ export function createPaymentBridgeConfig({
       preferredChain: String(
         prefferedToken.chainId === solana.chainId
           ? rozoSolana.chainId
-          : prefferedToken.chainId
+          : prefferedToken.chainId,
       ),
       preferredToken: prefferedToken.symbol,
       preferredTokenAddress: prefferedToken.token,
@@ -249,7 +256,7 @@ export function createPaymentBridgeConfig({
     }
   } else {
     throw new Error(
-      `Unsupported chain ${destinationChain.name} (${toChain}) or token ${destinationToken.symbol} (${toToken})`
+      `Unsupported chain ${destinationChain.name} (${toChain}) or token ${destinationToken.symbol} (${toToken})`,
     );
   }
 
@@ -312,7 +319,7 @@ export function createPaymentBridgeConfig({
  * @see getKnownToken
  */
 export function formatPaymentResponseToHydratedOrder(
-  order: PaymentResponse
+  order: PaymentResponse,
 ): RozoPayHydratedOrderWithOrg {
   // Source amount is in the same units as the destination amount without fee
   const sourceAmountUnits =
@@ -338,11 +345,11 @@ export function formatPaymentResponseToHydratedOrder(
   // Destination token (what the user ultimately receives)
   const destToken = getKnownToken(
     Number(order.destination.chainId),
-    String(order.destination.tokenAddress)
+    String(order.destination.tokenAddress),
   );
   if (!destToken) {
     throw new Error(
-      `Unsupported token ${order.destination.tokenAddress} for chain ${order.destination.chainId}`
+      `Unsupported token ${order.destination.tokenAddress} for chain ${order.destination.chainId}`,
     );
   }
 
@@ -370,7 +377,7 @@ export function formatPaymentResponseToHydratedOrder(
       },
       amount: parseUnits(
         sourceAmountUnits,
-        destToken.decimals
+        destToken.decimals,
       ).toString() as `${bigint}`,
       usd: Number(sourceAmountUnits),
     },
@@ -415,7 +422,7 @@ export function formatPaymentResponseToHydratedOrder(
     externalId: order.externalId ?? null,
     userMetadata: order.userMetadata as RozoPayUserMetadata | null,
     expirationTs: BigInt(
-      Math.floor(new Date(order.expiresAt).getTime() / 1000).toString()
+      Math.floor(new Date(order.expiresAt).getTime() / 1000).toString(),
     ),
     org: {
       orgId: order.orgId ?? "",

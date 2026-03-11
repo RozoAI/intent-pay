@@ -94,7 +94,7 @@ export default function YourComponent() {
 
   // For non-native tokens
   const token = knownTokens.find(
-    (t: any) => t.token === config.tokenAddress && t.chainId === config.chainId
+    (t: any) => t.token === config.tokenAddress && t.chainId === config.chainId,
   );
 
   if (!token) return "";
@@ -105,14 +105,14 @@ export default function YourComponent() {
   const tokenCode = isEvm
     ? `getAddress(${tokenVarName}.token)`
     : isSolana
-    ? `rozoSolanaUSDC.token`
-    : `rozoStellarUSDC.token`;
+      ? `rozoSolanaUSDC.token`
+      : `rozoStellarUSDC.token`;
 
   const importStatement = isEvm
     ? `import { getAddress } from "viem";\nimport { ${tokenVarName} } from "@rozoai/intent-common";`
     : isSolana
-    ? `import { rozoSolanaUSDC } from "@rozoai/intent-common";`
-    : `import { rozoStellarUSDC } from "@rozoai/intent-common";`;
+      ? `import { rozoSolanaUSDC } from "@rozoai/intent-common";`
+      : `import { rozoStellarUSDC } from "@rozoai/intent-common";`;
 
   return `${importStatement}
 import { RozoPayButton } from "@rozoai/intent-pay";
@@ -347,13 +347,13 @@ export default function DemoBasic() {
       if (hasEURC && newConfig.tokenAddress) {
         const destinationToken = getKnownToken(
           newConfig.chainId,
-          newConfig.tokenAddress
+          newConfig.tokenAddress,
         );
         const isDestinationEURC = destinationToken?.symbol === TokenSymbol.EURC;
 
         if (!isDestinationEURC) {
           setEurcValidationError(
-            `EURC can only be sent to another EURC. Please select an EURC token as the destination token.`
+            `EURC can only be sent to another EURC. Please select an EURC token as the destination token.`,
           );
           return; // Don't update config if validation fails
         }
@@ -393,7 +393,7 @@ export default function DemoBasic() {
       console.log("params", params);
       resetPayment(params);
     },
-    [setConfig, resetPayment, preferredSymbol]
+    [setConfig, resetPayment, preferredSymbol],
   );
 
   const isSolanaChain = useCallback((chainId: number) => {
@@ -421,7 +421,7 @@ export default function DemoBasic() {
 
   useEffect(() => {
     const getConfig = JSON.parse(
-      localStorage.getItem("rozo-basic-config") || "{}"
+      localStorage.getItem("rozo-basic-config") || "{}",
     );
 
     if (getConfig && getConfig.chainId !== 0) {
@@ -446,12 +446,12 @@ export default function DemoBasic() {
       ) {
         // Validate EURC: EURC can only be sent to EURC
         const hasEURC = parsedConfig.preferredSymbol?.includes(
-          TokenSymbol.EURC
+          TokenSymbol.EURC,
         );
         if (hasEURC && parsedConfig.tokenAddress && parsedConfig.chainId) {
           const destinationToken = getKnownToken(
             parsedConfig.chainId,
-            parsedConfig.tokenAddress
+            parsedConfig.tokenAddress,
           );
           const isDestinationEURC =
             destinationToken?.symbol === TokenSymbol.EURC;
@@ -460,7 +460,7 @@ export default function DemoBasic() {
             // Reset preferredSymbol to default if EURC validation fails
             parsedConfig.preferredSymbol = [TokenSymbol.USDC, TokenSymbol.USDT];
             setEurcValidationError(
-              `EURC can only be sent to another EURC. Configuration has been reset to default.`
+              `EURC can only be sent to another EURC. Configuration has been reset to default.`,
             );
           }
         }
@@ -495,7 +495,7 @@ export default function DemoBasic() {
 
     const destinationToken = getKnownToken(
       parsedConfig.chainId,
-      parsedConfig.tokenAddress
+      parsedConfig.tokenAddress,
     );
 
     if (!destinationToken) return false;
@@ -529,7 +529,7 @@ export default function DemoBasic() {
     () => ({
       orderDate: new Date().toISOString(),
     }),
-    []
+    [],
   );
 
   // Toggle between [USDC, USDT] and [EURC]
@@ -543,7 +543,7 @@ export default function DemoBasic() {
     if (nextSymbols.includes(TokenSymbol.EURC) && config.chainId) {
       const eurcToken = knownTokens.find(
         (t: any) =>
-          t.chainId === config.chainId && t.symbol === TokenSymbol.EURC
+          t.chainId === config.chainId && t.symbol === TokenSymbol.EURC,
       );
 
       if (eurcToken) {
@@ -557,7 +557,7 @@ export default function DemoBasic() {
         return;
       } else {
         setEurcValidationError(
-          `EURC is not available on the selected chain. Please select a chain that supports EURC (Base, Ethereum, or Stellar).`
+          `EURC is not available on the selected chain. Please select a chain that supports EURC (Base, Ethereum, or Stellar).`,
         );
         return;
       }
