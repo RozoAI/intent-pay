@@ -455,7 +455,10 @@ export default function DemoBasic() {
 
             if (!isDestinationEURC) {
               // Reset preferredSymbol to default if EURC validation fails
-              parsedConfig.preferredSymbol = [TokenSymbol.USDC, TokenSymbol.USDT];
+              parsedConfig.preferredSymbol = [
+                TokenSymbol.USDC,
+                TokenSymbol.USDT,
+              ];
               setEurcValidationError(
                 `EURC can only be sent to another EURC. Configuration has been reset to default.`,
               );
@@ -576,7 +579,7 @@ export default function DemoBasic() {
   }, [config, preferredSymbol, handleSetConfig]);
 
   return (
-    <Container className="mx-auto w-full max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:px-8">
+    <Container className="mx-auto w-full max-w-6xl gap-8 px-4 py-8 sm:px-6 lg:px-8">
       <div className="max-w-3xl space-y-3">
         <p className="text-sm font-medium uppercase tracking-[0.18em] text-primary-medium">
           Basic Demo
@@ -620,7 +623,9 @@ export default function DemoBasic() {
           role="alert"
           className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4"
         >
-          <p className="text-sm leading-6 text-red-800">{eurcValidationError}</p>
+          <p className="text-sm leading-6 text-red-800">
+            {eurcValidationError}
+          </p>
         </div>
       )}
 
@@ -810,9 +815,7 @@ export default function DemoBasic() {
           ) : null}
 
           <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h3 className="text-base font-semibold text-gray-900">
-              Key props
-            </h3>
+            <h3 className="text-base font-semibold text-gray-900">Key props</h3>
             <dl className="mt-4 space-y-4 text-sm">
               <div>
                 <dt className="font-mono font-semibold text-gray-900">appId</dt>
@@ -849,7 +852,8 @@ export default function DemoBasic() {
                   preferredSymbol
                 </dt>
                 <dd className="mt-1 leading-6 text-gray-600">
-                  Prioritizes symbols like USDC, USDT, or EURC in the token list.
+                  Prioritizes symbols like USDC, USDT, or EURC in the token
+                  list.
                 </dd>
               </div>
             </dl>

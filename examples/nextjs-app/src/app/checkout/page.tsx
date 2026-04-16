@@ -1,22 +1,17 @@
 "use client";
 
-import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
 import {
   baseUSDC,
   getAddressContraction,
   getChainById,
   PaymentStartedEvent,
 } from "@rozoai/intent-common";
+import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Address, getAddress } from "viem";
 import { Code, Text, TextLink } from "../../shared/tailwind-catalyst/text";
 import { ConfigPanel, PaymentConfig } from "../config-panel";
-import {
-  APP_ID,
-  Columns,
-  Container,
-  printEvent,
-} from "../shared";
+import { APP_ID, Container, printEvent } from "../shared";
 
 export default function DemoCheckout() {
   const [payId, setPayId] = useState<string>();
@@ -127,7 +122,9 @@ export default function DemoCheckout() {
           toAddress: isEvm
             ? getAddress(newConfig.recipientAddress)
             : newConfig.recipientAddress,
-          toToken: isEvm ? getAddress(newConfig.tokenAddress) : newConfig.tokenAddress,
+          toToken: isEvm
+            ? getAddress(newConfig.tokenAddress)
+            : newConfig.tokenAddress,
         };
 
         // Reset FSM so the payment flow uses the new destination.
@@ -263,15 +260,11 @@ export default function DemoCheckout() {
               Save the pay ID from <Code>onPaymentStarted</Code> so you can
               reconcile payments even if the user closes the tab.
             </Text>
-            <Text className="mt-3 text-sm leading-6 text-gray-600">
-              Webhooks provide a more reliable backend signal than waiting for
-              frontend callbacks alone.
-            </Text>
             <TextLink
-              href="https://paydocs.daimo.com/webhooks"
+              href="https://docs.rozo.ai/integration/rozointentpay/api-reference#event-handlers-recommended"
               className="mt-4 inline-flex text-sm font-medium"
             >
-              Read webhook docs
+              Read event handler docs
             </TextLink>
           </section>
 
