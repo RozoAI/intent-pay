@@ -104,15 +104,11 @@ export default function YourComponent() {
 
   const tokenCode = isEvm
     ? `getAddress(${tokenVarName}.token)`
-    : isSolana
-      ? `rozoSolanaUSDC.token`
-      : `rozoStellarUSDC.token`;
+    : `${tokenVarName}.token`;
 
   const importStatement = isEvm
-    ? `import { getAddress } from "viem";\nimport { ${tokenVarName} } from "@rozoai/intent-common";`
-    : isSolana
-      ? `import { rozoSolanaUSDC } from "@rozoai/intent-common";`
-      : `import { rozoStellarUSDC } from "@rozoai/intent-common";`;
+    ? `import { getAddress } from "viem";\nimport { ${tokenVarName}, TokenSymbol } from "@rozoai/intent-common";`
+    : `import { ${tokenVarName}, TokenSymbol } from "@rozoai/intent-common";`;
 
   return `${importStatement}
 import { RozoPayButton } from "@rozoai/intent-pay";
@@ -420,57 +416,64 @@ export default function DemoBasic() {
   }, [isConfigOpen]);
 
   useEffect(() => {
-    const getConfig = JSON.parse(
-      localStorage.getItem("rozo-basic-config") || "{}",
-    );
+    try {
+      const getConfig = JSON.parse(
+        localStorage.getItem("rozo-basic-config") || "{}",
+      );
 
-    if (getConfig && getConfig.chainId !== 0) {
-      const parsedConfig: Config = {
-        recipientAddress: getConfig.recipientAddress || "",
-        chainId: getConfig.chainId || 0,
-        tokenAddress: getConfig.tokenAddress || "",
-        amount: getConfig.amount || "",
-        preferredSymbol: getConfig.preferredSymbol || [
-          TokenSymbol.USDC,
-          TokenSymbol.USDT,
-        ],
-      };
+      if (getConfig && getConfig.chainId !== 0) {
+        const parsedConfig: Config = {
+          recipientAddress: getConfig.recipientAddress || "",
+          chainId: getConfig.chainId || 0,
+          tokenAddress: getConfig.tokenAddress || "",
+          amount: getConfig.amount || "",
+          preferredSymbol: getConfig.preferredSymbol || [
+            TokenSymbol.USDC,
+            TokenSymbol.USDT,
+          ],
+        };
 
-      // Validate and clean up config
-      if (
-        parsedConfig &&
-        typeof parsedConfig === "object" &&
-        "recipientAddress" in parsedConfig &&
-        "chainId" in parsedConfig &&
-        "tokenAddress" in parsedConfig
-      ) {
-        // Validate EURC: EURC can only be sent to EURC
-        const hasEURC = parsedConfig.preferredSymbol?.includes(
-          TokenSymbol.EURC,
-        );
-        if (hasEURC && parsedConfig.tokenAddress && parsedConfig.chainId) {
-          const destinationToken = getKnownToken(
-            parsedConfig.chainId,
-            parsedConfig.tokenAddress,
+        // Validate and clean up config
+        if (
+          parsedConfig &&
+          typeof parsedConfig === "object" &&
+          "recipientAddress" in parsedConfig &&
+          "chainId" in parsedConfig &&
+          "tokenAddress" in parsedConfig
+        ) {
+          // Validate EURC: EURC can only be sent to EURC
+          const hasEURC = parsedConfig.preferredSymbol?.includes(
+            TokenSymbol.EURC,
           );
-          const isDestinationEURC =
-            destinationToken?.symbol === TokenSymbol.EURC;
-
-          if (!isDestinationEURC) {
-            // Reset preferredSymbol to default if EURC validation fails
-            parsedConfig.preferredSymbol = [TokenSymbol.USDC, TokenSymbol.USDT];
-            setEurcValidationError(
-              `EURC can only be sent to another EURC. Configuration has been reset to default.`,
+          if (hasEURC && parsedConfig.tokenAddress && parsedConfig.chainId) {
+            const destinationToken = getKnownToken(
+              parsedConfig.chainId,
+              parsedConfig.tokenAddress,
             );
+            const isDestinationEURC =
+              destinationToken?.symbol === TokenSymbol.EURC;
+
+            if (!isDestinationEURC) {
+              // Reset preferredSymbol to default if EURC validation fails
+              parsedConfig.preferredSymbol = [
+                TokenSymbol.USDC,
+                TokenSymbol.USDT,
+              ];
+              setEurcValidationError(
+                `EURC can only be sent to another EURC. Configuration has been reset to default.`,
+              );
+            }
+          }
+
+          setConfig(parsedConfig);
+          setParsedConfig(parsedConfig);
+          if (parsedConfig.preferredSymbol) {
+            setPreferredSymbol(parsedConfig.preferredSymbol);
           }
         }
-
-        setConfig(parsedConfig);
-        setParsedConfig(parsedConfig);
-        if (parsedConfig.preferredSymbol) {
-          setPreferredSymbol(parsedConfig.preferredSymbol);
-        }
       }
+    } catch {
+      // Ignore malformed saved config and fall back to defaults.
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -534,6 +537,14 @@ export default function DemoBasic() {
 
   // Toggle between [USDC, USDT] and [EURC]
   const handleChangeCurrency = useCallback(() => {
+    if (!config.chainId || !config.tokenAddress || !config.recipientAddress) {
+      setEurcValidationError(
+        "Configure the payment destination before changing preferred currency.",
+      );
+      setIsConfigOpen(true);
+      return;
+    }
+
     const nextSymbols =
       preferredSymbol.length === 1 && preferredSymbol[0] === TokenSymbol.EURC
         ? [TokenSymbol.USDC, TokenSymbol.USDT]
@@ -568,267 +579,295 @@ export default function DemoBasic() {
   }, [config, preferredSymbol, handleSetConfig]);
 
   return (
-    <Container className="max-w-4xl mx-auto p-6">
-      {/* Header Section */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-primary-dark mb-4">
-          Basic Payment Demo
+    <Container className="mx-auto w-full max-w-6xl gap-8 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="max-w-3xl space-y-3">
+        <p className="text-sm font-medium uppercase tracking-[0.18em] text-primary-medium">
+          Basic Demo
+        </p>
+        <h1 className="text-3xl font-semibold tracking-tight text-primary-dark sm:text-4xl">
+          Configure a payment and inspect the exact integration output
         </h1>
-        <Text className="text-lg text-gray-700">
-          This demo shows how to accept payments from any coin on any chain
-          using the RozoAI Intent Pay SDK. Configure the payment details below
-          to get started.
+        <Text className="max-w-2xl text-base leading-7 text-gray-600">
+          This example is optimized for developer testing: configure the payout
+          destination, run the payment flow, and copy the generated
+          implementation snippet.
         </Text>
       </div>
 
-      <div className="mb-4 flex items-center gap-4">
-        <button
-          onClick={handleChangeCurrency}
-          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium mx-auto"
-        >
-          Change currency
-        </button>
-        {eurcValidationError && (
-          <div className="flex-1 bg-red-50 border border-red-200 rounded-lg p-3">
-            <p className="text-sm text-red-800">{eurcValidationError}</p>
-          </div>
-        )}
+      <div className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-gray-900">Payment options</p>
+          <Text className="text-sm text-gray-600">
+            Toggle preferred currency and adjust the destination config without
+            leaving the page.
+          </Text>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button
+            onClick={handleChangeCurrency}
+            className="min-h-11 rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
+          >
+            Change currency
+          </button>
+          <button
+            onClick={() => setIsConfigOpen(true)}
+            className="min-h-11 rounded-xl bg-primary-dark px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-medium"
+          >
+            {hasValidConfig ? "Edit configuration" : "Configure payment"}
+          </button>
+        </div>
       </div>
 
-      {/* Connect Stellar Wallet Section */}
-      <ConnectStellarWallet />
+      {eurcValidationError && (
+        <div
+          role="alert"
+          className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4"
+        >
+          <p className="text-sm leading-6 text-red-800">
+            {eurcValidationError}
+          </p>
+        </div>
+      )}
 
-      {/* Main Content */}
-      <div className="flex flex-col items-center gap-6">
-        {/* Payment Button Section */}
-        {Boolean(hasValidConfig) && parsedConfig ? (
-          <div className="w-full flex flex-col items-center gap-4">
-            <div className="bg-white rounded-lg shadow-md p-6 w-full max-w-md">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">
-                Try the Payment
-              </h2>
-              {isDestinationEURC && (
-                <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                  <p className="text-sm text-yellow-800">
-                    <strong>⚠️ EURC Restriction:</strong> EURC can only be sent
-                    to another EURC token. The destination token must be EURC.
-                  </p>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <div className="flex flex-col gap-6">
+          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="flex flex-col gap-5">
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Payment runner
+                </h2>
+                <Text className="text-sm leading-6 text-gray-600">
+                  Launch the Rozo Pay flow using the current destination
+                  settings.
+                </Text>
+              </div>
+
+              {Boolean(hasValidConfig) && parsedConfig ? (
+                <>
+                  <div className="grid gap-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Chain
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-gray-900">
+                        {getChainName(parsedConfig.chainId)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Amount
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-gray-900">
+                        {parsedConfig.amount}
+                      </p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Recipient
+                      </p>
+                      <p className="mt-1 break-all text-sm text-gray-700">
+                        {parsedConfig.recipientAddress}
+                      </p>
+                    </div>
+                  </div>
+
+                  {isDestinationEURC && (
+                    <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+                      <p className="text-sm leading-6 text-yellow-900">
+                        <strong>EURC restriction:</strong> EURC can only be sent
+                        to another EURC token.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <RozoPayButton.Custom
+                      appId={APP_ID}
+                      toChain={parsedConfig.chainId}
+                      toAddress={parsedConfig.recipientAddress}
+                      toToken={parsedConfig.tokenAddress}
+                      toUnits={parsedConfig.amount}
+                      onPaymentStarted={(e) => {
+                        console.log("✓ Payment started:", e);
+                      }}
+                      onPaymentCompleted={(e) => {
+                        console.log("✓ Payment completed:", e);
+                      }}
+                      onPayoutCompleted={(e: any) => {
+                        console.log("✓ Payout completed:", e);
+                      }}
+                      feeType={FeeType.ExactOut}
+                      preferredSymbol={preferredSymbol}
+                      metadata={metadata}
+                      resetOnSuccess
+                      showProcessingPayout
+                    >
+                      {(renderProps) => (
+                        <button
+                          onClick={renderProps.show}
+                          className="min-h-12 flex-1 rounded-xl bg-primary-dark px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-primary-medium"
+                        >
+                          Make Payment
+                        </button>
+                      )}
+                    </RozoPayButton.Custom>
+                    <button
+                      onClick={() => setIsConfigOpen(true)}
+                      className="min-h-12 rounded-xl border border-gray-300 px-6 py-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
+                    >
+                      Edit Configuration
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6">
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Get started
+                  </h3>
+                  <Text className="mt-2 text-sm leading-6 text-gray-600">
+                    Set the receiving chain, token, address, and amount to
+                    enable the payment flow and generated code output.
+                  </Text>
                 </div>
               )}
-              <div className="flex flex-col gap-3">
-                <RozoPayButton.Custom
-                  appId={APP_ID}
-                  toChain={parsedConfig.chainId}
-                  toAddress={parsedConfig.recipientAddress}
-                  toToken={parsedConfig.tokenAddress}
-                  toUnits={parsedConfig.amount}
-                  onPaymentStarted={(e) => {
-                    console.log("✓ Payment started:", e);
-                  }}
-                  onPaymentCompleted={(e) => {
-                    console.log("✓ Payment completed:", e);
-                  }}
-                  onPayoutCompleted={(e: any) => {
-                    console.log("✓ Payout completed:", e);
-                  }}
-                  feeType={FeeType.ExactOut}
-                  preferredSymbol={preferredSymbol}
-                  metadata={metadata}
-                  resetOnSuccess
-                  showProcessingPayout
-                >
-                  {(renderProps) => (
-                    <button
-                      onClick={renderProps.show}
-                      className="w-full bg-primary-dark text-white px-6 py-3 rounded-lg hover:bg-primary-medium transition-all font-medium"
-                    >
-                      Make Payment
-                    </button>
-                  )}
-                </RozoPayButton.Custom>
-                <button
-                  onClick={() => setIsConfigOpen(true)}
-                  className="w-full border-2 border-primary-dark text-primary-dark px-6 py-3 rounded-lg hover:bg-primary-dark hover:text-white transition-all font-medium"
-                >
-                  Edit Configuration
-                </button>
-              </div>
             </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow-md p-8 w-full max-w-md text-center">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">
-              Get Started
-            </h2>
-            <p className="text-gray-600 mb-6">
-              Configure your payment settings to see a live demo and get the
-              implementation code.
-            </p>
-            <button
-              onClick={() => setIsConfigOpen(true)}
-              className="w-full bg-primary-dark text-white px-6 py-3 rounded-lg hover:bg-primary-medium transition-all font-medium"
-            >
-              Configure Payment Settings
-            </button>
-          </div>
-        )}
+          </section>
 
-        {/* Implementation Code Section */}
-        {Boolean(hasValidConfig) && codeSnippet && (
-          <div className="w-full mt-8">
-            <div className="mb-4">
-              <h2 className="text-2xl font-bold text-primary-dark mb-2">
-                Implementation Code
-              </h2>
-              <Text className="text-gray-600">
-                Copy this code to integrate RozoPayButton into your application:
-              </Text>
-            </div>
-            <CodeSnippetDisplay code={codeSnippet} />
-
-            {/* Chain-specific Payment Notes */}
-            {parsedConfig && isStellarChain(parsedConfig.chainId) && (
-              <div className="w-full bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
-                <h3 className="text-lg font-semibold text-blue-900 mb-2">
-                  ℹ️ Stellar Payment Configuration
-                </h3>
-                <p className="text-sm text-gray-700 mb-2">
-                  For Stellar payments:
-                </p>
-                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-                  <li>
-                    <code className="bg-blue-100 px-1 rounded">toChain</code> is
-                    set to Stellar Chain ID:{" "}
-                    <strong>{rozoStellar.chainId}</strong>
-                  </li>
-                  <li>
-                    <code className="bg-blue-100 px-1 rounded">toAddress</code>{" "}
-                    must be a valid Stellar address
-                  </li>
-                  <li>
-                    <code className="bg-blue-100 px-1 rounded">toToken</code> is
-                    the asset code (Only Supported USDC Token:
-                    GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN)
-                  </li>
-                </ul>
+          {Boolean(hasValidConfig) && codeSnippet && (
+            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+              <div className="mb-5 space-y-2">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Implementation code
+                </h2>
+                <Text className="text-sm leading-6 text-gray-600">
+                  Copy this snippet to reproduce the current payment
+                  configuration in your own app.
+                </Text>
               </div>
-            )}
+              <CodeSnippetDisplay code={codeSnippet} />
+            </section>
+          )}
+        </div>
 
-            {parsedConfig && isSolanaChain(parsedConfig.chainId) && (
-              <div className="w-full bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
-                <h3 className="text-lg font-semibold text-blue-900 mb-2">
-                  ℹ️ Solana Payment Configuration
-                </h3>
-                <p className="text-sm text-gray-700 mb-2">
-                  For Solana payments:
-                </p>
-                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-                  <li>
-                    <code className="bg-blue-100 px-1 rounded">toChain</code> is
-                    set to Solana Chain ID:{" "}
-                    <strong>{rozoSolana.chainId}</strong>
-                  </li>
-                  <li>
-                    <code className="bg-blue-100 px-1 rounded">toAddress</code>{" "}
-                    must be a valid Solana address
-                  </li>
-                  <li>
-                    <code className="bg-blue-100 px-1 rounded">toToken</code> is
-                    the token mint address (Only Supported USDC Token:
-                    EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)
-                  </li>
-                </ul>
+        <aside className="flex flex-col gap-6">
+          <ConnectStellarWallet />
+
+          {(parsedConfig && isStellarChain(parsedConfig.chainId)) ||
+          (parsedConfig && isSolanaChain(parsedConfig.chainId)) ? (
+            <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6">
+              {parsedConfig && isStellarChain(parsedConfig.chainId) && (
+                <>
+                  <h3 className="text-base font-semibold text-blue-900">
+                    Stellar notes
+                  </h3>
+                  <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-blue-950">
+                    <li>
+                      <code className="rounded bg-blue-100 px-1.5 py-0.5">
+                        toChain
+                      </code>{" "}
+                      uses <strong>{rozoStellar.chainId}</strong>.
+                    </li>
+                    <li>
+                      <code className="rounded bg-blue-100 px-1.5 py-0.5">
+                        toAddress
+                      </code>{" "}
+                      must be a valid Stellar address.
+                    </li>
+                    <li>
+                      <code className="rounded bg-blue-100 px-1.5 py-0.5">
+                        toToken
+                      </code>{" "}
+                      must be the supported Stellar asset code.
+                    </li>
+                  </ul>
+                </>
+              )}
+
+              {parsedConfig && isSolanaChain(parsedConfig.chainId) && (
+                <>
+                  <h3 className="text-base font-semibold text-blue-900">
+                    Solana notes
+                  </h3>
+                  <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-blue-950">
+                    <li>
+                      <code className="rounded bg-blue-100 px-1.5 py-0.5">
+                        toChain
+                      </code>{" "}
+                      uses <strong>{rozoSolana.chainId}</strong>.
+                    </li>
+                    <li>
+                      <code className="rounded bg-blue-100 px-1.5 py-0.5">
+                        toAddress
+                      </code>{" "}
+                      must be a valid Solana address.
+                    </li>
+                    <li>
+                      <code className="rounded bg-blue-100 px-1.5 py-0.5">
+                        toToken
+                      </code>{" "}
+                      must be the supported mint address.
+                    </li>
+                  </ul>
+                </>
+              )}
+            </section>
+          ) : null}
+
+          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h3 className="text-base font-semibold text-gray-900">Key props</h3>
+            <dl className="mt-4 space-y-4 text-sm">
+              <div>
+                <dt className="font-mono font-semibold text-gray-900">appId</dt>
+                <dd className="mt-1 leading-6 text-gray-600">
+                  Your application identifier for RozoAI Intent Pay.
+                </dd>
               </div>
-            )}
-
-            {/* API Reference */}
-            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="text-lg font-semibold text-blue-900 mb-2">
-                📚 Key Props Explained
-              </h3>
-              <dl className="space-y-2 text-sm">
-                <div>
-                  <dt className="font-mono font-semibold text-blue-800">
-                    appId
-                  </dt>
-                  <dd className="text-gray-700 ml-4">
-                    Your application identifier for RozoAI Intent Pay
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-mono font-semibold text-blue-800">
-                    toChain
-                  </dt>
-                  <dd className="text-gray-700 ml-4">
-                    The destination blockchain network ID
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-mono font-semibold text-blue-800">
-                    toToken
-                  </dt>
-                  <dd className="text-gray-700 ml-4">
-                    The token contract address to receive
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-mono font-semibold text-blue-800">
-                    toAddress
-                  </dt>
-                  <dd className="text-gray-700 ml-4">
-                    The recipient&apos;s wallet address
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-mono font-semibold text-blue-800">
-                    toUnits
-                  </dt>
-                  <dd className="text-gray-700 ml-4">
-                    Amount in USD (e.g., 100.00)
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-mono font-semibold text-blue-800">
-                    preferredSymbol
-                  </dt>
-                  <dd className="text-gray-700 ml-4">
-                    Preferred token symbols (USDC, USDT, EURC). These tokens
-                    will appear first in the token selection list. Defaults to{" "}
-                    <code className="bg-blue-100 px-1 rounded">
-                      [USDC, USDT]
-                    </code>
-                    . Automatically finds matching tokens across all supported
-                    chains.
-                    <br />
-                    <strong className="text-red-600">
-                      ⚠️ Important: EURC can only be sent to another EURC token.
-                      If EURC is in preferredSymbol, the destination token must
-                      also be EURC.
-                    </strong>
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-mono font-semibold text-blue-800">
-                    onPaymentStarted / onPaymentCompleted
-                  </dt>
-                  <dd className="text-gray-700 ml-4">
-                    Event callbacks to track payment lifecycle
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          </div>
-        )}
-
-        {/* Config Panel Modal */}
-        <ConfigPanel
-          configType="payment"
-          isOpen={isConfigOpen}
-          onClose={() => setIsConfigOpen(false)}
-          onConfirm={(config) => handleSetConfig(config as Config)}
-          defaultRecipientAddress={config.recipientAddress}
-        />
+              <div>
+                <dt className="font-mono font-semibold text-gray-900">
+                  toChain
+                </dt>
+                <dd className="mt-1 leading-6 text-gray-600">
+                  The destination blockchain network ID.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono font-semibold text-gray-900">
+                  toToken
+                </dt>
+                <dd className="mt-1 leading-6 text-gray-600">
+                  The token contract address or chain-specific token identifier.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono font-semibold text-gray-900">
+                  toAddress
+                </dt>
+                <dd className="mt-1 leading-6 text-gray-600">
+                  The recipient wallet address.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono font-semibold text-gray-900">
+                  preferredSymbol
+                </dt>
+                <dd className="mt-1 leading-6 text-gray-600">
+                  Prioritizes symbols like USDC, USDT, or EURC in the token
+                  list.
+                </dd>
+              </div>
+            </dl>
+          </section>
+        </aside>
       </div>
+
+      <ConfigPanel
+        configType="payment"
+        isOpen={isConfigOpen}
+        onClose={() => setIsConfigOpen(false)}
+        onConfirm={(config) => handleSetConfig(config as Config)}
+        defaultRecipientAddress={config.recipientAddress}
+      />
     </Container>
   );
 }

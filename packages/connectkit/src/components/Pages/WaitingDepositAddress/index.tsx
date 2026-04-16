@@ -600,10 +600,6 @@ function DepositAddressInfo({
             Refresh
           </Button>
         </LogoRow>
-      ) : isMobile ? (
-        <LogoRow>
-          <LogoWrap>{logoElement}</LogoWrap>
-        </LogoRow>
       ) : (
         <QRWrap>
           <CustomQRCode
