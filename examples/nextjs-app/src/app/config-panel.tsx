@@ -45,6 +45,12 @@ export function ConfigPanel({
   onConfirm,
   defaultRecipientAddress = "",
 }: ConfigPanelProps) {
+  const titleId = `${configType}-config-title`;
+  const chainFieldId = `${configType}-chain`;
+  const tokenFieldId = `${configType}-token`;
+  const addressFieldId = `${configType}-recipient-address`;
+  const amountFieldId = `${configType}-amount`;
+
   // Initialize with default values
   const [config, setConfig] = useState<PaymentConfig>({
     recipientAddress: defaultRecipientAddress,
@@ -160,6 +166,11 @@ export function ConfigPanel({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!isFormValid()) {
+      alert("Please complete all required fields");
+      return;
+    }
+
     if (!config.recipientAddress) {
       const chain = getChainById(config.chainId);
       if (!chain) return;
@@ -210,16 +221,28 @@ export function ConfigPanel({
     return baseValid;
   };
 
+  if (!isOpen) {
+    return null;
+  }
+
   return (
-    <div
-      className={`
-      fixed right-0 top-0 h-full w-96 shadow-lg transform transition-transform z-50 bg-white
-      ${isOpen ? "translate-x-0" : "translate-x-full"}
-    `}
-    >
-      <div className="p-6">
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-black/20 transition-opacity"
+        aria-hidden="true"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className={`
+        fixed right-0 top-0 z-50 h-full w-96 max-w-full bg-white shadow-lg
+      `}
+      >
+        <div className="p-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-primary-dark">
+          <h2 id={titleId} className="text-xl font-semibold text-primary-dark">
             {configType === "payment"
               ? "Payment Configuration"
               : "Deposit Configuration"}
@@ -227,6 +250,7 @@ export function ConfigPanel({
           <button
             onClick={onClose}
             className="p-2 text-primary-dark hover:text-primary-medium"
+            aria-label="Close configuration panel"
           >
             <XMarkIcon className="h-6 w-6" />
           </button>
@@ -234,10 +258,14 @@ export function ConfigPanel({
 
         <form onSubmit={handleSubmit} autoComplete="off" className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor={chainFieldId}
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Receiving Chain
             </label>
             <select
+              id={chainFieldId}
               value={config.chainId}
               onChange={(e) => {
                 const newChainId = Number(e.target.value);
@@ -261,7 +289,10 @@ export function ConfigPanel({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor={tokenFieldId}
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Receiving Token
             </label>
             {config.chainId === 0 && (
@@ -271,6 +302,7 @@ export function ConfigPanel({
             )}
             {config.chainId > 0 && (
               <select
+                id={tokenFieldId}
                 value={config.tokenAddress}
                 onChange={(e) =>
                   setConfig((prev) => ({
@@ -292,7 +324,10 @@ export function ConfigPanel({
 
           {config.chainId === 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor={addressFieldId}
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Recipient Address
               </label>
               <span className="text-sm text-gray-500">
@@ -303,10 +338,14 @@ export function ConfigPanel({
 
           {config.chainId > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor={addressFieldId}
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Recipient Address
               </label>
               <input
+                id={addressFieldId}
                 type="text"
                 value={config.recipientAddress}
                 onChange={handleAddressChange}
@@ -355,10 +394,14 @@ export function ConfigPanel({
           {/* Amount field only shown for payment config */}
           {configType === "payment" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor={amountFieldId}
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Amount
               </label>
               <input
+                id={amountFieldId}
                 type="number"
                 value={config.amount}
                 onChange={(e) =>
@@ -377,13 +420,14 @@ export function ConfigPanel({
 
           <button
             type="submit"
-            className="w-full bg-primary-dark text-white py-2 px-4 rounded hover:bg-primary-medium transition-colors"
-            // disabled={!isFormValid()}
+            disabled={!isFormValid()}
+            className="w-full rounded bg-primary-dark px-4 py-2 text-white transition-colors hover:bg-primary-medium disabled:cursor-not-allowed disabled:opacity-50"
           >
             Confirm
           </button>
         </form>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

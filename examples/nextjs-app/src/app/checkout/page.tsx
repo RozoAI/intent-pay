@@ -140,54 +140,152 @@ export default function DemoCheckout() {
   );
 
   return (
-    <Container>
-      <Text>
-        For robust checkout, save the payId in <Code>onPaymentStarted</Code>.
-        This ensures you&apos;ll be able to correlate incoming payments with a
-        cart (or a user ID, form submission, etc) even if the user closes the
-        tab.
-      </Text>
-      <Text>
-        In addition to callbacks like <Code>onPaymentSucceeded</Code>, Rozo Pay
-        supports{" "}
-        <TextLink href="https://paydocs.daimo.com/webhooks">webhooks</TextLink>{" "}
-        to track payment status reliably on the backend.
-      </Text>
-      <div />
-      <Columns>
-        <div className="flex-1">
-          {parsed ? (
-            <RozoPayButton.Custom
-              appId={APP_ID}
-              toChain={parsed.toChain}
-              toAddress={parsed.toAddress}
-              toToken={parsed.toToken}
-              toUnits={parsed.toUnits}
-              intent="Purchase"
-              onPaymentStarted={start}
-            >
-              {(renderProps) => (
-                <button
-                  onClick={renderProps.show}
-                  className="w-full bg-primary-dark text-white px-6 py-3 rounded-lg hover:bg-primary-medium transition-all font-medium"
+    <Container className="mx-auto w-full max-w-6xl gap-8 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="max-w-3xl space-y-3">
+        <p className="text-sm font-medium uppercase tracking-[0.18em] text-primary-medium">
+          Checkout Demo
+        </p>
+        <h1 className="text-3xl font-semibold tracking-tight text-primary-dark sm:text-4xl">
+          Test a production-style checkout flow
+        </h1>
+        <Text className="max-w-2xl text-base leading-7 text-gray-600">
+          Configure a destination wallet and token, then start a payment while
+          tracking the generated pay ID for backend correlation.
+        </Text>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.85fr)]">
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+          <div className="flex flex-col gap-6">
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Payment action
+              </h2>
+              <Text className="text-sm leading-6 text-gray-600">
+                Use the config drawer to set destination chain, token, address,
+                and amount before launching the payment modal.
+              </Text>
+            </div>
+
+            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4">
+              {parsed ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Destination chain
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-gray-900">
+                      {parsed.toChain}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Amount
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-gray-900">
+                      {parsed.toUnits}
+                    </p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Recipient
+                    </p>
+                    <p className="mt-1 break-all text-sm text-gray-700">
+                      {config.recipientAddress}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <Text className="text-sm leading-6 text-gray-600">
+                  No payment configuration yet. Set the destination details to
+                  enable the checkout button.
+                </Text>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {parsed ? (
+                <RozoPayButton.Custom
+                  appId={APP_ID}
+                  toChain={parsed.toChain}
+                  toAddress={parsed.toAddress}
+                  toToken={parsed.toToken}
+                  toUnits={parsed.toUnits}
+                  intent="Purchase"
+                  onPaymentStarted={start}
                 >
-                  Make Payment
+                  {(renderProps) => (
+                    <button
+                      onClick={renderProps.show}
+                      className="min-h-12 flex-1 rounded-xl bg-primary-dark px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-primary-medium"
+                    >
+                      Make Payment
+                    </button>
+                  )}
+                </RozoPayButton.Custom>
+              ) : (
+                <button
+                  onClick={() => setIsConfigOpen(true)}
+                  className="min-h-12 flex-1 rounded-xl bg-primary-dark px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-primary-medium"
+                >
+                  Configure Payment Settings
                 </button>
               )}
-            </RozoPayButton.Custom>
-          ) : (
-            <button
-              onClick={() => setIsConfigOpen(true)}
-              className="w-full border-2 border-primary-dark text-primary-dark px-6 py-3 rounded-lg hover:bg-primary-dark hover:text-white transition-all font-medium"
+
+              <button
+                onClick={() => setIsConfigOpen(true)}
+                className="min-h-12 rounded-xl border border-gray-300 px-6 py-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
+              >
+                {parsed ? "Edit Configuration" : "Open Config"}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <aside className="flex flex-col gap-4">
+          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-gray-500">
+              Payment status
+            </p>
+            <div aria-live="polite" className="mt-3 space-y-2">
+              <p className="text-sm text-gray-500">Latest PayID</p>
+              <p className="break-all text-lg font-semibold text-gray-900">
+                {payId ? getAddressContraction(payId) : "TBD"}
+              </p>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h3 className="text-sm font-semibold text-gray-900">
+              Backend note
+            </h3>
+            <Text className="mt-2 text-sm leading-6 text-gray-600">
+              Save the pay ID from <Code>onPaymentStarted</Code> so you can
+              reconcile payments even if the user closes the tab.
+            </Text>
+            <Text className="mt-3 text-sm leading-6 text-gray-600">
+              Webhooks provide a more reliable backend signal than waiting for
+              frontend callbacks alone.
+            </Text>
+            <TextLink
+              href="https://paydocs.daimo.com/webhooks"
+              className="mt-4 inline-flex text-sm font-medium"
             >
-              Configure Payment Settings
-            </button>
-          )}
-        </div>
-        <div className="flex-1">
-          <Text>PayID {payId ? getAddressContraction(payId) : "TBD"}</Text>
-        </div>
-      </Columns>
+              Read webhook docs
+            </TextLink>
+          </section>
+
+          <Text className="text-sm text-gray-500">
+            <TextLink
+              href="https://github.com/RozoAI/intent-pay/blob/master/examples/nextjs-app/src/app/checkout"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              View on Github ↗
+            </TextLink>
+          </Text>
+        </aside>
+      </div>
 
       <ConfigPanel
         configType="payment"
@@ -196,15 +294,6 @@ export default function DemoCheckout() {
         onConfirm={(c) => handleSetConfig(c as PaymentConfig)}
         defaultRecipientAddress={config.recipientAddress}
       />
-
-      <Text>
-        <TextLink
-          href="https://github.com/RozoAI/intent-pay/blob/master/examples/nextjs-app/src/app/checkout"
-          target="_blank"
-        >
-          View on Github ↗
-        </TextLink>
-      </Text>
     </Container>
   );
 }
