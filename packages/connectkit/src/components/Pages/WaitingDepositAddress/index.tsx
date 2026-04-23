@@ -26,7 +26,7 @@ import useIsMobile from "../../../hooks/useIsMobile";
 import { usePayContext } from "../../../hooks/usePayContext";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import styled from "../../../styles/styled";
-import { formatUsd } from "../../../utils/format";
+import { formatUsd, roundUsd } from "../../../utils/format";
 import Button from "../../Common/Button";
 import CircleTimer from "../../Common/CircleTimer";
 import CopyToClipboardIcon from "../../Common/CopyToClipboard/CopyToClipboardIcon";
@@ -471,7 +471,10 @@ export default function WaitingDepositAddress() {
       {tronUnderpay ? (
         <TronUnderpayContent orderId={order?.id?.toString()} />
       ) : feeError ? (
-        <FeeErrorContent feeError={feeError} />
+        <FeeErrorContent
+          feeError={feeError}
+          fiatISO={order?.destFinalCallTokenAmount.token.fiatISO}
+        />
       ) : failed ? (
         selectedDepositAddressOption && (
           <DepositFailed name={selectedDepositAddressOption.id} />
@@ -528,7 +531,13 @@ function TronUnderpayContent({ orderId }: { orderId?: string }) {
   );
 }
 
-function FeeErrorContent({ feeError }: { feeError: FeeErrorData }) {
+function FeeErrorContent({
+  feeError,
+  fiatISO,
+}: {
+  feeError: FeeErrorData;
+  fiatISO?: string;
+}) {
   return (
     <ModalContent
       style={{
@@ -552,7 +561,7 @@ function FeeErrorContent({ feeError }: { feeError: FeeErrorData }) {
               <br />
               <br />
               Maximum allowed amount:{" "}
-              {formatUsd(feeError.maxAllowed, "nearest")}
+              {formatUsd(feeError.maxAllowed, "nearest", fiatISO)}
             </>
           )}
         </ModalBody>
@@ -653,6 +662,7 @@ function CopyableInfo({
 }) {
   const underpayment = depAddr?.underpayment;
   const isExpired = depAddr?.expirationS != null && remainingS === 0;
+  const sourceTokenSymbol = depAddr?.displayToken?.symbol;
 
   return (
     <CopyableInfoWrapper>
@@ -660,13 +670,20 @@ function CopyableInfo({
       {feeData !== null && (
         <FeeDisplayRow
           title="Fee"
-          value={feeData.fee === 0 ? "Free" : formatUsd(feeData.fee, "nearest")}
+          value={
+            feeData.fee === 0
+              ? "Free"
+              : formatAmountWithTokenSymbol(feeData.fee, sourceTokenSymbol)
+          }
         />
       )}
       <CopyRowOrThrobber
         title="Send Exactly"
         value={depAddr?.amount}
-        valueText={formatUsd(Number(depAddr?.amount) || 0, "nearest")}
+        valueText={formatAmountWithTokenSymbol(
+          Number(depAddr?.amount) || 0,
+          sourceTokenSymbol,
+        )}
         smallText={depAddr?.coins}
         disabled={isExpired}
       />
@@ -689,6 +706,12 @@ function CopyableInfo({
       </CountdownWrap>
     </CopyableInfoWrapper>
   );
+}
+
+function formatAmountWithTokenSymbol(amount: number, tokenSymbol?: string) {
+  const roundedAmount = roundUsd(amount, "nearest");
+  if (!tokenSymbol) return roundedAmount;
+  return `${roundedAmount} ${tokenSymbol}`;
 }
 
 function UnderpaymentInfo({ underpayment }: { underpayment: Underpayment }) {

@@ -40,12 +40,23 @@ export function roundDecimals(
  */
 export function formatUsd(
   usd: number,
-  round: "up" | "down" | "nearest" = "down"
+  round: "up" | "down" | "nearest" = "down",
+  fiatISO = "USD"
 ): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(Number(roundUsd(usd, round)));
+  const currency = fiatISO.toUpperCase();
+  const value = Number(roundUsd(usd, round));
+
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+    }).format(value);
+  } catch {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(value);
+  }
 }
 
 /**

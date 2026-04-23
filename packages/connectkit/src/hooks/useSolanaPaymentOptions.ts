@@ -1,4 +1,9 @@
-import { rozoSolana, solana, WalletPaymentOption } from "@rozoai/intent-common";
+import {
+  getKnownToken,
+  rozoSolana,
+  solana,
+  WalletPaymentOption,
+} from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
@@ -40,7 +45,7 @@ export function useSolanaPaymentOptions({
   // Get Solana chain IDs from supported chains
   const solanaChainIds = useMemo(() => {
     return new Set(
-      chains.filter((c) => c.type === "solana").map((c) => c.chainId)
+      chains.filter((c) => c.type === "solana").map((c) => c.chainId),
     );
   }, [chains]);
 
@@ -51,7 +56,7 @@ export function useSolanaPaymentOptions({
   const memoizedPreferredTokens = useMemo(
     () => payParams?.preferredTokens,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(payParams?.preferredTokens)]
+    [JSON.stringify(payParams?.preferredTokens)],
   );
 
   const filteredOptions = useMemo(() => {
@@ -82,7 +87,7 @@ export function useSolanaPaymentOptions({
           (pt) =>
             pt.chainId === option.balance.token.chainId &&
             normalizeAddress(pt.token) ===
-              normalizeAddress(option.balance.token.token)
+              normalizeAddress(option.balance.token.token),
         );
       })
       .map((item) => {
@@ -97,10 +102,14 @@ export function useSolanaPaymentOptions({
         };
 
         // Set `disabledReason` manually (based on current usdRequired state, not API Request)
+        const destinationFiatISO = getKnownToken(
+          item.balance.token.chainId,
+          item.balance.token.token,
+        )?.fiatISO;
         if (item.balance.usd < usd) {
-          value.disabledReason = `Balance too low: $${item.balance.usd.toFixed(
-            2
-          )}`;
+          value.disabledReason = `Balance too low: ${item.balance.usd.toFixed(
+            2,
+          )} ${destinationFiatISO}`;
         }
 
         return value;

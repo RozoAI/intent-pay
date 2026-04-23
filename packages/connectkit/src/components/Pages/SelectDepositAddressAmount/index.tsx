@@ -18,11 +18,12 @@ import ExternalPaymentSpinner from "../../Spinners/ExternalPaymentSpinner";
 const SelectDepositAddressAmount: React.FC = () => {
   const { paymentState, setRoute, triggerResize } = usePayContext();
   const { selectedDepositAddressOption } = paymentState;
+  const fiatISO = selectedDepositAddressOption?.token.fiatISO;
 
   const maxUsdLimit = paymentState.getOrderUsdLimit();
   const minUsd = selectedDepositAddressOption?.minimumUsd ?? 0;
   const minimumMessage =
-    minUsd > 0 ? `Minimum ${formatUsd(minUsd, "up")}` : null;
+    minUsd > 0 ? `Minimum ${formatUsd(minUsd, "up", fiatISO)}` : null;
 
   const [usdInput, setUsdInput] = useState<string>("");
   const [message, setMessage] = useState<string | null>(minimumMessage);
@@ -43,7 +44,7 @@ const SelectDepositAddressAmount: React.FC = () => {
     setUsdInput(value);
 
     if (Number(value) > maxUsdLimit) {
-      setMessage(`Maximum ${formatUsd(maxUsdLimit)}`);
+      setMessage(`Maximum ${formatUsd(maxUsdLimit, "down", fiatISO)}`);
     } else {
       setMessage(minimumMessage);
     }

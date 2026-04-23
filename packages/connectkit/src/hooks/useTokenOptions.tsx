@@ -458,7 +458,7 @@ function getEvmTokenOptions(
   return options.map((option) => {
     const chainName = getChainName(option.balance.token.chainId);
     const titlePrice = isDepositFlow
-      ? formatUsd(option.balance.usd)
+      ? formatUsd(option.balance.usd, "down", option.balance.token.fiatISO)
       : roundTokenAmount(
           option.required.amount,
           option.required.token,
@@ -513,7 +513,7 @@ function getSolanaTokenOptions(
 ) {
   return options.map((option) => {
     const titlePrice = isDepositFlow
-      ? formatUsd(option.balance.usd)
+      ? formatUsd(option.balance.usd, "down", option.balance.token.fiatISO)
       : roundTokenAmount(
           option.required.amount,
           option.required.token,
@@ -567,7 +567,7 @@ function getStellarTokenOptions(
 ) {
   return options.map((option) => {
     const titlePrice = isDepositFlow
-      ? formatUsd(option.balance.usd)
+      ? formatUsd(option.balance.usd, "down", option.balance.token.fiatISO)
       : roundTokenAmount(
           option.required.amount,
           option.required.token,
