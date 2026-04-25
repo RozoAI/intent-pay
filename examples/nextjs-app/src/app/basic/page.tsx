@@ -3,7 +3,6 @@
 import * as Tokens from "@rozoai/intent-common";
 import {
   baseEURC,
-  FeeType,
   getChainById,
   getChainName,
   getChainNativeToken,
@@ -689,7 +688,6 @@ export default function DemoBasic() {
                       toAddress={parsedConfig.recipientAddress}
                       toToken={parsedConfig.tokenAddress}
                       toUnits={parsedConfig.amount}
-                      feeType={FeeType.ExactOut}
                       preferredSymbol={preferredSymbol}
                       metadata={metadata}
                       resetOnSuccess
