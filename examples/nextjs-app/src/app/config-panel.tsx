@@ -68,11 +68,17 @@ export function ConfigPanel({
       if (savedConfig) {
         const parsed = JSON.parse(savedConfig);
         const parsedConfig = { ...parsed };
+        const normalizedChainId = Number(parsed.chainId);
+        const hasValidChainId =
+          Number.isFinite(normalizedChainId) && normalizedChainId > 0;
+
+        Object.assign(parsedConfig, {
+          chainId: hasValidChainId ? normalizedChainId : 0,
+        });
 
         // Validate token address based on chain type
-        if (parsed.chainId !== 0) {
-          const chain = getChainById(parsed.chainId);
-          if (!chain) return;
+        if (hasValidChainId) {
+          const chain = getChainById(normalizedChainId);
           const isEvm = chain.type === "evm";
           if (isEvm && !isAddress(parsed.tokenAddress)) {
             Object.assign(parsedConfig, {
@@ -82,9 +88,9 @@ export function ConfigPanel({
         }
 
         // Validate recipient address based on chain type
-        if (parsed.chainId !== 0 && parsed.recipientAddress) {
+        if (hasValidChainId && parsed.recipientAddress) {
           const isValid = validateAddressForChain(
-            parsed.chainId,
+            normalizedChainId,
             parsed.recipientAddress
           );
           if (!isValid) {

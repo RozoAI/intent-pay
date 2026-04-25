@@ -473,11 +473,14 @@ export default function DemoBasic() {
       const getConfig = JSON.parse(
         localStorage.getItem("rozo-basic-config") || "{}",
       );
+      const normalizedChainId = Number(getConfig?.chainId);
+      const hasValidChainId =
+        Number.isFinite(normalizedChainId) && normalizedChainId > 0;
 
-      if (getConfig && getConfig.chainId !== 0) {
+      if (getConfig && hasValidChainId) {
         const parsedConfig: Config = {
           recipientAddress: getConfig.recipientAddress || "",
-          chainId: getConfig.chainId || 0,
+          chainId: normalizedChainId,
           tokenAddress: getConfig.tokenAddress || "",
           amount: getConfig.amount || "",
           preferredSymbol: getConfig.preferredSymbol || [
