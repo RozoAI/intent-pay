@@ -31,6 +31,8 @@ For a complete list of supported tokens and chains, see the [Supported Tokens an
 
 You can find the full Rozo Pay documentation at [docs.rozo.ai](https://docs.rozo.ai).
 
+For in-repo SDK prop reference, see [RozoPayButton Props](../../docs/ROZO_PAY_BUTTON_PROPS.md).
+
 ## Examples
 
 Check out complete examples and code snippets at [Complete Examples](https://docs.rozo.ai/integration/rozointentpay/examples), including:

@@ -1,4 +1,4 @@
-import { WalletPaymentOption } from "@rozoai/intent-common";
+import { getKnownToken, WalletPaymentOption } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
@@ -67,12 +67,12 @@ export function useWalletPaymentOptions({
   const memoizedPreferredChains = useMemo(
     () => payParams?.preferredChains,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(payParams?.preferredChains)]
+    [JSON.stringify(payParams?.preferredChains)],
   );
   const memoizedPreferredTokens = useMemo(
     () => payParams?.preferredTokens,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(payParams?.preferredTokens)]
+    [JSON.stringify(payParams?.preferredTokens)],
   );
 
   const { chains, tokens } = useSupportedChains();
@@ -80,7 +80,7 @@ export function useWalletPaymentOptions({
   // Get EVM chain IDs from supported chains
   const evmChainIds = useMemo(() => {
     return new Set(
-      chains.filter((c) => c.type === "evm").map((c) => c.chainId)
+      chains.filter((c) => c.type === "evm").map((c) => c.chainId),
     );
   }, [chains]);
 
@@ -94,7 +94,7 @@ export function useWalletPaymentOptions({
       chains.some(
         (c) =>
           c.chainId === o.balance.token.chainId &&
-          tokens.some((t) => t.token === o.balance.token.token)
+          tokens.some((t) => t.token === o.balance.token.token),
       );
 
     // If preferredTokens is provided and not empty, filter by matching chainId and token address
@@ -105,7 +105,8 @@ export function useWalletPaymentOptions({
       return memoizedPreferredTokens.some(
         (pt) =>
           pt.chainId === o.balance.token.chainId &&
-          normalizeAddress(pt.token) === normalizeAddress(o.balance.token.token)
+          normalizeAddress(pt.token) ===
+            normalizeAddress(o.balance.token.token),
       );
     };
 
@@ -124,10 +125,14 @@ export function useWalletPaymentOptions({
         };
 
         // Set `disabledReason` manually (based on current usdRequired state, not API Request)
+        const destinationFiatISO = getKnownToken(
+          item.balance.token.chainId,
+          item.balance.token.token,
+        )?.fiatISO;
         if (item.balance.usd < usd) {
-          value.disabledReason = `Balance too low: $${item.balance.usd.toFixed(
-            2
-          )}`;
+          value.disabledReason = `Balance too low: ${item.balance.usd.toFixed(
+            2,
+          )} ${destinationFiatISO}`;
         }
 
         return value;

@@ -1,9 +1,9 @@
 "use client";
 
 import { version } from "@rozoai/intent-pay";
+import clsx from "clsx";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import clsx from "clsx";
 import { Heading } from "../shared/tailwind-catalyst/heading";
 
 export default function NavButtons() {
@@ -57,6 +57,7 @@ export default function NavButtons() {
         {/* <Btn route="/contract">Contract</Btn> */}
         <Btn route="/checkout">Checkout</Btn>
         <Btn route="/deposit">Deposit</Btn>
+        <Btn route="/props">Props</Btn>
         {/* <Btn route="/mini-app">Mini App</Btn> */}
       </nav>
     </div>

@@ -1,4 +1,4 @@
-import { getAddressContraction } from "@rozoai/intent-common";
+import { getAddressContraction, getKnownToken } from "@rozoai/intent-common";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { motion } from "framer-motion";
 import React from "react";
@@ -53,6 +53,20 @@ export const OrderHeader = ({
     stellarPublicKey ?? "",
   );
   const orderUsd = order?.destFinalCallTokenAmount.usd;
+  const destinationFiatISO = React.useMemo(() => {
+    if (!paymentState.payParams?.toChain || !paymentState.payParams?.toToken) {
+      return order?.destFinalCallTokenAmount.token.fiatISO;
+    }
+
+    return getKnownToken(
+      paymentState.payParams.toChain,
+      paymentState.payParams.toToken,
+    )?.fiatISO;
+  }, [
+    order?.destFinalCallTokenAmount.token.fiatISO,
+    paymentState.payParams?.toChain,
+    paymentState.payParams?.toToken,
+  ]);
   const appId = paymentState.payParams?.appId;
 
   const titleAmountContent = (() => {
@@ -65,7 +79,7 @@ export const OrderHeader = ({
       ) : null;
     } else {
       return orderUsd != null ? (
-        <span>{formatUsd(orderUsd, "nearest")}</span>
+        <span>{formatUsd(orderUsd, "nearest", destinationFiatISO)}</span>
       ) : null;
     }
   })();

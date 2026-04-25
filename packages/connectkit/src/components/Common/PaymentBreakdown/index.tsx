@@ -3,14 +3,24 @@ import React from "react";
 import { WalletPaymentOption } from "@rozoai/intent-common";
 import defaultTheme from "../../../constants/defaultTheme";
 import styled from "../../../styles/styled";
+import { roundTokenAmount } from "../../../utils/format";
 import { ModalBody } from "../../Common/Modal/styles";
 
 const PaymentBreakdown: React.FC<{
   paymentOption: WalletPaymentOption;
 }> = ({ paymentOption }) => {
-  const subtotalUsd = paymentOption.required.usd;
   const feesUsd = paymentOption.fees.usd;
-  const totalUsd = subtotalUsd + feesUsd;
+  const tokenSymbol = paymentOption.required.token.symbol;
+  const feeTokenAmount = roundTokenAmount(
+    paymentOption.fees.amount,
+    paymentOption.fees.token,
+    "nearest",
+  );
+  const totalTokenAmount = roundTokenAmount(
+    paymentOption.required.amount,
+    paymentOption.required.token,
+    "nearest",
+  );
 
   return (
     <FeesContainer>
@@ -25,13 +35,13 @@ const PaymentBreakdown: React.FC<{
         {feesUsd === 0 ? (
           <Badge>Free</Badge>
         ) : (
-          <ModalBody>${feesUsd.toFixed(2)}</ModalBody>
+          <ModalBody>{`${feeTokenAmount} ${tokenSymbol}`}</ModalBody>
         )}
       </FeeRow>
       <FeeRow style={{ marginTop: 8 }}>
         <ModalBody style={{ fontWeight: 600 }}>Total</ModalBody>
         <ModalBody style={{ fontWeight: 600 }}>
-          ${subtotalUsd.toFixed(2)}
+          {`${totalTokenAmount} ${tokenSymbol}`}
         </ModalBody>
       </FeeRow>
     </FeesContainer>

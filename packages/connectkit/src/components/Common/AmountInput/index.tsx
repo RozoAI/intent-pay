@@ -35,11 +35,16 @@ const MultiCurrencySelectAmount: React.FC<{
   const maxUsdLimit = paymentState.getOrderUsdLimit();
 
   const balanceToken = selectedTokenOption.balance.token;
+  const fiatSymbol = balanceToken.fiatSymbol ?? "$";
 
   const minimumMessage =
     selectedTokenOption.minimumRequired.usd > 0
       ? `Minimum 
-  ${formatUsd(selectedTokenOption.minimumRequired.usd, "up")}`
+  ${formatUsd(
+    selectedTokenOption.minimumRequired.usd,
+    "up",
+    balanceToken.fiatISO,
+  )}`
       : null;
 
   const [usdValue, setUsdValue] = useState("");
@@ -87,10 +92,10 @@ const MultiCurrencySelectAmount: React.FC<{
     if (Number(sanitizedUsdValue) > selectedTokenOption.balance.usd) {
       setMessage(
         `Amount exceeds your balance: 
-  ${formatUsd(selectedTokenOption.balance.usd)}`,
+  ${formatUsd(selectedTokenOption.balance.usd, "down", balanceToken.fiatISO)}`,
       );
     } else if (Number(usdValue) > maxUsdLimit) {
-      setMessage(`Maximum ${formatUsd(maxUsdLimit)}`);
+      setMessage(`Maximum ${formatUsd(maxUsdLimit, "down", balanceToken.fiatISO)}`);
     } else {
       setMessage(minimumMessage);
     }
@@ -166,7 +171,7 @@ const MultiCurrencySelectAmount: React.FC<{
           <AmountInputField
             value={isEditingUsd ? usdValue : tokenValue}
             onChange={handleAmountChange}
-            currency={isEditingUsd ? "$" : balanceToken.symbol}
+            currency={isEditingUsd ? fiatSymbol : balanceToken.symbol}
             onKeyDown={handleKeyDown}
           />
           <MaxButton onClick={handleMax}>Max</MaxButton>
@@ -178,7 +183,7 @@ const MultiCurrencySelectAmount: React.FC<{
               <SecondaryAmount>
                 {isEditingUsd
                   ? `${tokenValue} ${balanceToken.symbol}`
-                  : `$${usdValue}`}
+                  : `${fiatSymbol}${usdValue}`}
               </SecondaryAmount>
             </SwitchButton>
           </SwitchContainer>

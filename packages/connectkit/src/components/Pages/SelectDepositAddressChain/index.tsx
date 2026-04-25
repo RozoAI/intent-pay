@@ -4,7 +4,7 @@ import { usePayContext } from "../../../hooks/usePayContext";
 
 import { ModalContent, ModalH1, PageContent } from "../../Common/Modal/styles";
 
-import { RozoPayOrderMode } from "@rozoai/intent-common";
+import { getKnownToken, RozoPayOrderMode } from "@rozoai/intent-common";
 import { useRozoPay } from "../../../hooks/useDaimoPay";
 import { OptionsList } from "../../Common/OptionsList";
 import { OrderHeader } from "../../Common/OrderHeader";
@@ -69,12 +69,16 @@ const SelectDepositAddressChain: React.FC = () => {
 
               let disabledReason: string | undefined;
               if (isDisabledByMinimum) {
+                const destinationFiatISO = getKnownToken(
+                  option.token.chainId,
+                  option.token.token,
+                )?.fiatISO;
                 if (option.minimumUsd <= 0) {
                   disabledReason = "Minimum amount not available";
                 } else if (order?.mode === RozoPayOrderMode.HYDRATED) {
-                  disabledReason = `Minimum: $${option.minimumUsd.toFixed(2)}`;
+                  disabledReason = `Minimum: ${option.minimumUsd.toFixed(2)} ${destinationFiatISO}`;
                 } else if (order?.mode === RozoPayOrderMode.SALE) {
-                  disabledReason = `Minimum: $${option.minimumUsd.toFixed(2)}`;
+                  disabledReason = `Minimum: ${option.minimumUsd.toFixed(2)} ${destinationFiatISO}`;
                 }
               }
 

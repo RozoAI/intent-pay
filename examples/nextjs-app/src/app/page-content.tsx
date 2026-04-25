@@ -33,6 +33,12 @@ const demos: DemoCard[] = [
       "Onboard users from any chain, any exchange, any coin into your app.",
     path: "/deposit",
   },
+  {
+    title: "Props Reference",
+    description:
+      "See available RozoPayButton props, required fields, and behavior options.",
+    path: "/props",
+  },
   /* {
     title: "Mini App",
     description: "Ship World and Farcaster mini apps with social distribution.",

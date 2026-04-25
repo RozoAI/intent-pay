@@ -18,11 +18,16 @@ import ExternalPaymentSpinner from "../../Spinners/ExternalPaymentSpinner";
 const SelectExternalAmount: React.FC = () => {
   const { paymentState, setRoute, triggerResize } = usePayContext();
   const { selectedExternalOption } = paymentState;
+  const fiatISO = selectedExternalOption?.paymentToken?.fiatISO;
 
   const maxUsdLimit = paymentState.getOrderUsdLimit();
   const minimumMessage =
     (selectedExternalOption?.minimumUsd ?? 0) > 0
-      ? `Minimum ${formatUsd(selectedExternalOption?.minimumUsd ?? 0, "up")}`
+      ? `Minimum ${formatUsd(
+          selectedExternalOption?.minimumUsd ?? 0,
+          "up",
+          fiatISO,
+        )}`
       : null;
 
   const [usdInput, setUsdInput] = useState<string>("");
@@ -44,7 +49,7 @@ const SelectExternalAmount: React.FC = () => {
     setUsdInput(value);
 
     if (Number(value) > maxUsdLimit) {
-      setMessage(`Maximum ${formatUsd(maxUsdLimit)}`);
+      setMessage(`Maximum ${formatUsd(maxUsdLimit, "down", fiatISO)}`);
     } else {
       setMessage(minimumMessage);
     }

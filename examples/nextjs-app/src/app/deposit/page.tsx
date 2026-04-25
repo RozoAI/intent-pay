@@ -11,6 +11,7 @@ import {
   rozoStellar,
 } from "@rozoai/intent-common";
 import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Address, getAddress } from "viem";
 import { Text, TextLink } from "../../shared/tailwind-catalyst/text";
@@ -472,6 +473,14 @@ import { RozoPayButton } from "@rozoai/intent-pay";
                 </dd>
               </div>
             </dl>
+            <div className="mt-5 border-t border-gray-100 pt-4">
+              <Link
+                href="/props"
+                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
+              >
+                Learn more
+              </Link>
+            </div>
           </section>
         </aside>
       </div>

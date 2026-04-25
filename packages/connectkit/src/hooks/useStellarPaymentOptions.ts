@@ -1,4 +1,8 @@
-import { rozoStellar, WalletPaymentOption } from "@rozoai/intent-common";
+import {
+  getKnownToken,
+  rozoStellar,
+  WalletPaymentOption,
+} from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
@@ -28,7 +32,7 @@ export function useStellarPaymentOptions({
   // Get Stellar chain IDs from supported chains
   const stellarChainIds = useMemo(() => {
     return new Set(
-      chains.filter((c) => c.type === "stellar").map((c) => c.chainId)
+      chains.filter((c) => c.type === "stellar").map((c) => c.chainId),
     );
   }, [chains]);
 
@@ -48,7 +52,7 @@ export function useStellarPaymentOptions({
   const memoizedPreferredTokens = useMemo(
     () => payParams?.preferredTokens,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(payParams?.preferredTokens)]
+    [JSON.stringify(payParams?.preferredTokens)],
   );
 
   const filteredOptions = useMemo(() => {
@@ -68,7 +72,7 @@ export function useStellarPaymentOptions({
           return preferredTokens.some(
             (pt) =>
               pt.chainId === tokenChainId &&
-              normalizeAddress(pt.token) === normalizeAddress(tokenAddress)
+              normalizeAddress(pt.token) === normalizeAddress(tokenAddress),
           );
         }
 
@@ -76,7 +80,7 @@ export function useStellarPaymentOptions({
         return tokens.some(
           (t) =>
             normalizeAddress(t.token) === normalizeAddress(tokenAddress) &&
-            t.chainId === rozoStellar.chainId
+            t.chainId === rozoStellar.chainId,
         );
       })
       .map((item) => {
@@ -91,10 +95,14 @@ export function useStellarPaymentOptions({
         };
 
         // Set `disabledReason` manually (based on current usdRequired state, not API Request)
+        const destinationFiatISO = getKnownToken(
+          item.balance.token.chainId,
+          item.balance.token.token,
+        )?.fiatISO;
         if (item.balance.usd < usd) {
-          value.disabledReason = `Balance too low: $${item.balance.usd.toFixed(
-            2
-          )}`;
+          value.disabledReason = `Balance too low: ${item.balance.usd.toFixed(
+            2,
+          )} ${destinationFiatISO}`;
         }
 
         return value;
