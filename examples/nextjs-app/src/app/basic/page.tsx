@@ -71,23 +71,40 @@ const generateCodeSnippet = (config: Config): string => {
       : `import { ${tokenVarName} } from "@rozoai/intent-common";`;
 
     return `${importStatement}
-import { RozoPayButton } from "@rozoai/intent-pay";
+import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
+import { useCallback } from "react";
 
 export default function YourComponent() {
+  const { resetPayment } = useRozoPayUI();
+  
+  // Reset current payment state to the latest destination params
+  const resetCurrentPayment = useCallback(async () => {
+    await resetPayment({
+      toChain: ${tokenVarName}.chainId,
+      toAddress: ${addressCode},
+      toUnits: "${config.amount}",
+      toToken: ${tokenCode},
+    });
+  }, [resetPayment]);
+
   return (
-    <RozoPayButton
-      appId="${APP_ID}"
-      toChain={${tokenVarName}.chainId}
-      toAddress={${addressCode}}
-      toUnits="${config.amount}"
-      toToken={${tokenCode}}
-      onPaymentStarted={(event) => {
-        console.log("Payment started:", event);
-      }}
-      onPaymentCompleted={(event) => {
-        console.log("Payment completed:", event);
-      }}
-    />
+    <>
+      <RozoPayButton
+        appId="${APP_ID}"
+        toChain={${tokenVarName}.chainId}
+        toAddress={${addressCode}}
+        toUnits="${config.amount}"
+        toToken={${tokenCode}}
+        // Fires after user confirms payment in wallet
+        onPaymentStarted={(event) => {
+          console.log("Payment started:", event);
+        }}
+        // Fires when payment is completed
+        onPaymentCompleted={(event) => {
+          console.log("Payment completed:", event);
+        }}
+      />
+    </>
   );
 }`;
   }
@@ -111,26 +128,46 @@ export default function YourComponent() {
     : `import { ${tokenVarName}, TokenSymbol } from "@rozoai/intent-common";`;
 
   return `${importStatement}
-import { RozoPayButton } from "@rozoai/intent-pay";
+import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
+import { useCallback } from "react";
 
 export default function YourComponent() {
-  return (
-    <RozoPayButton
-      appId="${APP_ID}"
-      toChain={${tokenVarName}.chainId}
-      toToken={${tokenCode}}
-      toAddress={${addressCode}}
-      toUnits="${config.amount}"
-      preferredSymbol={[${config.preferredSymbol
+  const { resetPayment } = useRozoPayUI();
+  
+  const resetCurrentPayment = useCallback(async () => {
+    await resetPayment({
+      toChain: ${tokenVarName}.chainId,
+      toAddress: ${addressCode},
+      toUnits: "${config.amount}",
+      toToken: ${tokenCode},
+      preferredSymbol: [${config.preferredSymbol
         .map((s: TokenSymbol) => `TokenSymbol.${s}`)
-        .join(", ")}]}
-      onPaymentStarted={(event) => {
-        console.log("Payment started:", event);
-      }}
-      onPaymentCompleted={(event) => {
-        console.log("Payment completed:", event);
-      }}
-    />
+        .join(", ")}],
+    });
+  }, [resetPayment]);
+
+  return (
+    <>
+      <RozoPayButton
+        appId="${APP_ID}"
+        toChain={${tokenVarName}.chainId}
+        toToken={${tokenCode}}
+        toAddress={${addressCode}}
+        toUnits="${config.amount}"
+        // Prioritize these symbols in payer token selection
+        preferredSymbol={[${config.preferredSymbol
+          .map((s: TokenSymbol) => `TokenSymbol.${s}`)
+          .join(", ")}]}
+        // Fires after user confirms payment in wallet
+        onPaymentStarted={(event) => {
+          console.log("Payment started:", event);
+        }}
+        // Fires when payment is completed
+        onPaymentCompleted={(event) => {
+          console.log("Payment completed:", event);
+        }}
+      />
+    </>
   );
 }`;
 };
@@ -334,8 +371,35 @@ export default function DemoBasic() {
   ]);
   const [eurcValidationError, setEurcValidationError] = useState<string>("");
 
+  const buildPaymentParams = useCallback(
+    (targetConfig: Config, symbols: TokenSymbol[] = preferredSymbol) => {
+      const chain = getChainById(targetConfig.chainId);
+      if (!chain) return null;
+
+      const isEvm = chain.type === "evm";
+      const payParams: any = {
+        toChain: targetConfig.chainId,
+        toUnits: targetConfig.amount,
+      };
+
+      if (isEvm) {
+        payParams.toAddress = getAddress(targetConfig.recipientAddress);
+        payParams.toToken = getAddress(targetConfig.tokenAddress);
+      } else {
+        payParams.toAddress = targetConfig.recipientAddress;
+        payParams.toToken = targetConfig.tokenAddress;
+      }
+
+      return {
+        ...payParams,
+        preferredSymbol: symbols,
+      };
+    },
+    [preferredSymbol],
+  );
+
   const handleSetConfig = useCallback(
-    (newConfig: Config, symbols?: TokenSymbol[]) => {
+    async (newConfig: Config, symbols?: TokenSymbol[]) => {
       const symbolsToUse = symbols ?? preferredSymbol;
 
       // Validate EURC: EURC can only be sent to EURC
@@ -366,31 +430,20 @@ export default function DemoBasic() {
       setParsedConfig(configWithSymbols);
 
       // NOTE: This is used to reset the payment state when the config changes
-      const chain = getChainById(newConfig.chainId);
-      if (!chain) return;
-      const isEvm = chain.type === "evm";
-      const payParams: any = {
-        toChain: newConfig.chainId,
-        toUnits: newConfig.amount,
-      };
-
-      if (isEvm) {
-        payParams.toAddress = getAddress(newConfig.recipientAddress);
-        payParams.toToken = getAddress(newConfig.tokenAddress);
-      } else {
-        payParams.toAddress = newConfig.recipientAddress;
-        payParams.toToken = newConfig.tokenAddress;
-      }
-
-      const params = {
-        ...payParams,
-        preferredSymbol: symbolsToUse,
-      };
+      const params = buildPaymentParams(newConfig, symbolsToUse);
+      if (!params) return;
       console.log("params", params);
-      resetPayment(params);
+      await resetPayment(params);
     },
-    [setConfig, resetPayment, preferredSymbol],
+    [setConfig, resetPayment, preferredSymbol, buildPaymentParams],
   );
+
+  const handleResetCurrentPayment = useCallback(async () => {
+    if (!parsedConfig) return;
+    const params = buildPaymentParams(parsedConfig, preferredSymbol);
+    if (!params) return;
+    await resetPayment(params);
+  }, [parsedConfig, buildPaymentParams, preferredSymbol, resetPayment]);
 
   const isSolanaChain = useCallback((chainId: number) => {
     const chain = getChainById(chainId);
@@ -716,6 +769,12 @@ export default function DemoBasic() {
                       className="min-h-12 rounded-xl border border-gray-300 px-6 py-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
                     >
                       Edit Configuration
+                    </button>
+                    <button
+                      onClick={handleResetCurrentPayment}
+                      className="min-h-12 rounded-xl border border-primary-dark px-6 py-3 text-sm font-medium text-primary-dark transition-colors hover:bg-primary-50"
+                    >
+                      Reset Payment
                     </button>
                   </div>
                 </>
