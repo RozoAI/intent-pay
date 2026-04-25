@@ -19,6 +19,7 @@ import {
   useRozoConnectStellar,
   useRozoPayUI,
 } from "@rozoai/intent-pay";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -603,12 +604,12 @@ export default function DemoBasic() {
           </Text>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <button
+          {/* <button
             onClick={handleChangeCurrency}
             className="min-h-11 rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
           >
             Change currency
-          </button>
+          </button> */}
           <button
             onClick={() => setIsConfigOpen(true)}
             className="min-h-11 rounded-xl bg-primary-dark px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-medium"
@@ -688,6 +689,11 @@ export default function DemoBasic() {
                       toAddress={parsedConfig.recipientAddress}
                       toToken={parsedConfig.tokenAddress}
                       toUnits={parsedConfig.amount}
+                      feeType={FeeType.ExactOut}
+                      preferredSymbol={preferredSymbol}
+                      metadata={metadata}
+                      resetOnSuccess
+                      showProcessingPayout
                       onPaymentStarted={(e) => {
                         console.log("✓ Payment started:", e);
                       }}
@@ -697,11 +703,6 @@ export default function DemoBasic() {
                       onPayoutCompleted={(e: any) => {
                         console.log("✓ Payout completed:", e);
                       }}
-                      feeType={FeeType.ExactOut}
-                      preferredSymbol={preferredSymbol}
-                      metadata={metadata}
-                      resetOnSuccess
-                      showProcessingPayout
                     >
                       {(renderProps) => (
                         <button
@@ -857,6 +858,14 @@ export default function DemoBasic() {
                 </dd>
               </div>
             </dl>
+            <div className="mt-5 border-t border-gray-100 pt-4">
+              <Link
+                href="/props"
+                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
+              >
+                Learn more
+              </Link>
+            </div>
           </section>
         </aside>
       </div>
