@@ -20,8 +20,7 @@ export { useRozoPayStatus } from "./hooks/useDaimoPayStatus";
 export { useRozoPayUI } from "./hooks/useDaimoPayUI";
 
 // For convenience, export components to show connected account.
-export { default as Avatar } from "./components/Common/Avatar";
-export { default as ChainIcon } from "./components/Common/Chain";
+// export { default as ChainIcon } from "./components/Common/Chain";
 export { wallets } from "./wallets";
 
 // Export utilities.

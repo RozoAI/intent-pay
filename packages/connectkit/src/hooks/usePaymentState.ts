@@ -7,7 +7,6 @@ import {
   DepositAddressPaymentOptionData,
   DepositAddressPaymentOptionMetadata,
   DepositAddressPaymentOptions,
-  ethereum,
   ExternalPaymentOptionMetadata,
   ExternalPaymentOptions,
   ExternalPaymentOptionsString,
@@ -52,7 +51,6 @@ import {
 } from "viem";
 import {
   useAccount,
-  useEnsName,
   useSendTransaction,
   useSwitchChain,
   useWriteContract,
@@ -256,10 +254,7 @@ export function usePaymentState({
 
   // Wallet state.
   const { address: ethWalletAddress } = useAccount();
-  const { data: senderEnsName } = useEnsName({
-    chainId: ethereum.chainId,
-    address: ethWalletAddress,
-  });
+  const senderEnsName = undefined;
   const { switchChainAsync } = useSwitchChain();
 
   const { sendTransactionAsync } = useSendTransaction();

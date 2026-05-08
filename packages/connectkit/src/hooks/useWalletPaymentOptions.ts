@@ -168,16 +168,24 @@ export function useWalletPaymentOptions({
     setIsLoading(true);
 
     try {
-      // Filter preferredTokenAddress to only include EVM chain tokens
-      const evmPreferredTokenAddresses = (memoizedPreferredTokens ?? [])
+      // Source of truth for Intent API calls: chain + token pairing.
+      const evmPreferredTokens = (memoizedPreferredTokens ?? [])
         .filter((t) => evmChainIds.has(t.chainId))
-        .map((t) => t.token);
+        .map((t) => ({
+          chain: t.chainId,
+          address: t.token,
+        }));
+      // Backward-compat for local proxy implementations that still read this field.
+      const evmPreferredTokenAddresses = evmPreferredTokens.map(
+        (t) => t.address,
+      );
 
       const newOptions = await trpc.getWalletPaymentOptions.query({
         payerAddress: address,
         usdRequired: isDepositFlow ? undefined : usdRequired,
         destChainId,
         preferredChains: memoizedPreferredChains,
+        preferredTokens: evmPreferredTokens,
         preferredTokenAddress: evmPreferredTokenAddresses,
         appId: stableAppId,
       });
