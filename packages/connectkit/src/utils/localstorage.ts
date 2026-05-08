@@ -15,28 +15,51 @@ const randomID = () => {
   );
 };
 
-export const save = (storageKey: string, data: any[]) => {
+const getStorage = (): Storage | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const storageCandidate = window.localStorage;
+  if (
+    storageCandidate &&
+    typeof storageCandidate.getItem === "function" &&
+    typeof storageCandidate.setItem === "function"
+  ) {
+    return storageCandidate;
+  }
+
+  return null;
+};
+
+export const save = (storageKey: string, data: unknown[]) => {
+  const storage = getStorage();
+  if (!storage) return [];
+
   try {
-    localStorage.setItem(storageKey, JSON.stringify(data));
+    storage.setItem(storageKey, JSON.stringify(data));
     return get(storageKey);
-  } catch (e) {
+  } catch {
     return [];
   }
 };
 
 export const get = (storageKey: string) => {
+  const storage = getStorage();
+  if (!storage) return [];
+
   try {
-    const data = localStorage.getItem(storageKey);
+    const data = storage.getItem(storageKey);
     if (data) return JSON.parse(data);
     return [];
-  } catch (e) {
+  } catch {
     // error parsing data, reset
     save(storageKey, []);
     return [];
   }
 };
 
-export const add = (storageKey: string, item: any) => {
+export const add = (storageKey: string, item: Record<string, unknown>) => {
   const data = get(storageKey);
   const newData = [
     {
