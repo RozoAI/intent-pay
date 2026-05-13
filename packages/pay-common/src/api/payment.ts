@@ -265,3 +265,136 @@ export const updatePaymentEmail = async (
 
   return apiClient.post<PaymentResponse>(endpoint, payload);
 };
+
+/**
+ * Checkout (refresh) a payment with a new source token selection.
+ *
+ * When using `payId`, the payment was pre-created with a specific source token.
+ * If the user selects a different token (e.g. USDT ARB instead of USDC Base),
+ * this endpoint updates the payment's source to match the selected token and
+ * returns the refreshed payment with the correct deposit address.
+ *
+ * @param paymentId - The payment UUID to checkout
+ * @param params - Checkout parameters including the updated source token
+ * @returns Promise with the refreshed payment response
+ *
+ * @example
+ * ```typescript
+ * const refreshed = await checkoutPayment("d9a447f4-...", {
+ *   appId: "rozoDemo",
+ *   type: "exactIn",
+ *   source: {
+ *     chainId: 42161,
+ *     tokenSymbol: "USDT",
+ *     amount: "1.00",
+ *     tokenAddress: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+ *   },
+ *   destination: {
+ *     chainId: 8453,
+ *     receiverAddress: "0xdC4313EfB37836615d820F38A6016EE76598887B",
+ *     tokenSymbol: "USDC",
+ *     amount: "1.00",
+ *     tokenAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+ *   },
+ *   display: { currency: "USD", title: "Purchase" },
+ *   metadata: { appId: "rozoDemo" },
+ * });
+ * ```
+ */
+export interface CheckoutPaymentParams {
+  appId: string;
+  type: FeeType | string;
+  source: {
+    chainId: number | string;
+    tokenSymbol: string;
+    amount: string;
+    tokenAddress?: string;
+  };
+  destination: {
+    chainId: number | string;
+    receiverAddress: string;
+    tokenSymbol: string;
+    amount: string;
+    tokenAddress?: string;
+    receiverMemo?: string;
+  };
+  display: {
+    currency: string;
+    title: string;
+    description?: string;
+  };
+  metadata?: Record<string, any>;
+}
+
+export const checkoutPayment = async (
+  paymentId: string,
+  params: CheckoutPaymentParams,
+  apiVersion?: ApiVersion,
+): Promise<ApiResponse<PaymentResponse>> => {
+  if (apiVersion) {
+    setApiConfig({ version: apiVersion });
+  }
+
+  const endpoint = `/payment-api/payments/${paymentId}/checkout`;
+  return apiClient.post<PaymentResponse>(endpoint, params);
+};
+
+/**
+ * Builds a CheckoutPaymentParams payload from an existing payment response
+ * and the user's selected source token.
+ *
+ * Used in payId mode: when the user selects a different token than what the
+ * payment was originally created with, we need to "checkout" (refresh) the
+ * payment with the new source token to get the correct deposit address.
+ *
+ * @param payment - The existing payment response (from getPayment)
+ * @param sourceToken - The selected source token info
+ * @returns CheckoutPaymentParams ready to pass to checkoutPayment()
+ */
+export function buildCheckoutPayload(
+  payment: PaymentResponse,
+  sourceToken: {
+    chainId: number;
+    tokenSymbol: string;
+    tokenAddress: string;
+    amount: string;
+  },
+): CheckoutPaymentParams {
+  return {
+    ...payment,
+    appId: payment.appId,
+    type: payment.type ?? FeeType.ExactIn,
+    source: {
+      ...payment.source,
+      chainId: sourceToken.chainId,
+      tokenSymbol: sourceToken.tokenSymbol,
+      amount: sourceToken.amount,
+      tokenAddress: sourceToken.tokenAddress,
+    },
+    destination: {
+      ...payment.destination,
+      chainId: Number(payment.destination.chainId),
+      receiverAddress: payment.destination.receiverAddress ?? "",
+      tokenSymbol: payment.destination.tokenSymbol ?? "",
+      amount: payment.destination.amount ?? "",
+      ...(payment.destination.tokenAddress
+        ? { tokenAddress: payment.destination.tokenAddress }
+        : {}),
+      ...(payment.destination.receiverMemo
+        ? { receiverMemo: payment.destination.receiverMemo }
+        : {}),
+    },
+    display: {
+      ...payment.display,
+      currency: payment.display?.currency ?? "USD",
+      title: payment.display?.title ?? "Pay",
+      ...(payment.display?.description
+        ? { description: payment.display.description }
+        : {}),
+    },
+    metadata: {
+      ...payment.metadata,
+      appId: payment.appId,
+    },
+  };
+}

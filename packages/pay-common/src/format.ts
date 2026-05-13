@@ -83,5 +83,5 @@ export function generateIntentTitle({
     return `Pay with ${preferredToken.symbol} (${preferredChainName})`;
   }
 
-  return `Pay with ${preferredToken.symbol} (${preferredChainName}) to ${toToken.symbol} (${toChainName})`;
+  return `Pay to ${toToken.symbol} (${toChainName})`;
 }

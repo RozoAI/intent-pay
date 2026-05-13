@@ -45,7 +45,7 @@ export default function NavButtons() {
         </div>
 
         <div className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-600">
-          @rozoai/intent-pay <span className="font-medium">v{version}</span>
+          @rozoai/intent-pay - <span className="font-medium">v{version}</span>
         </div>
       </div>
 

@@ -10,8 +10,11 @@ import {
 } from "../../../Common/Modal/styles";
 
 import {
+  buildCheckoutPayload,
+  checkoutPayment,
   formatPaymentResponseToHydratedOrder,
   getChainExplorerTxUrl,
+  getPayment,
   RozoPayHydratedOrderWithOrg,
   stellar,
   WalletPaymentOption,
@@ -104,23 +107,24 @@ const PayWithStellarToken: React.FC = () => {
     // attempt, instead of the stale React state value captured in the closure.
     let resolvedPaymentId: string | undefined;
     try {
-      // Validate we have current payParams - if not, component has stale state
-      if (!payParams) {
+      // Validate we have current payParams - if not, check if we're in payId mode
+      // (pre-created payment). If neither, component has stale state.
+      if (!payParams && !order?.externalId) {
         log?.(
-          "[PayWithStellarToken] No payParams available, skipping transfer"
+          "[PayWithStellarToken] No payParams or payId available, skipping transfer"
         );
         setIsLoading(false);
         return;
       }
 
-      if (!destinationAddress) {
+      if (!destinationAddress && !order?.externalId) {
         throw new Error("Stellar destination address is required");
       }
 
       log?.("[PayWithStellarToken] Starting transfer with:", {
         destinationAddress,
-        chainId: payParams.toChain,
-        toStellarAddress: payParams.toStellarAddress,
+        chainId: payParams?.toChain,
+        toStellarAddress: payParams?.toStellarAddress,
       });
 
       if (!order) {
@@ -136,11 +140,36 @@ const PayWithStellarToken: React.FC = () => {
       let hydratedOrder: RozoPayHydratedOrderWithOrg;
       let paymentId: string | undefined;
 
+      // When payId is used (no payParams), fetch the existing payment instead
+      // of creating a new one to avoid re-creating a payment that already exists.
+      const existingPayId = order.externalId ?? undefined;
+      const isPayIdMode = !payParams && !!existingPayId;
+
       if (
         (state === "payment_unpaid" || state === "payment_started") &&
         !needRozoPayment
       ) {
         hydratedOrder = order;
+      } else if (isPayIdMode) {
+        // payId mode: checkout (refresh) the payment with the selected source token
+        const paymentRes = await getPayment(existingPayId!);
+        if (!paymentRes?.data) {
+          throw new Error("Failed to fetch payment");
+        }
+        const checkoutRes = await checkoutPayment(
+          existingPayId!,
+          buildCheckoutPayload(paymentRes.data, {
+            chainId: option.required.token.chainId,
+            tokenSymbol: option.required.token.symbol,
+            tokenAddress: option.required.token.token,
+            amount: String(option.required.usd),
+          }),
+        );
+        if (!checkoutRes?.data) {
+          throw new Error("Failed to checkout payment");
+        }
+        paymentId = checkoutRes.data.id;
+        hydratedOrder = formatPaymentResponseToHydratedOrder(checkoutRes.data);
       } else if (needRozoPayment) {
         const res = await createPayment(option, store as any);
 
@@ -231,8 +260,12 @@ const PayWithStellarToken: React.FC = () => {
       // Double-check destination address matches the payment direction
       const finalDestAddress = hydratedOrder.intentAddr || destinationAddress;
 
+      if (!finalDestAddress) {
+        throw new Error("Destination address not found");
+      }
+
       log?.(
-        `[PayWithStellarToken] Payment setup - destAddress: ${finalDestAddress}, toChain: ${payParams.toChain}, token chain: ${option.required.token.chainId}`
+        `[PayWithStellarToken] Payment setup - destAddress: ${finalDestAddress}, toChain: ${payParams?.toChain}, token chain: ${option.required.token.chainId}`
       );
 
       const paymentData = {

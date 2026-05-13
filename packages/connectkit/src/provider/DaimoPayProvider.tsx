@@ -84,7 +84,7 @@ const RozoPayUIProvider = ({
     throw Error("RozoPayProvider must be within a PaymentProvider");
   }
 
-  if (!React.useContext(WagmiContext)) {
+  if (typeof window !== "undefined" && !React.useContext(WagmiContext)) {
     throw Error("RozoPayProvider must be within a WagmiProvider");
   }
 
@@ -494,6 +494,9 @@ type RozoPayProviderProps = {
  * Provides context for RozoPayButton and hooks. Place in app root or layout.
  */
 export const RozoPayProvider = (props: RozoPayProviderProps) => {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+
   const payApiUrl = props.payApiUrl ?? "https://intentapi.rozo.ai";
   const apiVersion = props.apiVersion ?? "v2";
   const log = useMemo(
@@ -501,6 +504,8 @@ export const RozoPayProvider = (props: RozoPayProviderProps) => {
       props.debugMode ? (...args: any[]) => console.log(...args) : () => {},
     [props.debugMode]
   );
+
+  if (!mounted) return null;
 
   return (
     <PaymentProvider payApiUrl={payApiUrl} apiVersion={apiVersion} log={log}>

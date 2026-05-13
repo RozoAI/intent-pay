@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { RozoPayButton } from "@rozoai/intent-pay";
 import { baseUSDC } from "@rozoai/intent-common";
 import { sdk } from "@farcaster/frame-sdk";

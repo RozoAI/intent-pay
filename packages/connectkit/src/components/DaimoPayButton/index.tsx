@@ -213,27 +213,29 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
   // Track previous values to prevent unnecessary API calls
   const prevPayIdRef = useRef<string | null>(null);
-  const prevPayParamsRef = useRef<PayParams | null>(null);
+  const prevPayParamsRef = useRef<string | null>(null);
 
-  // Set the payId or payParams when they change
+  // Handle payId changes — dedicated effect with minimal dependencies
   useEffect(() => {
-    const payIdChanged = payId !== prevPayIdRef.current;
-    const payParamsChanged = payParams !== prevPayParamsRef.current;
-
-    (async () => {
-      if (payIdChanged && payId != null) {
-        prevPayIdRef.current = payId;
-        prevPayParamsRef.current = null; // Reset when switching modes
-        await paymentState.setPayId(payId);
-      } else if (payParamsChanged && payParams != null) {
-        prevPayParamsRef.current = payParams;
-        prevPayIdRef.current = null; // Reset when switching modes
-        await paymentState.setPayParams(payParams);
-      }
-    })();
-    // Note: paymentState is not stable/memoized, so we don't include it as a dependency
+    if (payId == null) return;
+    if (payId === prevPayIdRef.current) return;
+    prevPayIdRef.current = payId;
+    prevPayParamsRef.current = null;
+    paymentState.setPayId(payId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [payId, JSON.stringify(payParams)]);
+  }, [payId]);
+
+  // Handle payParams changes — separate effect
+  // Use JSON.stringify to detect deep changes since payParams is a new object each render
+  const payParamsJson = payParams ? JSON.stringify(payParams) : null;
+  useEffect(() => {
+    if (payParams == null) return;
+    if (payParamsJson === prevPayParamsRef.current) return;
+    prevPayParamsRef.current = payParamsJson;
+    prevPayIdRef.current = null;
+    paymentState.setPayParams(payParams);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payParamsJson]);
 
   // Set the confirmation message
   const { setConfirmationMessage } = context;

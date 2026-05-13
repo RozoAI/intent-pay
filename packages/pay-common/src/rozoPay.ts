@@ -592,6 +592,23 @@ export function writeRozoPayOrderID(id: bigint): string {
   return base58.encode(numberToBytes(id));
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUUID(id: string): boolean {
+  return UUID_REGEX.test(id);
+}
+
+/**
+ * Resolve an order ID string (Base58 or UUID) to the string form expected by
+ * the getOrder API. Base58 IDs are decoded to bigint then stringified; UUID IDs
+ * are passed through unchanged.
+ */
+export function resolveOrderId(id: string): string {
+  if (isUUID(id)) return id;
+  return readRozoPayOrderID(id).toString();
+}
+
 export const zUUID = z.string().uuid();
 
 export type UUID = z.infer<typeof zUUID>;

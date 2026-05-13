@@ -407,6 +407,10 @@ export function formatPaymentResponseToHydratedOrder(
     orgId: order.orgId ?? "",
     metadata: {
       ...(order?.metadata ?? {}),
+      // Map display.title to intent so the SDK heading shows the correct label
+      // (e.g. "Purchase", "Pay", "Deposit") when using payId mode.
+      intent:
+        order?.display?.title ?? (order?.metadata as any)?.intent ?? "Pay",
       // Canonical destination model for v2 payments. These fields are used by
       // getCanonicalDestination/getRozoPayOrderView in this package and by
       // higher-level SDKs to reason about where funds are deposited vs where
@@ -419,7 +423,7 @@ export function formatPaymentResponseToHydratedOrder(
       receivingAddress: intentAddress ?? "",
       memo: intentMemo ?? null,
     } as any,
-    externalId: order.externalId ?? null,
+    externalId: order.externalId ?? order.id ?? null,
     userMetadata: order.userMetadata as RozoPayUserMetadata | null,
     expirationTs: BigInt(
       Math.floor(new Date(order.expiresAt).getTime() / 1000).toString(),

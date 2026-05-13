@@ -42,7 +42,7 @@ type RozoPayFunctions = {
    *
    * @param id - The Rozo Pay order ID to set.
    */
-  setPayId: (id: RozoPayOrderID) => Promise<
+  setPayId: (id: RozoPayOrderID | string) => Promise<
     Extract<
       PaymentState,
       {
@@ -266,7 +266,7 @@ export function useRozoPay(): UseRozoPay {
   );
 
   const setPayId = useCallback(
-    async (payId: RozoPayOrderID) => {
+    async (payId: RozoPayOrderID | string) => {
       dispatch({ type: "set_pay_id", payId });
 
       // Wait for the order to be queried from the API. Using payId could

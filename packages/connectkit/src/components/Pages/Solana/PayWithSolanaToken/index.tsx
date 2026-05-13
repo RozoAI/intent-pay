@@ -10,8 +10,11 @@ import {
 } from "../../../Common/Modal/styles";
 
 import {
+  buildCheckoutPayload,
+  checkoutPayment,
   formatPaymentResponseToHydratedOrder,
   getChainExplorerTxUrl,
+  getPayment,
   RozoPayHydratedOrderWithOrg,
   rozoSolana,
   WalletPaymentOption,
@@ -111,11 +114,38 @@ const PayWithSolanaToken: React.FC = () => {
         let hydratedOrder: RozoPayHydratedOrderWithOrg;
         let paymentId: string | undefined;
 
+        // When payId is used (no payParams), fetch the existing payment instead
+        // of creating a new one to avoid re-creating a payment that already exists.
+        const existingPayId = order.externalId ?? undefined;
+        const isPayIdMode = !payParams && !!existingPayId;
+
         if (
           (state === "payment_unpaid" || state === "payment_started") &&
           !needRozoPayment
         ) {
           hydratedOrder = order;
+        } else if (isPayIdMode) {
+          // payId mode: checkout (refresh) the payment with the selected source token
+          const paymentRes = await getPayment(existingPayId!);
+          if (!paymentRes?.data) {
+            throw new Error("Failed to fetch payment");
+          }
+          const checkoutRes = await checkoutPayment(
+            existingPayId!,
+            buildCheckoutPayload(paymentRes.data, {
+              chainId: option.required.token.chainId,
+              tokenSymbol: option.required.token.symbol,
+              tokenAddress: option.required.token.token,
+              amount: String(option.required.usd),
+            }),
+          );
+          if (!checkoutRes?.data) {
+            throw new Error("Failed to checkout payment");
+          }
+          paymentId = checkoutRes.data.id;
+
+          const formattedOrder = formatPaymentResponseToHydratedOrder(checkoutRes.data);
+          hydratedOrder = formattedOrder;
         } else if (needRozoPayment) {
           const res = await createPayment(option, store as any);
 
