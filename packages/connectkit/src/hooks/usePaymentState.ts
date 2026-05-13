@@ -339,9 +339,9 @@ export function usePaymentState({
 
     // If preferredTokens exists and has no Stellar tokens, don't show Stellar method
     if (preferredTokens && preferredTokens.length > 0) {
-      const hasStellarToken = preferredTokens.some(
-        (t) => t.chainId === rozoStellar.chainId,
-      );
+      const hasStellarToken = preferredTokens
+        .filter((v) => !!v)
+        .some((t) => t.chainId === rozoStellar.chainId);
       if (!hasStellarToken) {
         return false;
       }
@@ -403,8 +403,6 @@ export function usePaymentState({
         preferredSymbol,
         undefined,
       );
-
-      console.log({ order: pay.order });
 
       return {
         toChain: pay.order.destFinalCallTokenAmount.token.chainId,

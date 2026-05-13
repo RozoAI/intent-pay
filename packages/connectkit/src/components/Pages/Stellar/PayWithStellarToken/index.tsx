@@ -72,6 +72,10 @@ const PayWithStellarToken: React.FC = () => {
     kit: stellarKit,
   } = useStellar();
   const submitButtonRef = useRef<HTMLButtonElement>(null);
+  // Prevents the payId fetch+checkout from firing more than once per mount.
+  const checkoutDoneRef = useRef(false);
+  const cachedCheckoutOrderRef = useRef<RozoPayHydratedOrderWithOrg | null>(null);
+  const cachedCheckoutPaymentIdRef = useRef<string | undefined>(undefined);
 
   const [payState, setPayState] = useState<PayState>(
     PayState.PreparingTransaction
@@ -151,25 +155,37 @@ const PayWithStellarToken: React.FC = () => {
       ) {
         hydratedOrder = order;
       } else if (isPayIdMode) {
-        // payId mode: checkout (refresh) the payment with the selected source token
-        const paymentRes = await getPayment(existingPayId!);
-        if (!paymentRes?.data) {
-          throw new Error("Failed to fetch payment");
+        // payId mode: checkout (refresh) the payment with the selected source token.
+        // Guard against duplicate calls (e.g. from the recursive payment_unpaid branch).
+        if (checkoutDoneRef.current && cachedCheckoutOrderRef.current) {
+          log?.(
+            "[PayWithStellarToken] isPayIdMode checkout already done, reusing cached result"
+          );
+          hydratedOrder = cachedCheckoutOrderRef.current;
+          paymentId = cachedCheckoutPaymentIdRef.current;
+        } else {
+          checkoutDoneRef.current = true;
+          const paymentRes = await getPayment(existingPayId!);
+          if (!paymentRes?.data) {
+            throw new Error("Failed to fetch payment");
+          }
+          const checkoutRes = await checkoutPayment(
+            existingPayId!,
+            buildCheckoutPayload(paymentRes.data, {
+              chainId: option.required.token.chainId,
+              tokenSymbol: option.required.token.symbol,
+              tokenAddress: option.required.token.token,
+              amount: String(option.required.usd),
+            }),
+          );
+          if (!checkoutRes?.data) {
+            throw new Error("Failed to checkout payment");
+          }
+          paymentId = checkoutRes.data.id;
+          hydratedOrder = formatPaymentResponseToHydratedOrder(checkoutRes.data);
+          cachedCheckoutOrderRef.current = hydratedOrder;
+          cachedCheckoutPaymentIdRef.current = paymentId;
         }
-        const checkoutRes = await checkoutPayment(
-          existingPayId!,
-          buildCheckoutPayload(paymentRes.data, {
-            chainId: option.required.token.chainId,
-            tokenSymbol: option.required.token.symbol,
-            tokenAddress: option.required.token.token,
-            amount: String(option.required.usd),
-          }),
-        );
-        if (!checkoutRes?.data) {
-          throw new Error("Failed to checkout payment");
-        }
-        paymentId = checkoutRes.data.id;
-        hydratedOrder = formatPaymentResponseToHydratedOrder(checkoutRes.data);
       } else if (needRozoPayment) {
         const res = await createPayment(option, store as any);
 
