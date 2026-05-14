@@ -39,11 +39,11 @@ importers:
         specifier: ^2.2.0
         version: 2.2.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@rozoai/intent-common':
-        specifier: 0.1.14-beta.1
-        version: 0.1.14-beta.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+        specifier: 0.1.14-beta.3
+        version: 0.1.14-beta.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@rozoai/intent-pay':
-        specifier: 0.1.21-beta.2
-        version: 0.1.21-beta.2(473c48666b1bdef2d7dab1850f607e1f)
+        specifier: 0.1.21-beta.8
+        version: 0.1.21-beta.8(473c48666b1bdef2d7dab1850f607e1f)
       '@stellar/stellar-sdk':
         specifier: ^14.4.3
         version: 14.6.1
@@ -124,8 +124,8 @@ importers:
         specifier: ^12.1.2
         version: 12.3.0(rollup@3.30.0)(tslib@2.8.1)(typescript@5.9.3)
       '@rozoai/intent-common':
-        specifier: 0.1.14-beta.1
-        version: 0.1.14-beta.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
+        specifier: 0.1.14-beta.3
+        version: 0.1.14-beta.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@solana/spl-token':
         specifier: ^0.4.14
         version: 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
@@ -757,8 +757,8 @@ packages:
   '@ledgerhq/devices@8.14.2':
     resolution: {integrity: sha512-T3pnfrsQEC/eJU0XHIqWI6qww+CL1k3NumR2XGWlMz8lVpoZ9HhcuGoCkMevp+8SWmymgyNIIFue3jlNA5KiMw==}
 
-  '@ledgerhq/errors@6.35.0':
-    resolution: {integrity: sha512-qk9PbqIvze7NXGogVxNCsz60rNo5FrGj8gKqs7pcyDk+em5L6s70G7cRxR+1HTXdam4WoPfntUq+WX9zQUynkg==}
+  '@ledgerhq/errors@6.34.1':
+    resolution: {integrity: sha512-Atkim7yM9bbfWN7OikiE1vbtRLABRz6rDayTHkX0rkPTs6EkMVZSgoNNDGhcYQRlUXrTz9Eko+5ixCLpJQpEWg==}
 
   '@ledgerhq/hw-app-str@7.0.4':
     resolution: {integrity: sha512-ArKnGCZaGnUPqoKaR9OE+ZGcGARKJLHthl/aybQWOIo952+cQpgcn0mg5yK1Amd9EiKfArCTlLJ3wAafO5d/lw==}
@@ -1434,11 +1434,11 @@ packages:
       rollup:
         optional: true
 
-  '@rozoai/intent-common@0.1.14-beta.1':
-    resolution: {integrity: sha512-Xg08Ir0a8IbFNgT/+4eUfgcfOZIustv8D2tvNA8ZsD11iYp4bF31ItbGlRs8Sgdi1+IHh5Cc8/OUHptmaQvfXw==}
+  '@rozoai/intent-common@0.1.14-beta.3':
+    resolution: {integrity: sha512-vGJRvHvyCPNd+VMXN1bCvlExLEgvFA1J0QrNaLIUEclQHDwpsFXXoXkDiHqJBS/qy4WONKrpyjr0HmOxphIapw==}
 
-  '@rozoai/intent-pay@0.1.21-beta.2':
-    resolution: {integrity: sha512-57RNM3rCGRoRG+pxiv1tscKdnBwxUlwXeEnTzkLnkbMyaiPg5ks2nJrOhvLW4vPJX81OdvjFeQviXDplDsGHKQ==}
+  '@rozoai/intent-pay@0.1.21-beta.8':
+    resolution: {integrity: sha512-ru2pISSMDsbAZqKKNhM8U8qt1ibYyUU3f3oeM2SbtQ7egwq/JHhadhpGgwcqyPo148p6++V5cB+AEhs8RVNGGA==}
     engines: {node: '>=12.4'}
     peerDependencies:
       '@creit.tech/stellar-wallets-kit': ^1.9.5
@@ -3865,8 +3865,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  electron-to-chromium@1.5.354:
-    resolution: {integrity: sha512-JaBHwWcfIdmSAfWM5l3uwjGd431j8YEMikZ+K/2nXVuBqJKyZ0f+2h4n4JY5AyNiZmnY9qQr2RU3v9DxDmHMNg==}
+  electron-to-chromium@1.5.353:
+    resolution: {integrity: sha512-kOrWphBi8TOZyiJZqsgqIle0lw+tzmnQK83pV9dZUd01Nm2POECSyFQMAuarzZdYqQW7FH9RaYOuaRo3h+bQ3w==}
 
   elliptic@6.6.1:
     resolution: {integrity: sha512-RaddvvMatK2LJHqFJ+YA4WysVN5Ita9E35botqIYspQ4TkRAlCicdzKOjlyv/1Za5RyTNn7di//eEV0uTAfe3g==}
@@ -7913,30 +7913,30 @@ snapshots:
 
   '@ledgerhq/devices@8.14.2':
     dependencies:
-      '@ledgerhq/errors': 6.35.0
+      '@ledgerhq/errors': 6.34.1
       '@ledgerhq/logs': 6.17.0
       rxjs: 7.8.2
       semver: 7.7.3
 
-  '@ledgerhq/errors@6.35.0': {}
+  '@ledgerhq/errors@6.34.1': {}
 
   '@ledgerhq/hw-app-str@7.0.4':
     dependencies:
-      '@ledgerhq/errors': 6.35.0
+      '@ledgerhq/errors': 6.34.1
       '@ledgerhq/hw-transport': 6.31.4
       bip32-path: 0.4.2
 
   '@ledgerhq/hw-transport-webusb@6.29.4':
     dependencies:
       '@ledgerhq/devices': 8.14.2
-      '@ledgerhq/errors': 6.35.0
+      '@ledgerhq/errors': 6.34.1
       '@ledgerhq/hw-transport': 6.31.4
       '@ledgerhq/logs': 6.17.0
 
   '@ledgerhq/hw-transport@6.31.4':
     dependencies:
       '@ledgerhq/devices': 8.14.2
-      '@ledgerhq/errors': 6.35.0
+      '@ledgerhq/errors': 6.34.1
       '@ledgerhq/logs': 6.17.0
       events: 3.3.0
 
@@ -8190,7 +8190,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
       '@types/debug': 4.1.13
-      debug: 4.4.3(supports-color@5.5.0)
+      debug: 4.3.4
       pony-cause: 2.1.11
       semver: 7.8.0
       uuid: 9.0.1
@@ -9814,7 +9814,7 @@ snapshots:
     optionalDependencies:
       rollup: 3.30.0
 
-  '@rozoai/intent-common@0.1.14-beta.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
+  '@rozoai/intent-common@0.1.14-beta.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@scure/base': 1.2.6
       '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -9828,7 +9828,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@rozoai/intent-common@0.1.14-beta.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)':
+  '@rozoai/intent-common@0.1.14-beta.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)':
     dependencies:
       '@scure/base': 1.2.6
       '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
@@ -9842,13 +9842,13 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@rozoai/intent-pay@0.1.21-beta.2(473c48666b1bdef2d7dab1850f607e1f)':
+  '@rozoai/intent-pay@0.1.21-beta.8(473c48666b1bdef2d7dab1850f607e1f)':
     dependencies:
       '@creit.tech/stellar-wallets-kit': 1.9.5(835bd35df1c5b92aa41a46b7fd5e52a0)
       '@reown/appkit': 1.8.19(@react-native-async-storage/async-storage@1.24.0(react-native@0.85.3(@babel/core@7.29.0)(@types/react@18.3.28)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@5.0.10)))(@types/react@18.3.28)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(react@18.2.0)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@18.2.0))(utf-8-validate@5.0.10)(zod@4.4.3)
       '@rollup/plugin-image': 3.0.3(rollup@3.30.0)
       '@rollup/plugin-typescript': 12.3.0(rollup@3.30.0)(tslib@2.8.1)(typescript@5.9.3)
-      '@rozoai/intent-common': 0.1.14-beta.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@rozoai/intent-common': 0.1.14-beta.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@solana/spl-token': 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@solana/wallet-adapter-base': 0.9.27(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))
       '@solana/wallet-adapter-react': 0.15.39(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bs58@6.0.0)(fastestsmallesttextencoderdecoder@1.0.22)(react-native@0.85.3(@babel/core@7.29.0)(@types/react@18.3.28)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@5.0.10))(react@18.2.0)(typescript@5.9.3)
@@ -15055,7 +15055,7 @@ snapshots:
     dependencies:
       baseline-browser-mapping: 2.10.29
       caniuse-lite: 1.0.30001792
-      electron-to-chromium: 1.5.354
+      electron-to-chromium: 1.5.353
       node-releases: 2.0.44
       update-browserslist-db: 1.2.3(browserslist@4.28.2)
 
@@ -15537,7 +15537,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  electron-to-chromium@1.5.354: {}
+  electron-to-chromium@1.5.353: {}
 
   elliptic@6.6.1:
     dependencies:

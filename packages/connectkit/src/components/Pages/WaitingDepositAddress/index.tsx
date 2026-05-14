@@ -127,6 +127,7 @@ export default function WaitingDepositAddress() {
         setPaymentCompleted(
           payload.source_txhash,
           rozoPaymentId || payload.payment_id,
+          null,
         );
         setPaymentPayoutCompleted(
           payload.source_txhash,

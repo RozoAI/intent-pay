@@ -1165,19 +1165,71 @@ export function usePaymentState({
     log?.(`[PAY DEPOSIT ADDRESS] Starting processing for ${option}`);
 
     try {
-      log?.("[PAY DEPOSIT ADDRESS] hydrating order");
+      const payParams = currPayParamsRef.current;
+      let order: RozoPayHydratedOrderWithOrg;
 
-      const { order } = await pay.hydrateOrder(undefined, {
-        required: {
-          token: {
-            token: option.token.token,
-            chainId: option.token.chainId,
+      if (!payParams) {
+        // payId mode: fetch existing payment and checkout with the selected token
+        const existingPayId = pay.order?.externalId ?? undefined;
+        if (!existingPayId) {
+          throw new Error("No pay params and no existing payment ID");
+        }
+
+        log?.(
+          `[PAY DEPOSIT ADDRESS] payId mode — fetching payment ${existingPayId}`,
+        );
+
+        const paymentRes = await getPayment(existingPayId);
+        if (!paymentRes?.data) {
+          throw new Error("Failed to fetch payment");
+        }
+
+        let sourceChainId = Number(option.token.chainId);
+
+        if (sourceChainId === solana.chainId) {
+          sourceChainId = rozoSolana.chainId;
+        } else if (sourceChainId === stellar.chainId) {
+          sourceChainId = rozoStellar.chainId;
+        }
+
+        const checkoutRes = await checkoutPayment(
+          existingPayId,
+          buildCheckoutPayload(paymentRes.data, {
+            chainId: sourceChainId,
+            tokenSymbol: option.token.symbol,
+            tokenAddress: option.token.token,
+            amount: String(paymentRes.data.destination?.amount ?? "0"),
+          }),
+        );
+        if (!checkoutRes?.data) {
+          throw new Error("Failed to checkout payment");
+        }
+
+        setRozoPaymentId(checkoutRes.data.id);
+        order = formatPaymentResponseToHydratedOrder(
+          checkoutRes.data,
+        ) as RozoPayHydratedOrderWithOrg;
+
+        log?.(
+          `[PAY DEPOSIT ADDRESS] payId mode — checked out order ${order.id} for ${order.usdValue} USD`,
+        );
+      } else {
+        log?.("[PAY DEPOSIT ADDRESS] hydrating order");
+
+        const result = await pay.hydrateOrder(undefined, {
+          required: {
+            token: {
+              token: option.token.token,
+              chainId: option.token.chainId,
+            } as any,
           } as any,
-        } as any,
-        fees: {
-          usd: fees?.fee ?? 0,
-        },
-      } as any);
+          fees: {
+            usd: fees?.fee ?? 0,
+          },
+        } as any);
+
+        order = result.order;
+      }
 
       log?.(
         `[PAY DEPOSIT ADDRESS] hydrated order ${order.id} for ${order.usdValue} USD, checking out with deposit address: ${option}`,

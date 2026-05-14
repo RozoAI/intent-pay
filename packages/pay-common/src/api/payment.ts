@@ -1,5 +1,11 @@
 import { createPaymentBridgeConfig } from "../bridge-utils";
-import { getChainById } from "../chain";
+import {
+  getChainById,
+  rozoSolana,
+  rozoStellar,
+  solana,
+  stellar,
+} from "../chain";
 import { getKnownToken } from "../token";
 import { apiClient, ApiResponse, ApiVersion, setApiConfig } from "./base";
 import {
@@ -360,13 +366,21 @@ export function buildCheckoutPayload(
     amount: string;
   },
 ): CheckoutPaymentParams {
+  let sourceChainId = sourceToken.chainId;
+
+  if (sourceChainId === solana.chainId) {
+    sourceChainId = rozoSolana.chainId;
+  } else if (sourceChainId === stellar.chainId) {
+    sourceChainId = rozoStellar.chainId;
+  }
+
   return {
     ...payment,
     appId: payment.appId,
-    type: payment.type ?? FeeType.ExactIn,
+    type: payment.type ?? FeeType.ExactOut,
     source: {
       ...payment.source,
-      chainId: sourceToken.chainId,
+      chainId: sourceChainId,
       tokenSymbol: sourceToken.tokenSymbol,
       amount: sourceToken.amount,
       tokenAddress: sourceToken.tokenAddress,

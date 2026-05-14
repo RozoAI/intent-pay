@@ -634,8 +634,14 @@ export type PaymentCompletedEvent = {
   type: RozoPayEventType.PaymentCompleted;
   isTestEvent?: boolean;
   paymentId: RozoPayOrderID;
-  chainId: number;
+  /** Chain ID where the payer sent funds from */
+  sourceChainId: number | null;
+  /** Chain ID where the destination receives funds */
+  destinationChainId: number;
+  /** Source transaction hash (payer's transaction) */
   txHash: string;
+  /** Address of the wallet that sent the payment */
+  payerAddress: string | null;
   payment: RozoPayOrderView;
   rozoPaymentId?: string;
 };

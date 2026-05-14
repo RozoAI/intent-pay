@@ -130,7 +130,7 @@ const Confirmation: React.FC = () => {
         ));
 
     if (isRozoPayment && txHash && isConfirming) {
-      setPaymentCompleted(txHash, rozoPaymentId);
+      setPaymentCompleted(txHash, rozoPaymentId, paymentStateContext.senderAddress ?? null);
       setIsConfirming(false);
     }
   }, [
@@ -429,7 +429,7 @@ const Confirmation: React.FC = () => {
         );
       });
 
-      setPaymentCompleted(rawPayInHash, rozoPaymentId);
+      setPaymentCompleted(rawPayInHash, rozoPaymentId, paymentStateContext.senderAddress ?? null);
       onSuccess();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

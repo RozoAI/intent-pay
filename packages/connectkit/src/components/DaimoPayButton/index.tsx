@@ -407,12 +407,18 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         return null;
       }
 
+      const orderView = getRozoPayOrderView(currentOrder);
       return {
         type: RozoPayEventType.PaymentCompleted,
         paymentId: currentOrder.externalId,
-        chainId: currentOrder.destFinalCallTokenAmount.token.chainId,
+        sourceChainId: orderView.source
+          ? Number(orderView.source.chainId)
+          : null,
+        destinationChainId:
+          currentOrder.destFinalCallTokenAmount.token.chainId,
         txHash,
-        payment: getRozoPayOrderView(currentOrder),
+        payerAddress: orderView.source?.payerAddress ?? null,
+        payment: orderView,
         rozoPaymentId:
           orderIdString ?? getOrderIdString(currentOrder.id) ?? null,
       };
