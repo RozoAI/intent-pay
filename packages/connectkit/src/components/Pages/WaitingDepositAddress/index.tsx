@@ -21,10 +21,10 @@ import { keyframes } from "styled-components";
 import { parseUnits } from "viem";
 import { AlertIcon, WarningIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
-import { useRozoPay } from "../../../hooks/useRozoPay";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { usePayContext } from "../../../hooks/usePayContext";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import styled from "../../../styles/styled";
 import { formatUsd, roundUsd } from "../../../utils/format";
 import Button from "../../Common/Button";
@@ -165,15 +165,15 @@ export default function WaitingDepositAddress() {
       if (order.sourceTokenAmount == null) return;
 
       // Pay underpaid order
-      const taPaid = order.sourceTokenAmount;
-      const usdPaid = taPaid.usd; // TODO: get usdPaid directly from the order
-      const usdToPay = Math.max(order.usdValue - usdPaid, 0.01);
-      const dispDecimals = taPaid.token.displayDecimals;
-      const unitsToPay = (usdToPay / taPaid.token.usd).toFixed(dispDecimals);
-      const unitsPaid = (
-        Number(taPaid.amount) /
-        10 ** taPaid.token.decimals
-      ).toFixed(dispDecimals);
+      // const taPaid = order.sourceTokenAmount;
+      // const usdPaid = taPaid.usd; // TODO: get usdPaid directly from the order
+      // const usdToPay = Math.max(order.usdValue - usdPaid, 0.01);
+      // const dispDecimals = taPaid.token.displayDecimals;
+      // const unitsToPay = (usdToPay / taPaid.token.usd).toFixed(dispDecimals);
+      // const unitsPaid = (
+      //   Number(taPaid.amount) /
+      //   10 ** taPaid.token.decimals
+      // ).toFixed(dispDecimals);
 
       // (Removed duplicate tronUnderpay calculation now handled at top-level)
       // Hack to always show a <= 60 minute countdown
