@@ -18,7 +18,7 @@ import { ThemeProvider } from "styled-components";
 import { WagmiContext } from "wagmi";
 
 import type { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
-import { RozoPayModal } from "../components/DaimoPayModal";
+import { RozoPayModal } from "../components/RozoPayModal";
 import { ROUTES } from "../constants/routes";
 import { REQUIRED_CHAINS } from "../defaultConfig";
 import { useChains } from "../hooks/useChains";
@@ -26,7 +26,7 @@ import {
   useConnectCallback,
   useConnectCallbackProps,
 } from "../hooks/useConnectCallback";
-import { useRozoPay } from "../hooks/useDaimoPay";
+import { useRozoPay } from "../hooks/useRozoPay";
 import { usePaymentState } from "../hooks/usePaymentState";
 import { PaymentEventProvider } from "../payment/paymentEventContext";
 import defaultTheme from "../styles/defaultTheme";

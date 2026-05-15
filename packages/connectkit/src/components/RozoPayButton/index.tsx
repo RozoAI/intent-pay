@@ -21,7 +21,7 @@ import {
 import { AnimatePresence, Variants } from "framer-motion";
 import { getAddress } from "viem";
 import { ROUTES } from "../../constants/routes";
-import { useRozoPay } from "../../hooks/useDaimoPay";
+import { useRozoPay } from "../../hooks/useRozoPay";
 import {
   PaymentEventData,
   usePaymentEvents,

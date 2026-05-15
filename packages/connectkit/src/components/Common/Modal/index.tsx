@@ -40,7 +40,7 @@ import { useTransition } from "react-transition-state";
 import { useAccount, useSwitchChain } from "wagmi";
 import { AuthIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
-import { useRozoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import FocusTrap from "../../../hooks/useFocusTrap";
 import useLocales from "../../../hooks/useLocales";
 import usePrevious from "../../../hooks/usePrevious";
@@ -49,7 +49,7 @@ import {
   useWallet,
   WALLET_ID_MOBILE_WALLETS,
 } from "../../../wallets/useWallets";
-import { useThemeContext } from "../../DaimoPayThemeProvider/DaimoPayThemeProvider";
+import { useThemeContext } from "../../RozoPayThemeProvider/RozoPayThemeProvider";
 import FitText from "../FitText";
 
 const ProfileIcon = ({ isSignedIn }: { isSignedIn?: boolean }) => (

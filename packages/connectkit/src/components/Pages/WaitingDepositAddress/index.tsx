@@ -21,7 +21,7 @@ import { keyframes } from "styled-components";
 import { parseUnits } from "viem";
 import { AlertIcon, WarningIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
-import { useRozoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { usePayContext } from "../../../hooks/usePayContext";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";

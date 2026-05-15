@@ -4,7 +4,7 @@ import { usePayContext } from "../../../hooks/usePayContext";
 
 import { ModalContent, PageContent } from "../../Common/Modal/styles";
 
-import { useRozoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import styled from "../../../styles/styled";
 import { USD_DECIMALS } from "../../../utils/format";
 import { isValidNumber, sanitizeNumber } from "../../../utils/validateInput";

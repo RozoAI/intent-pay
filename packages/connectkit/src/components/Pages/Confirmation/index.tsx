@@ -26,7 +26,7 @@ import {
 } from "../../../assets/icons";
 import defaultTheme from "../../../constants/defaultTheme";
 import { ROZO_INVOICE_URL } from "../../../constants/rozoConfig";
-import { useRozoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import { usePayoutPolling } from "../../../hooks/usePayoutPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useSupportedChains } from "../../../hooks/useSupportedChains";

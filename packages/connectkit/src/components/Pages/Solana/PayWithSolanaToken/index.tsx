@@ -21,7 +21,7 @@ import {
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
-import { useRozoPay } from "../../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../../hooks/useRozoPay";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";

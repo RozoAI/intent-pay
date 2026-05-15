@@ -26,7 +26,7 @@ import {
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
-import { useRozoPay } from "../../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../../hooks/useRozoPay";
 import { useStellar } from "../../../../provider/StellarContextProvider";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";

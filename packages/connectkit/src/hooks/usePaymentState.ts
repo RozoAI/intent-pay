@@ -77,7 +77,7 @@ import {
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
 import bs58 from "bs58";
-import { PayButtonPaymentProps } from "../components/DaimoPayButton/types";
+import { PayButtonPaymentProps } from "../components/RozoPayButton/types";
 import { ROUTES } from "../constants/routes";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { buildCreatePaymentPayload } from "../payment/createPaymentPayload";
@@ -88,7 +88,7 @@ import { parseErrorMessage } from "../utils/errorParser";
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
 import { WalletConfigProps } from "../wallets/walletConfigs";
-import { useRozoPay } from "./useDaimoPay";
+import { useRozoPay } from "./useRozoPay";
 import { useDepositAddressOptions } from "./useDepositAddressOptions";
 import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
 import useIsMobile from "./useIsMobile";
@@ -779,7 +779,7 @@ export function usePaymentState({
     return { txHash: paymentTxHash, success: true };
   };
 
-  // @NOTE: This is Pay In Solana by Daimo (default)
+  // @NOTE: This is Pay In Solana by Rozo (default)
   const payWithSolanaToken = async (
     walletPaymentOption: WalletPaymentOption,
   ): Promise<{ txHash: string; success: boolean }> => {
@@ -1385,7 +1385,7 @@ export function usePaymentState({
     async (payId: string | undefined) => {
       if (lockPayParams || payId == null) return;
 
-      // Always reset and re-fetch. The caller (DaimoPayButton) already
+      // Always reset and re-fetch. The caller (RozoPayButton) already
       // deduplicates via prevPayIdRef so this only fires on actual changes.
       pay.reset();
       pay.setPayId(payId);

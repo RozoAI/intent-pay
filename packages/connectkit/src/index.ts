@@ -4,20 +4,20 @@ export { version } from "../package.json";
 
 // Configure Rozo Pay
 export { default as getDefaultConfig } from "./defaultConfig";
-export { RozoPayProvider } from "./provider/DaimoPayProvider";
+export { RozoPayProvider } from "./provider/RozoPayProvider";
 
 // Pay button
-export { RozoPayButton } from "./components/DaimoPayButton";
+export { RozoPayButton } from "./components/RozoPayButton";
 
 export type {
   RozoPayButtonCustomProps,
   RozoPayButtonProps,
-} from "./components/DaimoPayButton/types";
+} from "./components/RozoPayButton/types";
 
 // Hooks to track payment status + UI status.
-export { useRozoPay } from "./hooks/useDaimoPay";
-export { useRozoPayStatus } from "./hooks/useDaimoPayStatus";
-export { useRozoPayUI } from "./hooks/useDaimoPayUI";
+export { useRozoPay } from "./hooks/useRozoPay";
+export { useRozoPayStatus } from "./hooks/useRozoPayStatus";
+export { useRozoPayUI } from "./hooks/useRozoPayUI";
 
 // For convenience, export components to show connected account.
 // export { default as ChainIcon } from "./components/Common/Chain";

@@ -8,7 +8,7 @@ import {
 import { useEffect, useMemo } from "react";
 import { AlertIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
-import { useRozoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
 import styled from "../../../styles/styled";
 import { categorizeError, ErrorType } from "../../../utils/errorParser";

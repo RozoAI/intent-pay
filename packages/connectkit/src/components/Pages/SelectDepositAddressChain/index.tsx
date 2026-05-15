@@ -5,7 +5,7 @@ import { usePayContext } from "../../../hooks/usePayContext";
 import { ModalContent, ModalH1, PageContent } from "../../Common/Modal/styles";
 
 import { getKnownToken, RozoPayOrderMode } from "@rozoai/intent-common";
-import { useRozoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import { OptionsList } from "../../Common/OptionsList";
 import { OrderHeader } from "../../Common/OrderHeader";
 import PoweredByFooter from "../../Common/PoweredByFooter";
