@@ -4,13 +4,43 @@
 
 ## Table of Contents
 
-1. [Payment State Issues](#payment-state-issues)
-2. [Cross-Chain Payment Problems](#cross-chain-payment-problems)
-3. [Wallet Connection Issues](#wallet-connection-issues)
-4. [Token Balance & Loading](#token-balance--loading)
-5. [API & Network Errors](#api--network-errors)
-6. [Performance & Optimization](#performance--optimization)
-7. [Development Environment Issues](#development-environment-issues)
+1. [Provider Setup Issues](#provider-setup-issues)
+2. [Payment State Issues](#payment-state-issues)
+3. [Cross-Chain Payment Problems](#cross-chain-payment-problems)
+4. [Wallet Connection Issues](#wallet-connection-issues)
+5. [Token Balance & Loading](#token-balance--loading)
+6. [API & Network Errors](#api--network-errors)
+7. [Performance & Optimization](#performance--optimization)
+8. [Development Environment Issues](#development-environment-issues)
+
+---
+
+## Provider Setup Issues
+
+For correct provider setup patterns, see [PROVIDER_SETUP.md](./PROVIDER_SETUP.md).
+
+### Symptom: UI flash / blank content on first render
+
+Children briefly disappear or show blank on page load.
+
+**Root Cause:** `createConfig` called at module level in a `"use client"` file — may cause SSR/hydration mismatch.
+
+**Fix:** Move `createConfig` inside `useState`:
+```tsx
+const [config] = useState(() => createConfig(getDefaultConfig({ appName: "..." })));
+```
+
+### Symptom: `useRozoPayUI must be used within a RozoPayProvider`
+
+Hook called in a component not wrapped by `RozoPayProvider`.
+
+**Fix:** Ensure `RozoPayProvider` is an ancestor in the tree. See [PROVIDER_SETUP.md](./PROVIDER_SETUP.md) for layout patterns.
+
+### Symptom: `Multiple, nested usages of RozoPayProvider detected`
+
+`RozoPayProvider` appears more than once in the component tree.
+
+**Fix:** One provider at app root only. Do not nest per-page or per-component.
 
 ---
 
