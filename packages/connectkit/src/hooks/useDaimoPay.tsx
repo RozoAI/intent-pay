@@ -514,7 +514,11 @@ export function useRozoPay(): UseRozoPay {
   );
 
   const setPaymentCompleted = useCallback(
-    async (txHash: string, rozoPaymentId?: string, payerAddress?: string | null) => {
+    async (
+      txHash: string,
+      rozoPaymentId?: string,
+      payerAddress?: string | null,
+    ) => {
       // Get the current order from the state
       const currentState = store.getState();
 
@@ -545,7 +549,8 @@ export function useRozoPay(): UseRozoPay {
       const updatedOrder = {
         ...hydratedOrder,
         sourceStartTxHash: txHash,
-        sourceFulfillerAddr: payerAddress ?? hydratedOrder.sourceFulfillerAddr ?? null,
+        sourceFulfillerAddr:
+          payerAddress ?? hydratedOrder.sourceFulfillerAddr ?? null,
       };
 
       // Directly dispatch a payment_verified event to set the state to completed
@@ -582,6 +587,7 @@ export function useRozoPay(): UseRozoPay {
         emit(PaymentStatus.PaymentCompleted, {
           order: completedState.order,
           rozoPaymentId: completedState.order.externalId ?? "",
+          payerAddress: payerAddress ?? null,
         });
       }
 

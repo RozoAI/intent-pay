@@ -74,7 +74,7 @@ export const zBridgeTokenOutOptions = z.array(
   z.object({
     token: zAddress,
     amount: zBigIntStr.transform((a) => BigInt(a)),
-  })
+  }),
 );
 
 export type BridgeTokenOutOptions = z.infer<typeof zBridgeTokenOutOptions>;
@@ -100,7 +100,7 @@ export const zRozoPayOrderMetadata = z.object({
         image: z.string().optional(),
         price: z.string().optional(),
         priceDetails: z.string().optional(),
-      })
+      }),
     )
     .describe("Details about what's being ordered, donated, deposited, etc."),
   payer: z
@@ -109,18 +109,18 @@ export const zRozoPayOrderMetadata = z.object({
         .array(z.number())
         .optional()
         .describe(
-          "Preferred chain IDs, in descending order. Any assets the user owns on preferred chains will appear first. Defaults to destination chain."
+          "Preferred chain IDs, in descending order. Any assets the user owns on preferred chains will appear first. Defaults to destination chain.",
         ),
       preferredTokens: z
         .array(
           z.object({
             chain: z.number(),
             address: zAddress.transform((a) => getAddress(a)),
-          })
+          }),
         )
         .optional()
         .describe(
-          "Preferred tokens, in descending order. Any preferred assets the user owns will appear first. Defaults to destination token."
+          "Preferred tokens, in descending order. Any preferred assets the user owns will appear first. Defaults to destination token.",
         ),
       // Filter to only allow payments on these chains. Keep this
       // parameter undocumented. Only for specific customers.
@@ -128,13 +128,13 @@ export const zRozoPayOrderMetadata = z.object({
         .array(z.number())
         .optional()
         .describe(
-          "Filter to only allow payments on these EVM chains. Defaults to all chains."
+          "Filter to only allow payments on these EVM chains. Defaults to all chains.",
         ),
       paymentOptions: z
         .array(z.string())
         .optional()
         .describe(
-          "Payment options like Coinbase, Binance, etc. Defaults to all available options."
+          "Payment options like Coinbase, Binance, etc. Defaults to all available options.",
         ),
     })
     .optional()
@@ -159,12 +159,12 @@ export type RozoPayOrderMetadata = z.infer<typeof zRozoPayOrderMetadata>;
 export const zRozoPayUserMetadata = z
   .record(
     z.string().max(40, "Metadata keys cannot be longer than 40 characters"),
-    z.string().max(500, "Metadata values cannot be longer than 500 characters")
+    z.string().max(500, "Metadata values cannot be longer than 500 characters"),
   )
   .nullable()
   .refine(
     (obj) => !obj || Object.keys(obj).length <= 50,
-    "Metadata cannot have more than 50 key-value pairs"
+    "Metadata cannot have more than 50 key-value pairs",
   );
 
 export type RozoPayUserMetadata = z.infer<typeof zRozoPayUserMetadata>;
@@ -307,7 +307,7 @@ export type CanonicalDestination = {
 };
 
 export function getCanonicalDestination(
-  order: RozoPayOrder
+  order: RozoPayOrder,
 ): CanonicalDestination {
   const metadata: any = (order as any).metadata ?? {};
 
@@ -349,7 +349,7 @@ export function getCanonicalDestination(
 }
 
 export function getOrderSourceChainId(
-  order: RozoPayHydratedOrder
+  order: RozoPayHydratedOrder,
 ): number | null {
   if (order.sourceTokenAmount == null) {
     return null;
@@ -358,7 +358,7 @@ export function getOrderSourceChainId(
 }
 
 export function getOrderDestChainId(
-  order: RozoPayOrder | RozoPayHydratedOrderWithoutIntentAddr
+  order: RozoPayOrder | RozoPayHydratedOrderWithoutIntentAddr,
 ): number {
   return order.destFinalCallTokenAmount.token.chainId;
 }
@@ -399,11 +399,11 @@ export function getRozoPayOrderView(order: RozoPayOrder): RozoPayOrderView {
             txHash: order.sourceInitiateTxHash,
             chainId: assertNotNull(
               getOrderSourceChainId(order),
-              `source chain id is null for order with source token: ${order.id}`
+              `source chain id is null for order with source token: ${order.id}`,
             ).toString(),
             amountUnits: formatUnits(
               BigInt(order.sourceTokenAmount.amount),
-              order.sourceTokenAmount.token.decimals
+              order.sourceTokenAmount.token.decimals,
             ),
             tokenSymbol: order.sourceTokenAmount.token.symbol,
             tokenAddress: order.sourceTokenAmount.token.token,
@@ -421,7 +421,7 @@ export function getRozoPayOrderView(order: RozoPayOrder): RozoPayOrderView {
       chainId: getOrderDestChainId(order).toString(),
       amountUnits: formatUnits(
         BigInt(order.destFinalCallTokenAmount.amount),
-        order.destFinalCallTokenAmount.token.decimals
+        order.destFinalCallTokenAmount.token.decimals,
       ),
       tokenSymbol: order.destFinalCallTokenAmount.token.symbol,
       tokenAddress: order.destFinalCallTokenAmount.token.token,

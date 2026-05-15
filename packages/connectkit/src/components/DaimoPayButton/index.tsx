@@ -414,10 +414,10 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         sourceChainId: orderView.source
           ? Number(orderView.source.chainId)
           : null,
-        destinationChainId:
-          currentOrder.destFinalCallTokenAmount.token.chainId,
+        destinationChainId: currentOrder.destFinalCallTokenAmount.token.chainId,
         txHash,
-        payerAddress: orderView.source?.payerAddress ?? null,
+        payerAddress:
+          data?.payerAddress ?? orderView.source?.payerAddress ?? null,
         payment: orderView,
         rozoPaymentId:
           orderIdString ?? getOrderIdString(currentOrder.id) ?? null,
