@@ -8,7 +8,7 @@ import {
 import { useEffect, useMemo } from "react";
 import { AlertIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
-import { useRozoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
 import styled from "../../../styles/styled";
 import { categorizeError, ErrorType } from "../../../utils/errorParser";
@@ -59,57 +59,53 @@ export default function ErrorPage() {
     const errorType = categorizeError(errorMsg);
 
     // Map error types to UI configuration
-    switch (errorType) {
-      case ErrorType.TRUSTLINE:
-        return {
-          title: "Trustline Not Set Up",
-          message: errorMsg,
-          canRetry: false,
-          showSupport: true,
-        };
-      case ErrorType.LIQUIDITY:
-        return {
-          title: "Insufficient Liquidity",
-          message: errorMsg,
-          canRetry: false,
-          showSupport: true,
-        };
-      case ErrorType.PAYMENT_FAILED:
-        return {
-          title: "Payment Failed",
-          message: errorMsg,
-          canRetry: true,
-          showSupport: true,
-        };
-      case ErrorType.NETWORK:
-        return {
-          title: "Network Error",
-          message: errorMsg,
-          canRetry: true,
-          showSupport: true,
-        };
-      case ErrorType.INSUFFICIENT_FUNDS:
-        return {
-          title: "Insufficient Funds",
-          message: errorMsg,
-          canRetry: false,
-          showSupport: true,
-        };
-      case ErrorType.REJECTED:
-        return {
-          title: "Transaction Rejected",
-          message: errorMsg,
-          canRetry: true,
-          showSupport: true,
-        };
-      default:
-        return {
-          title: "Payment Unavailable",
-          message: errorMsg,
-          canRetry: true,
-          showSupport: true,
-        };
-    }
+    const errorConfig = {
+      [ErrorType.TRUSTLINE]: {
+        title: "Trustline Not Set Up",
+        canRetry: false,
+      },
+      [ErrorType.LIQUIDITY]: {
+        title: "Insufficient Liquidity",
+        canRetry: false,
+      },
+      [ErrorType.PAYMENT_FAILED]: {
+        title: "Payment Failed",
+        canRetry: true,
+      },
+      [ErrorType.NETWORK]: {
+        title: "Network Error",
+        canRetry: true,
+      },
+      [ErrorType.INSUFFICIENT_FUNDS]: {
+        title: "Insufficient Funds",
+        canRetry: false,
+      },
+      [ErrorType.REJECTED]: {
+        title: "Transaction Rejected",
+        canRetry: true,
+      },
+      [ErrorType.NOT_UNPAID]: {
+        title: "Payment Invalid",
+        canRetry: false
+      }
+    } satisfies Partial<
+      Record<
+        ErrorType,
+        {
+          title: string;
+          canRetry: boolean;
+        }
+      >
+    >;
+
+    return {
+      ...(errorConfig[errorType] ?? {
+        title: "Payment Unavailable",
+        canRetry: true,
+      }),
+      message: errorMsg,
+      showSupport: true,
+    };
   }, [
     pay.paymentState,
     pay.paymentErrorMessage,

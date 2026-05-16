@@ -315,7 +315,7 @@ import { RozoPayButton } from "@rozoai/intent-pay";
                         printEvent(e);
                         setCompletedTx({
                           hash: String(e.txHash),
-                          chainId: e.chainId,
+                          chainId: e.destinationChainId,
                         });
                       }}
                       showProcessingPayout

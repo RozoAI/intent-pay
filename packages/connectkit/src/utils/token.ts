@@ -7,12 +7,12 @@ import { supportedTokens, Token, TokenSymbol } from "@rozoai/intent-common";
  */
 export function convertPreferredSymbolsToTokens(
   symbols: TokenSymbol[] | undefined,
-  existingPreferredTokens: Token[] | undefined
+  existingPreferredTokens: Token[] | undefined,
 ): Token[] | undefined {
   // If preferredTokens is explicitly provided, it takes precedence
   // Even if it's an empty array, we respect it (means "no preferred tokens")
   if (existingPreferredTokens !== undefined) {
-    return existingPreferredTokens;
+    return existingPreferredTokens.filter((v) => !!v);
   }
 
   // If no preferredSymbol provided, default to USDC and USDT
@@ -25,14 +25,14 @@ export function convertPreferredSymbolsToTokens(
   const allowedSymbols = [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.EURC];
   const validSymbols = symbolsToUse.filter((s) => allowedSymbols.includes(s));
   const invalidSymbols = symbolsToUse.filter(
-    (s) => !allowedSymbols.includes(s)
+    (s) => !allowedSymbols.includes(s),
   );
 
   if (invalidSymbols.length > 0) {
     console.warn(
       `[RozoPay] Invalid preferredSymbol values: ${invalidSymbols.join(
-        ", "
-      )}. Only USDC, USDT, and EURC are allowed.`
+        ", ",
+      )}. Only USDC, USDT, and EURC are allowed.`,
     );
   }
 
@@ -55,4 +55,3 @@ export function convertPreferredSymbolsToTokens(
 
   return tokens.length > 0 ? tokens : undefined;
 }
-

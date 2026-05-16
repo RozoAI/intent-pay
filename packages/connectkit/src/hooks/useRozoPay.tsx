@@ -42,7 +42,7 @@ type RozoPayFunctions = {
    *
    * @param id - The Rozo Pay order ID to set.
    */
-  setPayId: (id: RozoPayOrderID) => Promise<
+  setPayId: (id: RozoPayOrderID | string) => Promise<
     Extract<
       PaymentState,
       {
@@ -143,6 +143,7 @@ type RozoPayFunctions = {
   setPaymentCompleted: (
     txHash: string,
     rozoPaymentId?: string,
+    payerAddress?: string | null,
   ) => Promise<Extract<PaymentState, { type: "payment_completed" }>>;
 
   /**
@@ -266,7 +267,7 @@ export function useRozoPay(): UseRozoPay {
   );
 
   const setPayId = useCallback(
-    async (payId: RozoPayOrderID) => {
+    async (payId: RozoPayOrderID | string) => {
       dispatch({ type: "set_pay_id", payId });
 
       // Wait for the order to be queried from the API. Using payId could
@@ -513,7 +514,11 @@ export function useRozoPay(): UseRozoPay {
   );
 
   const setPaymentCompleted = useCallback(
-    async (txHash: string, rozoPaymentId?: string) => {
+    async (
+      txHash: string,
+      rozoPaymentId?: string,
+      payerAddress?: string | null,
+    ) => {
       // Get the current order from the state
       const currentState = store.getState();
 
@@ -543,7 +548,9 @@ export function useRozoPay(): UseRozoPay {
       // Store the transaction hash in sourceStartTxHash if possible
       const updatedOrder = {
         ...hydratedOrder,
-        sourceStartTxHash: txHash, // Cast to Hex as required by the type
+        sourceStartTxHash: txHash,
+        sourceFulfillerAddr:
+          payerAddress ?? hydratedOrder.sourceFulfillerAddr ?? null,
       };
 
       // Directly dispatch a payment_verified event to set the state to completed
@@ -580,6 +587,7 @@ export function useRozoPay(): UseRozoPay {
         emit(PaymentStatus.PaymentCompleted, {
           order: completedState.order,
           rozoPaymentId: completedState.order.externalId ?? "",
+          payerAddress: payerAddress ?? null,
         });
       }
 

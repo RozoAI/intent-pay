@@ -16,7 +16,7 @@ export function createTrpcClient(
       httpBatchLink({
         url: apiUrl,
         headers: {
-          // TODO: The version here must use the latest version of @daimo/pay, so that the API can function for the payment confirmation flow.
+          // TODO: The version here must use the latest version of @rozoai/intent-pay, so that the API can function for the payment confirmation flow.
           "x-pay-version": "1.14.4",
           "x-session-id": sessionId,
         },

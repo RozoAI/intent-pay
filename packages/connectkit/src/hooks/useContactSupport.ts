@@ -1,6 +1,6 @@
 import React from "react";
 import { rozoPayVersion } from "../utils/exports";
-import { useRozoPay } from "./useDaimoPay";
+import { useRozoPay } from "./useRozoPay";
 import { usePayContext } from "./usePayContext";
 
 /**

@@ -18,7 +18,7 @@ import { ThemeProvider } from "styled-components";
 import { WagmiContext } from "wagmi";
 
 import type { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
-import { RozoPayModal } from "../components/DaimoPayModal";
+import { RozoPayModal } from "../components/RozoPayModal";
 import { ROUTES } from "../constants/routes";
 import { REQUIRED_CHAINS } from "../defaultConfig";
 import { useChains } from "../hooks/useChains";
@@ -26,8 +26,8 @@ import {
   useConnectCallback,
   useConnectCallbackProps,
 } from "../hooks/useConnectCallback";
-import { useRozoPay } from "../hooks/useDaimoPay";
 import { usePaymentState } from "../hooks/usePaymentState";
+import { useRozoPay } from "../hooks/useRozoPay";
 import { PaymentEventProvider } from "../payment/paymentEventContext";
 import defaultTheme from "../styles/defaultTheme";
 import {
@@ -52,6 +52,26 @@ import {
   StellarWalletName,
 } from "./StellarContextProvider";
 import { Web3ContextProvider } from "./Web3ContextProvider";
+
+const WagmiDependentEffects = ({
+  onConnect,
+  onDisconnect,
+}: useConnectCallbackProps) => {
+  useConnectCallback({ onConnect, onDisconnect });
+
+  const chains = useChains();
+  for (const requiredChain of REQUIRED_CHAINS) {
+    if (!chains.some((c) => c.id === requiredChain.id)) {
+      throw new Error(
+        `Rozo Pay requires chains ${REQUIRED_CHAINS.map((c) => c.name).join(
+          ", ",
+        )}. Use \`getDefaultConfig\` to automatically configure required chains.`,
+      );
+    }
+  }
+
+  return null;
+};
 
 type RozoPayUIProviderProps = {
   children?: React.ReactNode;
@@ -80,40 +100,6 @@ const RozoPayUIProvider = ({
   payApiUrl,
   log,
 }: RozoPayUIProviderProps) => {
-  if (!React.useContext(PaymentContext)) {
-    throw Error("RozoPayProvider must be within a PaymentProvider");
-  }
-
-  if (!React.useContext(WagmiContext)) {
-    throw Error("RozoPayProvider must be within a WagmiProvider");
-  }
-
-  // Only allow for mounting RozoPayProvider once, so we avoid weird global
-  // state collisions.
-  if (React.useContext(PayContext)) {
-    throw new Error(
-      "Multiple, nested usages of RozoPayProvider detected. Please use only one."
-    );
-  }
-
-  useConnectCallback({
-    onConnect,
-    onDisconnect,
-  });
-
-  const chains = useChains();
-
-  for (const requiredChain of REQUIRED_CHAINS) {
-    if (!chains.some((c) => c.id === requiredChain.id)) {
-      throw new Error(
-        `Rozo Pay requires chains ${REQUIRED_CHAINS.map((c) => c.name).join(
-          ", "
-        )}. Use \`getDefaultConfig\` to automatically configure required chains.`
-      );
-    }
-  }
-
-  // Default config options
   const defaultOptions: RozoPayContextOptions = {
     language: "en-US",
     hideBalance: false,
@@ -135,35 +121,30 @@ const RozoPayUIProvider = ({
     overlayBlur: undefined,
     disableMobileInjector: false,
   };
-
   const opts: RozoPayContextOptions = Object.assign(
     {},
     defaultOptions,
-    options
+    options,
   );
 
   if (typeof window !== "undefined") {
-    // Buffer Polyfill, needed for bundlers that don't provide Node polyfills (e.g CRA, Vite, etc.)
     if (opts.bufferPolyfill) window.Buffer = window.Buffer ?? Buffer;
-
-    // Some bundlers may need `global` and `process.env` polyfills as well
-    // Not implemented here to avoid unexpected behaviors, but leaving example here for future reference
-    /*
-     * window.global = window.global ?? window;
-     * window.process = window.process ?? { env: {} };
-     */
   }
+
+  const paymentContext = React.useContext(PaymentContext);
+  const wagmiContext = React.useContext(WagmiContext);
+  const existingPayContext = React.useContext(PayContext);
 
   const pay = useRozoPay();
 
   const [ckTheme, setTheme] = useState<Theme>(theme);
   const [ckMode, setMode] = useState<Mode>(mode);
   const [ckCustomTheme, setCustomTheme] = useState<CustomTheme | undefined>(
-    customTheme ?? {}
+    customTheme ?? {},
   );
   const [ckLang, setLang] = useState<Languages>("en-US");
   const [disableMobileInjector, setDisableMobileInjector] = useState<boolean>(
-    opts.disableMobileInjector ?? false
+    opts.disableMobileInjector ?? false,
   );
 
   const onOpenRef = useRef<(() => void) | undefined>();
@@ -179,7 +160,7 @@ const RozoPayUIProvider = ({
   const [paymentCompleted, setPaymentCompleted] = useState<boolean>(false);
   const [route, setRouteState] = useState<ROUTES>(ROUTES.SELECT_METHOD);
   const [routeMeta, setRouteMeta] = useState<Record<string, any> | undefined>(
-    undefined
+    undefined,
   );
   const [modalOptions, setModalOptions] = useState<RozoPayModalOptions>();
 
@@ -233,20 +214,13 @@ const RozoPayUIProvider = ({
         paymentState.resetOrder();
       }
 
-      // Log the open/close event
-      // trpc.nav.mutate({
-      //   action: open ? "navOpenPay" : "navClosePay",
-      //   orderId: pay.order?.id?.toString(),
-      //   data: meta ?? {},
-      // });
-
       // Run the onOpen and onClose callbacks
       if (open) onOpenRef.current?.();
       else onCloseRef.current?.();
     },
     // We don't have good caching on paymentState, so don't include it as a dep
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [trpc, pay.order?.id, modalOptions?.resetOnSuccess, paymentCompleted]
+    [trpc, pay.order?.id, modalOptions?.resetOnSuccess, paymentCompleted],
   );
 
   // Callback when a payment is successfully completed (regardless of whether
@@ -262,15 +236,10 @@ const RozoPayUIProvider = ({
     (route: ROUTES, data?: Record<string, any>) => {
       const action = route.replace("rozoPay", "");
       log(`[SET ROUTE] ${action} ${pay.order?.id} ${debugJson(data ?? {})}`);
-      // trpc.nav.mutate({
-      //   action,
-      //   orderId: pay.order?.id?.toString(),
-      //   data: data ?? {},
-      // });
       setRouteState(route);
       setRouteMeta(data);
     },
-    [trpc, pay.order?.id, log]
+    [trpc, pay.order?.id, log],
   );
 
   // Other Configuration
@@ -279,7 +248,7 @@ const RozoPayUIProvider = ({
   useEffect(() => setLang(opts.language || "en-US"), [opts.language]);
   useEffect(
     () => setDisableMobileInjector(opts.disableMobileInjector ?? false),
-    [opts.disableMobileInjector]
+    [opts.disableMobileInjector],
   );
   useEffect(() => setErrorMessage(null), [route, open]);
 
@@ -292,6 +261,23 @@ const RozoPayUIProvider = ({
     apiVersion,
   });
 
+  if (!paymentContext) {
+    throw Error("RozoPayProvider must be within a PaymentProvider");
+  }
+
+  if (typeof window !== "undefined" && !wagmiContext) {
+    console.warn("[RozoPay] RozoPayProvider must be within a WagmiProvider");
+    return <>{children}</>;
+  }
+
+  // Only allow for mounting RozoPayProvider once, so we avoid weird global
+  // state collisions.
+  if (existingPayContext) {
+    throw new Error(
+      "Multiple, nested usages of RozoPayProvider detected. Please use only one.",
+    );
+  }
+
   const showPayment = async (modalOptions: RozoPayModalOptions) => {
     const id = pay.order?.id;
     log(
@@ -299,20 +285,20 @@ const RozoPayUIProvider = ({
         id,
         modalOptions,
         paymentFsmState: pay.paymentState,
-      })}`
+      })}`,
     );
 
     // Validate chain/token support before opening modal
     if (paymentState.payParams) {
       const validationError = validatePayoutToken(
         paymentState.payParams.toChain,
-        paymentState.payParams.toToken
+        paymentState.payParams.toToken,
       );
 
       if (validationError) {
         log(
           "[PAY] Validation error detected, showing error page",
-          validationError
+          validationError,
         );
         setOpen(true);
         setRoute(ROUTES.ERROR, { validationError });
@@ -322,7 +308,7 @@ const RozoPayUIProvider = ({
 
     setModalOptions(modalOptions);
     paymentState.setConnectedWalletOnly(
-      modalOptions.connectedWalletOnly ?? false
+      modalOptions.connectedWalletOnly ?? false,
     );
     setOpen(true);
 
@@ -330,13 +316,13 @@ const RozoPayUIProvider = ({
     // This ensures token filtering respects the paymentOptions constraint
     if (paymentState.paymentOptions && paymentState.paymentOptions.length > 0) {
       const hasEthereum = paymentState.paymentOptions.includes(
-        ExternalPaymentOptions.Ethereum
+        ExternalPaymentOptions.Ethereum,
       );
       const hasSolana = paymentState.paymentOptions.includes(
-        ExternalPaymentOptions.Solana
+        ExternalPaymentOptions.Solana,
       );
       const hasStellar = paymentState.paymentOptions.includes(
-        ExternalPaymentOptions.Stellar
+        ExternalPaymentOptions.Stellar,
       );
 
       // Determine tokenMode based on which wallet payment options are included
@@ -378,6 +364,7 @@ const RozoPayUIProvider = ({
     pay.order?.mode === RozoPayOrderMode.HYDRATED &&
     pay.order.sourceStatus === RozoPayOrderStatusSource.WAITING_PAYMENT &&
     pay.order.sourceTokenAmount != null;
+
   useEffect(() => {
     if (
       pay.paymentState === "payment_completed" ||
@@ -450,6 +437,7 @@ const RozoPayUIProvider = ({
     PayContext.Provider,
     { value },
     <Web3ContextProvider>
+      <WagmiDependentEffects onConnect={onConnect} onDisconnect={onDisconnect} />
       <ThemeProvider theme={defaultTheme}>
         {children}
         <RozoPayModal
@@ -460,7 +448,7 @@ const RozoPayUIProvider = ({
           disableMobileInjector={disableMobileInjector}
         />
       </ThemeProvider>
-    </Web3ContextProvider>
+    </Web3ContextProvider>,
   );
 };
 
@@ -499,7 +487,7 @@ export const RozoPayProvider = (props: RozoPayProviderProps) => {
   const log = useMemo(
     () =>
       props.debugMode ? (...args: any[]) => console.log(...args) : () => {},
-    [props.debugMode]
+    [props.debugMode],
   );
 
   return (

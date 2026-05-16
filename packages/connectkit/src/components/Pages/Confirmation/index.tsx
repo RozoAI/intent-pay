@@ -26,7 +26,7 @@ import {
 } from "../../../assets/icons";
 import defaultTheme from "../../../constants/defaultTheme";
 import { ROZO_INVOICE_URL } from "../../../constants/rozoConfig";
-import { useRozoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import { usePayoutPolling } from "../../../hooks/usePayoutPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useSupportedChains } from "../../../hooks/useSupportedChains";
@@ -130,7 +130,7 @@ const Confirmation: React.FC = () => {
         ));
 
     if (isRozoPayment && txHash && isConfirming) {
-      setPaymentCompleted(txHash, rozoPaymentId);
+      setPaymentCompleted(txHash, rozoPaymentId, paymentStateContext.senderAddress ?? null);
       setIsConfirming(false);
     }
   }, [
@@ -429,7 +429,7 @@ const Confirmation: React.FC = () => {
         );
       });
 
-      setPaymentCompleted(rawPayInHash, rozoPaymentId);
+      setPaymentCompleted(rawPayInHash, rozoPaymentId, paymentStateContext.senderAddress ?? null);
       onSuccess();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -98,7 +98,7 @@ export const initialPaymentState: PaymentState = { type: "idle" };
 export type PaymentEvent =
   /* command events (kick off an effect) */
   | { type: "set_pay_params"; payParams: PayParams }
-  | { type: "set_pay_id"; payId: RozoPayOrderID }
+  | { type: "set_pay_id"; payId: RozoPayOrderID | string }
   // HACK: edit the order in-memory to change the amount in deposit flow
   | { type: "set_chosen_usd"; usd: number }
   | {

@@ -5,7 +5,7 @@ import { usePayContext } from "../../../hooks/usePayContext";
 import { ModalContent, ModalH1, PageContent } from "../../Common/Modal/styles";
 
 import { getKnownToken, RozoPayOrderMode } from "@rozoai/intent-common";
-import { useRozoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import { OptionsList } from "../../Common/OptionsList";
 import { OrderHeader } from "../../Common/OrderHeader";
 import PoweredByFooter from "../../Common/PoweredByFooter";
@@ -91,7 +91,7 @@ const SelectDepositAddressChain: React.FC = () => {
                 ],
                 disabled: isDisabledByMinimum,
                 onClick: () => {
-                  setSelectedDepositAddressOption(option as any);
+                  setSelectedDepositAddressOption(option);
                   const meta = { event: "click-option", option: option.id };
                   if (isDepositFlow) {
                     setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_AMOUNT, meta);

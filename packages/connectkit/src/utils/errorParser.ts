@@ -20,7 +20,9 @@ export function parseErrorMessage(error: unknown): string {
       return parsed.message;
     }
     if (parsed.error) {
-      return typeof parsed.error === "string" ? parsed.error : parsed.error.message || message;
+      return typeof parsed.error === "string"
+        ? parsed.error
+        : parsed.error.message || message;
     }
   } catch {
     // If parsing fails, return the original message
@@ -40,6 +42,7 @@ export enum ErrorType {
   REJECTED = "rejected",
   TRUSTLINE = "trustline",
   UNKNOWN = "unknown",
+  NOT_UNPAID = "not_unpaid",
 }
 
 /**
@@ -50,7 +53,10 @@ export enum ErrorType {
 export function categorizeError(errorMessage: string): ErrorType {
   const lowerMsg = errorMessage.toLowerCase();
 
-  if (lowerMsg.includes("trustline") || lowerMsg.includes("recipient_trustline")) {
+  if (
+    lowerMsg.includes("trustline") ||
+    lowerMsg.includes("recipient_trustline")
+  ) {
     return ErrorType.TRUSTLINE;
   }
 
@@ -58,7 +64,10 @@ export function categorizeError(errorMessage: string): ErrorType {
     return ErrorType.LIQUIDITY;
   }
 
-  if (lowerMsg.includes("payment failed") || lowerMsg.includes("transaction failed")) {
+  if (
+    lowerMsg.includes("payment failed") ||
+    lowerMsg.includes("transaction failed")
+  ) {
     return ErrorType.PAYMENT_FAILED;
   }
 
@@ -66,7 +75,10 @@ export function categorizeError(errorMessage: string): ErrorType {
     return ErrorType.NETWORK;
   }
 
-  if (lowerMsg.includes("insufficient funds") || lowerMsg.includes("insufficient balance")) {
+  if (
+    lowerMsg.includes("insufficient funds") ||
+    lowerMsg.includes("insufficient balance")
+  ) {
     return ErrorType.INSUFFICIENT_FUNDS;
   }
 
@@ -74,7 +86,9 @@ export function categorizeError(errorMessage: string): ErrorType {
     return ErrorType.REJECTED;
   }
 
+  if (lowerMsg.includes("no longer unpaid")) {
+    return ErrorType.NOT_UNPAID;
+  }
+
   return ErrorType.UNKNOWN;
 }
-
-

@@ -40,7 +40,7 @@ import { useTransition } from "react-transition-state";
 import { useAccount, useSwitchChain } from "wagmi";
 import { AuthIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
-import { useRozoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import FocusTrap from "../../../hooks/useFocusTrap";
 import useLocales from "../../../hooks/useLocales";
 import usePrevious from "../../../hooks/usePrevious";
@@ -49,7 +49,7 @@ import {
   useWallet,
   WALLET_ID_MOBILE_WALLETS,
 } from "../../../wallets/useWallets";
-import { useThemeContext } from "../../DaimoPayThemeProvider/DaimoPayThemeProvider";
+import { useThemeContext } from "../../RozoPayThemeProvider/RozoPayThemeProvider";
 import FitText from "../FitText";
 
 const ProfileIcon = ({ isSignedIn }: { isSignedIn?: boolean }) => (
@@ -422,7 +422,7 @@ const Modal: React.FC<ModalProps> = ({
         return locales.switchNetworkScreen_heading;
       case ROUTES.SELECT_METHOD:
       case ROUTES.SELECT_TOKEN:
-        return order?.metadata.intent;
+        return order?.metadata.intent || context.paymentState.payParams?.intent;
       case ROUTES.SOLANA_PAY_WITH_TOKEN:
         if (!selectedSolanaTokenOption) return undefined;
         return `Pay with ${selectedSolanaTokenOption.required.token.symbol}`;

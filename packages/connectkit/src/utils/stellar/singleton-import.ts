@@ -1,5 +1,5 @@
 import type { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
-import { WalletConnectAllowedMethods, WalletConnectModule } from ".";
+import { WalletConnectModule } from ".";
 
 // Global singleton to ensure only one instance exists across the entire app
 declare global {
@@ -54,7 +54,7 @@ export async function getStellarKitInstance(config?: {
         "});\n\n" +
         "<RozoPayProvider stellarKit={stellarKit}>\n" +
         "  {children}\n" +
-        "</RozoPayProvider>"
+        "</RozoPayProvider>",
     );
   }
 
@@ -72,7 +72,6 @@ export async function getStellarKitInstance(config?: {
           new WalletConnectModule({
             url: "https://rozo.ai",
             projectId: "7440dd8acf85933ffcc775ec6675d4a9",
-            method: WalletConnectAllowedMethods.SIGN_AND_SUBMIT,
             description: `Visa Layer for Stablecoins`,
             name: "Rozo",
             icons: ["https://rozo.ai/rozo-logo.png"],
