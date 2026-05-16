@@ -6,7 +6,7 @@ import { OrDivider } from "../Common/Modal";
 import { ModalContent, PageContent } from "../Common/Modal/styles";
 
 import ScanIconWithLogos from "../../assets/ScanIconWithLogos";
-import { useRozoPay } from "../../hooks/useDaimoPay";
+import { useRozoPay } from "../../hooks/useRozoPay";
 import useLocales from "../../hooks/useLocales";
 import Button from "../Common/Button";
 import CopyToClipboard from "../Common/CopyToClipboard";
@@ -17,7 +17,7 @@ import MobileWithLogos from "../../assets/MobileWithLogos";
 import { useWallet, WALLET_ID_MOBILE_WALLETS } from "../../wallets/useWallets";
 
 /**
- * Continues a Daimo Pay flow in another app.
+ * Continues a Rozo Pay flow in another app.
  * - If the pendingConnectorId is a mobile wallet, deeplink directly into that
  *   wallet. This opens the flow in eg. the Rainbow in-app browser, letting the
  *   user finish the flow in a single app switch instead of multiple.

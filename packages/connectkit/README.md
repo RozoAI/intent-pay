@@ -33,6 +33,8 @@ You can find the full Rozo Pay documentation at [docs.rozo.ai](https://docs.rozo
 
 For in-repo SDK prop reference, see [RozoPayButton Props](../../docs/ROZO_PAY_BUTTON_PROPS.md).
 
+For correct provider setup (Next.js App Router, Vite, SSR patterns), see [Provider Setup Guide](../../docs/PROVIDER_SETUP.md).
+
 ## Examples
 
 Check out complete examples and code snippets at [Complete Examples](https://docs.rozo.ai/integration/rozointentpay/examples), including:

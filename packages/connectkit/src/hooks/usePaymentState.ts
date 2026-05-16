@@ -2,6 +2,8 @@ import {
   assert,
   assertNotNull,
   bscUSDT,
+  buildCheckoutPayload,
+  checkoutPayment,
   createPayment,
   debugJson,
   DepositAddressPaymentOptionData,
@@ -16,6 +18,8 @@ import {
   generateSolanaDeepLink,
   getChainById,
   getKnownToken,
+  getPayment,
+  isUUID,
   isValidSolanaAddress,
   PaymentResponse,
   PlatformType,
@@ -30,6 +34,7 @@ import {
   rozoStellarUSDC,
   solana,
   stellar,
+  TokenSymbol,
   WalletPaymentOption,
   writeRozoPayOrderID,
 } from "@rozoai/intent-common";
@@ -72,7 +77,7 @@ import {
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
 import bs58 from "bs58";
-import { PayButtonPaymentProps } from "../components/DaimoPayButton/types";
+import { PayButtonPaymentProps } from "../components/RozoPayButton/types";
 import { ROUTES } from "../constants/routes";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { buildCreatePaymentPayload } from "../payment/createPaymentPayload";
@@ -83,7 +88,7 @@ import { parseErrorMessage } from "../utils/errorParser";
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
 import { WalletConfigProps } from "../wallets/walletConfigs";
-import { useRozoPay } from "./useDaimoPay";
+import { useRozoPay } from "./useRozoPay";
 import { useDepositAddressOptions } from "./useDepositAddressOptions";
 import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
 import useIsMobile from "./useIsMobile";
@@ -143,35 +148,35 @@ export interface PaymentState {
   setSelectedWallet: (wallet: WalletConfigProps | undefined) => void;
   setSelectedWalletDeepLink: (deepLink: string | undefined) => void;
   setSelectedExternalOption: (
-    option: ExternalPaymentOptionMetadata | undefined
+    option: ExternalPaymentOptionMetadata | undefined,
   ) => void;
   setSelectedTokenOption: (option: WalletPaymentOption | undefined) => void;
   setSelectedSolanaTokenOption: (
-    option: WalletPaymentOption | undefined
+    option: WalletPaymentOption | undefined,
   ) => void;
   setSelectedStellarTokenOption: (
-    option: WalletPaymentOption | undefined
+    option: WalletPaymentOption | undefined,
   ) => void;
   setSelectedDepositAddressOption: (
-    option: DepositAddressPaymentOptionMetadata | undefined
+    option: DepositAddressPaymentOptionMetadata | undefined,
   ) => void;
   setChosenUsd: (usd: number) => void;
   payWithToken: (
     walletOption: WalletPaymentOption,
-    store: Store<PaymentState, PaymentEvent>
+    store: Store<PaymentState, PaymentEvent>,
   ) => Promise<{ txHash: Hex; success: boolean }>;
   payWithExternal: (option: ExternalPaymentOptions) => Promise<string>;
   payWithDepositAddress: (
     option: DepositAddressPaymentOptionMetadata,
     store: Store<PaymentState, PaymentEvent>,
     fees: FeeResponseData | null,
-    log?: (message: string) => void
+    log?: (message: string) => void,
   ) => Promise<
     | (DepositAddressPaymentOptionData & { externalId: string; memo: string })
     | null
   >;
   payWithSolanaToken: (
-    walletPaymentOption: WalletPaymentOption
+    walletPaymentOption: WalletPaymentOption,
   ) => Promise<{ txHash: string; success: boolean }>;
   payWithSolanaTokenRozo: (
     walletPaymentOption: WalletPaymentOption,
@@ -179,7 +184,7 @@ export interface PaymentState {
       destAddress: string;
       usdcAmount: string;
       memo?: string;
-    }
+    },
   ) => Promise<{ txHash: string; success: boolean }>;
   payWithStellarToken: (
     option: WalletPaymentOption,
@@ -187,7 +192,7 @@ export interface PaymentState {
       destAddress: string;
       usdcAmount: string;
       memo?: string;
-    }
+    },
   ) => Promise<{ signedTx: string; success: boolean }>;
   openInWalletBrowser: ({
     wallet,
@@ -216,7 +221,7 @@ export interface PaymentState {
 
   createPayment: (
     option: WalletPaymentOption,
-    store: Store<PaymentState, PaymentEvent>
+    store: Store<PaymentState, PaymentEvent>,
   ) => Promise<PaymentResponse | undefined>;
 }
 
@@ -241,7 +246,7 @@ export function usePaymentState({
 
   // Track deposit address calls to prevent duplicates
   const depositAddressCallRef = useRef<Set<DepositAddressPaymentOptions>>(
-    new Set()
+    new Set(),
   );
 
   // Browser state.
@@ -305,10 +310,10 @@ export function usePaymentState({
 
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
   const [rozoPaymentId, setRozoPaymentId] = useState<string | undefined>(
-    undefined
+    undefined,
   );
   const [senderAddress, setSenderAddress] = useState<string | undefined>(
-    undefined
+    undefined,
   );
 
   // TODO: backend should determine whether to show solana payment method
@@ -334,9 +339,9 @@ export function usePaymentState({
 
     // If preferredTokens exists and has no Stellar tokens, don't show Stellar method
     if (preferredTokens && preferredTokens.length > 0) {
-      const hasStellarToken = preferredTokens.some(
-        (t) => t.chainId === rozoStellar.chainId
-      );
+      const hasStellarToken = preferredTokens
+        .filter((v) => !!v)
+        .some((t) => t.chainId === rozoStellar.chainId);
       if (!hasStellarToken) {
         return false;
       }
@@ -357,30 +362,60 @@ export function usePaymentState({
   // Memoize usdRequired and destChainId to prevent unnecessary refetches when order object reference changes
   const usdRequired = useMemo(
     () => pay.order?.destFinalCallTokenAmount.usd,
-    [pay.order?.destFinalCallTokenAmount.usd]
+    [pay.order?.destFinalCallTokenAmount.usd],
   );
   const destChainId = useMemo(
     () => pay.order?.destFinalCallTokenAmount.token.chainId,
-    [pay.order?.destFinalCallTokenAmount.token.chainId]
+    [pay.order?.destFinalCallTokenAmount.token.chainId],
   );
 
   // Memoize appId from currPayParams to prevent unnecessary refetches when payParams object reference changes
   // This is important because appId may change from default (rozoIntentPay) to user-provided
   const stableAppId = useMemo(
     () => currPayParams?.appId ?? DEFAULT_ROZO_APP_ID,
-    [currPayParams?.appId]
+    [currPayParams?.appId],
   );
 
   // Create a stable payParams object that only changes when appId actually changes
   // This prevents unnecessary refetches in payment option hooks when currPayParams reference changes
   // The hooks extract appId internally and memoize it, so they won't refetch unless appId changes
   const stablePayParams = useMemo(() => {
-    if (!currPayParams) return undefined;
-    return {
-      ...currPayParams,
-      appId: stableAppId,
-    };
-  }, [stableAppId, currPayParams]);
+    if (currPayParams) {
+      return {
+        ...currPayParams,
+        appId: stableAppId,
+      };
+    }
+
+    // payId mode: derive filtering params from the loaded order so that
+    // payment option hooks apply the same token filtering as appId mode.
+    // e.g. if destination is USDC, only show USDC/USDT sources (not EURC).
+    if (pay.order && pay.order.destFinalCallTokenAmount) {
+      const destSymbol = pay.order.destFinalCallTokenAmount.token.symbol;
+      // Derive preferredSymbol from destination: EURC destinations show EURC,
+      // everything else defaults to USDC + USDT.
+      const preferredSymbol: TokenSymbol[] =
+        destSymbol === TokenSymbol.EURC
+          ? [TokenSymbol.EURC]
+          : [TokenSymbol.USDC, TokenSymbol.USDT];
+
+      const preferredTokens = convertPreferredSymbolsToTokens(
+        preferredSymbol,
+        undefined,
+      );
+
+      return {
+        toChain: pay.order.destFinalCallTokenAmount.token.chainId,
+        toToken: pay.order.destFinalCallTokenAmount.token.token,
+        toAddress: "",
+        preferredTokens,
+        appId: stableAppId,
+        preferredSymbol,
+      } as PayParams;
+    }
+
+    return undefined;
+  }, [stableAppId, currPayParams, pay.order]);
 
   // UI state. Selection for external payment (Binance, etc) vs wallet payment.
   const externalPaymentOptions = useExternalPaymentOptions({
@@ -476,12 +511,12 @@ export function usePaymentState({
       paymentValidationCache.current.set(cacheKey, isValid);
       return isValid;
     },
-    []
+    [],
   );
 
   const handleCreateRozoPayment = async (
     walletOption: WalletPaymentOption,
-    store: Store<PaymentState, PaymentEvent>
+    store: Store<PaymentState, PaymentEvent>,
   ): Promise<PaymentResponse | undefined> => {
     // Read from ref instead of closure to get latest value and avoid stale state
     const payParams = currPayParamsRef.current;
@@ -495,8 +530,41 @@ export function usePaymentState({
         ? (order as RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg)
         : undefined;
 
+    // payId mode: no payParams, but we have a pre-created payment ID.
+    // Checkout (refresh) the payment with the selected source token.
     if (!payParams) {
-      throw new Error("No pay params provided");
+      const existingPayId = order?.externalId ?? undefined;
+      if (!existingPayId) {
+        throw new Error("No pay params provided");
+      }
+      try {
+        const paymentRes = await getPayment(existingPayId);
+        if (!paymentRes?.data) {
+          throw new Error("Failed to fetch payment");
+        }
+        const checkoutRes = await checkoutPayment(
+          existingPayId,
+          buildCheckoutPayload(paymentRes.data, {
+            chainId: walletOption.required.token.chainId,
+            tokenSymbol: walletOption.required.token.symbol,
+            tokenAddress: walletOption.required.token.token,
+            amount: String(walletOption.required.usd),
+          }),
+        );
+        if (!checkoutRes?.data) {
+          throw new Error("Failed to checkout payment");
+        }
+        setRozoPaymentId(checkoutRes.data.id);
+        return checkoutRes.data;
+      } catch (error) {
+        const message = parseErrorMessage(error);
+        store.dispatch({
+          type: "error",
+          order: order as RozoPayOrder,
+          message,
+        });
+        return undefined;
+      }
     }
 
     try {
@@ -510,7 +578,7 @@ export function usePaymentState({
       });
 
       log?.(
-        `[handleCreateRozoPayment] payload: ${JSON.stringify(payload, null, 2)}`
+        `[handleCreateRozoPayment] payload: ${JSON.stringify(payload, null, 2)}`,
       );
 
       const response = await createPayment(payload);
@@ -519,8 +587,8 @@ export function usePaymentState({
         `[handleCreateRozoPayment] response: ${JSON.stringify(
           response,
           null,
-          2
-        )}`
+          2,
+        )}`,
       );
 
       if (!response?.id) {
@@ -542,18 +610,18 @@ export function usePaymentState({
   /** Commit to a token + amount = initiate payment. */
   const payWithToken = async (
     walletOption: WalletPaymentOption,
-    store: Store<PaymentState, PaymentEvent>
+    store: Store<PaymentState, PaymentEvent>,
   ): Promise<{ txHash: Hex; success: boolean }> => {
     assert(
       ethWalletAddress != null,
-      `[PAY TOKEN] null ethWalletAddress when paying on ethereum`
+      `[PAY TOKEN] null ethWalletAddress when paying on ethereum`,
     );
     assert(
       pay.paymentState === "preview" ||
         pay.paymentState === "unhydrated" ||
         pay.paymentState === "payment_unpaid" ||
         pay.paymentState === "payment_started",
-      `[PAY TOKEN] paymentState is ${pay.paymentState}, must be preview, unhydrated, payment_unpaid, or payment_started`
+      `[PAY TOKEN] paymentState is ${pay.paymentState}, must be preview, unhydrated, payment_unpaid, or payment_started`,
     );
 
     // Set sender address for tracking
@@ -565,8 +633,8 @@ export function usePaymentState({
     if (!validatePaymentRequirements(walletOption, pay.paymentState)) {
       throw new Error(
         `[PAY TOKEN] required token ${debugJson(
-          required
-        )} does not match fees token ${debugJson(fees)}`
+          required,
+        )} does not match fees token ${debugJson(fees)}`,
       );
     }
 
@@ -574,7 +642,7 @@ export function usePaymentState({
     // const paymentAmount = BigInt(required.amount) + BigInt(fees.amount);
     const paymentAmount = parseUnits(
       required.usd.toString(),
-      required.token.decimals
+      required.token.decimals,
     );
 
     // Check if we need to create a new Rozo payment (cache this check)
@@ -594,7 +662,7 @@ export function usePaymentState({
           required.token.chainId);
 
     log?.(
-      `[PAY TOKEN] Chain check: previous=${previousChainId}, current=${required.token.chainId}, hasExistingPayment=${hasExistingPayment}, needRozoPayment=${needRozoPayment}`
+      `[PAY TOKEN] Chain check: previous=${previousChainId}, current=${required.token.chainId}, hasExistingPayment=${hasExistingPayment}, needRozoPayment=${needRozoPayment}`,
     );
 
     // Prepare transaction parameters early (before async operations)
@@ -649,7 +717,7 @@ export function usePaymentState({
             // State might have changed during async operations
             console.warn(
               "[PAY TOKEN] State transition failed, attempting direct start:",
-              e
+              e,
             );
             // Try to set started directly if state is already unpaid
             try {
@@ -711,25 +779,25 @@ export function usePaymentState({
     return { txHash: paymentTxHash, success: true };
   };
 
-  // @NOTE: This is Pay In Solana by Daimo (default)
+  // @NOTE: This is Pay In Solana by Rozo (default)
   const payWithSolanaToken = async (
-    walletPaymentOption: WalletPaymentOption
+    walletPaymentOption: WalletPaymentOption,
   ): Promise<{ txHash: string; success: boolean }> => {
     const inputToken = walletPaymentOption.required.token.token;
     const payerPublicKey = solanaWallet.publicKey;
     assert(
       payerPublicKey != null,
-      "[PAY SOLANA] null payerPublicKey when paying on solana"
+      "[PAY SOLANA] null payerPublicKey when paying on solana",
     );
     assert(
       pay.order?.id != null,
-      "[PAY SOLANA] null orderId when paying on solana"
+      "[PAY SOLANA] null orderId when paying on solana",
     );
     assert(
       pay.paymentState === "preview" ||
         pay.paymentState === "unhydrated" ||
         pay.paymentState === "payment_unpaid",
-      `[PAY SOLANA] paymentState is ${pay.paymentState}, must be preview or unhydrated or payment_unpaid`
+      `[PAY SOLANA] paymentState is ${pay.paymentState}, must be preview or unhydrated or payment_unpaid`,
     );
 
     let hydratedOrder: RozoPayHydratedOrderWithOrg;
@@ -737,14 +805,14 @@ export function usePaymentState({
       const res = await pay.hydrateOrder(
         // @TODO: Revalidate this
         undefined, // refundAddress
-        walletPaymentOption
+        walletPaymentOption,
       );
       hydratedOrder = res.order;
 
       log(
         `[PAY SOLANA] Hydrated order: ${JSON.stringify(
-          hydratedOrder
-        )}, checking out with Solana ${inputToken}`
+          hydratedOrder,
+        )}, checking out with Solana ${inputToken}`,
       );
     } else {
       hydratedOrder = pay.order;
@@ -755,7 +823,7 @@ export function usePaymentState({
         orderId: pay.order.id.toString(),
         userPublicKey: assertNotNull(
           payerPublicKey,
-          "[PAY SOLANA] wallet.publicKey cannot be null"
+          "[PAY SOLANA] wallet.publicKey cannot be null",
         ).toString(),
         inputTokenMint: inputToken,
       });
@@ -772,7 +840,7 @@ export function usePaymentState({
       return { txHash: paymentTxHash, success: true };
     } catch {
       console.error(
-        `[PAY SOLANA] could not verify payment tx on chain: ${paymentTxHash}`
+        `[PAY SOLANA] could not verify payment tx on chain: ${paymentTxHash}`,
       );
       return { txHash: paymentTxHash, success: false };
     }
@@ -785,15 +853,15 @@ export function usePaymentState({
       destAddress: string;
       usdcAmount: string;
       memo?: string;
-    }
+    },
   ): Promise<{ txHash: string; success: boolean }> => {
     try {
       log?.(
         `[PAY SOLANA] Starting Solana payment transaction: ${JSON.stringify(
           rozoPayment,
           null,
-          2
-        )}`
+          2,
+        )}`,
       );
 
       const payerPublicKey = solanaWallet.publicKey;
@@ -832,7 +900,7 @@ export function usePaymentState({
       // Check for invalid characters that would cause Base58 decode errors
       if (!isValidSolanaAddress(rozoPayment.destAddress)) {
         throw new Error(
-          `Invalid Solana destination address format: ${rozoPayment.destAddress}`
+          `Invalid Solana destination address format: ${rozoPayment.destAddress}`,
         );
       }
 
@@ -848,7 +916,7 @@ export function usePaymentState({
       } catch (error: any) {
         throw new Error(
           `Invalid Solana address format: ${error.message}. ` +
-            `Destination address: ${rozoPayment.destAddress}`
+            `Destination address: ${rozoPayment.destAddress}`,
         );
       }
 
@@ -864,22 +932,22 @@ export function usePaymentState({
       log("[PAY SOLANA] Deriving associated token accounts...");
       const senderTokenAccount = await getAssociatedTokenAddress(
         mintAddress,
-        fromKey
+        fromKey,
       );
       const recipientTokenAccount = await getAssociatedTokenAddress(
         mintAddress,
-        toKey
+        toKey,
       );
       log("[PAY SOLANA] Sender token account:", senderTokenAccount.toString());
       log(
         "[PAY SOLANA] Recipient token account:",
-        recipientTokenAccount.toString()
+        recipientTokenAccount.toString(),
       );
 
       // Check if recipient token account exists
       log("[PAY SOLANA] Checking if recipient token account exists...");
       const recipientTokenInfo = await connection.getAccountInfo(
-        recipientTokenAccount
+        recipientTokenAccount,
       );
 
       // Create recipient token account if it doesn't exist
@@ -891,8 +959,8 @@ export function usePaymentState({
             recipientTokenAccount,
             toKey,
             mintAddress,
-            TOKEN_PROGRAM_ID
-          )
+            TOKEN_PROGRAM_ID,
+          ),
         );
       }
 
@@ -908,8 +976,8 @@ export function usePaymentState({
           recipientTokenAccount,
           fromKey,
           transferAmount,
-          rozoSolanaUSDC.decimals
-        )
+          rozoSolanaUSDC.decimals,
+        ),
       );
 
       // Add memo if provided
@@ -921,10 +989,10 @@ export function usePaymentState({
               { pubkey: payerPublicKey, isSigner: true, isWritable: true },
             ],
             programId: new PublicKey(
-              "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
+              "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
             ),
             data: Buffer.from(rozoPayment.memo, "utf-8"),
-          })
+          }),
         );
       }
 
@@ -946,7 +1014,7 @@ export function usePaymentState({
         transaction.serialize({
           requireAllSignatures: false,
           verifySignatures: false,
-        })
+        }),
       );
 
       log("[PAY SOLANA] Sending transaction to wallet for signing...");
@@ -972,7 +1040,7 @@ export function usePaymentState({
       destAddress: string;
       usdcAmount: string;
       memo?: string;
-    }
+    },
   ): Promise<{ signedTx: string; success: boolean }> => {
     try {
       if (!stellarServer || !stellarKit) {
@@ -1018,7 +1086,7 @@ export function usePaymentState({
 
       const destAsset = new Asset(
         walletPaymentOption.required.token.symbol,
-        issuer
+        issuer,
       );
       const fee = String(await stellarServer.fetchBaseFee());
 
@@ -1032,7 +1100,7 @@ export function usePaymentState({
             destination: destinationAddress,
             asset: destAsset,
             amount: String(rozoPayment.usdcAmount),
-          })
+          }),
         )
         .setTimeout(180);
 
@@ -1064,13 +1132,13 @@ export function usePaymentState({
       });
     assert(
       externalPaymentOptionData != null,
-      "[PAY EXTERNAL] missing externalPaymentOptionData"
+      "[PAY EXTERNAL] missing externalPaymentOptionData",
     );
 
     log(
       `[PAY EXTERNAL] hydrated order: ${debugJson(
-        order
-      )}, checking out with external payment: ${option}`
+        order,
+      )}, checking out with external payment: ${option}`,
     );
 
     setPaymentWaitingMessage(externalPaymentOptionData.waitingMessage);
@@ -1082,12 +1150,12 @@ export function usePaymentState({
     option: DepositAddressPaymentOptionMetadata,
     store: Store<PaymentState, PaymentEvent>,
     fees: FeeResponseData | null,
-    log?: (message: string) => void
+    log?: (message: string) => void,
   ) => {
     // Prevent duplicate calls for the same option
     if (depositAddressCallRef.current.has(option.id)) {
       log?.(
-        `[PAY DEPOSIT ADDRESS] Already processing ${option}, skipping duplicate call`
+        `[PAY DEPOSIT ADDRESS] Already processing ${option}, skipping duplicate call`,
       );
       return null;
     }
@@ -1097,22 +1165,74 @@ export function usePaymentState({
     log?.(`[PAY DEPOSIT ADDRESS] Starting processing for ${option}`);
 
     try {
-      log?.("[PAY DEPOSIT ADDRESS] hydrating order");
+      const payParams = currPayParamsRef.current;
+      let order: RozoPayHydratedOrderWithOrg;
 
-      const { order } = await pay.hydrateOrder(undefined, {
-        required: {
-          token: {
-            token: option.token.token,
-            chainId: option.token.chainId,
+      if (!payParams) {
+        // payId mode: fetch existing payment and checkout with the selected token
+        const existingPayId = pay.order?.externalId ?? undefined;
+        if (!existingPayId) {
+          throw new Error("No pay params and no existing payment ID");
+        }
+
+        log?.(
+          `[PAY DEPOSIT ADDRESS] payId mode — fetching payment ${existingPayId}`,
+        );
+
+        const paymentRes = await getPayment(existingPayId);
+        if (!paymentRes?.data) {
+          throw new Error("Failed to fetch payment");
+        }
+
+        let sourceChainId = Number(option.token.chainId);
+
+        if (sourceChainId === solana.chainId) {
+          sourceChainId = rozoSolana.chainId;
+        } else if (sourceChainId === stellar.chainId) {
+          sourceChainId = rozoStellar.chainId;
+        }
+
+        const checkoutRes = await checkoutPayment(
+          existingPayId,
+          buildCheckoutPayload(paymentRes.data, {
+            chainId: sourceChainId,
+            tokenSymbol: option.token.symbol,
+            tokenAddress: option.token.token,
+            amount: String(paymentRes.data.destination?.amount ?? "0"),
+          }),
+        );
+        if (!checkoutRes?.data) {
+          throw new Error("Failed to checkout payment");
+        }
+
+        setRozoPaymentId(checkoutRes.data.id);
+        order = formatPaymentResponseToHydratedOrder(
+          checkoutRes.data,
+        ) as RozoPayHydratedOrderWithOrg;
+
+        log?.(
+          `[PAY DEPOSIT ADDRESS] payId mode — checked out order ${order.id} for ${order.usdValue} USD`,
+        );
+      } else {
+        log?.("[PAY DEPOSIT ADDRESS] hydrating order");
+
+        const result = await pay.hydrateOrder(undefined, {
+          required: {
+            token: {
+              token: option.token.token,
+              chainId: option.token.chainId,
+            } as any,
           } as any,
-        } as any,
-        fees: {
-          usd: fees?.fee ?? 0,
-        },
-      } as any);
+          fees: {
+            usd: fees?.fee ?? 0,
+          },
+        } as any);
+
+        order = result.order;
+      }
 
       log?.(
-        `[PAY DEPOSIT ADDRESS] hydrated order ${order.id} for ${order.usdValue} USD, checking out with deposit address: ${option}`
+        `[PAY DEPOSIT ADDRESS] hydrated order ${order.id} for ${order.usdValue} USD, checking out with deposit address: ${option}`,
       );
 
       // const result = await trpc.getDepositAddressForOrder.query({
@@ -1130,7 +1250,7 @@ export function usePaymentState({
 
       const preferredToken = getKnownToken(
         Number(order.preferredChainId),
-        order.preferredTokenAddress
+        order.preferredTokenAddress,
       );
 
       if (!preferredToken) {
@@ -1161,7 +1281,7 @@ export function usePaymentState({
         uriDeeplink = generateEVMDeepLink({
           amountUnits: parseUnits(
             order.destFinalCallTokenAmount.usd.toString(),
-            preferredToken.decimals
+            preferredToken.decimals,
           ).toString(),
           chainId: preferredToken.chainId,
           recipientAddress: order.intentAddr,
@@ -1210,7 +1330,7 @@ export function usePaymentState({
     if (!customDeeplink) {
       assert(
         paymentState === "payment_unpaid",
-        `[OPEN IN WALLET BROWSER] paymentState is ${paymentState}, must be payment_unpaid`
+        `[OPEN IN WALLET BROWSER] paymentState is ${paymentState}, must be payment_unpaid`,
       );
 
       payId = writeRozoPayOrderID(pay.order.id);
@@ -1218,7 +1338,7 @@ export function usePaymentState({
 
     assert(
       wallet.getRozoPayDeeplink != null,
-      `openInWalletBrowser: missing deeplink for ${wallet.name}`
+      `openInWalletBrowser: missing deeplink for ${wallet.name}`,
     );
 
     let ref: string | undefined = undefined;
@@ -1253,7 +1373,7 @@ export function usePaymentState({
   const setChosenUsd = (usd: number) => {
     assert(
       pay.paymentState === "preview",
-      "[SET CHOSEN USD] paymentState is not preview"
+      "[SET CHOSEN USD] paymentState is not preview",
     );
 
     // Too expensive to make an API call to regenerate preview order each time
@@ -1264,23 +1384,13 @@ export function usePaymentState({
   const setPayId = useCallback(
     async (payId: string | undefined) => {
       if (lockPayParams || payId == null) return;
-      const paymentId = pay.order?.externalId ?? payId;
 
-      try {
-        const id = readRozoPayOrderID(paymentId).toString();
-
-        if (pay.order?.id && BigInt(id) == pay.order.id) {
-          // Already loaded, ignore.
-          return;
-        }
-      } catch (error) {
-        log("setPayId", error);
-      }
-
+      // Always reset and re-fetch. The caller (RozoPayButton) already
+      // deduplicates via prevPayIdRef so this only fires on actual changes.
       pay.reset();
-      pay.setPayId(paymentId);
+      pay.setPayId(payId);
     },
-    [lockPayParams, pay]
+    [lockPayParams, pay],
   );
 
   /** Called whenever params change. */
@@ -1292,7 +1402,7 @@ export function usePaymentState({
       // Convert preferredSymbol to preferredTokens if needed
       const finalPreferredTokens = convertPreferredSymbolsToTokens(
         payParams.preferredSymbol,
-        payParams.preferredTokens
+        payParams.preferredTokens,
       );
       const updatedPayParams = {
         ...payParams,
@@ -1311,11 +1421,11 @@ export function usePaymentState({
         setIsDepositFlow(updatedPayParams.toUnits == null);
       } else {
         log?.(
-          `[SET PAY PARAMS] skipped setCurrPayParams (stale request myId=${myId}, current=${previewRequestIdRef.current})`
+          `[SET PAY PARAMS] skipped setCurrPayParams (stale request myId=${myId}, current=${previewRequestIdRef.current})`,
         );
       }
     },
-    [lockPayParams, pay, currPayParamsRef]
+    [lockPayParams, pay, currPayParamsRef],
   );
 
   const generatePreviewOrder = useCallback(async () => {
@@ -1362,7 +1472,7 @@ export function usePaymentState({
         // Convert preferredSymbol to preferredTokens if needed
         const finalPreferredTokens = convertPreferredSymbolsToTokens(
           mergedPayParams.preferredSymbol,
-          mergedPayParams.preferredTokens
+          mergedPayParams.preferredTokens,
         );
         const updatedPayParams = {
           ...mergedPayParams,
@@ -1380,14 +1490,14 @@ export function usePaymentState({
             setIsDepositFlow(updatedPayParams.toUnits == null);
           } else {
             log?.(
-              `[resetOrder] skipped setCurrPayParams (stale request myId=${myId}, current=${previewRequestIdRef.current})`
+              `[resetOrder] skipped setCurrPayParams (stale request myId=${myId}, current=${previewRequestIdRef.current})`,
             );
           }
         } catch (error) {
           if (myId === previewRequestIdRef.current) {
             console.error(
               "[resetOrder] Failed to create preview order:",
-              error
+              error,
             );
           }
           throw error;
@@ -1396,7 +1506,7 @@ export function usePaymentState({
 
       setRoute(ROUTES.SELECT_METHOD);
     },
-    [pay, JSON.stringify(currPayParams)]
+    [pay, JSON.stringify(currPayParams)],
   );
 
   const orderUsdAmount = useMemo(() => {

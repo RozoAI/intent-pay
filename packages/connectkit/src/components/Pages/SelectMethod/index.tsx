@@ -53,6 +53,7 @@ export default function SelectMethod() {
     isConnected: isStellarConnected,
     disconnect: disconnectStellar,
     publicKey: stellarPublicKey,
+    isExternalKit: isStellarExternalKit,
   } = useStellar();
 
   const { setRoute, paymentState, log, disableMobileInjector } =
@@ -309,7 +310,7 @@ export default function SelectMethod() {
         onClick: async () => {
           await disconnectAsync();
           await disconnectSolana();
-          await disconnectStellar();
+          if (!isStellarExternalKit) await disconnectStellar();
           setRoute(ROUTES.CONNECTORS);
         },
       };
@@ -332,7 +333,14 @@ export default function SelectMethod() {
       }
     }
 
-    if (showStellarPaymentMethod) {
+    // Hide "Pay with Stellar" when consumer owns the kit and already has a wallet
+    // connected — the shared kit instance means connecting a new wallet here would
+    // silently replace their app's stellar session. The "Pay with [addr]" option above already covers this case.
+    const showStellarOption =
+      showStellarPaymentMethod &&
+      !(isStellarExternalKit && isStellarConnected);
+
+    if (showStellarOption) {
       options.push({
         id: "stellar",
         title: "Pay with Stellar",
@@ -340,7 +348,7 @@ export default function SelectMethod() {
         onClick: async () => {
           await disconnectAsync();
           await disconnectSolana();
-          await disconnectStellar();
+          if (!isStellarExternalKit) await disconnectStellar();
           setRoute(ROUTES.STELLAR_CONNECT);
         },
       });

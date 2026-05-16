@@ -7,7 +7,8 @@ import {
   getPayment,
   mergedMetadata,
   PaymentResponse,
-  readRozoPayOrderID,
+  PaymentStatus,
+  resolveOrderId,
   RozoPayHydratedOrderWithOrg,
   RozoPayIntentStatus,
   RozoPayOrderMode,
@@ -68,11 +69,11 @@ export function attachPaymentEffectHandlers(
   store: PaymentStore,
   trpc: TrpcClient,
   log: (msg: string) => void,
-  apiVersion: "v1" | "v2" = "v2"
+  apiVersion: "v1" | "v2" = "v2",
 ): () => void {
   const unsubscribe = store.subscribe(({ prev, next, event }) => {
     log(
-      `[EFFECT] processing effects for event ${event.type} on state transition ${prev.type} -> ${next.type}`
+      `[EFFECT] processing effects for event ${event.type} on state transition ${prev.type} -> ${next.type}`,
     );
     /* --------------------------------------------------
      * State-driven effects
@@ -91,7 +92,7 @@ export function attachPaymentEffectHandlers(
       // Stop all pollers when the payment flow is completed or reset
       if (
         ["payment_completed", "payment_bounced", "error", "idle"].includes(
-          next.type
+          next.type,
         )
       ) {
         if ("order" in prev && prev.order) {
@@ -110,7 +111,7 @@ export function attachPaymentEffectHandlers(
         latestSetPayParamsRequestId = requestId;
         const isLatest = () => requestId === latestSetPayParamsRequestId;
         log(
-          `[EFFECT] set_pay_params requestId=${requestId} toUnits=${event.payParams?.toUnits ?? "(deposit)"}`
+          `[EFFECT] set_pay_params requestId=${requestId} toUnits=${event.payParams?.toUnits ?? "(deposit)"}`,
         );
         runSetPayParamsEffects(store, trpc, event, apiVersion, isLatest, log);
         break;
@@ -131,7 +132,7 @@ export function attachPaymentEffectHandlers(
           // Order is already hydrated in payment_started state, no effect needed
           // This can happen when user goes back and selects the same payment method again
           log(
-            `[EFFECT] skipping ${event.type} on state ${prev.type} - order already hydrated`
+            `[EFFECT] skipping ${event.type} on state ${prev.type} - order already hydrated`,
           );
         } else {
           log(`[EFFECT] invalid event ${event.type} on state ${prev.type}`);
@@ -185,7 +186,7 @@ export function attachPaymentEffectHandlers(
 async function pollFindPayments(
   store: PaymentStore,
   trpc: TrpcClient,
-  orderId: bigint
+  orderId: bigint,
 ) {
   const key = `${PollerType.FIND_SOURCE_PAYMENT}:${orderId}`;
 
@@ -210,7 +211,7 @@ async function pollFindPayments(
 async function pollRefreshOrder(
   store: PaymentStore,
   trpc: TrpcClient,
-  orderId: bigint
+  orderId: bigint,
 ) {
   const key = `${PollerType.REFRESH_ORDER}:${orderId}`;
 
@@ -241,7 +242,7 @@ async function runSetPayParamsEffects(
   event: Extract<PaymentEvent, { type: "set_pay_params" }>,
   apiVersion: ApiVersion = "v2",
   isLatest: () => boolean = () => true,
-  log: (msg: string) => void = () => {}
+  log: (msg: string) => void = () => {},
 ) {
   const payParams = event.payParams;
   // toUnits is undefined if and only if we're in deposit flow.
@@ -253,7 +254,7 @@ async function runSetPayParamsEffects(
   const isDepositFlow = payParams.toUnits == null;
   assert(
     !isDepositFlow || payParams.externalId == null,
-    "PayParams: externalId unsupported in deposit mode"
+    "PayParams: externalId unsupported in deposit mode",
   );
 
   try {
@@ -291,8 +292,8 @@ async function runSetPayParamsEffects(
           .map((len) =>
             Array.from(
               { length: len },
-              () => chars[Math.floor(Math.random() * chars.length)]
-            ).join("")
+              () => chars[Math.floor(Math.random() * chars.length)],
+            ).join(""),
           )
           .join("-")
       );
@@ -348,7 +349,7 @@ async function runSetPayParamsEffects(
 
     if (!isLatest()) {
       log(
-        `[EFFECT] preview_generated skipped (stale set_pay_params, toUnits=${toUnits})`
+        `[EFFECT] preview_generated skipped (stale set_pay_params, toUnits=${toUnits})`,
       );
       return;
     }
@@ -380,12 +381,28 @@ async function runSetPayIdEffects(
   store: PaymentStore,
   trpc: TrpcClient,
   event: Extract<PaymentEvent, { type: "set_pay_id" }>,
-  apiVersion: ApiVersion = "v2"
+  apiVersion: ApiVersion = "v2",
 ) {
   try {
-    const { order } = await trpc.getOrder.query({
-      id: readRozoPayOrderID(event.payId).toString(),
-    });
+    const payId = resolveOrderId(event.payId);
+    const res = await getPayment(payId);
+
+    if (!res?.data) {
+      throw new Error("Payment not found");
+    }
+
+    // Only allow payment_unpaid status when using payId.
+    // Any other status means the payment has already been used or is invalid.
+    if (res.data.status !== PaymentStatus.PaymentUnpaid) {
+      store.dispatch({
+        type: "error",
+        order: undefined,
+        message: `Payment is no longer unpaid. Please create a new payment.`,
+      });
+      return;
+    }
+
+    const order = formatPaymentResponseToHydratedOrder(res.data);
 
     store.dispatch({
       type: "order_loaded",
@@ -406,7 +423,7 @@ async function runHydratePayParamsEffects(
   prev: Extract<PaymentState, { type: "preview" }>,
   event: Extract<PaymentEvent, { type: "hydrate_order" }>,
   log: (msg: string) => void,
-  apiVersion: ApiVersion = "v2"
+  apiVersion: ApiVersion = "v2",
 ) {
   const order = prev.order;
   const payParams = prev.payParamsData;
@@ -424,8 +441,8 @@ async function runHydratePayParamsEffects(
       `[Payment Effect]: createRozoPayment: ${JSON.stringify(
         payParams,
         null,
-        2
-      )}`
+        2,
+      )}`,
     );
     const payload = buildCreatePaymentPayload({
       // payParamsData only carries a subset; normalise to full PayParams
@@ -448,7 +465,7 @@ async function runHydratePayParamsEffects(
     }
 
     log?.(
-      `[Payment Effect]: rozoPayment: ${JSON.stringify(rozoPayment, null, 2)}`
+      `[Payment Effect]: rozoPayment: ${JSON.stringify(rozoPayment, null, 2)}`,
     );
 
     rozoPaymentResponse = rozoPayment;
@@ -493,7 +510,7 @@ async function runHydratePayIdEffects(
   trpc: TrpcClient,
   prev: Extract<PaymentState, { type: "unhydrated" }>,
   event: Extract<PaymentEvent, { type: "hydrate_order" }>,
-  apiVersion: ApiVersion = "v2"
+  apiVersion: ApiVersion = "v2",
 ) {
   const order = prev.order;
 
@@ -510,7 +527,7 @@ async function runHydratePayIdEffects(
 
     const token = getKnownToken(
       order.destFinalCallTokenAmount.token.chainId,
-      order.destFinalCallTokenAmount.token.token
+      order.destFinalCallTokenAmount.token.token,
     );
 
     const hydratedOrder: RozoPayHydratedOrderWithOrg = {
@@ -562,7 +579,7 @@ async function runHydratePayIdEffects(
         },
         amount: parseUnits(
           order.destFinalCallTokenAmount.amount as unknown as `${bigint}`,
-          token?.decimals ?? 18
+          token?.decimals ?? 18,
         ).toString() as `${bigint}`,
         usd: Number(order.destFinalCallTokenAmount.usd),
       },
@@ -620,7 +637,7 @@ async function runHydratePayIdEffects(
 async function runPaySourceEffects(
   store: PaymentStore,
   trpc: TrpcClient,
-  prev: Extract<PaymentState, { type: "payment_unpaid" }>
+  prev: Extract<PaymentState, { type: "payment_unpaid" }>,
 ) {
   const orderId = prev.order.id;
 
@@ -642,7 +659,7 @@ async function runPayEthereumSourceEffects(
   store: PaymentStore,
   trpc: TrpcClient,
   prev: Extract<PaymentState, { type: "payment_unpaid" }>,
-  event: Extract<PaymentEvent, { type: "pay_ethereum_source" }>
+  event: Extract<PaymentEvent, { type: "pay_ethereum_source" }>,
 ) {
   const orderId = prev.order.id;
 
@@ -669,7 +686,7 @@ async function runPaySolanaSourceEffects(
   store: PaymentStore,
   trpc: TrpcClient,
   prev: Extract<PaymentState, { type: "payment_unpaid" }>,
-  event: Extract<PaymentEvent, { type: "pay_solana_source" }>
+  event: Extract<PaymentEvent, { type: "pay_solana_source" }>,
 ) {
   const orderId = prev.order.id;
 

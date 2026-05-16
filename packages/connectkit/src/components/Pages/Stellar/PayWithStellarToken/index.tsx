@@ -10,8 +10,11 @@ import {
 } from "../../../Common/Modal/styles";
 
 import {
+  buildCheckoutPayload,
+  checkoutPayment,
   formatPaymentResponseToHydratedOrder,
   getChainExplorerTxUrl,
+  getPayment,
   RozoPayHydratedOrderWithOrg,
   stellar,
   WalletPaymentOption,
@@ -23,7 +26,7 @@ import {
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
-import { useRozoPay } from "../../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../../hooks/useRozoPay";
 import { useStellar } from "../../../../provider/StellarContextProvider";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
@@ -69,9 +72,15 @@ const PayWithStellarToken: React.FC = () => {
     kit: stellarKit,
   } = useStellar();
   const submitButtonRef = useRef<HTMLButtonElement>(null);
+  // Prevents the payId fetch+checkout from firing more than once per mount.
+  const checkoutDoneRef = useRef(false);
+  const cachedCheckoutOrderRef = useRef<RozoPayHydratedOrderWithOrg | null>(
+    null,
+  );
+  const cachedCheckoutPaymentIdRef = useRef<string | undefined>(undefined);
 
   const [payState, setPayState] = useState<PayState>(
-    PayState.PreparingTransaction
+    PayState.PreparingTransaction,
   );
   const [txURL, setTxURL] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
@@ -104,23 +113,24 @@ const PayWithStellarToken: React.FC = () => {
     // attempt, instead of the stale React state value captured in the closure.
     let resolvedPaymentId: string | undefined;
     try {
-      // Validate we have current payParams - if not, component has stale state
-      if (!payParams) {
+      // Validate we have current payParams - if not, check if we're in payId mode
+      // (pre-created payment). If neither, component has stale state.
+      if (!payParams && !order?.externalId) {
         log?.(
-          "[PayWithStellarToken] No payParams available, skipping transfer"
+          "[PayWithStellarToken] No payParams or payId available, skipping transfer",
         );
         setIsLoading(false);
         return;
       }
 
-      if (!destinationAddress) {
+      if (!destinationAddress && !order?.externalId) {
         throw new Error("Stellar destination address is required");
       }
 
       log?.("[PayWithStellarToken] Starting transfer with:", {
         destinationAddress,
-        chainId: payParams.toChain,
-        toStellarAddress: payParams.toStellarAddress,
+        chainId: payParams?.toChain,
+        toStellarAddress: payParams?.toStellarAddress,
       });
 
       if (!order) {
@@ -136,7 +146,46 @@ const PayWithStellarToken: React.FC = () => {
       let hydratedOrder: RozoPayHydratedOrderWithOrg;
       let paymentId: string | undefined;
 
-      if (
+      // When payId is used (no payParams), fetch the existing payment instead
+      // of creating a new one to avoid re-creating a payment that already exists.
+      const existingPayId = order.externalId ?? undefined;
+      const isPayIdMode = !payParams && !!existingPayId;
+
+      if (isPayIdMode) {
+        // payId mode: checkout (refresh) the payment with the selected source token.
+        // Guard against duplicate calls (e.g. from the recursive payment_unpaid branch).
+        if (checkoutDoneRef.current && cachedCheckoutOrderRef.current) {
+          log?.(
+            "[PayWithStellarToken] isPayIdMode checkout already done, reusing cached result",
+          );
+          hydratedOrder = cachedCheckoutOrderRef.current;
+          paymentId = cachedCheckoutPaymentIdRef.current;
+        } else {
+          checkoutDoneRef.current = true;
+          const paymentRes = await getPayment(existingPayId!);
+          if (!paymentRes?.data) {
+            throw new Error("Failed to fetch payment");
+          }
+          const checkoutRes = await checkoutPayment(
+            existingPayId!,
+            buildCheckoutPayload(paymentRes.data, {
+              chainId: option.required.token.chainId,
+              tokenSymbol: option.required.token.symbol,
+              tokenAddress: option.required.token.token,
+              amount: String(option.required.usd),
+            }),
+          );
+          if (!checkoutRes?.data) {
+            throw new Error("Failed to checkout payment");
+          }
+          paymentId = checkoutRes.data.id;
+          hydratedOrder = formatPaymentResponseToHydratedOrder(
+            checkoutRes.data,
+          );
+          cachedCheckoutOrderRef.current = hydratedOrder;
+          cachedCheckoutPaymentIdRef.current = paymentId;
+        }
+      } else if (
         (state === "payment_unpaid" || state === "payment_started") &&
         !needRozoPayment
       ) {
@@ -182,7 +231,7 @@ const PayWithStellarToken: React.FC = () => {
               // State might have changed during async operations
               console.warn(
                 "[PayWithStellarToken] State transition failed, attempting direct start:",
-                e
+                e,
               );
               // Try to set started directly if state is already unpaid
               try {
@@ -190,7 +239,7 @@ const PayWithStellarToken: React.FC = () => {
               } catch (e2) {
                 console.error(
                   "[PayWithStellarToken] Could not start payment:",
-                  e2
+                  e2,
                 );
                 throw e2;
               }
@@ -210,7 +259,7 @@ const PayWithStellarToken: React.FC = () => {
             } catch (e) {
               console.error(
                 "[PayWithStellarToken] Could not start payment:",
-                e
+                e,
               );
               throw e;
             }
@@ -220,7 +269,7 @@ const PayWithStellarToken: React.FC = () => {
             await setPaymentStarted(String(newId), hydratedOrder);
           } else {
             log?.(
-              `[PayWithStellarToken] Skipping setPaymentStarted - state is ${stateBeforeTransition}, needs to be payment_unpaid`
+              `[PayWithStellarToken] Skipping setPaymentStarted - state is ${stateBeforeTransition}, needs to be payment_unpaid`,
             );
           }
         }
@@ -231,8 +280,12 @@ const PayWithStellarToken: React.FC = () => {
       // Double-check destination address matches the payment direction
       const finalDestAddress = hydratedOrder.intentAddr || destinationAddress;
 
+      if (!finalDestAddress) {
+        throw new Error("Destination address not found");
+      }
+
       log?.(
-        `[PayWithStellarToken] Payment setup - destAddress: ${finalDestAddress}, toChain: ${payParams.toChain}, token chain: ${option.required.token.chainId}`
+        `[PayWithStellarToken] Payment setup - destAddress: ${finalDestAddress}, toChain: ${payParams?.toChain}, token chain: ${option.required.token.chainId}`,
       );
 
       const paymentData = {
@@ -287,11 +340,11 @@ const PayWithStellarToken: React.FC = () => {
 
         const tx = TransactionBuilder.fromXDR(
           signedTransaction.signedTxXdr,
-          Networks.PUBLIC
+          Networks.PUBLIC,
         );
 
         const response = await stellarServer.submitTransaction(
-          tx as Transaction | FeeBumpTransaction
+          tx as Transaction | FeeBumpTransaction,
         );
 
         if (response.successful) {
@@ -300,7 +353,7 @@ const PayWithStellarToken: React.FC = () => {
           setTxURL(getChainExplorerTxUrl(stellar.chainId, response.hash));
           setTimeout(() => {
             setSignedTx(undefined);
-            setPaymentCompleted(response.hash, rozoPaymentId);
+            setPaymentCompleted(response.hash, rozoPaymentId, stellarPublicKey ?? null);
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
           }, 200);
           setTimeout(() => {
@@ -335,7 +388,7 @@ const PayWithStellarToken: React.FC = () => {
     // Give user time to see the UI before opening
     const transferTimeout = setTimeout(
       () => handleTransfer(selectedStellarTokenOption),
-      100
+      100,
     );
     return () => clearTimeout(transferTimeout);
   }, [selectedStellarTokenOption]);

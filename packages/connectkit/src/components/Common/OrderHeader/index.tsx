@@ -13,7 +13,7 @@ import {
 } from "../../../assets/chains";
 import defaultTheme from "../../../constants/defaultTheme";
 import { ROUTES } from "../../../constants/routes";
-import { useRozoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
 import { useStellar } from "../../../provider/StellarContextProvider";
 import styled from "../../../styles/styled";

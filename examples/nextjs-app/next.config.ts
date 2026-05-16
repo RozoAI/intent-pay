@@ -15,7 +15,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Always transpile the monorepo packages to ensure proper handling of React features
   transpilePackages: monoRepoPackages,
 };
 

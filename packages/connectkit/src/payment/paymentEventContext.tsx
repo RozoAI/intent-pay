@@ -22,6 +22,8 @@ export type PaymentEventType =
 export interface PaymentEventData {
   order: any; // TODO: Import Order type from @rozoai/intent-common
   rozoPaymentId: string;
+  /** Address of the wallet that sent the payment, if known */
+  payerAddress?: string | null;
 }
 
 /**

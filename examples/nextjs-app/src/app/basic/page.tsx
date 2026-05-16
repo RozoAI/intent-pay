@@ -216,15 +216,8 @@ const CodeSnippetDisplay = ({ code }: { code: string }) => {
  * Simple Connect Stellar Wallet Component
  */
 const ConnectStellarWallet = () => {
-  const {
-    kit,
-    isConnected,
-    publicKey,
-    connector,
-    setConnector,
-    disconnect,
-    setPublicKey,
-  } = useRozoConnectStellar();
+  const { kit, isConnected, publicKey, connector, setConnector, disconnect } =
+    useRozoConnectStellar();
   const [wallets, setWallets] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showWallets, setShowWallets] = useState(false);

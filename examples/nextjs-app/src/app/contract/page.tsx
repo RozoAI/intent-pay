@@ -42,7 +42,7 @@ export default function DemoContract() {
   };
   const onSuccess = (e: PaymentCompletedEvent) => {
     printEvent(e);
-    setSuccessUrl(`${getChainExplorerByChainId(e.chainId)}/tx/${e.txHash}`);
+    setSuccessUrl(`${getChainExplorerByChainId(e.destinationChainId)}/tx/${e.txHash}`);
     refetch();
   };
 

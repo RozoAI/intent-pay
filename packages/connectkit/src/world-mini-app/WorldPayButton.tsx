@@ -22,9 +22,9 @@ import { Address, Hex } from "viem";
 import ThemedButton, {
   ThemeContainer,
 } from "../components/Common/ThemedButton";
-import { RozoPayButtonInner } from "../components/DaimoPayButton";
+import { RozoPayButtonInner } from "../components/RozoPayButton";
 import { ROUTES } from "../constants/routes";
-import { useRozoPay } from "../hooks/useDaimoPay";
+import { useRozoPay } from "../hooks/useRozoPay";
 import { usePayContext } from "../hooks/usePayContext";
 import { ResetContainer } from "../styles";
 import { CustomTheme, Mode, Theme } from "../types";
@@ -234,21 +234,24 @@ function WorldPayButtonCustom(props: WorldPayButtonCustomProps) {
       pay.paymentState === "payment_completed"
         ? RozoPayEventType.PaymentCompleted
         : RozoPayEventType.PaymentBounced;
+    const orderView = getRozoPayOrderView(pay.order);
     const event = {
       type: eventType,
       paymentId: writeRozoPayOrderID(pay.order.id),
-      chainId: getOrderDestChainId(pay.order),
+      sourceChainId: orderView.source ? Number(orderView.source.chainId) : null,
+      destinationChainId: getOrderDestChainId(pay.order),
       txHash: assertNotNull(
         pay.order.destFastFinishTxHash ?? pay.order.destClaimTxHash,
-        `[WORLD PAY BUTTON] dest tx hash null on order ${pay.order.id} when intent status is ${pay.order.intentStatus}`
+        `[WORLD PAY BUTTON] dest tx hash null on order ${pay.order.id} when intent status is ${pay.order.intentStatus}`,
       ),
-      payment: getRozoPayOrderView(pay.order),
+      payerAddress: orderView.source?.payerAddress ?? null,
+      payment: orderView,
     };
 
     if (pay.paymentState === "payment_completed") {
       onPaymentCompleted?.(event as PaymentCompletedEvent);
     } else if (pay.paymentState === "payment_bounced") {
-      onPaymentBounced?.(event as PaymentBouncedEvent);
+      onPaymentBounced?.(event as unknown as PaymentBouncedEvent);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pay.order, pay.paymentState]);
@@ -267,14 +270,14 @@ function WorldPayButtonCustom(props: WorldPayButtonCustomProps) {
     log(`[WORLD] showing payment ${pay.order?.id}`);
     if (!isMiniKitReady) {
       console.error(
-        "[WORLD] MiniKit is not installed. Please install @worldcoin/minikit-js to use this feature."
+        "[WORLD] MiniKit is not installed. Please install @worldcoin/minikit-js to use this feature.",
       );
       return;
     }
 
     if (
       ["payment_started", "payment_completed", "payment_bounced"].includes(
-        pay.paymentState
+        pay.paymentState,
       )
     ) {
       showSpinner();
@@ -284,7 +287,7 @@ function WorldPayButtonCustom(props: WorldPayButtonCustomProps) {
     log(`[WORLD] hydrating order ${pay.order?.id}`);
     const { order } = await pay.hydrateOrder();
     log(
-      `[WORLD] hydrated order ${pay.order?.id}. Prompting payment with MiniKit`
+      `[WORLD] hydrated order ${pay.order?.id}. Prompting payment with MiniKit`,
     );
     const payRes = await promptWorldcoinPayment(order, context.trpc);
     if (payRes == null || payRes.finalPayload.status == "error") {

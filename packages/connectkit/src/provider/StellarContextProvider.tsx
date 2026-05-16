@@ -20,6 +20,7 @@ type StellarContextProvider = {
 
 type StellarContextProviderValue = {
   kit: StellarWalletsKit | undefined;
+  isExternalKit: boolean;
   stellarWalletPersistence: boolean;
   server: Horizon.Server;
   publicKey: string | undefined;
@@ -41,6 +42,7 @@ export const STELLAR_WALLET_STORAGE_KEY = "rozo-stellar-wallet";
 
 const initialContext: StellarContextProviderValue = {
   kit: undefined,
+  isExternalKit: false,
   stellarWalletPersistence: true,
   server: undefined as any,
   publicKey: undefined,
@@ -279,6 +281,7 @@ export const StellarContextProvider = ({
   const contextValue = useMemo(() => {
     const context: StellarContextProviderValue = {
       kit,
+      isExternalKit: isUsingExternalKit,
       stellarWalletPersistence,
       publicKey,
       setPublicKey,

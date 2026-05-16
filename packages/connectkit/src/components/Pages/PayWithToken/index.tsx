@@ -3,10 +3,10 @@ import {
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import React, { useCallback, useEffect, useState } from "react";
-import { useChainId, useSwitchChain } from "wagmi";
+import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { ROUTES } from "../../../constants/routes";
 import { useContactSupport } from "../../../hooks/useContactSupport";
-import { useRozoPay } from "../../../hooks/useDaimoPay";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
 import Button from "../../Common/Button";
 import {
@@ -29,9 +29,14 @@ enum PayState {
 const PayWithToken: React.FC = () => {
   const walletChainId = useChainId();
   const { triggerResize, paymentState, setRoute, log } = usePayContext();
-  const { payWithToken, selectedTokenOption, walletPaymentOptions } =
-    paymentState;
+  const {
+    payWithToken,
+    setSenderAddress,
+    selectedTokenOption,
+    walletPaymentOptions,
+  } = paymentState;
   const { switchChainAsync } = useSwitchChain();
+  const { address } = useAccount();
   const {
     store,
     setPaymentUnpaid,
@@ -42,7 +47,7 @@ const PayWithToken: React.FC = () => {
   const handleContactClick = useContactSupport();
 
   const [payState, setPayStateInner] = useState<PayState>(
-    PayState.RequestingPayment
+    PayState.RequestingPayment,
   );
   const [txURL, setTxURL] = useState<string | undefined>();
 
@@ -65,7 +70,7 @@ const PayWithToken: React.FC = () => {
 
   const trySwitchingChain = async (
     option: WalletPaymentOption,
-    forceSwitch: boolean = false
+    forceSwitch: boolean = false,
   ): Promise<boolean> => {
     if (walletChainId !== option.required.token.chainId || forceSwitch) {
       const resultChain = await (async () => {
@@ -114,9 +119,10 @@ const PayWithToken: React.FC = () => {
 
         const result = await payWithToken(option, store as any);
         setTxURL(
-          getChainExplorerTxUrl(option.required.token.chainId, result.txHash)
+          getChainExplorerTxUrl(option.required.token.chainId, result.txHash),
         );
         if (result.success) {
+          setSenderAddress(address);
           setPayState(PayState.RequestSuccessful);
           setTimeout(() => {
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-token" });
@@ -140,10 +146,11 @@ const PayWithToken: React.FC = () => {
               setTxURL(
                 getChainExplorerTxUrl(
                   option.required.token.chainId,
-                  retryResult.txHash
-                )
+                  retryResult.txHash,
+                ),
               );
               if (retryResult.success) {
+                setSenderAddress(address);
                 setPayState(PayState.RequestSuccessful);
                 setTimeout(() => {
                   setRoute(ROUTES.CONFIRMATION, {
@@ -161,7 +168,7 @@ const PayWithToken: React.FC = () => {
             } catch (retryError) {
               console.error(
                 "Failed to pay with token after switching chain",
-                retryError
+                retryError,
               );
               throw retryError;
             }
@@ -172,7 +179,7 @@ const PayWithToken: React.FC = () => {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletPaymentOptions, rozoPaymentId, order?.externalId, rozoPaymentState]
+    [walletPaymentOptions, rozoPaymentId, order?.externalId, rozoPaymentState],
   );
 
   useEffect(() => {
