@@ -1,16 +1,13 @@
-packages:
-  - "packages/*"
-  - "examples/*"
 allowBuilds:
-  '@reown/appkit': true
-  bigint-buffer: true
-  blake-hash: true
-  bufferutil: true
-  keccak: true
-  protobufjs: true
-  secp256k1: true
-  sharp: true
-  tiny-secp256k1: true
-  unrs-resolver: true
-  usb: true
-  utf-8-validate: true
+  '@reown/appkit': set this to true or false
+  bigint-buffer: set this to true or false
+  blake-hash: set this to true or false
+  bufferutil: set this to true or false
+  keccak: set this to true or false
+  protobufjs: set this to true or false
+  secp256k1: set this to true or false
+  sharp: set this to true or false
+  tiny-secp256k1: set this to true or false
+  unrs-resolver: set this to true or false
+  usb: set this to true or false
+  utf-8-validate: set this to true or false
