@@ -274,7 +274,6 @@ export function usePaymentState({
   const {
     publicKey: stellarPublicKey,
     account: stellarAccount,
-    kit: stellarKit,
     connector: stellarConnector,
     server: stellarServer,
     refreshAccount: refreshStellarAccount,
@@ -1043,7 +1042,7 @@ export function usePaymentState({
     },
   ): Promise<{ signedTx: string; success: boolean }> => {
     try {
-      if (!stellarServer || !stellarKit) {
+      if (!stellarServer) {
         throw new Error("Stellar services not initialized");
       }
 

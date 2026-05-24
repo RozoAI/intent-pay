@@ -66,11 +66,7 @@ const PayWithStellarToken: React.FC = () => {
   const handleContactClick = useContactSupport();
 
   // Get the destination address and payment direction using our custom hook
-  const {
-    server: stellarServer,
-    publicKey: stellarPublicKey,
-    kit: stellarKit,
-  } = useStellar();
+  const { server: stellarServer, publicKey: stellarPublicKey } = useStellar();
   const submitButtonRef = useRef<HTMLButtonElement>(null);
   // Prevents the payId fetch+checkout from firing more than once per mount.
   const checkoutDoneRef = useRef(false);
@@ -327,13 +323,17 @@ const PayWithStellarToken: React.FC = () => {
   };
 
   const handleSubmitTx = async () => {
-    if (signedTx && stellarServer && stellarKit) {
+    if (signedTx && stellarServer) {
       try {
-        // Sign and submit transaction
-        const signedTransaction = await stellarKit.signTransaction(signedTx, {
-          address: stellarPublicKey,
-          networkPassphrase: Networks.PUBLIC,
-        });
+        const { StellarWalletsKit } =
+          await import("@creit.tech/stellar-wallets-kit");
+        const signedTransaction = await StellarWalletsKit.signTransaction(
+          signedTx,
+          {
+            address: stellarPublicKey,
+            networkPassphrase: Networks.PUBLIC,
+          },
+        );
 
         setIsLoading(true);
         setPayState(PayState.ProcessingPayment);
@@ -353,7 +353,11 @@ const PayWithStellarToken: React.FC = () => {
           setTxURL(getChainExplorerTxUrl(stellar.chainId, response.hash));
           setTimeout(() => {
             setSignedTx(undefined);
-            setPaymentCompleted(response.hash, rozoPaymentId, stellarPublicKey ?? null);
+            setPaymentCompleted(
+              response.hash,
+              rozoPaymentId,
+              stellarPublicKey ?? null,
+            );
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
           }, 200);
           setTimeout(() => {

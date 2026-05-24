@@ -1,205 +1,357 @@
-# Stellar: External Kit & Connect
+# Stellar: External Kit & Connect (SWK 2.x)
 
-How to pass your own Stellar Wallets Kit to the SDK and connect Stellar wallets without double confirmation prompts.
+How to integrate Stellar Wallets Kit 2.x with the SDK, pass an external kit, and connect Stellar wallets.
 
----
-
-## When to use an external Stellar kit
-
-- You want to configure **WalletConnect**, custom modules, or network yourself.
-- You use Stellar elsewhere in your app and need **one shared kit instance** (avoids "custom element already registered" errors).
-- You want a **custom default wallet** (e.g. `selectedWalletId: FREIGHTER_ID`).
-
-If you don’t pass a kit, the SDK creates an internal singleton. For most custom setups, pass a kit via the `stellarKit` prop.
+> **Migrating from v1?** See the [Migration from v1](#migration-from-v1) section at the bottom.
 
 ---
 
-## 1. Create one kit and pass it to RozoPayProvider
+## What changed in v2
 
-Create **one** `StellarWalletsKit` instance at app root and pass it to `RozoPayProvider`. Do not create the kit inside a component that re-renders, or you’ll get duplicate registration errors.
+SWK 2.x changed from an **OOP instance model** to a **static singleton**:
 
-### Minimal
+| | v1 (`@creit.tech/stellar-wallets-kit ^1.x`) | v2 (`@creit-tech/stellar-wallets-kit ^2.x`) |
+|---|---|---|
+| Package name | `@creit.tech/stellar-wallets-kit` (npm) | `@creit-tech/stellar-wallets-kit` (JSR) |
+| Init | `new StellarWalletsKit({ network, modules })` | `StellarWalletsKit.init({ modules })` |
+| Methods | Instance: `kit.setWallet()`, `kit.getAddress()` | Static: `StellarWalletsKit.setWallet()`, `.fetchAddress()` |
+| Wallet list | `kit.getSupportedWallets()` | `StellarWalletsKit.refreshSupportedWallets()` |
+| Default modules | `allowAllModules()` | `defaultModules()` from `/modules/utils` |
+| WalletConnect config | `{ name, url, description, icons, network }` | `{ projectId, metadata: { name, description, url, icons } }` |
+| External kit prop | `stellarKit={myKitInstance}` | `stellarKit={true}` (boolean flag) |
+
+The static singleton means connection state is shared globally — if a user connects their Stellar wallet anywhere in the app, the SDK picks it up automatically via `STATE_UPDATED` events.
+
+---
+
+## Installation
+
+SWK v2 is published on **JSR** (not npm). JSR packages require a one-time registry setup or a special install command depending on your package manager.
+
+```bash
+# pnpm
+pnpm add jsr:@creit-tech/stellar-wallets-kit
+
+# npm
+npx jsr add @creit-tech/stellar-wallets-kit
+
+# yarn (v1 / classic)
+yarn add jsr:@creit-tech/stellar-wallets-kit
+
+# bun
+bunx jsr add @creit-tech/stellar-wallets-kit
+
+# Deno
+deno add jsr:@creit-tech/stellar-wallets-kit
+```
+
+> **Why JSR?** The SWK team moved from `@creit.tech` (npm) to `@creit-tech` (JSR) in v2. JSR is a modern TypeScript-first registry compatible with all runtimes. The `jsr:` prefix tells your package manager to fetch from `jsr.io` instead of `registry.npmjs.org`.
+
+### Verify install
+
+After installing, check `node_modules/@creit-tech/stellar-wallets-kit/package.json` — the `version` field should be `2.x.x`.
+
+### TypeScript / bundler requirement
+
+JSR packages use the `exports` field in `package.json` for subpath resolution (e.g. `@creit-tech/stellar-wallets-kit/modules/wallet-connect`). Your `tsconfig.json` **must** use `moduleResolution: "bundler"`, `"node16"`, or `"nodenext"` — **not** `"node"`.
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler"
+  }
+}
+```
+
+Bundlers (Vite, Webpack 5, Rollup, esbuild, Turbopack) resolve `exports` automatically — no extra config needed there.
+
+---
+
+## 1. Default setup (no external kit)
+
+If you don't need custom modules, **don't pass `stellarKit` at all**. The SDK initializes internally with default modules + WalletConnect.
 
 ```tsx
-import { StellarWalletsKit, WalletNetwork, allowAllModules } from "@creit.tech/stellar-wallets-kit";
 import { RozoPayProvider } from "@rozoai/intent-pay";
-
-const stellarKit = new StellarWalletsKit({
-  network: WalletNetwork.PUBLIC,
-  modules: allowAllModules(),
-});
 
 export function App() {
   return (
-    <RozoPayProvider config={wagmiConfig} stellarKit={stellarKit}>
+    <RozoPayProvider config={wagmiConfig}>
       {children}
     </RozoPayProvider>
   );
 }
 ```
 
-### With WalletConnect
+---
+
+## 2. External kit setup (consumer controls init)
+
+Use this when:
+- You need **custom modules** (e.g. only Freighter + WalletConnect, no others)
+- You use Stellar **elsewhere in your app** before mounting `RozoPayProvider`
+- You want to connect the user's Stellar wallet **before** they open the payment modal
+
+**Step 1:** Call `StellarWalletsKit.init()` once at app root (outside any component).
+
+**Step 2:** Pass `stellarKit={true}` to `RozoPayProvider` to tell the SDK "kit is already initialized."
 
 ```tsx
-import {
-  WalletConnectAllowedMethods,
-  WalletConnectModule,
-} from "@creit.tech/stellar-wallets-kit/modules/walletconnect.module";
-import {
-  allowAllModules,
-  FREIGHTER_ID,
-  StellarWalletsKit,
-  WalletNetwork,
-} from "@creit.tech/stellar-wallets-kit";
+import { StellarWalletsKit } from "@creit-tech/stellar-wallets-kit";
+import { defaultModules } from "@creit-tech/stellar-wallets-kit/modules/utils";
+import { WalletConnectModule } from "@creit-tech/stellar-wallets-kit/modules/wallet-connect";
 import { RozoPayProvider } from "@rozoai/intent-pay";
 
-const stellarKit = new StellarWalletsKit({
-  network: WalletNetwork.PUBLIC,
-  selectedWalletId: FREIGHTER_ID,
+// Call once at app entry — outside any component, never inside useEffect
+StellarWalletsKit.init({
   modules: [
-    ...allowAllModules(),
+    ...defaultModules(),
     new WalletConnectModule({
-      url: typeof window !== "undefined" ? window.location.origin : "https://example.com",
       projectId: "YOUR_WALLETCONNECT_PROJECT_ID",
-      method: WalletConnectAllowedMethods.SIGN,
-      description: "Your app description",
-      name: "Your App",
-      icons: ["https://example.com/icon.png"],
-      network: WalletNetwork.PUBLIC,
+      metadata: {
+        name: "Your App",
+        description: "Your app description",
+        url: typeof window !== "undefined" ? window.location.origin : "https://example.com",
+        icons: ["https://example.com/icon.png"],
+      },
     }),
   ],
 });
 
 export function App() {
   return (
-    <RozoPayProvider config={wagmiConfig} stellarKit={stellarKit}>
+    <RozoPayProvider config={wagmiConfig} stellarKit={true}>
       {children}
     </RozoPayProvider>
   );
 }
 ```
 
-### Provider props
+### How auto-detection works
 
-| Prop                       | Type                 | Description                                                                 |
-|----------------------------|----------------------|-----------------------------------------------------------------------------|
-| `stellarKit`               | `StellarWalletsKit`  | Your kit instance. Optional; if omitted, SDK uses an internal singleton.   |
-| `stellarWalletPersistence` | `boolean`            | Persist last-connected Stellar wallet in `localStorage`. Default `true`.    |
+When `stellarKit={true}`, the SDK skips its internal `init()` and instead subscribes to `KitEventType.STATE_UPDATED` and `KitEventType.DISCONNECT` events. Any wallet connection made anywhere in the app is automatically reflected in the payment modal.
 
 ---
 
-## 2. Connecting Stellar wallets (correct pattern)
+## 3. WalletConnect configuration
 
-Use the SDK’s connection API so connection is **idempotent** and you get a **single** WalletConnect (or wallet) confirmation.
+```tsx
+import { WalletConnectModule } from "@creit-tech/stellar-wallets-kit/modules/wallet-connect";
 
-### Use `useRozoConnectStellar()` and `setConnector(wallet)`
+new WalletConnectModule({
+  projectId: "YOUR_PROJECT_ID",  // from cloud.walletconnect.com
+  metadata: {
+    name: "Your App Name",
+    description: "Description shown in the wallet",
+    url: "https://yourapp.com",
+    icons: ["https://yourapp.com/icon.png"],
+  },
+  // Optional:
+  // allowedChains: ["stellar:pubnet"],
+  // signClientOptions: { ... },
+  // appKitOptions: { ... },
+})
+```
 
-For a **custom “Connect Stellar” button** (or any UI outside the payment modal), use the hook and call **only** `setConnector(wallet)` to connect. Do **not** call `kit.setWallet()` or `kit.getAddress()` yourself.
+---
+
+## 4. Connecting Stellar wallets in your own UI
+
+Use `useRozoConnectStellar()` to add a Stellar connect button outside the payment modal.
 
 ```tsx
 import { useRozoConnectStellar } from "@rozoai/intent-pay";
+import { StellarWalletsKit } from "@creit-tech/stellar-wallets-kit";
+import { useState, useEffect } from "react";
 
 function ConnectStellarButton() {
-  const { kit, isConnected, publicKey, connector, setConnector, disconnect } = useRozoConnectStellar();
+  const { isConnected, publicKey, setConnector, disconnect } = useRozoConnectStellar();
   const [wallets, setWallets] = useState([]);
-  const [showList, setShowList] = useState(false);
 
   useEffect(() => {
-    if (!kit) return;
-    kit.getSupportedWallets().then((list) => {
+    StellarWalletsKit.refreshSupportedWallets().then((list) => {
       setWallets(list.filter((w) => w.isAvailable));
     });
-  }, [kit]);
-
-  const handleConnect = async (wallet) => {
-    if (!kit) return;
-    await setConnector(wallet);  // ✅ One call – SDK does kit.setWallet + getAddress + state
-    setShowList(false);
-  };
-
-  const handleDisconnect = async () => {
-    await disconnect();
-  };
+  }, []);
 
   if (isConnected && publicKey) {
     return (
       <div>
         <p>Connected: {publicKey.slice(0, 8)}…</p>
-        <button onClick={handleDisconnect}>Disconnect</button>
+        <button onClick={disconnect}>Disconnect</button>
       </div>
     );
   }
 
   return (
     <div>
-      <button onClick={() => setShowList(true)}>Connect Stellar</button>
-      {showList && wallets.map((w) => (
-        <button key={w.id} onClick={() => handleConnect(w)}>{w.name}</button>
+      {wallets.map((wallet) => (
+        <button key={wallet.id} onClick={() => setConnector(wallet)}>
+          {wallet.name}
+        </button>
       ))}
     </div>
   );
 }
 ```
 
-### Why use `setConnector(wallet)` instead of the kit directly?
+### Why use `setConnector()` instead of calling `StellarWalletsKit.setWallet()` directly?
 
-- **Single confirmation** – The SDK’s `setWallet` runs `kit.setWallet(option.id)` and `kit.getAddress()` once and updates context. Calling `kit.setWallet()` and `kit.getAddress()` yourself (or twice due to Strict Mode) can trigger **multiple** WalletConnect/wallet prompts.
-- **Idempotent** – If the same wallet is already connected, the SDK skips calling the kit again, so remounts or duplicate calls don’t cause extra prompts.
-- **Shared state** – Connection state is shared with the payment modal. If the user already connected via your button, opening the payment modal and choosing Stellar won’t ask again.
-
----
-
-## 3. What *not* to do
-
-Avoid manually calling the kit for connection when you have already passed `stellarKit` to the provider.
+`setConnector(wallet)` is **idempotent** — if the same wallet is already connected, it skips the kit call to avoid double WalletConnect confirmations. It also syncs state with the payment modal.
 
 ```tsx
-// ❌ Don’t: manual kit calls (can cause double confirmation)
-const handleConnect = async (wallet) => {
-  kit.setWallet(wallet.id);
-  const { address } = await kit.getAddress();
-  setPublicKey(address);
-  await setConnector(wallet);
-};
+// ❌ Don't: bypasses SDK idempotency guard, can cause double prompts
+StellarWalletsKit.setWallet(wallet.id);
+const { address } = await StellarWalletsKit.fetchAddress();
 
-// ✅ Do: one SDK call
-const handleConnect = async (wallet) => {
-  await setConnector(wallet);
-};
+// ✅ Do: SDK handles setWallet + fetchAddress + state sync
+await setConnector(wallet);
 ```
 
-- **Don’t** call `kit.setWallet()` / `kit.getAddress()` yourself for the “connect” flow when using `useRozoConnectStellar()`.
-- **Do** use `setConnector(wallet)` from `useRozoConnectStellar()` for connecting; the SDK will use the kit internally and keep state in sync.
+---
+
+## 5. `useRozoConnectStellar()` API
+
+| Returned | Type | Description |
+|---|---|---|
+| `isConnected` | `boolean` | Whether a Stellar wallet is connected |
+| `publicKey` | `string \| undefined` | Connected Stellar address |
+| `account` | `AccountResponse \| undefined` | Horizon account for `publicKey` |
+| `connector` | `ISupportedWallet \| undefined` | Currently connected wallet object |
+| `setConnector` | `(wallet: ISupportedWallet) => Promise<void>` | Connect wallet (idempotent) |
+| `disconnect` | `() => Promise<void>` | Disconnect and clear persisted session |
 
 ---
 
-## 4. `useRozoConnectStellar()` API
+## 6. `RozoPayProvider` Stellar props
 
-Use this hook inside a tree wrapped by `RozoPayProvider` (with or without your own `stellarKit`).
-
-| Returned       | Type                     | Description |
-|----------------|--------------------------|-------------|
-| `kit`          | `StellarWalletsKit`      | The kit instance (yours or SDK’s). Use for e.g. `getSupportedWallets()`. |
-| `isConnected`  | `boolean`                | Whether a Stellar wallet is connected. |
-| `publicKey`    | `string \| undefined`   | Current Stellar public key. |
-| `account`      | `AccountResponse \| undefined` | Horizon account for `publicKey`. |
-| `connector`    | `ISupportedWallet \| undefined` | Currently connected wallet (e.g. Freighter, Albedo). |
-| `setConnector` | `(wallet: ISupportedWallet) => Promise<void>` | **Use this to connect.** Calls the SDK’s `setWallet` (idempotent). |
-| `setPublicKey` | `(pk: string) => void`   | Low-level; usually not needed if you use `setConnector`. |
-| `disconnect`   | `() => Promise<void>`    | Disconnect and clear persisted wallet if persistence is on. |
+| Prop | Type | Description |
+|---|---|---|
+| `stellarKit` | `boolean` (optional) | Pass `true` if you called `StellarWalletsKit.init()` yourself. Omit for SDK auto-init. |
+| `stellarWalletPersistence` | `boolean` | Persist last wallet in `localStorage`. Default `true`. |
+| `stellarRpcUrl` | `string` | Custom Horizon RPC URL. Default: Stellar mainnet. |
 
 ---
 
-## 5. Connecting inside the payment modal
+## Migration from v1
 
-When the user chooses a Stellar wallet **inside the SDK payment modal** (e.g. “Pay with Stellar” → “Albedo”), the SDK connects via the same `setWallet` logic. You don’t need to do anything extra; just ensure `stellarKit` is passed to `RozoPayProvider` so the modal can use your kit and avoid duplicate prompts.
+### 1. Replace the package
+
+```bash
+# Remove old (npm)
+pnpm remove @creit.tech/stellar-wallets-kit
+
+# Add new (JSR)
+pnpm add jsr:@creit-tech/stellar-wallets-kit
+```
+
+### 2. Update import paths
+
+```typescript
+// v1
+import {
+  StellarWalletsKit,
+  WalletNetwork,
+  allowAllModules,
+  FREIGHTER_ID,
+} from "@creit.tech/stellar-wallets-kit";
+
+// v2
+import { StellarWalletsKit } from "@creit-tech/stellar-wallets-kit";
+import { defaultModules } from "@creit-tech/stellar-wallets-kit/modules/utils";
+import { WalletConnectModule } from "@creit-tech/stellar-wallets-kit/modules/wallet-connect";
+// Note: WalletNetwork and FREIGHTER_ID removed — network is now configured internally
+```
+
+### 3. Replace initialization
+
+```typescript
+// v1 — constructor, returns instance
+const stellarKit = new StellarWalletsKit({
+  network: WalletNetwork.PUBLIC,
+  selectedWalletId: FREIGHTER_ID,
+  modules: allowAllModules(),
+});
+
+// v2 — static init, no instance returned
+StellarWalletsKit.init({
+  modules: defaultModules(),
+});
+```
+
+### 4. Update WalletConnect module params
+
+```typescript
+// v1
+new WalletConnectModule({
+  name: "My App",
+  url: "https://myapp.com",
+  description: "My app",
+  icons: ["https://myapp.com/icon.png"],
+  projectId: "YOUR_PROJECT_ID",
+  network: WalletNetwork.PUBLIC,
+  method: WalletConnectAllowedMethods.SIGN,
+});
+
+// v2 — metadata object, no network/method params
+new WalletConnectModule({
+  projectId: "YOUR_PROJECT_ID",
+  metadata: {
+    name: "My App",
+    description: "My app",
+    url: "https://myapp.com",
+    icons: ["https://myapp.com/icon.png"],
+  },
+});
+```
+
+### 5. Update RozoPayProvider prop
+
+```tsx
+// v1
+<RozoPayProvider config={wagmiConfig} stellarKit={stellarKit}>
+
+// v2 — pass true if you called init() yourself; omit for auto-init
+<RozoPayProvider config={wagmiConfig} stellarKit={true}>
+```
+
+### 6. Update method calls (if calling kit directly)
+
+```typescript
+// v1 — instance methods
+kit.setWallet(walletId);
+const { address } = await kit.getAddress();
+const wallets = await kit.getSupportedWallets();
+const { signedTxXdr } = await kit.signTransaction(xdr, opts);
+
+// v2 — static methods
+StellarWalletsKit.setWallet(walletId);
+const { address } = await StellarWalletsKit.fetchAddress();  // fresh from module
+// or: StellarWalletsKit.getAddress()  — returns cached address
+const wallets = await StellarWalletsKit.refreshSupportedWallets();
+const { signedTxXdr } = await StellarWalletsKit.signTransaction(xdr, opts);
+```
+
+### 7. Optionally: use the new event system
+
+```typescript
+import { KitEventType } from "@creit-tech/stellar-wallets-kit";
+
+// Subscribe to connection changes
+const unsubState = StellarWalletsKit.on(KitEventType.STATE_UPDATED, (event) => {
+  console.log("Connected address:", event.payload.address);
+});
+
+const unsubDisconnect = StellarWalletsKit.on(KitEventType.DISCONNECT, () => {
+  console.log("Wallet disconnected");
+});
+
+// Clean up when done
+unsubState();
+unsubDisconnect();
+```
 
 ---
 
-## 6. Summary
-
-1. Create **one** `StellarWalletsKit` at app root and pass it to `RozoPayProvider` as `stellarKit`.
-2. For **custom connect UI**, use `useRozoConnectStellar()` and connect with **`await setConnector(wallet)`** only.
-3. **Do not** call `kit.setWallet()` or `kit.getAddress()` yourself for the connect flow; use `setConnector(wallet)` so the SDK keeps behavior idempotent and avoids multiple confirmations.
-
-For implementation details, see [STELLAR_PAYOUT_IMPLEMENTATION_ANALYSIS.md](./STELLAR_PAYOUT_IMPLEMENTATION_ANALYSIS.md). For general payment flow, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+For payment flow details, see [ARCHITECTURE.md](./ARCHITECTURE.md). For troubleshooting, see [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).

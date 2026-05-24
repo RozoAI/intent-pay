@@ -1,8 +1,6 @@
-// Export all Stellar-related utilities and types
 export * from "./types";
 export * from "./walletconnect.module";
 
-// Re-export commonly used types for convenience
 export { defineStellarChain, isStellarChain, STELLAR_NETWORKS } from "./types";
 export type { StellarChainConfig } from "./types";
 export {
@@ -14,3 +12,4 @@ export type {
   IParsedWalletConnectSession,
   IWalletConnectConstructorParams,
 } from "./walletconnect.module";
+export { initStellarKit, isStellarKitInitialized } from "./singleton-import";

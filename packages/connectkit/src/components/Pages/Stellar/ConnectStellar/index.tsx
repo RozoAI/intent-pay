@@ -10,7 +10,6 @@ import { Stellar } from "../../../../assets/chains";
 import { SquircleIcon } from "../../../../assets/logos";
 import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
-import { useStellar } from "../../../../provider/StellarContextProvider";
 import { OptionsList } from "../../../Common/OptionsList";
 import { OrderHeader } from "../../../Common/OrderHeader";
 import SelectAnotherMethodButton from "../../../Common/SelectAnotherMethodButton";
@@ -18,30 +17,24 @@ import WalletPaymentSpinner from "../../../Spinners/WalletPaymentSpinner";
 
 const ConnectStellar: React.FC = () => {
   const { setStellarConnector, setRoute, log } = usePayContext();
-  const { kit } = useStellar();
 
-  // State to store the fetched Stellar wallets
   const [stellarWallets, setStellarWallets] = useState<Array<any>>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Fetch Stellar wallets when the kit is available
   useEffect(() => {
-    const fetchStellarWallets = async () => {
-      if (!kit || typeof window === "undefined") return;
-      setIsLoading(true);
-      try {
-        const wallets = await kit.getSupportedWallets();
-        setStellarWallets(wallets);
-      } catch (error) {
+    if (typeof window === "undefined") return;
+    setIsLoading(true);
+    import("@creit.tech/stellar-wallets-kit")
+      .then(({ StellarWalletsKit }) =>
+        StellarWalletsKit.refreshSupportedWallets(),
+      )
+      .then((wallets) => setStellarWallets(wallets))
+      .catch((error) => {
         console.error("Error fetching Stellar wallets:", error);
         setStellarWallets([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchStellarWallets();
-  }, [kit]);
+      })
+      .finally(() => setIsLoading(false));
+  }, []);
 
   // Create options list from the fetched wallets
   // Following Solana pattern: only set connector and navigate, let ConnectorStellar handle connection
@@ -54,7 +47,8 @@ const ConnectStellar: React.FC = () => {
           .toLowerCase()
           .split(" ")
           .map(
-            (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+            (word) =>
+              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
           )
           .join(" "),
         icons: [
@@ -78,7 +72,7 @@ const ConnectStellar: React.FC = () => {
 
   return (
     <PageContent>
-      {isLoading || !kit ? (
+      {isLoading ? (
         <WalletPaymentSpinner
           logo={<Stellar />}
           logoShape="circle"

@@ -17,7 +17,6 @@ import React, {
 import { ThemeProvider } from "styled-components";
 import { WagmiContext } from "wagmi";
 
-import type { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
 import { RozoPayModal } from "../components/RozoPayModal";
 import { ROUTES } from "../constants/routes";
 import { REQUIRED_CHAINS } from "../defaultConfig";
@@ -472,8 +471,12 @@ type RozoPayProviderProps = {
   /** Custom Pay API, useful for test and staging. */
   payApiUrl?: string;
 
-  /** Stellar custom property */
-  stellarKit?: StellarWalletsKit;
+  /**
+   * Pass `true` if your app already called `StellarWalletsKit.init()` before
+   * mounting RozoPayProvider. The SDK skips its internal init and subscribes
+   * to STATE_UPDATED events to auto-detect any existing wallet connection.
+   */
+  stellarKit?: boolean;
   /** Persistent Stellar wallet connection (localStorage) in StellarContextProvider. */
   stellarWalletPersistence?: boolean;
 } & useConnectCallbackProps;
