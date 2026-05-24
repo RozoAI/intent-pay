@@ -961,12 +961,9 @@ const avalancheTokens: Token[] = [avalancheAVAX, avalancheUSDC, avalancheUSDT];
 /** Support tokens for Rozo Pay */
 export const supportedTokens: Map<number, Token[]> = new Map([
   [arbitrum.chainId, [arbitrumUSDC, arbitrumUSDT]],
-  // [avalanche.chainId, [avalancheUSDC, avalancheUSDT]],
   [base.chainId, [baseUSDC, baseEURC]],
   [bsc.chainId, [bscUSDC, bscUSDT]],
   [ethereum.chainId, [ethereumUSDC, ethereumUSDT]],
-  // [gnosis.chainId, [gnosisUSDC, gnosisUSDT]],
-  // [optimism.chainId, [optimismUSDC, optimismUSDT]],
   [polygon.chainId, [polygonUSDC, polygonUSDT]],
   [hyperEVM.chainId, [hyperEVMUSDC]],
 
@@ -985,23 +982,6 @@ export const supportedPayoutTokens: Map<number, Token[]> = new Map([
   [rozoSolana.chainId, [rozoSolanaUSDC]],
   [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC]],
 ]);
-
-// const knownTokensByChain = new Map<number, Token[]>([
-//   [arbitrum.chainId, arbitrumTokens],
-//   [avalanche.chainId, avalancheTokens],
-//   [base.chainId, baseTokens],
-//   [bsc.chainId, bscTokens],
-//   [celo.chainId, celoTokens],
-//   [ethereum.chainId, ethereumTokens],
-//   [gnosis.chainId, gnosisTokens],
-//   [linea.chainId, lineaTokens],
-//   [mantle.chainId, mantleTokens],
-//   [optimism.chainId, optimismTokens],
-//   [polygon.chainId, polygonTokens],
-//   [rozoSolana.chainId, solanaTokens],
-//   [rozoStellar.chainId, stellarTokens],
-//   [worldchain.chainId, worldchainTokens],
-// ]);
 
 /**
  * Common tokens, included for convenience.
