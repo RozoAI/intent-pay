@@ -8,6 +8,7 @@ import {
   celo,
   ethereum,
   gnosis,
+  hyperEVM,
   linea,
   mantle,
   optimism,
@@ -57,6 +58,7 @@ export enum TokenLogo {
   CELO = "https://imagedelivery.net/AKLvTMvIg6yc9W08fHl1Tg/e0d3171b-9f48-4db0-a324-88a82e4dfc00/public",
   cUSD = "https://imagedelivery.net/AKLvTMvIg6yc9W08fHl1Tg/55fba2cb-ba84-4d6e-2bc7-8f0122412100/public",
   XLM = "https://imagedelivery.net/AKLvTMvIg6yc9W08fHl1Tg/839e9764-9a82-4ffc-cadb-a0968a451100/public",
+  HYPE = "https://imagedelivery.net/AKLvTMvIg6yc9W08fHl1Tg/643544f5-b0bf-48a8-0289-2becb8224100/public",
 }
 
 export enum TokenSymbol {
@@ -875,6 +877,22 @@ const worldchainTokens: Token[] = [
 ];
 
 //
+// HyperEVM
+//
+
+export const hyperEVMUSDC: Token = token({
+  chainId: hyperEVM.chainId,
+  token: getAddress("0xb88339CB7199b77E23DB6E890353E22632Ba630f"),
+  decimals: 6,
+  fiatISO: "USD",
+  name: "USD Coin",
+  symbol: TokenSymbol.USDC,
+  logoURI: TokenLogo.USDC,
+});
+
+const hyperEVMTokens: Token[] = [hyperEVMUSDC];
+
+//
 // Gnosis
 //
 
@@ -943,14 +961,11 @@ const avalancheTokens: Token[] = [avalancheAVAX, avalancheUSDC, avalancheUSDT];
 /** Support tokens for Rozo Pay */
 export const supportedTokens: Map<number, Token[]> = new Map([
   [arbitrum.chainId, [arbitrumUSDC, arbitrumUSDT]],
-  // [avalanche.chainId, [avalancheUSDC, avalancheUSDT]],
   [base.chainId, [baseUSDC, baseEURC]],
   [bsc.chainId, [bscUSDC, bscUSDT]],
   [ethereum.chainId, [ethereumUSDC, ethereumUSDT]],
-  // [gnosis.chainId, [gnosisUSDC, gnosisUSDT]],
-  // [optimism.chainId, [optimismUSDC, optimismUSDT]],
   [polygon.chainId, [polygonUSDC, polygonUSDT]],
-  // [worldchain.chainId, [worldchainUSDC]],
+  [hyperEVM.chainId, [hyperEVMUSDC]],
 
   [solana.chainId, [solanaUSDC, solanaUSDT]],
   [rozoSolana.chainId, [rozoSolanaUSDC, rozoSolanaUSDT]],
@@ -963,26 +978,10 @@ export const supportedPayoutTokens: Map<number, Token[]> = new Map([
   [base.chainId, [baseUSDC, baseEURC]],
   [bsc.chainId, [bscUSDC]],
   [polygon.chainId, [polygonUSDC]],
+  [hyperEVM.chainId, [hyperEVMUSDC]],
   [rozoSolana.chainId, [rozoSolanaUSDC]],
   [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC]],
 ]);
-
-// const knownTokensByChain = new Map<number, Token[]>([
-//   [arbitrum.chainId, arbitrumTokens],
-//   [avalanche.chainId, avalancheTokens],
-//   [base.chainId, baseTokens],
-//   [bsc.chainId, bscTokens],
-//   [celo.chainId, celoTokens],
-//   [ethereum.chainId, ethereumTokens],
-//   [gnosis.chainId, gnosisTokens],
-//   [linea.chainId, lineaTokens],
-//   [mantle.chainId, mantleTokens],
-//   [optimism.chainId, optimismTokens],
-//   [polygon.chainId, polygonTokens],
-//   [rozoSolana.chainId, solanaTokens],
-//   [rozoStellar.chainId, stellarTokens],
-//   [worldchain.chainId, worldchainTokens],
-// ]);
 
 /**
  * Common tokens, included for convenience.
@@ -995,12 +994,12 @@ export const knownChains: number[] = Array.from(supportedTokens.keys());
 /* --------------------- Tokens By Address --------------------- */
 
 const tokensByChainAddr = new Map<string, Token>(
-  knownTokens.map((t) => [`${t.chainId}-${t.token}`, t])
+  knownTokens.map((t) => [`${t.chainId}-${t.token}`, t]),
 );
 
 export function getKnownToken(
   chainId: number,
-  tokenAddress: string
+  tokenAddress: string,
 ): Token | undefined {
   return tokensByChainAddr.get(`${chainId}-${tokenAddress}`);
 }
@@ -1158,11 +1157,9 @@ const tokensByChainAndType: Map<
     },
   ],
   [
-    worldchain.chainId,
+    hyperEVM.chainId,
     {
-      [TokenType.NATIVE]: worldchainETH,
-      [TokenType.WRAPPED_NATIVE]: worldchainWETH,
-      [TokenType.NATIVE_USDC]: worldchainUSDC,
+      [TokenType.NATIVE_USDC]: hyperEVMUSDC,
     },
   ],
 ]);
@@ -1170,14 +1167,14 @@ const tokensByChainAndType: Map<
 export function getChainNativeToken(chainId: number): Token {
   return assertNotNull(
     tokensByChainAndType.get(chainId)?.[TokenType.NATIVE],
-    () => `missing native token for chainId ${chainId}`
+    () => `missing native token for chainId ${chainId}`,
   );
 }
 
 export function getChainWrappedNativeToken(chainId: number): Token {
   return assertNotNull(
     tokensByChainAndType.get(chainId)?.[TokenType.WRAPPED_NATIVE],
-    () => `missing wrapped native token for chainId ${chainId}`
+    () => `missing wrapped native token for chainId ${chainId}`,
   );
 }
 

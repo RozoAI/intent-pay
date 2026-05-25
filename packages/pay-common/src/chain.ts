@@ -121,6 +121,13 @@ export const avalanche: Chain = {
   cctpDomain: null,
 };
 
+export const hyperEVM: Chain = {
+  type: "evm",
+  chainId: 999,
+  name: "HyperEVM",
+  cctpDomain: null,
+};
+
 /**
  * Supported chains for Near Intents cross-chain swaps
  * Based on USDC/USDT support documentation
@@ -135,7 +142,7 @@ export const supportedChains: Chain[] = [
   gnosis, // USDC & USDT
   optimism, // USDC & USDT
   polygon, // USDC & USDT
-  worldchain,
+  hyperEVM, // USDC
   solana,
   rozoSolana, // USDC & USDT (chainId: 900)
   rozoStellar, // USDC only (chainId: 1500, no USDT)
@@ -224,6 +231,8 @@ export function getChainExplorerByChainId(chainId: number): string | undefined {
       return "https://stellar.expert/explorer/public/search?term=";
     case worldchain.chainId:
       return "https://worldscan.org";
+    case hyperEVM.chainId:
+      return "https://hyperevmscan.io";
     default:
       return undefined;
   }

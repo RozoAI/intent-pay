@@ -1,8 +1,10 @@
 packages:
-  - "packages/*"
-  - "examples/*"
+  - "examples/nextjs-app"
+  - "packages/connectkit"
+  - "packages/pay-common"
+
 allowBuilds:
-  '@reown/appkit': true
+  "@reown/appkit": true
   bigint-buffer: true
   blake-hash: true
   bufferutil: true
@@ -14,3 +16,21 @@ allowBuilds:
   unrs-resolver: true
   usb: true
   utf-8-validate: true
+
+overrides:
+  "@stellar/stellar-sdk": "^14.4.3"
+  rollup: "^3.29.5"
+  bs58: "^6.0.0"
+  "@solana/sysvars": "^3.0.3"
+  utf-8-validate: "6.0.6"
+
+minimumReleaseAge: 0
+
+peerDependencyRules:
+  allowedVersions:
+    "@stellar/stellar-sdk": "14"
+    rollup: "3"
+    react: "18"
+    "@types/react": "18"
+  ignoreMissing:
+    - react-native
