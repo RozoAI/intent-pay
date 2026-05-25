@@ -41,40 +41,5 @@
     "packages/*",
     "examples/*"
   ],
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@reown/appkit",
-      "@stellar/stellar-sdk",
-      "bigint-buffer",
-      "blake-hash",
-      "bufferutil",
-      "keccak",
-      "protobufjs",
-      "secp256k1",
-      "sharp",
-      "tiny-secp256k1",
-      "unrs-resolver",
-      "usb",
-      "utf-8-validate"
-    ],
-    "overrides": {
-      "@stellar/stellar-sdk": "^14.4.3",
-      "rollup": "^3.29.5",
-      "bs58": "^6.0.0",
-      "@solana/sysvars": "^3.0.3",
-      "utf-8-validate": "6.0.6"
-    },
-    "peerDependencyRules": {
-      "allowedVersions": {
-        "@stellar/stellar-sdk": "14",
-        "rollup": "3",
-        "react": "18",
-        "@types/react": "18"
-      },
-      "ignoreMissing": [
-        "react-native"
-      ]
-    }
-  },
   "packageManager": "pnpm@11.3.0"
 }

@@ -142,8 +142,7 @@ export const supportedChains: Chain[] = [
   gnosis, // USDC & USDT
   optimism, // USDC & USDT
   polygon, // USDC & USDT
-  worldchain,
-  hyperEVM,
+  hyperEVM, // USDC
   solana,
   rozoSolana, // USDC & USDT (chainId: 900)
   rozoStellar, // USDC only (chainId: 1500, no USDT)
@@ -233,7 +232,7 @@ export function getChainExplorerByChainId(chainId: number): string | undefined {
     case worldchain.chainId:
       return "https://worldscan.org";
     case hyperEVM.chainId:
-      return "https://explorer.hyperliquid.xyz";
+      return "https://hyperevmscan.io";
     default:
       return undefined;
   }

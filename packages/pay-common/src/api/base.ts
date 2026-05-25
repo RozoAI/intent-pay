@@ -3,8 +3,7 @@
  */
 export const ROZO_API_URL = "https://intentapiv2.rozo.ai/functions/v1";
 export const NEW_ROZO_API_URL = "https://intentapiv4.rozo.ai/functions/v1";
-export const ROZO_API_TOKEN =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4Y3Zmb2xobmNtdXZmYXp1cXViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI4Mzg2NjYsImV4cCI6MjA2ODQxNDY2Nn0.B4dV5y_-zCMKSNm3_qyCbAvCPJmoOGv_xB783LfAVUA";
+export const ROZO_API_TOKEN = "sb_publishable_V1FO0c9DkGyLvC_xzxer2A_VW2UOqYB";
 
 // HTTP methods type
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
@@ -131,7 +130,7 @@ const createUrl = (url: string, params?: Record<string, string>): string => {
  */
 export const fetchApi = async <T = any>(
   url: string,
-  options: RequestOptions = {}
+  options: RequestOptions = {},
 ): Promise<ApiResponse<T>> => {
   const { method = "GET", headers = {}, body, params, signal } = options;
 
@@ -199,7 +198,7 @@ export const apiClient = {
    */
   get: <T = any>(
     url: string,
-    options: Omit<RequestOptions, "method" | "body"> = {}
+    options: Omit<RequestOptions, "method" | "body"> = {},
   ) => fetchApi<T>(url, { ...options, method: "GET" }),
 
   /**
@@ -212,7 +211,7 @@ export const apiClient = {
   post: <T = any>(
     url: string,
     body: any,
-    options: Omit<RequestOptions, "method" | "body"> = {}
+    options: Omit<RequestOptions, "method" | "body"> = {},
   ) => fetchApi<T>(url, { ...options, method: "POST", body }),
 
   /**
@@ -225,7 +224,7 @@ export const apiClient = {
   put: <T = any>(
     url: string,
     body: any,
-    options: Omit<RequestOptions, "method" | "body"> = {}
+    options: Omit<RequestOptions, "method" | "body"> = {},
   ) => fetchApi<T>(url, { ...options, method: "PUT", body }),
 
   /**
@@ -238,7 +237,7 @@ export const apiClient = {
   patch: <T = any>(
     url: string,
     body: any,
-    options: Omit<RequestOptions, "method" | "body"> = {}
+    options: Omit<RequestOptions, "method" | "body"> = {},
   ) => fetchApi<T>(url, { ...options, method: "PATCH", body }),
 
   /**
@@ -249,6 +248,6 @@ export const apiClient = {
    */
   delete: <T = any>(
     url: string,
-    options: Omit<RequestOptions, "method"> = {}
+    options: Omit<RequestOptions, "method"> = {},
   ) => fetchApi<T>(url, { ...options, method: "DELETE" }),
 };

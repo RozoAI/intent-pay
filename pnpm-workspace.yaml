@@ -1,13 +1,36 @@
+packages:
+  - "examples/nextjs-app"
+  - "packages/connectkit"
+  - "packages/pay-common"
+
 allowBuilds:
-  '@reown/appkit': set this to true or false
-  bigint-buffer: set this to true or false
-  blake-hash: set this to true or false
-  bufferutil: set this to true or false
-  keccak: set this to true or false
-  protobufjs: set this to true or false
-  secp256k1: set this to true or false
-  sharp: set this to true or false
-  tiny-secp256k1: set this to true or false
-  unrs-resolver: set this to true or false
-  usb: set this to true or false
-  utf-8-validate: set this to true or false
+  "@reown/appkit": true
+  bigint-buffer: true
+  blake-hash: true
+  bufferutil: true
+  keccak: true
+  protobufjs: true
+  secp256k1: true
+  sharp: true
+  tiny-secp256k1: true
+  unrs-resolver: true
+  usb: true
+  utf-8-validate: true
+
+overrides:
+  "@stellar/stellar-sdk": "^14.4.3"
+  rollup: "^3.29.5"
+  bs58: "^6.0.0"
+  "@solana/sysvars": "^3.0.3"
+  utf-8-validate: "6.0.6"
+
+minimumReleaseAge: 0
+
+peerDependencyRules:
+  allowedVersions:
+    "@stellar/stellar-sdk": "14"
+    rollup: "3"
+    react: "18"
+    "@types/react": "18"
+  ignoreMissing:
+    - react-native
