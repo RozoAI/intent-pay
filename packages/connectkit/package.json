@@ -1,7 +1,7 @@
 {
   "name": "@rozoai/intent-pay",
   "private": false,
-  "version": "0.1.22",
+  "version": "0.1.23-beta.3",
   "author": "RozoAI",
   "homepage": "https://github.com/RozoAI/intent-pay",
   "license": "BSD-2-Clause",
@@ -71,6 +71,7 @@
   },
   "peerDependencies": {
     "@creit.tech/stellar-wallets-kit": "^1.9.5",
+    "posthog-js": "^1.0.0",
     "@stellar/stellar-sdk": "^14.2.0",
     "@tanstack/react-query": ">=5.0.0",
     "react": "18.x || 19.x",
@@ -80,6 +81,9 @@
   },
   "peerDependenciesMeta": {
     "@worldcoin/minikit-js": {
+      "optional": true
+    },
+    "posthog-js": {
       "optional": true
     }
   },

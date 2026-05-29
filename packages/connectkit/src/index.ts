@@ -15,7 +15,7 @@ export type {
 } from "./components/RozoPayButton/types";
 
 // Hooks to track payment status + UI status.
-export { useRozoPay } from "./hooks/useRozoPay";
+// export { useRozoPay } from "./hooks/useRozoPay";
 export { useRozoPayStatus } from "./hooks/useRozoPayStatus";
 export { useRozoPayUI } from "./hooks/useRozoPayUI";
 
@@ -40,6 +40,9 @@ export {
 // TODO: expose this more selectively.
 export { usePayContext } from "./hooks/usePayContext";
 export { PayContext as RozoPayContext } from "./provider/PayContext";
+
+// Analytics
+export { useAnalytics } from "./provider/AnalyticsProvider";
 
 // Stellar integration
 export { useRozoConnectStellar } from "./provider/StellarContextProvider";

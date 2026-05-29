@@ -18,6 +18,7 @@ import { ThemeProvider } from "styled-components";
 import { WagmiContext } from "wagmi";
 
 import type { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
+import type { PostHog } from "posthog-js";
 import { RozoPayModal } from "../components/RozoPayModal";
 import { ROUTES } from "../constants/routes";
 import { REQUIRED_CHAINS } from "../defaultConfig";
@@ -28,6 +29,7 @@ import {
 } from "../hooks/useConnectCallback";
 import { usePaymentState } from "../hooks/usePaymentState";
 import { useRozoPay } from "../hooks/useRozoPay";
+import { ROZO_EVENTS } from "../lib/analytics/events";
 import { PaymentEventProvider } from "../payment/paymentEventContext";
 import defaultTheme from "../styles/defaultTheme";
 import {
@@ -41,6 +43,7 @@ import {
 import { createTrpcClient } from "../utils/trpc";
 import { validatePayoutToken } from "../utils/validatePayoutToken";
 import { setInWalletPaymentUrlFromApiUrl } from "../wallets/walletConfigs";
+import { AnalyticsProvider, useAnalytics } from "./AnalyticsProvider";
 import { PayContext, PayContextValue } from "./PayContext";
 import { PaymentContext, PaymentProvider } from "./PaymentProvider";
 import {
@@ -85,6 +88,8 @@ type RozoPayUIProviderProps = {
   /** Custom Pay API, useful for test and staging. */
   payApiUrl: string;
   log: (msg: string, ...props: any[]) => void;
+  /** Optional PostHog instance from host app. All payment events fire through it. */
+  posthog?: PostHog;
 } & useConnectCallbackProps;
 
 const RozoPayUIProvider = ({
@@ -99,7 +104,9 @@ const RozoPayUIProvider = ({
   apiVersion = "v2",
   payApiUrl,
   log,
+  posthog: _posthog,
 }: RozoPayUIProviderProps) => {
+  const { capture } = useAnalytics();
   const defaultOptions: RozoPayContextOptions = {
     language: "en-US",
     hideBalance: false,
@@ -215,8 +222,29 @@ const RozoPayUIProvider = ({
       }
 
       // Run the onOpen and onClose callbacks
-      if (open) onOpenRef.current?.();
-      else onCloseRef.current?.();
+      if (open) {
+        onOpenRef.current?.();
+        capture(ROZO_EVENTS.PAYMENT_FLOW_STARTED, {
+          amount: paymentState.payParams?.toUnits,
+          destination_chain: paymentState.payParams?.toChain,
+          token: paymentState.payParams?.toToken,
+        });
+      } else {
+        onCloseRef.current?.();
+        // Only fire cancelled if payment was in-progress (not completed/error — those fire their own events)
+        if (
+          pay.paymentState !== "payment_completed" &&
+          pay.paymentState !== "payment_bounced" &&
+          pay.paymentState !== "error" &&
+          pay.paymentState !== "idle"
+        ) {
+          capture(ROZO_EVENTS.PAYMENT_CANCELLED, {
+            payment_id: paymentState.rozoPaymentId,
+            last_state: pay.paymentState,
+            reason: "user",
+          });
+        }
+      }
     },
     // We don't have good caching on paymentState, so don't include it as a dep
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -366,12 +394,32 @@ const RozoPayUIProvider = ({
     pay.order.sourceTokenAmount != null;
 
   useEffect(() => {
+    const payment_id =
+      paymentState.rozoPaymentId ?? pay.order?.externalId ?? pay.order?.id;
+
     if (
       pay.paymentState === "payment_completed" ||
       pay.paymentState === "payment_bounced"
     ) {
       setRoute(ROUTES.CONFIRMATION, { event: "payment-completed" });
-    } else if (isUnderpaid) {
+      capture(ROZO_EVENTS.PAYMENT_COMPLETED, {
+        payment_id,
+        amount: paymentState.orderUsdAmount,
+        destination_chain: paymentState.payParams?.toChain,
+      });
+    } else if (pay.paymentState === "payment_started") {
+      capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
+        payment_id,
+        destination_chain: paymentState.payParams?.toChain,
+      });
+    } else if (pay.paymentState === "error") {
+      capture(ROZO_EVENTS.PAYMENT_FAILED, {
+        payment_id,
+        destination_chain: paymentState.payParams?.toChain,
+      });
+    }
+
+    if (isUnderpaid) {
       paymentState.setSelectedDepositAddressOption(undefined);
       setRoute(ROUTES.WAITING_DEPOSIT_ADDRESS);
     }
@@ -437,7 +485,10 @@ const RozoPayUIProvider = ({
     PayContext.Provider,
     { value },
     <Web3ContextProvider>
-      <WagmiDependentEffects onConnect={onConnect} onDisconnect={onDisconnect} />
+      <WagmiDependentEffects
+        onConnect={onConnect}
+        onDisconnect={onDisconnect}
+      />
       <ThemeProvider theme={defaultTheme}>
         {children}
         <RozoPayModal
@@ -476,6 +527,8 @@ type RozoPayProviderProps = {
   stellarKit?: StellarWalletsKit;
   /** Persistent Stellar wallet connection (localStorage) in StellarContextProvider. */
   stellarWalletPersistence?: boolean;
+  /** Optional PostHog instance from host app. All payment events fire through it. */
+  posthog?: PostHog;
 } & useConnectCallbackProps;
 
 /**
@@ -491,24 +544,26 @@ export const RozoPayProvider = (props: RozoPayProviderProps) => {
   );
 
   return (
-    <PaymentProvider payApiUrl={payApiUrl} apiVersion={apiVersion} log={log}>
-      <PaymentEventProvider>
-        <SolanaContextProvider rpcUrl={props.solanaRpcUrl}>
-          <StellarContextProvider
-            rpcUrl={props.stellarRpcUrl}
-            kit={props.stellarKit}
-            stellarWalletPersistence={props.stellarWalletPersistence}
-            log={log}
-          >
-            <RozoPayUIProvider
-              {...props}
-              apiVersion={apiVersion}
-              payApiUrl={payApiUrl}
+    <AnalyticsProvider posthog={props.posthog}>
+      <PaymentProvider payApiUrl={payApiUrl} apiVersion={apiVersion} log={log}>
+        <PaymentEventProvider>
+          <SolanaContextProvider rpcUrl={props.solanaRpcUrl}>
+            <StellarContextProvider
+              rpcUrl={props.stellarRpcUrl}
+              kit={props.stellarKit}
+              stellarWalletPersistence={props.stellarWalletPersistence}
               log={log}
-            />
-          </StellarContextProvider>
-        </SolanaContextProvider>
-      </PaymentEventProvider>
-    </PaymentProvider>
+            >
+              <RozoPayUIProvider
+                {...props}
+                apiVersion={apiVersion}
+                payApiUrl={payApiUrl}
+                log={log}
+              />
+            </StellarContextProvider>
+          </SolanaContextProvider>
+        </PaymentEventProvider>
+      </PaymentProvider>
+    </AnalyticsProvider>
   );
 };

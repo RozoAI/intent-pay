@@ -83,6 +83,8 @@ import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { buildCreatePaymentPayload } from "../payment/createPaymentPayload";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
 import { useStellar } from "../provider/StellarContextProvider";
+import { useAnalytics } from "../provider/AnalyticsProvider";
+import { ROZO_EVENTS } from "../lib/analytics/events";
 import { Store } from "../stateStore";
 import { parseErrorMessage } from "../utils/errorParser";
 import { detectPlatform } from "../utils/platform";
@@ -243,6 +245,7 @@ export function usePaymentState({
   // Cache for payment validation to avoid repeated checks
   const paymentValidationCache = useRef<Map<string, boolean>>(new Map());
   const pay = useRozoPay();
+  const { capture } = useAnalytics();
 
   // Track deposit address calls to prevent duplicates
   const depositAddressCallRef = useRef<Set<DepositAddressPaymentOptions>>(
@@ -675,6 +678,14 @@ export function usePaymentState({
     let hydratedOrder: RozoPayHydratedOrderWithOrg;
     let paymentId: string | undefined;
 
+    capture(ROZO_EVENTS.PAYMENT_QUOTE_REQUESTED, {
+      source_chain: walletOption.required.token.chainId,
+      token: walletOption.required.token.symbol,
+      amount: walletOption.required.amount,
+      payment_id: pay.order?.externalId,
+    });
+
+    try {
     // CRITICAL: Always check needRozoPayment FIRST - if switching chains, MUST create new payment
     if (needRozoPayment) {
       // Create Rozo payment and hydrate in one step (cross-chain switch)
@@ -696,6 +707,21 @@ export function usePaymentState({
       // Hydrate existing order (from preview/unhydrated state)
       const res = await pay.hydrateOrder(ethWalletAddress, walletOption);
       hydratedOrder = res.order;
+    }
+
+    capture(ROZO_EVENTS.PAYMENT_QUOTE_RECEIVED, {
+      source_chain: walletOption.required.token.chainId,
+      token: walletOption.required.token.symbol,
+      payment_id: hydratedOrder.externalId ?? paymentId,
+      fee: walletOption.fees.amount,
+    });
+    } catch (quoteError) {
+      capture(ROZO_EVENTS.PAYMENT_QUOTE_FAILED, {
+        source_chain: walletOption.required.token.chainId,
+        token: walletOption.required.token.symbol,
+        error_message: parseErrorMessage(quoteError),
+      });
+      throw quoteError;
     }
 
     if (paymentId ?? hydratedOrder.externalId) {
@@ -767,7 +793,11 @@ export function usePaymentState({
         }
       } catch (e) {
         if (hydratedOrder.externalId) {
-          pay.setPaymentUnpaid(hydratedOrder.externalId);
+          try {
+            await pay.setPaymentUnpaid(hydratedOrder.externalId);
+          } catch (resetErr) {
+            console.error("[PAY TOKEN] failed to reset to unpaid:", resetErr);
+          }
         }
         console.error(`[PAY TOKEN] error sending token: ${e}`);
         throw e;

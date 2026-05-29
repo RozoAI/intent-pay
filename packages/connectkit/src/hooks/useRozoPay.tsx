@@ -433,16 +433,19 @@ export function useRozoPay(): UseRozoPay {
     ) => {
       const currentState = store.getState();
 
-      // Use provided order if available, otherwise use order from preview state
+      // Use provided order if available, otherwise recover it from the current
+      // FSM state. Every state except "idle" carries an order, so the explicit
+      // argument is only required when there is no active order at all.
       let baseOrder: RozoPayOrderWithOrg | RozoPayHydratedOrderWithOrg;
       if (order) {
         baseOrder = order;
-      } else if (currentState.type === "preview") {
-        baseOrder = (currentState as Extract<PaymentState, { type: "preview" }>)
-          .order;
+      } else if (currentState.type !== "idle" && currentState.order) {
+        baseOrder = currentState.order as
+          | RozoPayOrderWithOrg
+          | RozoPayHydratedOrderWithOrg;
       } else {
         throw new Error(
-          `Cannot set payment unpaid: Order must be provided when state is ${currentState.type}`,
+          `Cannot set payment unpaid: no order available in state ${currentState.type}`,
         );
       }
 

@@ -10,6 +10,8 @@ import { AlertIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
+import { useAnalytics } from "../../../provider/AnalyticsProvider";
+import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import styled from "../../../styles/styled";
 import { categorizeError, ErrorType } from "../../../utils/errorParser";
 import {
@@ -29,6 +31,7 @@ type ErrorCategory = {
 export default function ErrorPage() {
   const pay = useRozoPay();
   const context = usePayContext();
+  const { capture } = useAnalytics();
 
   const errorCategory = useMemo((): ErrorCategory => {
     // Check if this is a validation error from route meta
@@ -113,6 +116,11 @@ export default function ErrorPage() {
   ]);
 
   const handleRetry = () => {
+    capture(ROZO_EVENTS.PAYMENT_CANCELLED, {
+      payment_id: pay.order?.id,
+      last_state: pay.paymentState,
+      reason: "retry",
+    });
     context.setRoute(ROUTES.SELECT_METHOD);
     pay.reset();
     if (context.paymentState.payParams) {
@@ -121,6 +129,11 @@ export default function ErrorPage() {
   };
 
   const handleCancel = () => {
+    capture(ROZO_EVENTS.PAYMENT_CANCELLED, {
+      payment_id: pay.order?.id,
+      last_state: pay.paymentState,
+      reason: "user",
+    });
     context.setOpen(false);
     pay.reset();
     if (context.paymentState.payParams) {
@@ -131,6 +144,18 @@ export default function ErrorPage() {
   useEffect(() => {
     context.triggerResize();
   }, [errorCategory]);
+
+  useEffect(() => {
+    capture(ROZO_EVENTS.ERROR_OCCURRED, {
+      context: "payment",
+      error_message: errorCategory.message,
+      error_title: errorCategory.title,
+      payment_id: pay.order?.id,
+      can_retry: errorCategory.canRetry,
+    });
+    // fire once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <PageContent>
@@ -186,6 +211,8 @@ const ErrorBody = styled(ModalBody)`
   color: var(--ck-body-color-muted);
   line-height: 1.5;
   margin-bottom: 8px;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 `;
 
 const FailIcon = styled(AlertIcon)`

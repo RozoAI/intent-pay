@@ -8,6 +8,8 @@ import { ROUTES } from "../../../constants/routes";
 import { useContactSupport } from "../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
+import { useAnalytics } from "../../../provider/AnalyticsProvider";
+import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import Button from "../../Common/Button";
 import {
   Link,
@@ -46,6 +48,7 @@ const PayWithToken: React.FC = () => {
   } = useRozoPay();
   const handleContactClick = useContactSupport();
 
+  const { capture } = useAnalytics();
   const [payState, setPayStateInner] = useState<PayState>(
     PayState.RequestingPayment,
   );
@@ -94,6 +97,12 @@ const PayWithToken: React.FC = () => {
 
   const handleTransfer = useCallback(
     async (option: WalletPaymentOption) => {
+      capture(ROZO_EVENTS.PAYMENT_CONFIRMED, {
+        payment_id: rozoPaymentId ?? order?.externalId,
+        source_chain: option.required.token.chainId,
+        token: option.required.token.symbol,
+        amount: option.required.amount,
+      });
       // Switch chain if necessary
       setPayState(PayState.PreparingTransaction);
       const switchChain = await trySwitchingChain(option);
