@@ -27,6 +27,8 @@ import {
 import defaultTheme from "../../../constants/defaultTheme";
 import { ROZO_INVOICE_URL } from "../../../constants/rozoConfig";
 import { useRozoPay } from "../../../hooks/useRozoPay";
+import { ROZO_EVENTS } from "../../../lib/analytics/events";
+import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import { usePayoutPolling } from "../../../hooks/usePayoutPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useSupportedChains } from "../../../hooks/useSupportedChains";
@@ -50,6 +52,7 @@ const Confirmation: React.FC = () => {
     setPaymentPayoutCompleted,
   } = useRozoPay();
 
+  const { capture } = useAnalytics();
   const [isConfirming, setIsConfirming] = useState<boolean>(true);
 
   // Track if completion events have been sent to prevent duplicate calls
@@ -196,6 +199,23 @@ const Confirmation: React.FC = () => {
     return { done: false, txURL: undefined, rawPayInHash: undefined };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentState, order, paymentStateContext, isConfirming, supportedTokens]);
+
+  const analyticsCompletedSent = useRef<string | null>(null);
+  useEffect(() => {
+    if (!done || !rawPayInHash) return;
+    const key = `${rozoPaymentId}:${rawPayInHash}`;
+    if (analyticsCompletedSent.current === key) return;
+    analyticsCompletedSent.current = key;
+    const destChainId = order ? getOrderDestChainId(order) : undefined;
+    capture(ROZO_EVENTS.PAYMENT_COMPLETED, {
+      payment_id: rozoPaymentId,
+      tx_hash: rawPayInHash,
+      destination_chain: destChainId,
+      source_chain: paymentStateContext.selectedTokenOption?.required.token.chainId,
+      amount: String(order?.destFinalCallTokenAmount?.amount ?? ""),
+      token_symbol: order?.destFinalCallTokenAmount?.token.symbol,
+    });
+  }, [done, rawPayInHash, rozoPaymentId]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const receiptUrl = useMemo(() => {
     if (

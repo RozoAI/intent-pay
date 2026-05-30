@@ -22,6 +22,8 @@ import {
 } from "@rozoai/intent-common";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
+import { ROZO_EVENTS } from "../../../../lib/analytics/events";
+import { useAnalytics } from "../../../../provider/AnalyticsProvider";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
@@ -60,6 +62,7 @@ const PayWithSolanaToken: React.FC = () => {
   } = useRozoPay();
   const handleContactClick = useContactSupport();
 
+  const { capture } = useAnalytics();
   const [payState, setPayStateInner] = useState<PayState>(
     PayState.PreparingTransaction,
   );
@@ -255,6 +258,12 @@ const PayWithSolanaToken: React.FC = () => {
         setTxURL(getChainExplorerTxUrl(rozoSolana.chainId, result.txHash));
 
         if (result.success) {
+          capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
+            payment_id: newId ?? rozoPaymentId,
+            tx_hash: result.txHash,
+            chain: rozoSolana.chainId,
+            token_symbol: option.required.token.symbol,
+          });
           setPayState(PayState.RequestSuccessful);
           setTxHash(result.txHash);
           // Use `newId` (resolved this attempt) instead of the stale
@@ -268,6 +277,11 @@ const PayWithSolanaToken: React.FC = () => {
             solanaPaymentOptions.refreshOptions();
           }, 1000);
         } else {
+          capture(ROZO_EVENTS.PAYMENT_FAILED, {
+            payment_id: newId ?? rozoPaymentId,
+            error_message: "payment_unsuccessful",
+            source_chain: rozoSolana.chainId,
+          });
           setPayState(PayState.RequestCancelled);
         }
       } catch (error) {
@@ -282,7 +296,13 @@ const PayWithSolanaToken: React.FC = () => {
             console.error("Failed to set payment unpaid:", e);
           }
         }
-        if ((error as any).message.includes("rejected")) {
+        const isRejected = (error as Error).message.includes("rejected");
+        capture(ROZO_EVENTS.PAYMENT_FAILED, {
+          payment_id: resolvedPaymentId ?? rozoPaymentId,
+          error_message: isRejected ? "user_rejected" : ((error as Error)?.message ?? "unknown_error"),
+          source_chain: rozoSolana.chainId,
+        });
+        if (isRejected) {
           setPayState(PayState.RequestCancelled);
         } else {
           setPayState(PayState.RequestFailed);

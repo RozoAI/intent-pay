@@ -4,6 +4,7 @@ import {
   RozoPayOrderMode,
   RozoPayOrderStatusSource,
   debugJson,
+  getOrderDestChainId,
 } from "@rozoai/intent-common";
 import { Buffer } from "buffer";
 import React, {
@@ -224,10 +225,19 @@ const RozoPayUIProvider = ({
       // Run the onOpen and onClose callbacks
       if (open) {
         onOpenRef.current?.();
+        // payId mode: payParams is null — fall back to loaded order fields
+        const order = pay.order;
         capture(ROZO_EVENTS.PAYMENT_FLOW_STARTED, {
-          amount: paymentState.payParams?.toUnits,
-          destination_chain: paymentState.payParams?.toChain,
-          token: paymentState.payParams?.toToken,
+          payment_id: order?.externalId ?? undefined,
+          amount: paymentState.payParams?.toUnits != null
+            ? String(paymentState.payParams.toUnits)
+            : order?.destFinalCallTokenAmount?.amount != null
+              ? String(order.destFinalCallTokenAmount.amount)
+              : undefined,
+          destination_chain: paymentState.payParams?.toChain
+            ?? (order ? getOrderDestChainId(order) : undefined),
+          token_symbol: paymentState.payParams?.toToken
+            ?? order?.destFinalCallTokenAmount?.token.symbol,
         });
       } else {
         onCloseRef.current?.();
@@ -394,29 +404,11 @@ const RozoPayUIProvider = ({
     pay.order.sourceTokenAmount != null;
 
   useEffect(() => {
-    const payment_id =
-      paymentState.rozoPaymentId ?? pay.order?.externalId ?? pay.order?.id;
-
     if (
       pay.paymentState === "payment_completed" ||
       pay.paymentState === "payment_bounced"
     ) {
       setRoute(ROUTES.CONFIRMATION, { event: "payment-completed" });
-      capture(ROZO_EVENTS.PAYMENT_COMPLETED, {
-        payment_id,
-        amount: paymentState.orderUsdAmount,
-        destination_chain: paymentState.payParams?.toChain,
-      });
-    } else if (pay.paymentState === "payment_started") {
-      capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
-        payment_id,
-        destination_chain: paymentState.payParams?.toChain,
-      });
-    } else if (pay.paymentState === "error") {
-      capture(ROZO_EVENTS.PAYMENT_FAILED, {
-        payment_id,
-        destination_chain: paymentState.payParams?.toChain,
-      });
     }
 
     if (isUnderpaid) {
