@@ -153,15 +153,34 @@ const PayWithSolanaToken: React.FC = () => {
         ) {
           hydratedOrder = order;
         } else if (needRozoPayment) {
-          const res = await createPayment(option, store as any);
-
-          if (!res) {
-            throw new Error("Failed to create Rozo payment");
+          const existingId = rozoPaymentId ?? order.externalId ?? undefined;
+          if (existingId) {
+            const paymentRes = await getPayment(existingId);
+            if (!paymentRes?.data) {
+              throw new Error("Failed to fetch payment");
+            }
+            const checkoutRes = await checkoutPayment(
+              existingId,
+              buildCheckoutPayload(paymentRes.data, {
+                chainId: option.required.token.chainId,
+                tokenSymbol: option.required.token.symbol,
+                tokenAddress: option.required.token.token,
+                amount: String(option.required.usd),
+              }),
+            );
+            if (!checkoutRes?.data) {
+              throw new Error("Failed to checkout payment");
+            }
+            paymentId = checkoutRes.data.id;
+            hydratedOrder = formatPaymentResponseToHydratedOrder(checkoutRes.data);
+          } else {
+            const res = await createPayment(option, store as any);
+            if (!res) {
+              throw new Error("Failed to create Rozo payment");
+            }
+            paymentId = res.id;
+            hydratedOrder = formatPaymentResponseToHydratedOrder(res);
           }
-          paymentId = res.id;
-
-          const formattedOrder = formatPaymentResponseToHydratedOrder(res);
-          hydratedOrder = formattedOrder;
         } else {
           // Hydrate existing order
           const res = await hydrateOrder(undefined, option);

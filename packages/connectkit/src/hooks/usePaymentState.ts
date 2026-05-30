@@ -533,10 +533,9 @@ export function usePaymentState({
         ? (order as RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg)
         : undefined;
 
-    // payId mode: no payParams, but we have a pre-created payment ID.
-    // Checkout (refresh) the payment with the selected source token.
-    if (!payParams) {
-      const existingPayId = order?.externalId ?? undefined;
+    // If payment already exists (payId mode or rozoPaymentId set), checkout instead of create.
+    const existingPayId = order?.externalId ?? rozoPaymentId ?? undefined;
+    if (!payParams || existingPayId) {
       if (!existingPayId) {
         throw new Error("No pay params provided");
       }
