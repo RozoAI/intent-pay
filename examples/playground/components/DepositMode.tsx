@@ -1,37 +1,24 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { useSharedConfig } from "@/hooks/useSharedConfig";
+import { generateDepositSnippet } from "@/lib/snippets";
 import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
 import { useCallback, useEffect, useId, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { CodeSnippet } from "./CodeSnippet";
 import { EventLog, type LogEntry } from "./EventLog";
+import { ModeDescription } from "./ModeDescription";
 import { ParamForm, type ParamFormValues } from "./ParamForm";
 import { PreviewPane } from "./PreviewPane";
-import { usePlaygroundConfig } from "@/hooks/usePlaygroundConfig";
-import { generateDepositSnippet } from "@/lib/snippets";
 
 const APP_ID = "rozoDemo";
 
-interface DepositFormValues {
-  toChain: number;
-  toToken: string;
-  toAddress: string;
-}
-
-const DEFAULTS: DepositFormValues = {
-  toChain: 8453,
-  toToken: "",
-  toAddress: "",
-};
-
 export function DepositMode() {
-  const [config, setConfig] = usePlaygroundConfig<DepositFormValues>(
-    "playground-deposit",
-    DEFAULTS,
-  );
+  const [config, setConfig, hydrated] = useSharedConfig();
   const { resetPayment } = useRozoPayUI();
   const [ready, setReady] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const uid = useId();
 
@@ -49,10 +36,11 @@ export function DepositMode() {
   );
 
   const applyConfig = useCallback(
-    async (c: DepositFormValues) => {
+    async (c: ParamFormValues) => {
       if (!c.toChain || !c.toToken || !c.toAddress) return;
       setResetting(true);
       setReady(false);
+      setResetError(null);
       try {
         await resetPayment({
           toChain: c.toChain,
@@ -61,6 +49,10 @@ export function DepositMode() {
           // toUnits intentionally omitted — user sets amount inside modal
         });
         setReady(true);
+      } catch (err) {
+        setResetError(
+          err instanceof Error ? err.message : "Failed to initialize payment",
+        );
       } finally {
         setResetting(false);
       }
@@ -70,84 +62,104 @@ export function DepositMode() {
 
   const handleChange = useCallback(
     (values: ParamFormValues) => {
-      const v: DepositFormValues = {
-        toChain: values.toChain,
-        toToken: values.toToken,
-        toAddress: values.toAddress,
-      };
-      setConfig(v);
-      applyConfig(v);
+      setConfig(values);
+      applyConfig(values);
     },
     [setConfig, applyConfig],
   );
 
   useEffect(() => {
-    applyConfig(config);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (hydrated) applyConfig(config);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hydrated]);
 
   const snippet = isConfigValid ? generateDepositSnippet(config) : "";
-
-  // ParamForm expects toUnits — pass empty string, showAmount=false hides the field
-  const formValues: ParamFormValues = { ...config, toUnits: "" };
 
   const preview = (
     <div className="flex flex-col items-center gap-6 py-4">
       {isConfigValid ? (
-        <RozoPayButton.Custom
-          appId={APP_ID}
-          toChain={config.toChain}
-          toToken={config.toToken}
-          toAddress={config.toAddress}
-          resetOnSuccess
-          showProcessingPayout
-          onPaymentStarted={(e) => addLog("started", e)}
-          onPaymentCompleted={(e) => addLog("completed", e)}
-          onPayoutCompleted={(e) => addLog("payout", e)}
-        >
-          {({ show }) => (
-            <Button
-              onClick={show}
-              disabled={!ready || resetting}
-              size="lg"
-              className="min-w-40"
-            >
-              {resetting ? "Preparing…" : "Deposit"}
-            </Button>
+        <div className="flex flex-col items-center gap-2">
+          <RozoPayButton.Custom
+            appId={APP_ID}
+            toChain={config.toChain}
+            toToken={config.toToken}
+            toAddress={config.toAddress}
+            intent="Deposit"
+            resetOnSuccess
+            showProcessingPayout
+            onPaymentStarted={(e) => addLog("started", e)}
+            onPaymentCompleted={(e) => addLog("completed", e)}
+            onPayoutCompleted={(e) => addLog("payout", e)}
+          >
+            {({ show }) => (
+              <Button
+                onClick={show}
+                disabled={!ready || resetting}
+                size="lg"
+                className="min-w-40"
+              >
+                {resetting ? "Preparing…" : "Deposit"}
+              </Button>
+            )}
+          </RozoPayButton.Custom>
+          {resetError && (
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-destructive">{resetError}</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => applyConfig(config)}
+              >
+                Retry
+              </Button>
+            </div>
           )}
-        </RozoPayButton.Custom>
+        </div>
       ) : (
         <p className="text-sm text-muted-foreground">
           Fill in all fields to enable the deposit button.
         </p>
       )}
       <div className="w-full">
-        <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
-          Events
-        </p>
-        <EventLog entries={logs} />
+        <EventLog entries={logs} onClear={() => setLogs([])} />
       </div>
     </div>
   );
 
   return (
-    <div className="grid grid-cols-[280px_1fr] gap-6">
-      <aside className="space-y-4">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Configuration
-        </p>
-        <ParamForm
-          values={formValues}
-          onChange={handleChange}
-          showAmount={false}
-        />
-      </aside>
-      <main>
-        <PreviewPane
-          preview={preview}
-          code={snippet ? <CodeSnippet code={snippet} /> : null}
-        />
-      </main>
+    <div className="space-y-6">
+      <ModeDescription
+        title="Wallet Deposit"
+        summary="Open-ended deposit flow where the user enters the amount inside the modal. No fixed amount is set upfront; you only specify destination chain, token, and address. Suitable for top-ups, wallets, and donation flows."
+        steps={[
+          { step: 1, label: "Set destination chain, token & address (no amount)" },
+          { step: 2, label: "SDK calls resetPayment() without toUnits" },
+          { step: 3, label: "User opens modal and enters how much to deposit" },
+          { step: 4, label: "Rozo bridges funds to destination" },
+        ]}
+        note="No toUnits is passed to RozoPayButton; the SDK renders an amount input inside the modal."
+      />
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+        <aside className="space-y-4" aria-label="Configuration">
+          <p className="text-xs font-medium text-muted-foreground">
+            Configuration
+          </p>
+          <ParamForm
+            values={config}
+            onChange={handleChange}
+            showAmount={false}
+            hydrated={hydrated}
+          />
+        </aside>
+        <main>
+          <PreviewPane
+            preview={preview}
+            code={snippet ? <CodeSnippet code={snippet} /> : null}
+          />
+        </main>
+      </div>
     </div>
   );
 }

@@ -63,6 +63,7 @@ export default function BridgePayment() {
       toToken={${tok}}
       toAddress={${addr}}
       toUnits="${config.toUnits}"
+      intent="Bridge"
       onPaymentStarted={(e) => console.log("started", e)}
       onPaymentCompleted={(e) => console.log("completed", e)}
       onPayoutCompleted={(e) => console.log("payout", e)}
@@ -120,8 +121,8 @@ export default function OnlineCheckout() {
   return (
     <RozoPayButton.Custom
       key={paymentId}
-      appId={APP_ID}
       payId={paymentId}
+      intent="Checkout"
       onPaymentStarted={(e) => console.log("started", e)}
       onPaymentCompleted={(e) => console.log("completed", e)}
       onPayoutCompleted={(e) => console.log("payout", e)}
@@ -161,6 +162,7 @@ export default function WalletDeposit() {
       toChain={${config.toChain}}
       toToken={${tok}}
       toAddress={${addr}}
+      intent="Deposit"
       onPaymentStarted={(e) => console.log("started", e)}
       onPaymentCompleted={(e) => console.log("completed", e)}
       onPayoutCompleted={(e) => console.log("payout", e)}

@@ -26,7 +26,7 @@ export function CodeSnippet({ code }: CodeSnippetProps) {
         variant="ghost"
         onClick={handleCopy}
         className="absolute top-2 right-2 z-10 h-7 w-7 hover:bg-white/10"
-        title="Copy code"
+        aria-label={copied ? "Copied" : "Copy code"}
       >
         {copied ? (
           <Check className="h-3.5 w-3.5 text-green-400" />

@@ -1,5 +1,5 @@
 {
-  "name": "next-app",
+  "name": "@rozoai/pay-playground",
   "version": "0.0.1",
   "type": "module",
   "private": true,
