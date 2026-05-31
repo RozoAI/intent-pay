@@ -1,11 +1,4 @@
 import {
-  getChainById,
-  supportedPayoutTokens,
-  TokenLogo,
-  type Token,
-} from "@rozoai/intent-common";
-import type { ComponentType, SVGProps } from "react";
-import {
   Arbitrum,
   Base,
   BinanceSmartChain,
@@ -16,6 +9,13 @@ import {
   Solana,
   Stellar,
 } from "@/components/Chains";
+import {
+  getChainById,
+  supportedPayoutTokens,
+  TokenLogo,
+  type Token,
+} from "@rozoai/intent-common";
+import type { ComponentType, SVGProps } from "react";
 
 type LogoComponent = ComponentType<
   Omit<SVGProps<SVGSVGElement>, "width" | "height"> & {

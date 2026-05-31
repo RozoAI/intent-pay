@@ -46,6 +46,7 @@ export function BridgeMode() {
       setResetError(null);
       try {
         await resetPayment({
+          appId: APP_ID,
           toChain: c.toChain,
           toToken: c.toToken,
           toAddress: c.toAddress,

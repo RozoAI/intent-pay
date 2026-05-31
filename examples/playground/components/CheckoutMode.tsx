@@ -56,6 +56,7 @@ export function CheckoutMode() {
   const handleCreatePayment = useCallback(async () => {
     setCreating(true);
     setError(null);
+    setPaymentId(null);
     try {
       const result = await createPayment({
         appId: APP_ID,
@@ -107,7 +108,7 @@ export function CheckoutMode() {
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3">
-              {paymentId && (
+              {paymentId && !creating && (
                 <RozoPayButton.Custom
                   key={mountKey}
                   payId={paymentId}

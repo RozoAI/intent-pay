@@ -94,6 +94,7 @@ export default function OnlineCheckout() {
 
   async function handleCreatePayment() {
     setLoading(true);
+    setPaymentId(null);
     try {
       const result = await createPayment({
         appId: APP_ID,
