@@ -1414,9 +1414,22 @@ export function usePaymentState({
     async (payId: string | undefined) => {
       if (lockPayParams || payId == null) return;
 
-      // Always reset and re-fetch. The caller (RozoPayButton) already
-      // deduplicates via prevPayIdRef so this only fires on actual changes.
+      // Reset FSM and all UI selection state before loading the new payId.
+      // The caller (RozoPayButton) already deduplicates via prevPayIdRef so
+      // this only fires on actual changes.
       pay.reset();
+      setRozoPaymentId(undefined);
+      setSelectedExternalOption(undefined);
+      setSelectedTokenOption(undefined);
+      setSelectedSolanaTokenOption(undefined);
+      setSelectedStellarTokenOption(undefined);
+      setSelectedDepositAddressOption(undefined);
+      setSelectedWallet(undefined);
+      setSelectedWalletDeepLink(undefined);
+      setPaymentWaitingMessage(undefined);
+      setSenderAddress(undefined);
+      setRoute(ROUTES.SELECT_METHOD);
+
       pay.setPayId(payId);
     },
     [lockPayParams, pay],
@@ -1444,6 +1457,7 @@ export function usePaymentState({
       const myId = ++previewRequestIdRef.current;
       log?.("[SET PAY PARAMS] setting payParams", updatedPayParams);
       pay.reset();
+      setRozoPaymentId(undefined);
       await pay.createPreviewOrder(updatedPayParams);
       if (myId === previewRequestIdRef.current) {
         setCurrPayParams(updatedPayParams);
@@ -1486,6 +1500,7 @@ export function usePaymentState({
 
       // Clear the old order & state
       pay.reset();
+      setRozoPaymentId(undefined);
       setSelectedExternalOption(undefined);
       setSelectedTokenOption(undefined);
       setSelectedSolanaTokenOption(undefined);

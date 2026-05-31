@@ -28,7 +28,6 @@ export function Providers({ children }: { children: ReactNode }) {
     createConfig(
       getDefaultConfigRozo({
         appName: "Rozo Pay Playground",
-        ssr: true,
       })
     )
   )

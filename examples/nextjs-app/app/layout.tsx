@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { PlaygroundNav } from "@/components/PlaygroundNav";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Separator } from "@/components/ui/separator";

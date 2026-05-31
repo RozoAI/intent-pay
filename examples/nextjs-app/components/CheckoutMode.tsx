@@ -1,62 +1,74 @@
-"use client";
+"use client"
 
-import { Button } from "@/components/ui/button";
-import { useSharedConfig } from "@/hooks/useSharedConfig";
-import { generateCheckoutSnippet } from "@/lib/snippets";
-import { createPayment } from "@rozoai/intent-common";
-import { RozoPayButton } from "@rozoai/intent-pay";
-import { useCallback, useId, useState } from "react";
-import { CodeSnippet } from "./CodeSnippet";
-import { EventLog, type LogEntry } from "./EventLog";
-import { ModeDescription } from "./ModeDescription";
-import { ParamForm, type ParamFormValues } from "./ParamForm";
-import { PreviewPane } from "./PreviewPane";
+import { Button } from "@/components/ui/button"
+import { useSharedConfig } from "@/hooks/useSharedConfig"
+import { generateCheckoutSnippet } from "@/lib/snippets"
+import {
+  createPayment,
+  getKnownToken,
+  TokenSymbol,
+} from "@rozoai/intent-common"
+import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay"
+import { useCallback, useId, useState } from "react"
+import { CodeSnippet } from "./CodeSnippet"
+import { EventLog, type LogEntry } from "./EventLog"
+import { ModeDescription } from "./ModeDescription"
+import { ParamForm, type ParamFormValues } from "./ParamForm"
+import { PreviewPane } from "./PreviewPane"
 
-const APP_ID = "rozoDemo";
+const APP_ID = "rozoDemo"
 
 export function CheckoutMode() {
-  const [config, setConfig, hydrated] = useSharedConfig();
-  const [paymentId, setPaymentId] = useState<string | null>(null);
-  const [mountKey, setMountKey] = useState(0);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const uid = useId();
+  const [config, setConfig, hydrated] = useSharedConfig()
+  const [paymentId, setPaymentId] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [logs, setLogs] = useState<LogEntry[]>([])
+  const uid = useId()
+  const { resetPayId } = useRozoPayUI()
 
   const isConfigValid =
     config.toChain > 0 &&
     config.toToken !== "" &&
     config.toAddress !== "" &&
-    config.toUnits !== "";
+    config.toUnits !== ""
+
+  const knownToken = getKnownToken(config.toChain, config.toToken)
+  const isDestinationEURC = knownToken
+    ? knownToken.symbol === TokenSymbol.EURC
+    : false
+
+  const preferredSymbol = isDestinationEURC
+    ? [TokenSymbol.EURC]
+    : [TokenSymbol.USDC, TokenSymbol.USDT]
 
   const addLog = useCallback(
     (type: LogEntry["type"], payload: unknown) => {
       setLogs((prev) => [
         ...prev,
         { id: `${uid}-${Date.now()}`, type, payload },
-      ]);
+      ])
     },
-    [uid],
-  );
+    [uid]
+  )
 
   const resetPaymentState = useCallback(() => {
-    setPaymentId(null);
-    setMountKey((k) => k + 1);
-    setError(null);
-  }, []);
+    setPaymentId(null)
+    setError(null)
+  }, [])
 
   const handleConfigChange = useCallback(
     (values: ParamFormValues) => {
-      setConfig(values);
-      resetPaymentState();
+      setConfig(values)
+      resetPaymentState()
     },
-    [setConfig, resetPaymentState],
-  );
+    [setConfig, resetPaymentState]
+  )
 
   const handleCreatePayment = useCallback(async () => {
-    setCreating(true);
-    setError(null);
-    setPaymentId(null);
+    setCreating(true)
+    setError(null)
+    setPaymentId(null)
     try {
       const result = await createPayment({
         appId: APP_ID,
@@ -66,17 +78,17 @@ export function CheckoutMode() {
         toUnits: config.toUnits,
         preferredChain: config.toChain,
         preferredTokenAddress: config.toToken,
-      });
-      setMountKey((k) => k + 1);
-      setPaymentId(result.id);
+      })
+      setPaymentId(result.id)
+      resetPayId(result.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create payment");
+      setError(err instanceof Error ? err.message : "Failed to create payment")
     } finally {
-      setCreating(false);
+      setCreating(false)
     }
-  }, [config]);
+  }, [config, resetPayId])
 
-  const snippet = isConfigValid ? generateCheckoutSnippet(config) : "";
+  const snippet = isConfigValid ? generateCheckoutSnippet(config) : ""
 
   const preview = (
     <div className="flex flex-col items-center gap-6 py-4">
@@ -110,8 +122,8 @@ export function CheckoutMode() {
             <div className="flex flex-col items-center gap-3">
               {paymentId && !creating && (
                 <RozoPayButton.Custom
-                  key={mountKey}
                   payId={paymentId}
+                  preferredSymbol={preferredSymbol}
                   intent="Checkout"
                   onPaymentStarted={(e) => addLog("started", e)}
                   onPaymentCompleted={(e) => addLog("completed", e)}
@@ -125,7 +137,7 @@ export function CheckoutMode() {
                 </RozoPayButton.Custom>
               )}
               <div className="flex flex-col items-center gap-1.5">
-                <p className="text-xs text-muted-foreground font-mono break-all max-w-md text-center">
+                <p className="max-w-md text-center font-mono text-xs break-all text-muted-foreground">
                   Payment ID: {paymentId}
                 </p>
                 <Button
@@ -148,7 +160,7 @@ export function CheckoutMode() {
         <EventLog entries={logs} onClear={() => setLogs([])} />
       </div>
     </div>
-  );
+  )
 
   return (
     <div className="space-y-6">
@@ -157,18 +169,29 @@ export function CheckoutMode() {
         summary="Server-side payment creation flow. Your backend calls createPayment() to generate a unique payment ID, then passes it to the SDK. This separates order creation from the payment UI, making it suitable for e-commerce and invoicing."
         steps={[
           { step: 1, label: "Set destination chain, token, address & amount" },
-          { step: 2, label: 'Click "Create Payment" to call createPayment() API' },
+          {
+            step: 2,
+            label: 'Click "Create Payment" to call createPayment() API',
+          },
           { step: 3, label: "API returns a paymentId tied to this order" },
-          { step: 4, label: "SDK opens with payId; user pays against that order" },
+          {
+            step: 4,
+            label: "SDK opens with payId; user pays against that order",
+          },
         ]}
         note="In production, createPayment() runs on your server so users can't tamper with the amount or destination."
       />
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
         <aside className="space-y-4" aria-label="Configuration">
           <p className="text-xs font-medium text-muted-foreground">
             Configuration
           </p>
-          <ParamForm values={config} onChange={handleConfigChange} showAmount hydrated={hydrated} />
+          <ParamForm
+            values={config}
+            onChange={handleConfigChange}
+            showAmount
+            hydrated={hydrated}
+          />
         </aside>
         <main>
           <PreviewPane
@@ -178,5 +201,5 @@ export function CheckoutMode() {
         </main>
       </div>
     </div>
-  );
+  )
 }

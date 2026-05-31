@@ -4,6 +4,7 @@ import { PayContext } from "../provider/PayContext";
 
 type UseRozoPayUI = {
   resetPayment: (payParams?: Partial<PayParams>) => Promise<void>;
+  resetPayId: (payId: string) => void;
 };
 
 export function useRozoPayUI(): UseRozoPayUI {
@@ -14,5 +15,6 @@ export function useRozoPayUI(): UseRozoPayUI {
 
   return {
     resetPayment: context.paymentState.resetOrder,
+    resetPayId: context.paymentState.setPayId,
   };
 }

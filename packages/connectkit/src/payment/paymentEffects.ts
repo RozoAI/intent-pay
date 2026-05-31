@@ -36,6 +36,9 @@ const pollers = new Map<string, PollHandle>();
 /** Latest set_pay_params request id. Stale preview completions must not dispatch. */
 let latestSetPayParamsRequestId: string | null = null;
 
+/** Latest set_pay_id request id. Stale getPayment completions must not dispatch. */
+let latestSetPayIdRequestId: string | null = null;
+
 let previewRequestSeq = 0;
 
 /** e.g. "preview-1-a3f9" – readable and sortable in logs. */
@@ -118,11 +121,16 @@ export function attachPaymentEffectHandlers(
       }
       case "reset":
         latestSetPayParamsRequestId = null;
-        log("[EFFECT] reset – invalidating in-flight preview requests");
+        latestSetPayIdRequestId = null;
+        log("[EFFECT] reset – invalidating in-flight preview and payId requests");
         break;
-      case "set_pay_id":
-        runSetPayIdEffects(store, trpc, event, apiVersion);
+      case "set_pay_id": {
+        const payIdRequestId = nextPreviewRequestId();
+        latestSetPayIdRequestId = payIdRequestId;
+        const isLatestPayId = () => payIdRequestId === latestSetPayIdRequestId;
+        runSetPayIdEffects(store, trpc, event, apiVersion, isLatestPayId);
         break;
+      }
       case "hydrate_order": {
         if (prev.type === "preview") {
           runHydratePayParamsEffects(store, trpc, prev, event, log, apiVersion);
@@ -382,10 +390,13 @@ async function runSetPayIdEffects(
   trpc: TrpcClient,
   event: Extract<PaymentEvent, { type: "set_pay_id" }>,
   apiVersion: ApiVersion = "v2",
+  isLatest: () => boolean = () => true,
 ) {
   try {
     const payId = resolveOrderId(event.payId);
     const res = await getPayment(payId);
+
+    if (!isLatest()) return;
 
     if (!res?.data) {
       throw new Error("Payment not found");
@@ -409,6 +420,7 @@ async function runSetPayIdEffects(
       order,
     });
   } catch (e: any) {
+    if (!isLatest()) return;
     store.dispatch({
       type: "error",
       order: undefined,

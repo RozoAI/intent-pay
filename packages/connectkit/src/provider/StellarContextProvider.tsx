@@ -43,7 +43,7 @@ export const STELLAR_WALLET_STORAGE_KEY = "rozo-stellar-wallet";
 const initialContext: StellarContextProviderValue = {
   kit: undefined,
   isExternalKit: false,
-  stellarWalletPersistence: true,
+  stellarWalletPersistence: false,
   server: undefined as any,
   publicKey: undefined,
   setPublicKey: () => {},
@@ -77,11 +77,11 @@ export const StellarContextProvider = ({
     Horizon.AccountResponse | undefined
   >(undefined);
   const [connector, setConnector] = useState<ISupportedWallet | undefined>(
-    undefined
+    undefined,
   );
   const [isAccountExists, setIsAccountExists] = useState(false);
   const [internalKit, setInternalKit] = useState<StellarWalletsKit | undefined>(
-    undefined
+    undefined,
   );
   const [kitError, setKitError] = useState<string | undefined>(undefined);
 
@@ -171,7 +171,9 @@ export const StellarContextProvider = ({
 
       // Connect wallet via kit (same flow for internal or consumer-provided kit).
       // Consumer-provided kit only supplies the instance; we still run setWallet/getAddress when user picks a wallet in the modal.
-      log?.(`[Rozo] Connecting wallet: ${option.id} (externalKit: ${isUsingExternalKit})`);
+      log?.(
+        `[Rozo] Connecting wallet: ${option.id} (externalKit: ${isUsingExternalKit})`,
+      );
       kit.setWallet(option.id);
       const { address } = await kit.getAddress();
       pk = address;
@@ -219,7 +221,7 @@ export const StellarContextProvider = ({
       .catch((error) => {
         console.error(
           "[Rozo] Failed to initialize Stellar kit (singleton):",
-          error
+          error,
         );
         if (mounted) {
           setKitError(error.message);
@@ -244,7 +246,7 @@ export const StellarContextProvider = ({
           "  network: WalletNetwork.PUBLIC,\n" +
           "  modules: allowAllModules(),\n" +
           "});\n\n" +
-          "<RozoPayProvider stellarKit={kit}>{children}</RozoPayProvider>"
+          "<RozoPayProvider stellarKit={kit}>{children}</RozoPayProvider>",
       );
     }
   }, [kitError]);

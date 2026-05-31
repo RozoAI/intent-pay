@@ -29,7 +29,7 @@ const ConnectorStellar: React.FC = () => {
     log(
       `[ConnectorStellar] Component mounted/updated - isConnected: ${isConnected}, publicKey: ${publicKey}, stellarConnector: ${
         stellarConnector?.name ?? "none"
-      }`
+      }`,
     );
   }, [isConnected, publicKey, stellarConnector, log]);
 
@@ -41,7 +41,7 @@ const ConnectorStellar: React.FC = () => {
     const connectWallet = async () => {
       try {
         log(
-          `[ConnectorStellar] Initiating connection to wallet: ${stellarConnector.name}`
+          `[ConnectorStellar] Initiating connection to wallet: ${stellarConnector.name}`,
         );
         setConnectionInitiated(true);
 
@@ -55,7 +55,7 @@ const ConnectorStellar: React.FC = () => {
     };
 
     connectWallet();
-  }, [stellarConnector, connectionInitiated, setWallet, log]);
+  }, [stellarConnector, connectionInitiated]);
 
   // Navigate to SELECT_TOKEN when connected (same as before)
   useEffect(() => {
@@ -68,7 +68,7 @@ const ConnectorStellar: React.FC = () => {
       walletName: stellarConnector?.name ?? "Stellar Wallet",
     };
     log(
-      "[ConnectorStellar] Connection detected, navigating to SELECT_TOKEN in 500ms"
+      "[ConnectorStellar] Connection detected, navigating to SELECT_TOKEN in 500ms",
     );
     setTimeout(() => {
       setTokenMode("stellar");

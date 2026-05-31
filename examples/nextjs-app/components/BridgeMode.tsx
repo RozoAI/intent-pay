@@ -1,49 +1,59 @@
-"use client";
+"use client"
 
-import { Button } from "@/components/ui/button";
-import { useSharedConfig } from "@/hooks/useSharedConfig";
-import { generateBridgeSnippet } from "@/lib/snippets";
-import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
-import { useCallback, useEffect, useId, useState } from "react";
-import { CodeSnippet } from "./CodeSnippet";
-import { EventLog, type LogEntry } from "./EventLog";
-import { ModeDescription } from "./ModeDescription";
-import { ParamForm, type ParamFormValues } from "./ParamForm";
-import { PreviewPane } from "./PreviewPane";
+import { Button } from "@/components/ui/button"
+import { useSharedConfig } from "@/hooks/useSharedConfig"
+import { generateBridgeSnippet } from "@/lib/snippets"
+import { getKnownToken, TokenSymbol } from "@rozoai/intent-common"
+import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay"
+import { useCallback, useEffect, useId, useState } from "react"
+import { CodeSnippet } from "./CodeSnippet"
+import { EventLog, type LogEntry } from "./EventLog"
+import { ModeDescription } from "./ModeDescription"
+import { ParamForm, type ParamFormValues } from "./ParamForm"
+import { PreviewPane } from "./PreviewPane"
 
-const APP_ID = "rozoDemo";
+const APP_ID = "rozoDemo"
 
 export function BridgeMode() {
-  const [config, setConfig, hydrated] = useSharedConfig();
-  const { resetPayment } = useRozoPayUI();
-  const [ready, setReady] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [resetError, setResetError] = useState<string | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const uid = useId();
+  const [config, setConfig, hydrated] = useSharedConfig()
+  const { resetPayment } = useRozoPayUI()
+  const [ready, setReady] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
+  const [logs, setLogs] = useState<LogEntry[]>([])
+  const uid = useId()
 
   const isConfigValid =
     config.toChain > 0 &&
     config.toToken !== "" &&
     config.toAddress !== "" &&
-    config.toUnits !== "";
+    config.toUnits !== ""
+
+  const knownToken = getKnownToken(config.toChain, config.toToken)
+  const isDestinationEURC = knownToken
+    ? knownToken.symbol === TokenSymbol.EURC
+    : false
+
+  const preferredSymbol = isDestinationEURC
+    ? [TokenSymbol.EURC]
+    : [TokenSymbol.USDC, TokenSymbol.USDT]
 
   const addLog = useCallback(
     (type: LogEntry["type"], payload: unknown) => {
       setLogs((prev) => [
         ...prev,
         { id: `${uid}-${Date.now()}`, type, payload },
-      ]);
+      ])
     },
-    [uid],
-  );
+    [uid]
+  )
 
   const applyConfig = useCallback(
     async (c: ParamFormValues) => {
-      if (!c.toChain || !c.toToken || !c.toAddress || !c.toUnits) return;
-      setResetting(true);
-      setReady(false);
-      setResetError(null);
+      if (!c.toChain || !c.toToken || !c.toAddress || !c.toUnits) return
+      setResetting(true)
+      setReady(false)
+      setResetError(null)
       try {
         await resetPayment({
           appId: APP_ID,
@@ -51,34 +61,36 @@ export function BridgeMode() {
           toToken: c.toToken,
           toAddress: c.toAddress,
           toUnits: c.toUnits,
-        });
-        setReady(true);
+          intent: "Bridge",
+          preferredSymbol,
+        })
+        setReady(true)
       } catch (err) {
         setResetError(
-          err instanceof Error ? err.message : "Failed to initialize payment",
-        );
+          err instanceof Error ? err.message : "Failed to initialize payment"
+        )
       } finally {
-        setResetting(false);
+        setResetting(false)
       }
     },
-    [resetPayment],
-  );
+    [resetPayment, preferredSymbol]
+  )
 
   const handleChange = useCallback(
     (values: ParamFormValues) => {
-      setConfig(values);
-      applyConfig(values);
+      setConfig(values)
+      applyConfig(values)
     },
-    [setConfig, applyConfig],
-  );
+    [setConfig, applyConfig]
+  )
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (hydrated) applyConfig(config);
+    if (hydrated) applyConfig(config)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated]);
+  }, [hydrated])
 
-  const snippet = isConfigValid ? generateBridgeSnippet(config) : "";
+  const snippet = isConfigValid ? generateBridgeSnippet(config) : ""
 
   const preview = (
     <div className="flex flex-col items-center gap-6 py-4">
@@ -90,6 +102,7 @@ export function BridgeMode() {
             toToken={config.toToken}
             toAddress={config.toAddress}
             toUnits={config.toUnits}
+            preferredSymbol={preferredSymbol}
             resetOnSuccess
             showProcessingPayout
             intent="Bridge"
@@ -131,7 +144,7 @@ export function BridgeMode() {
         <EventLog entries={logs} onClear={() => setLogs([])} />
       </div>
     </div>
-  );
+  )
 
   return (
     <div className="space-y-6">
@@ -146,12 +159,17 @@ export function BridgeMode() {
         ]}
         note="Use this when you need to receive an exact amount, e.g. a product costs $5 USDC on Base."
       />
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
         <aside className="space-y-4" aria-label="Configuration">
           <p className="text-xs font-medium text-muted-foreground">
             Configuration
           </p>
-          <ParamForm values={config} onChange={handleChange} showAmount hydrated={hydrated} />
+          <ParamForm
+            values={config}
+            onChange={handleChange}
+            showAmount
+            hydrated={hydrated}
+          />
         </aside>
         <main>
           <PreviewPane
@@ -161,5 +179,5 @@ export function BridgeMode() {
         </main>
       </div>
     </div>
-  );
+  )
 }

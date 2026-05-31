@@ -1,80 +1,93 @@
-"use client";
+"use client"
 
-import { Button } from "@/components/ui/button";
-import { useSharedConfig } from "@/hooks/useSharedConfig";
-import { generateDepositSnippet } from "@/lib/snippets";
-import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay";
-import { useCallback, useEffect, useId, useState } from "react";
-import { CodeSnippet } from "./CodeSnippet";
-import { EventLog, type LogEntry } from "./EventLog";
-import { ModeDescription } from "./ModeDescription";
-import { ParamForm, type ParamFormValues } from "./ParamForm";
-import { PreviewPane } from "./PreviewPane";
+import { Button } from "@/components/ui/button"
+import { useSharedConfig } from "@/hooks/useSharedConfig"
+import { generateDepositSnippet } from "@/lib/snippets"
+import { getKnownToken, TokenSymbol } from "@rozoai/intent-common"
+import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay"
+import { useCallback, useEffect, useId, useState } from "react"
+import { CodeSnippet } from "./CodeSnippet"
+import { EventLog, type LogEntry } from "./EventLog"
+import { ModeDescription } from "./ModeDescription"
+import { ParamForm, type ParamFormValues } from "./ParamForm"
+import { PreviewPane } from "./PreviewPane"
 
-const APP_ID = "rozoDemo";
+const APP_ID = "rozoDemo"
 
 export function DepositMode() {
-  const [config, setConfig, hydrated] = useSharedConfig();
-  const { resetPayment } = useRozoPayUI();
-  const [ready, setReady] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [resetError, setResetError] = useState<string | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const uid = useId();
+  const [config, setConfig, hydrated] = useSharedConfig()
+  const { resetPayment } = useRozoPayUI()
+  const [ready, setReady] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
+  const [logs, setLogs] = useState<LogEntry[]>([])
+  const uid = useId()
 
   const isConfigValid =
-    config.toChain > 0 && config.toToken !== "" && config.toAddress !== "";
+    config.toChain > 0 && config.toToken !== "" && config.toAddress !== ""
+
+  const knownToken = getKnownToken(config.toChain, config.toToken)
+  const isDestinationEURC = knownToken
+    ? knownToken.symbol === TokenSymbol.EURC
+    : false
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const preferredSymbol = isDestinationEURC
+    ? [TokenSymbol.EURC]
+    : [TokenSymbol.USDC, TokenSymbol.USDT]
 
   const addLog = useCallback(
     (type: LogEntry["type"], payload: unknown) => {
       setLogs((prev) => [
         ...prev,
         { id: `${uid}-${Date.now()}`, type, payload },
-      ]);
+      ])
     },
-    [uid],
-  );
+    [uid]
+  )
 
   const applyConfig = useCallback(
     async (c: ParamFormValues) => {
-      if (!c.toChain || !c.toToken || !c.toAddress) return;
-      setResetting(true);
-      setReady(false);
-      setResetError(null);
+      if (!c.toChain || !c.toToken || !c.toAddress) return
+      setResetting(true)
+      setReady(false)
+      setResetError(null)
       try {
         await resetPayment({
           toChain: c.toChain,
           toToken: c.toToken,
           toAddress: c.toAddress,
-          // toUnits intentionally omitted — user sets amount inside modal
-        });
-        setReady(true);
+          toUnits: undefined, // explicit clear — user sets amount inside modal
+          intent: "Deposit",
+          preferredSymbol,
+        })
+        setReady(true)
       } catch (err) {
         setResetError(
-          err instanceof Error ? err.message : "Failed to initialize payment",
-        );
+          err instanceof Error ? err.message : "Failed to initialize payment"
+        )
       } finally {
-        setResetting(false);
+        setResetting(false)
       }
     },
-    [resetPayment],
-  );
+    [resetPayment, preferredSymbol]
+  )
 
   const handleChange = useCallback(
     (values: ParamFormValues) => {
-      setConfig(values);
-      applyConfig(values);
+      setConfig(values)
+      applyConfig(values)
     },
-    [setConfig, applyConfig],
-  );
+    [setConfig, applyConfig]
+  )
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (hydrated) applyConfig(config);
+    if (hydrated) applyConfig(config)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated]);
+  }, [hydrated])
 
-  const snippet = isConfigValid ? generateDepositSnippet(config) : "";
+  const snippet = isConfigValid ? generateDepositSnippet(config) : ""
 
   const preview = (
     <div className="flex flex-col items-center gap-6 py-4">
@@ -85,6 +98,7 @@ export function DepositMode() {
             toChain={config.toChain}
             toToken={config.toToken}
             toAddress={config.toAddress}
+            preferredSymbol={preferredSymbol}
             intent="Deposit"
             resetOnSuccess
             showProcessingPayout
@@ -126,7 +140,7 @@ export function DepositMode() {
         <EventLog entries={logs} onClear={() => setLogs([])} />
       </div>
     </div>
-  );
+  )
 
   return (
     <div className="space-y-6">
@@ -134,14 +148,17 @@ export function DepositMode() {
         title="Wallet Deposit"
         summary="Open-ended deposit flow where the user enters the amount inside the modal. No fixed amount is set upfront; you only specify destination chain, token, and address. Suitable for top-ups, wallets, and donation flows."
         steps={[
-          { step: 1, label: "Set destination chain, token & address (no amount)" },
+          {
+            step: 1,
+            label: "Set destination chain, token & address (no amount)",
+          },
           { step: 2, label: "SDK calls resetPayment() without toUnits" },
           { step: 3, label: "User opens modal and enters how much to deposit" },
           { step: 4, label: "Rozo bridges funds to destination" },
         ]}
         note="No toUnits is passed to RozoPayButton; the SDK renders an amount input inside the modal."
       />
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
         <aside className="space-y-4" aria-label="Configuration">
           <p className="text-xs font-medium text-muted-foreground">
             Configuration
@@ -161,5 +178,5 @@ export function DepositMode() {
         </main>
       </div>
     </div>
-  );
+  )
 }
