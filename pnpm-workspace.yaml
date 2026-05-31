@@ -10,6 +10,7 @@ allowBuilds:
   bufferutil: true
   core-js: true
   keccak: true
+  msw: true
   protobufjs: true
   secp256k1: true
   sharp: true

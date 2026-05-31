@@ -8,21 +8,21 @@ import {
   Polygon,
   Solana,
   Stellar,
-} from "@/components/Chains";
+} from "@/components/Chains"
 import {
   getChainById,
   supportedPayoutTokens,
   TokenLogo,
   type Token,
-} from "@rozoai/intent-common";
-import type { ComponentType, SVGProps } from "react";
+} from "@rozoai/intent-common"
+import type { ComponentType, SVGProps } from "react"
 
 type LogoComponent = ComponentType<
   Omit<SVGProps<SVGSVGElement>, "width" | "height"> & {
-    width?: number | string;
-    height?: number | string;
+    width?: number | string
+    height?: number | string
   }
->;
+>
 
 const CHAIN_LOGO_MAP: Record<number, LogoComponent> = {
   42161: Arbitrum,
@@ -36,7 +36,7 @@ const CHAIN_LOGO_MAP: Record<number, LogoComponent> = {
   501: Solana,
   1500: Stellar,
   10001: Stellar,
-};
+}
 
 const TOKEN_LOGO_MAP: Record<string, string> = {
   ETH: TokenLogo.ETH,
@@ -58,42 +58,48 @@ const TOKEN_LOGO_MAP: Record<string, string> = {
   cUSD: TokenLogo.cUSD,
   XLM: TokenLogo.XLM,
   HYPE: TokenLogo.HYPE,
-};
+}
 
 export interface ChainOption {
-  chainId: number;
-  name: string;
-  type: "evm" | "solana" | "stellar";
-  LogoComponent?: LogoComponent;
+  chainId: number
+  name: string
+  type: "evm" | "solana" | "stellar"
+  LogoComponent?: LogoComponent
 }
 
 export interface TokenOption {
-  token: string;
-  symbol: string;
-  logoUrl?: string;
+  token: string
+  symbol: string
+  logoUrl?: string
+}
+
+function isNotNull<T>(value: T | null): value is T {
+  return value !== null
 }
 
 export function getSupportedChains(): ChainOption[] {
-  const chainIds = Array.from(supportedPayoutTokens.keys());
+  const chainIds = Array.from(supportedPayoutTokens.keys())
+
   return chainIds
     .map((id) => {
-      const chain = getChainById(id);
-      if (!chain) return null;
+      const chain = getChainById(id)
+      if (!chain) return null
+
       return {
         chainId: id,
         name: chain.name,
         type: chain.type as "evm" | "solana" | "stellar",
         LogoComponent: CHAIN_LOGO_MAP[id],
-      };
+      }
     })
-    .filter((c): c is ChainOption => c !== null);
+    .filter(isNotNull)
 }
 
 export function getTokensForChain(chainId: number): TokenOption[] {
-  const tokens: Token[] = supportedPayoutTokens.get(chainId) ?? [];
+  const tokens: Token[] = supportedPayoutTokens.get(chainId) ?? []
   return tokens.map((t) => ({
     token: t.token,
     symbol: t.symbol,
     logoUrl: TOKEN_LOGO_MAP[t.symbol],
-  }));
+  }))
 }
