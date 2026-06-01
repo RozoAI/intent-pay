@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.23] - 2026-06-01
+
+### ✨ New Features
+
+- **resetPayId for checkout mode** — Added ability to reset payment ID in checkout mode, enabling cleaner re-initiation of checkout flows
+- **New example playground** — Replaced old playground with Next.js app featuring live preview and code snippet toggle
+- **Logo and favicon** — Added logo and favicon to example app
+- **PostHog analytics** — Enhanced payment tracking with analytics events for confirmation and payment state transitions; added `posthog-js` as optional peer dependency
+
+### 🐛 Bug Fixes
+
+- **Checkout API enforcement** — Force checkout API usage when token is switched and `rozoPaymentId` already exists, preventing stale payment state
+- Fixed build issues
+
+### 🔧 Improvements
+
+- Updated `@rozoai/intent-common` to v0.1.18
+- Updated `next` to v15.5.18 in example app
+- Replaced playground with full Next.js example app (`examples/nextjs-app`)
+
+---
+
 ## [0.1.22] - 2026-05-25
 
 ### ✨ New Features
