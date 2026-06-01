@@ -107,7 +107,7 @@ type SourcePayment = Parameters<
 /** Creates (or loads) a payment and manages the corresponding modal. */
 export interface PaymentState {
   generatePreviewOrder: () => void;
-  resetOrder: (payParams?: Partial<PayParams>) => Promise<void>;
+  resetOrder: (payParams?: Partial<PayParams> | null) => Promise<void>;
 
   /// RozoPayButton props
   buttonProps: PayButtonPaymentProps | undefined;
@@ -1478,11 +1478,30 @@ export function usePaymentState({
   }, [pay, currPayParams]);
 
   const resetOrder = useCallback(
-    async (payParams?: Partial<PayParams>) => {
+    async (payParams?: Partial<PayParams> | null) => {
       log?.("[resetOrder] Called with params:", {
         currentParams: currPayParams,
         newParams: payParams,
       });
+
+      // null = explicit clear: wipe currPayParams entirely (no preview re-created)
+      if (payParams === null) {
+        pay.reset();
+        setRozoPaymentId(undefined);
+        setSelectedExternalOption(undefined);
+        setSelectedTokenOption(undefined);
+        setSelectedSolanaTokenOption(undefined);
+        setSelectedStellarTokenOption(undefined);
+        setSelectedDepositAddressOption(undefined);
+        setSelectedWallet(undefined);
+        setSelectedWalletDeepLink(undefined);
+        setPaymentWaitingMessage(undefined);
+        setSenderAddress(undefined);
+        setCurrPayParams(undefined);
+        currPayParamsRef.current = undefined;
+        setRoute(ROUTES.SELECT_METHOD);
+        return;
+      }
 
       const mergedPayParams: PayParams | undefined =
         payParams != null && currPayParams != null

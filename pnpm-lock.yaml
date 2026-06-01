@@ -41,11 +41,11 @@ importers:
   examples/nextjs-app:
     dependencies:
       '@rozoai/intent-common':
-        specifier: 0.1.17
-        version: 0.1.17(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
+        specifier: 0.1.18
+        version: 0.1.18(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
       '@rozoai/intent-pay':
-        specifier: 0.1.23-beta.5
-        version: 0.1.23-beta.5(3d9e00536dc9038b5d0c53bd9d391875)
+        specifier: 0.1.23
+        version: 0.1.23(3d9e00536dc9038b5d0c53bd9d391875)
       '@tanstack/react-query':
         specifier: ^5.0.0
         version: 5.100.14(react@18.2.0)
@@ -77,8 +77,8 @@ importers:
         specifier: ^15.6.1
         version: 15.6.6(react@18.2.0)
       shadcn:
-        specifier: ^4.8.3
-        version: 4.9.0(@types/node@20.19.41)(typescript@5.5.2)
+        specifier: ^4.10.0
+        version: 4.10.0(@types/node@20.19.41)(typescript@5.5.2)
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -141,8 +141,8 @@ importers:
         specifier: ^12.1.2
         version: 12.3.0(rollup@3.30.0)(tslib@2.8.1)(typescript@5.5.2)
       '@rozoai/intent-common':
-        specifier: 0.1.17
-        version: 0.1.17(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
+        specifier: 0.1.18
+        version: 0.1.18(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
       '@solana/spl-token':
         specifier: ^0.4.14
         version: 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.2)(utf-8-validate@6.0.6)
@@ -2319,11 +2319,11 @@ packages:
       rollup:
         optional: true
 
-  '@rozoai/intent-common@0.1.17':
-    resolution: {integrity: sha512-lSM84Xk8NnkimX07ytqOezyuI5XFzVYActQ732iomLf4BDuv6jAiC/10ULIE7JRXXNq+5QgRRpZz/O5sItw3bw==}
+  '@rozoai/intent-common@0.1.18':
+    resolution: {integrity: sha512-v9NcS8DSkrp2o/iFoMfGZSMzIMiG0DgeoOSK2zapPu3CqTncu+wNJ9odtcrDn7kAHcGG/MPKAqchiKvl8goGcQ==}
 
-  '@rozoai/intent-pay@0.1.23-beta.5':
-    resolution: {integrity: sha512-c3PJalW7apI8jeEwLKL7Ni89F8IfDr55cus1Pwe/ZzqFn1TkvEiEpF1w2DPmdXWConLHe2fN35+/OjCgrPIFlw==}
+  '@rozoai/intent-pay@0.1.23':
+    resolution: {integrity: sha512-fbgBqr7h0h7jZ2hHgetGMRqTjP6t0Vem6GA5LnK1q7IdIdjBJV2gIyyhSFBKpMhHM9R+PQ5tacpFWoozsWZcww==}
     engines: {node: '>=12.4'}
     peerDependencies:
       '@creit.tech/stellar-wallets-kit': ^1.9.5
@@ -7692,8 +7692,8 @@ packages:
   sha1@1.1.1:
     resolution: {integrity: sha512-dZBS6OrMjtgVkopB1Gmo4RQCDKiZsqcpAQpkV/aaj+FCrCg8r4I4qMkDPQjBgLIxlmu9k4nUbWq6ohXahOneYA==}
 
-  shadcn@4.9.0:
-    resolution: {integrity: sha512-GPrj/bFcxxykkDzHRDNzoJMAS1a6M4IcfSWpxKU7FXx7DzBU7QumZM9roovo0Blw/z6wRRl7moDB6jnreOFFGA==}
+  shadcn@4.10.0:
+    resolution: {integrity: sha512-84IJhUsK0xqSCRJx3QxyZe2NpUXj2Nwk8Vc8Ow/tCOND3yz4CT6uU4655vqicNXhzG9Q1cyUt+TBl2SiCJwNgg==}
     hasBin: true
 
   shallowequal@1.1.0:
@@ -11867,7 +11867,7 @@ snapshots:
     optionalDependencies:
       rollup: 3.30.0
 
-  '@rozoai/intent-common@0.1.17(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)':
+  '@rozoai/intent-common@0.1.18(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)':
     dependencies:
       '@scure/base': 1.2.6
       '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
@@ -11882,13 +11882,13 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@rozoai/intent-pay@0.1.23-beta.5(3d9e00536dc9038b5d0c53bd9d391875)':
+  '@rozoai/intent-pay@0.1.23(3d9e00536dc9038b5d0c53bd9d391875)':
     dependencies:
       '@creit.tech/stellar-wallets-kit': 1.9.5(26a111bf6fc5ab6cb039ad820865b6d0)
       '@reown/appkit': 1.8.20(@react-native-async-storage/async-storage@1.24.0(react-native@0.85.3(@babel/core@7.29.7)(@types/react@18.3.29)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@6.0.6)))(@types/react@18.3.29)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(react@18.2.0)(typescript@5.5.2)(use-sync-external-store@1.4.0(react@18.2.0))(utf-8-validate@6.0.6)(zod@4.4.3)
       '@rollup/plugin-image': 3.0.3(rollup@3.30.0)
       '@rollup/plugin-typescript': 12.3.0(rollup@3.30.0)(tslib@2.8.1)(typescript@5.5.2)
-      '@rozoai/intent-common': 0.1.17(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
+      '@rozoai/intent-common': 0.1.18(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
       '@solana/spl-token': 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.2)(utf-8-validate@6.0.6)
       '@solana/wallet-adapter-base': 0.9.27(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6))
       '@solana/wallet-adapter-react': 0.15.39(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6))(bs58@6.0.0)(fastestsmallesttextencoderdecoder@1.0.22)(react-native@0.85.3(@babel/core@7.29.7)(@types/react@18.3.29)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@6.0.6))(react@18.2.0)(typescript@5.5.2)
@@ -19646,7 +19646,7 @@ snapshots:
       charenc: 0.0.2
       crypt: 0.0.2
 
-  shadcn@4.9.0(@types/node@20.19.41)(typescript@5.5.2):
+  shadcn@4.10.0(@types/node@20.19.41)(typescript@5.5.2):
     dependencies:
       '@babel/core': 7.29.7
       '@babel/parser': 7.29.7

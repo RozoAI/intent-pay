@@ -88,9 +88,17 @@ export function ParamForm({
         </Label>
         <Select
           value={String(values.toChain)}
-          onValueChange={(v) =>
-            onChange({ ...values, toChain: Number(v), toToken: "" })
-          }
+          onValueChange={(v) => {
+            const newChainId = Number(v)
+            const newChain = chains.find((c) => c.chainId === newChainId)
+            const typeChanged = newChain?.type !== selectedChain?.type
+            onChange({
+              ...values,
+              toChain: newChainId,
+              toToken: "",
+              toAddress: typeChanged ? "" : values.toAddress,
+            })
+          }}
         >
           <SelectTrigger className="w-full border-border bg-secondary">
             <SelectValue placeholder="Select chain">

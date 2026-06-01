@@ -374,6 +374,7 @@ export function formatPaymentResponseToHydratedOrder(
         logoURI: destToken.logoURI,
         maxAcceptUsd: 100000,
         maxSendUsd: 0,
+        fiatISO: destToken.fiatISO ?? order.display?.currency ?? "USD",
       },
       amount: parseUnits(
         sourceAmountUnits,

@@ -215,10 +215,13 @@ const RozoPayUIProvider = ({
       if (open) {
         setLockPayParams(true);
       }
+      // Unlock on close so the next payId/payParams prop change can be processed
+      if (!open) {
+        setLockPayParams(false);
+      }
       // Reset payment state on close if resetOnSuccess is true
       if (!open && paymentCompleted && modalOptions?.resetOnSuccess) {
         setPaymentCompleted(false);
-        setLockPayParams(false);
         paymentState.resetOrder();
       }
 

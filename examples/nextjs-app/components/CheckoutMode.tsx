@@ -1,31 +1,46 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateCheckoutSnippet } from "@/lib/snippets"
-import {
-  createPayment,
-  getKnownToken,
-  TokenSymbol,
-} from "@rozoai/intent-common"
-import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay"
-import { useCallback, useId, useState } from "react"
+import { createPayment } from "@rozoai/intent-common"
+import { RozoPayButton } from "@rozoai/intent-pay"
+import { useCallback, useEffect, useId, useMemo, useState } from "react"
 import { CodeSnippet } from "./CodeSnippet"
 import { EventLog, type LogEntry } from "./EventLog"
 import { ModeDescription } from "./ModeDescription"
-import { ParamForm, type ParamFormValues } from "./ParamForm"
+import { ParamForm } from "./ParamForm"
 import { PreviewPane } from "./PreviewPane"
 
 const APP_ID = "rozoDemo"
 
 export function CheckoutMode() {
   const [config, setConfig, hydrated] = useSharedConfig()
+  const [pending, setPending] = useState(config)
   const [paymentId, setPaymentId] = useState<string | null>(null)
+  const [manualPayId, setManualPayId] = useState("")
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const uid = useId()
-  const { resetPayId } = useRozoPayUI()
+  // sync pending when storage hydrates
+  useEffect(() => {
+    if (hydrated) setPending(config)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated])
+
+  const isPendingValid =
+    pending.toChain > 0 &&
+    pending.toToken !== "" &&
+    pending.toAddress !== "" &&
+    pending.toUnits !== ""
+
+  const isDirty = useMemo(
+    () => JSON.stringify(pending) !== JSON.stringify(config),
+    [pending, config]
+  )
 
   const isConfigValid =
     config.toChain > 0 &&
@@ -33,20 +48,11 @@ export function CheckoutMode() {
     config.toAddress !== "" &&
     config.toUnits !== ""
 
-  const knownToken = getKnownToken(config.toChain, config.toToken)
-  const isDestinationEURC = knownToken
-    ? knownToken.symbol === TokenSymbol.EURC
-    : false
-
-  const preferredSymbol = isDestinationEURC
-    ? [TokenSymbol.EURC]
-    : [TokenSymbol.USDC, TokenSymbol.USDT]
-
   const addLog = useCallback(
     (type: LogEntry["type"], payload: unknown) => {
       setLogs((prev) => [
         ...prev,
-        { id: `${uid}-${Date.now()}`, type, payload },
+        { id: `${uid}-${Date.now()}`, type, timestamp: Date.now(), payload },
       ])
     },
     [uid]
@@ -55,15 +61,20 @@ export function CheckoutMode() {
   const resetPaymentState = useCallback(() => {
     setPaymentId(null)
     setError(null)
+    setManualPayId("")
   }, [])
 
-  const handleConfigChange = useCallback(
-    (values: ParamFormValues) => {
-      setConfig(values)
-      resetPaymentState()
-    },
-    [setConfig, resetPaymentState]
-  )
+  const handleUseManualPayId = useCallback(() => {
+    const id = manualPayId.trim()
+    if (!id) return
+    setPaymentId(id)
+    setError(null)
+  }, [manualPayId])
+
+  const handleConfirm = useCallback(() => {
+    setConfig(pending)
+    resetPaymentState()
+  }, [setConfig, pending, resetPaymentState])
 
   const handleCreatePayment = useCallback(async () => {
     setCreating(true)
@@ -80,27 +91,26 @@ export function CheckoutMode() {
         preferredTokenAddress: config.toToken,
       })
       setPaymentId(result.id)
-      resetPayId(result.id)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create payment")
     } finally {
       setCreating(false)
     }
-  }, [config, resetPayId])
+  }, [config])
 
   const snippet = isConfigValid ? generateCheckoutSnippet(config) : ""
 
   const preview = (
     <div className="flex flex-col items-center gap-6 py-4">
-      {isConfigValid ? (
-        <>
-          {!paymentId ? (
-            <div className="flex flex-col items-center gap-3">
+      {!paymentId ? (
+        <div className="flex flex-col items-center gap-4 w-full max-w-sm">
+          {isConfigValid && (
+            <>
               <Button
                 onClick={handleCreatePayment}
                 disabled={creating}
                 size="lg"
-                className="min-w-44"
+                className="min-w-44 w-full"
               >
                 {creating ? "Creating Payment…" : "Create Payment"}
               </Button>
@@ -117,44 +127,69 @@ export function CheckoutMode() {
                   </Button>
                 </div>
               )}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-3">
-              {paymentId && !creating && (
-                <RozoPayButton.Custom
-                  payId={paymentId}
-                  preferredSymbol={preferredSymbol}
-                  intent="Checkout"
-                  onPaymentStarted={(e) => addLog("started", e)}
-                  onPaymentCompleted={(e) => addLog("completed", e)}
-                  onPayoutCompleted={(e) => addLog("payout", e)}
-                >
-                  {({ show }) => (
-                    <Button onClick={show} size="lg" className="min-w-40">
-                      Pay Now
-                    </Button>
-                  )}
-                </RozoPayButton.Custom>
-              )}
-              <div className="flex flex-col items-center gap-1.5">
-                <p className="max-w-md text-center font-mono text-xs break-all text-muted-foreground">
-                  Payment ID: {paymentId}
-                </p>
-                <Button
-                  variant="secondary"
-                  className="text-muted-foreground"
-                  onClick={resetPaymentState}
-                >
-                  Create new payment
-                </Button>
+              <div className="flex items-center gap-2 w-full">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">or</span>
+                <div className="h-px flex-1 bg-border" />
               </div>
-            </div>
+            </>
           )}
-        </>
+          <div className="flex flex-col gap-1.5 w-full">
+            <Label className="text-xs text-muted-foreground">
+              Enter Payment ID manually
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                value={manualPayId}
+                onChange={(e) => setManualPayId(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleUseManualPayId()}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                className="border-border bg-secondary font-mono text-xs flex-1"
+              />
+              <Button
+                onClick={handleUseManualPayId}
+                disabled={!manualPayId.trim()}
+                variant="secondary"
+                size="sm"
+              >
+                Use
+              </Button>
+            </div>
+          </div>
+          {!isConfigValid && (
+            <p className="text-xs text-muted-foreground text-center">
+              Fill in configuration fields to use Create Payment, or enter a Payment ID directly.
+            </p>
+          )}
+        </div>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          Fill in all fields to create a payment.
-        </p>
+        <div className="flex flex-col items-center gap-3">
+          <RozoPayButton.Custom
+            payId={paymentId}
+            intent="Checkout"
+            onPaymentStarted={(e) => addLog("started", e)}
+            onPaymentCompleted={(e) => addLog("completed", e)}
+            onPayoutCompleted={(e) => addLog("payout", e)}
+          >
+            {({ show }) => (
+              <Button onClick={show} size="lg" className="min-w-40">
+                Pay Now
+              </Button>
+            )}
+          </RozoPayButton.Custom>
+          <div className="flex flex-col items-center gap-1.5">
+            <p className="max-w-md text-center font-mono text-xs break-all text-muted-foreground">
+              Payment ID: {paymentId}
+            </p>
+            <Button
+              variant="secondary"
+              className="text-muted-foreground"
+              onClick={resetPaymentState}
+            >
+              Use different payment
+            </Button>
+          </div>
+        </div>
       )}
       <div className="w-full">
         <EventLog entries={logs} onClear={() => setLogs([])} />
@@ -187,11 +222,19 @@ export function CheckoutMode() {
             Configuration
           </p>
           <ParamForm
-            values={config}
-            onChange={handleConfigChange}
+            values={pending}
+            onChange={setPending}
             showAmount
             hydrated={hydrated}
           />
+          <Button
+            onClick={handleConfirm}
+            disabled={!isPendingValid || !isDirty}
+            size="sm"
+            className="w-full"
+          >
+            Confirm
+          </Button>
         </aside>
         <main>
           <PreviewPane

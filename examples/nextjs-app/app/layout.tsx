@@ -13,7 +13,7 @@ import pkg from "../package.json";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
@@ -33,7 +33,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, geist.variable)}
+      className={cn("antialiased", fontMono.variable, "font-sans", geist.variable)}
     >
       <body>
         <Providers>

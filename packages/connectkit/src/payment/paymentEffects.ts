@@ -415,6 +415,17 @@ async function runSetPayIdEffects(
 
     const order = formatPaymentResponseToHydratedOrder(res.data);
 
+    // formatPaymentResponseToHydratedOrder comes from a potentially stale
+    // published version of pay-common that omits fiatISO. Patch it here from
+    // getKnownToken so OrderHeader renders the correct currency symbol.
+    const destToken = getKnownToken(
+      order.destFinalCallTokenAmount.token.chainId,
+      order.destFinalCallTokenAmount.token.token,
+    );
+    if (destToken?.fiatISO) {
+      (order.destFinalCallTokenAmount.token as any).fiatISO = destToken.fiatISO;
+    }
+
     store.dispatch({
       type: "order_loaded",
       order,

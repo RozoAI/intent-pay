@@ -5,7 +5,7 @@ import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateBridgeSnippet } from "@/lib/snippets"
 import { getKnownToken, TokenSymbol } from "@rozoai/intent-common"
 import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay"
-import { useCallback, useEffect, useId, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useState } from "react"
 import { CodeSnippet } from "./CodeSnippet"
 import { EventLog, type LogEntry } from "./EventLog"
 import { ModeDescription } from "./ModeDescription"
@@ -17,11 +17,29 @@ const APP_ID = "rozoDemo"
 export function BridgeMode() {
   const [config, setConfig, hydrated] = useSharedConfig()
   const { resetPayment } = useRozoPayUI()
+  const [pending, setPending] = useState(config)
   const [ready, setReady] = useState(false)
   const [resetting, setResetting] = useState(false)
   const [resetError, setResetError] = useState<string | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const uid = useId()
+
+  // sync pending when storage hydrates
+  useEffect(() => {
+    if (hydrated) setPending(config)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated])
+
+  const isPendingValid =
+    pending.toChain > 0 &&
+    pending.toToken !== "" &&
+    pending.toAddress !== "" &&
+    pending.toUnits !== ""
+
+  const isDirty = useMemo(
+    () => JSON.stringify(pending) !== JSON.stringify(config),
+    [pending, config]
+  )
 
   const isConfigValid =
     config.toChain > 0 &&
@@ -42,7 +60,7 @@ export function BridgeMode() {
     (type: LogEntry["type"], payload: unknown) => {
       setLogs((prev) => [
         ...prev,
-        { id: `${uid}-${Date.now()}`, type, payload },
+        { id: `${uid}-${Date.now()}`, type, timestamp: Date.now(), payload },
       ])
     },
     [uid]
@@ -76,17 +94,15 @@ export function BridgeMode() {
     [resetPayment, preferredSymbol]
   )
 
-  const handleChange = useCallback(
-    (values: ParamFormValues) => {
-      setConfig(values)
-      applyConfig(values)
-    },
-    [setConfig, applyConfig]
-  )
+  const handleConfirm = useCallback(async () => {
+    setConfig(pending)
+    await applyConfig(pending)
+  }, [setConfig, pending, applyConfig])
 
+  // On hydration, RozoPayButton already picks up config props — no resetPayment needed.
+  // Just mark ready so Pay Now is enabled.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (hydrated) applyConfig(config)
+    if (hydrated && isConfigValid) setReady(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated])
 
@@ -165,11 +181,19 @@ export function BridgeMode() {
             Configuration
           </p>
           <ParamForm
-            values={config}
-            onChange={handleChange}
+            values={pending}
+            onChange={setPending}
             showAmount
             hydrated={hydrated}
           />
+          <Button
+            onClick={handleConfirm}
+            disabled={!isPendingValid || !isDirty || resetting}
+            size="sm"
+            className="w-full"
+          >
+            {resetting ? "Applying…" : "Confirm"}
+          </Button>
         </aside>
         <main>
           <PreviewPane
