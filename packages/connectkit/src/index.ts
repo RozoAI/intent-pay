@@ -15,7 +15,7 @@ export type {
 } from "./components/RozoPayButton/types";
 
 // Hooks to track payment status + UI status.
-// export { useRozoPay } from "./hooks/useRozoPay";
+export { useRozoPay } from "./hooks/useRozoPay";
 export { useRozoPayStatus } from "./hooks/useRozoPayStatus";
 export { useRozoPayUI } from "./hooks/useRozoPayUI";
 

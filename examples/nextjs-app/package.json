@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@rozoai/intent-common": "0.1.18",
-    "@rozoai/intent-pay": "0.1.23",
+    "@rozoai/intent-pay": "0.1.21",
     "@tanstack/react-query": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -76,6 +76,7 @@ const PayWithSolanaToken: React.FC = () => {
     }
   }, [state]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const setPayState = (state: PayState) => {
     if (state === payState) return;
     setPayStateInner(state);
@@ -172,7 +173,9 @@ const PayWithSolanaToken: React.FC = () => {
               throw new Error("Failed to checkout payment");
             }
             paymentId = checkoutRes.data.id;
-            hydratedOrder = formatPaymentResponseToHydratedOrder(checkoutRes.data);
+            hydratedOrder = formatPaymentResponseToHydratedOrder(
+              checkoutRes.data,
+            );
           } else {
             const res = await createPayment(option, store as any);
             if (!res) {
@@ -289,7 +292,11 @@ const PayWithSolanaToken: React.FC = () => {
           // `rozoPaymentId` React state captured in the useCallback closure.
           const completedPaymentId = newId ?? undefined;
           setTimeout(() => {
-            setPaymentCompleted(result.txHash, completedPaymentId, solanaPubKey ?? null);
+            setPaymentCompleted(
+              result.txHash,
+              completedPaymentId,
+              solanaPubKey ?? null,
+            );
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-solana" });
           }, 200);
           setTimeout(() => {
@@ -315,10 +322,14 @@ const PayWithSolanaToken: React.FC = () => {
             console.error("Failed to set payment unpaid:", e);
           }
         }
-        const isRejected = (error as Error).message.includes("rejected");
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const isRejected = errorMessage.includes("rejected");
         capture(ROZO_EVENTS.PAYMENT_FAILED, {
           payment_id: resolvedPaymentId ?? rozoPaymentId,
-          error_message: isRejected ? "user_rejected" : ((error as Error)?.message ?? "unknown_error"),
+          error_message: isRejected
+            ? "user_rejected"
+            : (errorMessage ?? "unknown_error"),
           source_chain: rozoSolana.chainId,
         });
         if (isRejected) {
@@ -330,7 +341,27 @@ const PayWithSolanaToken: React.FC = () => {
         setIsLoading(false);
       }
     },
-    [order, state, rozoPaymentId],
+    [
+      setPayState,
+      order,
+      payParams,
+      state,
+      payWithSolanaTokenRozo,
+      log,
+      rozoPaymentId,
+      createPayment,
+      store,
+      hydrateOrder,
+      setRozoPaymentId,
+      setPaymentUnpaid,
+      setPaymentStarted,
+      capture,
+      setTxHash,
+      setPaymentCompleted,
+      solanaPubKey,
+      setRoute,
+      solanaPaymentOptions,
+    ],
   );
 
   useEffect(() => {

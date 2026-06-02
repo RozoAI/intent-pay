@@ -232,15 +232,18 @@ const RozoPayUIProvider = ({
         const order = pay.order;
         capture(ROZO_EVENTS.PAYMENT_FLOW_STARTED, {
           payment_id: order?.externalId ?? undefined,
-          amount: paymentState.payParams?.toUnits != null
-            ? String(paymentState.payParams.toUnits)
-            : order?.destFinalCallTokenAmount?.amount != null
-              ? String(order.destFinalCallTokenAmount.amount)
-              : undefined,
-          destination_chain: paymentState.payParams?.toChain
-            ?? (order ? getOrderDestChainId(order) : undefined),
-          token_symbol: paymentState.payParams?.toToken
-            ?? order?.destFinalCallTokenAmount?.token.symbol,
+          amount:
+            paymentState.payParams?.toUnits != null
+              ? String(paymentState.payParams.toUnits)
+              : order?.destFinalCallTokenAmount?.amount != null
+                ? String(order.destFinalCallTokenAmount.amount)
+                : undefined,
+          destination_chain:
+            paymentState.payParams?.toChain ??
+            (order ? getOrderDestChainId(order) : undefined),
+          token_symbol:
+            paymentState.payParams?.toToken ??
+            order?.destFinalCallTokenAmount?.token.symbol,
         });
       } else {
         onCloseRef.current?.();
@@ -252,7 +255,10 @@ const RozoPayUIProvider = ({
           pay.paymentState !== "idle"
         ) {
           capture(ROZO_EVENTS.PAYMENT_CANCELLED, {
-            payment_id: paymentState.rozoPaymentId,
+            payment_id:
+              paymentState.rozoPaymentId ??
+              pay.order?.externalId ??
+              pay.order?.id,
             last_state: pay.paymentState,
             reason: "user",
           });
@@ -302,103 +308,6 @@ const RozoPayUIProvider = ({
     apiVersion,
   });
 
-  if (!paymentContext) {
-    throw Error("RozoPayProvider must be within a PaymentProvider");
-  }
-
-  if (typeof window !== "undefined" && !wagmiContext) {
-    console.warn("[RozoPay] RozoPayProvider must be within a WagmiProvider");
-    return <>{children}</>;
-  }
-
-  // Only allow for mounting RozoPayProvider once, so we avoid weird global
-  // state collisions.
-  if (existingPayContext) {
-    throw new Error(
-      "Multiple, nested usages of RozoPayProvider detected. Please use only one.",
-    );
-  }
-
-  const showPayment = async (modalOptions: RozoPayModalOptions) => {
-    const id = pay.order?.id;
-    log(
-      `[PAY] showing modal ${debugJson({
-        id,
-        modalOptions,
-        paymentFsmState: pay.paymentState,
-      })}`,
-    );
-
-    // Validate chain/token support before opening modal
-    if (paymentState.payParams) {
-      const validationError = validatePayoutToken(
-        paymentState.payParams.toChain,
-        paymentState.payParams.toToken,
-      );
-
-      if (validationError) {
-        log(
-          "[PAY] Validation error detected, showing error page",
-          validationError,
-        );
-        setOpen(true);
-        setRoute(ROUTES.ERROR, { validationError });
-        return;
-      }
-    }
-
-    setModalOptions(modalOptions);
-    paymentState.setConnectedWalletOnly(
-      modalOptions.connectedWalletOnly ?? false,
-    );
-    setOpen(true);
-
-    // Set tokenMode based on paymentOptions, regardless of connectedWalletOnly
-    // This ensures token filtering respects the paymentOptions constraint
-    if (paymentState.paymentOptions && paymentState.paymentOptions.length > 0) {
-      const hasEthereum = paymentState.paymentOptions.includes(
-        ExternalPaymentOptions.Ethereum,
-      );
-      const hasSolana = paymentState.paymentOptions.includes(
-        ExternalPaymentOptions.Solana,
-      );
-      const hasStellar = paymentState.paymentOptions.includes(
-        ExternalPaymentOptions.Stellar,
-      );
-
-      // Determine tokenMode based on which wallet payment options are included
-      if (hasEthereum && !hasSolana && !hasStellar) {
-        paymentState.setTokenMode("evm");
-      } else if (hasSolana && !hasEthereum && !hasStellar) {
-        paymentState.setTokenMode("solana");
-      } else if (hasStellar && !hasEthereum && !hasSolana) {
-        paymentState.setTokenMode("stellar");
-      } else if (hasEthereum || hasSolana || hasStellar) {
-        // Multiple wallet payment options are allowed, set to "all" but will be filtered in useTokenOptions
-        paymentState.setTokenMode("all");
-      } else {
-        // No wallet payment options specified, default to "all"
-        paymentState.setTokenMode("all");
-      }
-    } else {
-      // No paymentOptions constraint, default to "all"
-      paymentState.setTokenMode("all");
-    }
-
-    if (pay.paymentState === "error") {
-      setRoute(ROUTES.ERROR);
-    } else if (
-      pay.paymentState === "payment_completed" ||
-      pay.paymentState === "payment_bounced"
-    ) {
-      setRoute(ROUTES.CONFIRMATION);
-    } else if (modalOptions.connectedWalletOnly) {
-      setRoute(ROUTES.SELECT_TOKEN);
-    } else {
-      setRoute(ROUTES.SELECT_METHOD);
-    }
-  };
-
   // Watch when the order gets paid and navigate to confirmation
   // ...if underpaid, go to the deposit addr screen, let the user finish paying.
   const isUnderpaid =
@@ -419,7 +328,118 @@ const RozoPayUIProvider = ({
       setRoute(ROUTES.WAITING_DEPOSIT_ADDRESS);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pay.paymentState, setRoute, isUnderpaid]);
+  }, [pay.paymentState, isUnderpaid, paymentState]);
+
+  const showPayment = React.useCallback(
+    async (modalOptions: RozoPayModalOptions) => {
+      const id = pay.order?.id;
+      log(
+        `[PAY] showing modal ${debugJson({
+          id,
+          modalOptions,
+          paymentFsmState: pay.paymentState,
+        })}`,
+      );
+
+      // Validate chain/token support before opening modal
+      if (paymentState.payParams) {
+        const validationError = validatePayoutToken(
+          paymentState.payParams.toChain,
+          paymentState.payParams.toToken,
+        );
+
+        if (validationError) {
+          log(
+            "[PAY] Validation error detected, showing error page",
+            validationError,
+          );
+          setOpen(true);
+          setRoute(ROUTES.ERROR, { validationError });
+          return;
+        }
+      }
+
+      setModalOptions(modalOptions);
+      paymentState.setConnectedWalletOnly(
+        modalOptions.connectedWalletOnly ?? false,
+      );
+      setOpen(true);
+
+      // Set tokenMode based on paymentOptions, regardless of connectedWalletOnly
+      // This ensures token filtering respects the paymentOptions constraint
+      if (
+        paymentState.paymentOptions &&
+        paymentState.paymentOptions.length > 0
+      ) {
+        const hasEthereum = paymentState.paymentOptions.includes(
+          ExternalPaymentOptions.Ethereum,
+        );
+        const hasSolana = paymentState.paymentOptions.includes(
+          ExternalPaymentOptions.Solana,
+        );
+        const hasStellar = paymentState.paymentOptions.includes(
+          ExternalPaymentOptions.Stellar,
+        );
+
+        // Determine tokenMode based on which wallet payment options are included
+        if (hasEthereum && !hasSolana && !hasStellar) {
+          paymentState.setTokenMode("evm");
+        } else if (hasSolana && !hasEthereum && !hasStellar) {
+          paymentState.setTokenMode("solana");
+        } else if (hasStellar && !hasEthereum && !hasSolana) {
+          paymentState.setTokenMode("stellar");
+        } else if (hasEthereum || hasSolana || hasStellar) {
+          // Multiple wallet payment options are allowed, set to "all" but will be filtered in useTokenOptions
+          paymentState.setTokenMode("all");
+        } else {
+          // No wallet payment options specified, default to "all"
+          paymentState.setTokenMode("all");
+        }
+      } else {
+        // No paymentOptions constraint, default to "all"
+        paymentState.setTokenMode("all");
+      }
+
+      if (pay.paymentState === "error") {
+        setRoute(ROUTES.ERROR);
+      } else if (
+        pay.paymentState === "payment_completed" ||
+        pay.paymentState === "payment_bounced"
+      ) {
+        setRoute(ROUTES.CONFIRMATION);
+      } else if (modalOptions.connectedWalletOnly) {
+        setRoute(ROUTES.SELECT_TOKEN);
+      } else {
+        setRoute(ROUTES.SELECT_METHOD);
+      }
+    },
+    [
+      pay.order?.id,
+      pay.paymentState,
+      log,
+      paymentState,
+      setOpen,
+      setRoute,
+      setModalOptions,
+    ],
+  );
+
+  if (!paymentContext) {
+    throw Error("RozoPayProvider must be within a PaymentProvider");
+  }
+
+  if (typeof window !== "undefined" && !wagmiContext) {
+    console.warn("[RozoPay] RozoPayProvider must be within a WagmiProvider");
+    return <>{children}</>;
+  }
+
+  // Only allow for mounting RozoPayProvider once, so we avoid weird global
+  // state collisions.
+  if (existingPayContext) {
+    throw new Error(
+      "Multiple, nested usages of RozoPayProvider detected. Please use only one.",
+    );
+  }
 
   const value: PayContextValue = {
     theme: ckTheme,

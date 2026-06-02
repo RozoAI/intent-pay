@@ -339,12 +339,11 @@ const PayWithStellarToken: React.FC = () => {
         }
       }
 
-      const isRejected = (error as Error).message.includes("rejected");
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isRejected = errorMessage.includes("rejected");
       capture(ROZO_EVENTS.PAYMENT_FAILED, {
         payment_id: resolvedPaymentId ?? rozoPaymentId,
-        error_message: isRejected
-          ? "user_rejected"
-          : ((error as Error)?.message ?? "unknown_error"),
+        error_message: isRejected ? "user_rejected" : (errorMessage ?? "unknown_error"),
         source_chain: rozoStellar.chainId,
       });
       if (isRejected) {
@@ -409,12 +408,11 @@ const PayWithStellarToken: React.FC = () => {
           setPayState(PayState.RequestFailed);
         }
       } catch (error) {
-        const isRejected = (error as Error).message.includes("rejected");
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isRejected = errorMessage.includes("rejected");
         capture(ROZO_EVENTS.PAYMENT_FAILED, {
           payment_id: rozoPaymentId,
-          error_message: isRejected
-            ? "user_rejected"
-            : ((error as Error)?.message ?? "unknown_error"),
+          error_message: isRejected ? "user_rejected" : (errorMessage ?? "unknown_error"),
           source_chain: rozoStellar.chainId,
         });
         if (isRejected) {
