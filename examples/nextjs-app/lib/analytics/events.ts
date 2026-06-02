@@ -1,3 +1,10 @@
+export const GLOBAL_EVENTS = {
+  USER_IDENTIFIED: "user_identified",
+  USER_RESET: "user_reset",
+  PAGE_VIEWED: "page_viewed",
+  ERROR_OCCURRED: "error_occurred",
+} as const;
+
 export const PAYMENT_EVENTS = {
   PAYMENT_FLOW_STARTED: "payment_flow_started",
   PAYMENT_METHOD_SELECTED: "payment_method_selected",
@@ -8,14 +15,7 @@ export const PAYMENT_EVENTS = {
   PAYMENT_SUBMITTED: "payment_submitted",
   PAYMENT_COMPLETED: "payment_completed",
   PAYMENT_FAILED: "payment_failed",
-  PAYMENT_VALIDATION_ERROR: "payment_validation_error",
   PAYMENT_CANCELLED: "payment_cancelled",
-} as const;
-
-export const GLOBAL_EVENTS = {
-  USER_IDENTIFIED: "user_identified",
-  USER_RESET: "user_reset",
-  ERROR_OCCURRED: "error_occurred",
 } as const;
 
 export const ROZO_EVENTS = {
@@ -24,3 +24,5 @@ export const ROZO_EVENTS = {
 } as const;
 
 export type RozoEventName = (typeof ROZO_EVENTS)[keyof typeof ROZO_EVENTS];
+
+export const APP_NAME = "intent-sdk-demo" as const;

@@ -46,10 +46,13 @@ export function DepositMode() {
     ? knownToken.symbol === TokenSymbol.EURC
     : false
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const preferredSymbol = isDestinationEURC
-    ? [TokenSymbol.EURC]
-    : [TokenSymbol.USDC, TokenSymbol.USDT]
+  const preferredSymbol = useMemo(
+    () =>
+      isDestinationEURC
+        ? [TokenSymbol.EURC]
+        : [TokenSymbol.USDC, TokenSymbol.USDT],
+    [isDestinationEURC]
+  )
 
   const addLog = useCallback(
     (type: LogEntry["type"], payload: unknown) => {

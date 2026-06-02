@@ -6,10 +6,10 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { ROUTES } from "../../../constants/routes";
 import { useContactSupport } from "../../../hooks/useContactSupport";
-import { useRozoPay } from "../../../hooks/useRozoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
-import { useAnalytics } from "../../../provider/AnalyticsProvider";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
+import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import Button from "../../Common/Button";
 import {
   Link,
@@ -101,7 +101,12 @@ const PayWithToken: React.FC = () => {
         payment_id: rozoPaymentId ?? order?.externalId,
         source_chain: option.required.token.chainId,
         token_symbol: option.required.token.symbol,
-        amount: String(option.required.amount),
+        amount:
+          paymentState.payParams?.toUnits != null
+            ? String(paymentState.payParams.toUnits)
+            : order?.destFinalCallTokenAmount?.usd != null
+              ? String(order.destFinalCallTokenAmount.usd)
+              : undefined,
       });
       // Switch chain if necessary
       setPayState(PayState.PreparingTransaction);

@@ -26,12 +26,12 @@ import {
 } from "../../../assets/icons";
 import defaultTheme from "../../../constants/defaultTheme";
 import { ROZO_INVOICE_URL } from "../../../constants/rozoConfig";
-import { useRozoPay } from "../../../hooks/useRozoPay";
-import { ROZO_EVENTS } from "../../../lib/analytics/events";
-import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import { usePayoutPolling } from "../../../hooks/usePayoutPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import { useSupportedChains } from "../../../hooks/useSupportedChains";
+import { ROZO_EVENTS } from "../../../lib/analytics/events";
+import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import styled from "../../../styles/styled";
 import Button from "../../Common/Button";
 import PoweredByFooter from "../../Common/PoweredByFooter";
@@ -133,7 +133,11 @@ const Confirmation: React.FC = () => {
         ));
 
     if (isRozoPayment && txHash && isConfirming) {
-      setPaymentCompleted(txHash, rozoPaymentId, paymentStateContext.senderAddress ?? null);
+      setPaymentCompleted(
+        txHash,
+        rozoPaymentId,
+        paymentStateContext.senderAddress ?? null,
+      );
       setIsConfirming(false);
     }
   }, [
@@ -211,11 +215,17 @@ const Confirmation: React.FC = () => {
       payment_id: rozoPaymentId,
       tx_hash: rawPayInHash,
       destination_chain: destChainId,
-      source_chain: paymentStateContext.selectedTokenOption?.required.token.chainId,
-      amount: String(order?.destFinalCallTokenAmount?.amount ?? ""),
+      source_chain:
+        paymentStateContext.selectedTokenOption?.required.token.chainId,
+      amount:
+        paymentStateContext.payParams?.toUnits != null
+          ? String(paymentStateContext.payParams.toUnits)
+          : order?.destFinalCallTokenAmount?.usd != null
+            ? String(order.destFinalCallTokenAmount.usd)
+            : undefined,
       token_symbol: order?.destFinalCallTokenAmount?.token.symbol,
     });
-  }, [done, rawPayInHash, rozoPaymentId]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [done, rawPayInHash, rozoPaymentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const receiptUrl = useMemo(() => {
     if (
@@ -306,8 +316,7 @@ const Confirmation: React.FC = () => {
   // Store unsubscribe function in ref
   useEffect(() => {
     pusherUnsubscribeRef.current = pusherUnsubscribe;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pusherUnsubscribe]);
 
   // Initialize Pusher timer when Pusher is enabled and rozoPaymentId is available
   // This effect sets up the timeout to switch to polling after 1 minute if no data is received
@@ -449,7 +458,11 @@ const Confirmation: React.FC = () => {
         );
       });
 
-      setPaymentCompleted(rawPayInHash, rozoPaymentId, paymentStateContext.senderAddress ?? null);
+      setPaymentCompleted(
+        rawPayInHash,
+        rozoPaymentId,
+        paymentStateContext.senderAddress ?? null,
+      );
       onSuccess();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

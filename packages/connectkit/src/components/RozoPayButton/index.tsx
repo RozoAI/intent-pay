@@ -22,13 +22,16 @@ import { AnimatePresence, Variants } from "framer-motion";
 import { getAddress } from "viem";
 import { ROUTES } from "../../constants/routes";
 import { useRozoPay } from "../../hooks/useRozoPay";
+import { ROZO_EVENTS } from "../../lib/analytics/events";
 import {
   PaymentEventData,
   usePaymentEvents,
 } from "../../payment/paymentEventContext";
 import { PayParams } from "../../payment/paymentFsm";
+import { useAnalytics } from "../../provider/AnalyticsProvider";
 import { ResetContainer } from "../../styles";
 import { validateAddressForChain } from "../../types/chainAddress";
+import { parseErrorMessage } from "../../utils/errorParser";
 import { validatePayoutToken } from "../../utils/validatePayoutToken";
 import ThemedButton, { ThemeContainer } from "../Common/ThemedButton";
 import { RozoPayButtonCustomProps, RozoPayButtonProps } from "./types";
@@ -69,6 +72,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   const context = usePayContext();
 
   const { subscribe, reset } = usePaymentEvents();
+  const { capture } = useAnalytics();
 
   // Memoize payParams/payId with proper dependency tracking
   // For object/array props, we serialize them to detect deep changes
@@ -276,6 +280,13 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
         validationErrorRef.current,
       );
       context.setOpen(true);
+      capture(ROZO_EVENTS.PAYMENT_VALIDATION_ERROR, {
+        source_chain:
+          payParams?.toChain ?? order?.destFinalCallTokenAmount.token.chainId,
+        token:
+          payParams?.toToken ?? order?.destFinalCallTokenAmount.token.symbol,
+        error_message: parseErrorMessage(validationErrorRef.current),
+      });
       context.setRoute(ROUTES.ERROR, {
         validationError: validationErrorRef.current,
       });

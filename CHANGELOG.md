@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.26] - 2026-06-02
+
+### ✨ New Features
+
+- **Payment validation error analytics** — Added `payment_validation_error` event to analytics, captured when validation fails both on button open and in `RozoPayProvider.showPayment`
+
+### 🐛 Bug Fixes
+
+- **Fix analytics amount field** — Use `toUnits` from `payParams` when available, falling back to `destFinalCallTokenAmount.usd` (was incorrectly using `.amount`)
+- **Fix payment quote indentation bug** — Resolved misplaced try/catch block that caused `PAYMENT_QUOTE_RECEIVED` to fire outside the try scope
+- **Fix Pusher unsubscribe ref** — Added `pusherUnsubscribe` to the `useEffect` dependency array instead of suppressing the lint rule
+- **Fix `paymentState` dep in route effect** — Removed stale `paymentState` from dependency array to prevent unnecessary re-runs
+- **Fix `preferredSymbol` re-render** — Wrapped `preferredSymbol` in `useMemo` in `BridgeMode` and `DepositMode` example components to prevent inline array recreation
+
+### 🔧 Improvements
+
+- **Decouple PostHog type** — Replaced direct `PostHog` import from `posthog-js` with a minimal local interface (`PostHogCapture`) in `AnalyticsProvider` and `RozoPayProvider`, removing the hard dependency on `posthog-js` types
+- **Guard PostHog captures before init** — Added `__loaded` check before calling `posthog.capture()`, so events are silently dropped (no-op) if the consumer passes a PostHog instance that hasn't been initialized yet
+- Updated `viem` to v2.52.0, `posthog-js` to v1.378.1, and various transitive dependency bumps
+
+---
+
 ## [0.1.24] - 2026-06-01
 
 ### ✨ New Features

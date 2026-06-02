@@ -19,11 +19,9 @@ import {
   getChainById,
   getKnownToken,
   getPayment,
-  isUUID,
   isValidSolanaAddress,
   PaymentResponse,
   PlatformType,
-  readRozoPayOrderID,
   RozoPayHydratedOrderWithOrg,
   RozoPayOrder,
   RozoPayOrderWithOrg,
@@ -80,21 +78,21 @@ import bs58 from "bs58";
 import { PayButtonPaymentProps } from "../components/RozoPayButton/types";
 import { ROUTES } from "../constants/routes";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
+import { ROZO_EVENTS } from "../lib/analytics/events";
 import { buildCreatePaymentPayload } from "../payment/createPaymentPayload";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
-import { useStellar } from "../provider/StellarContextProvider";
 import { useAnalytics } from "../provider/AnalyticsProvider";
-import { ROZO_EVENTS } from "../lib/analytics/events";
+import { useStellar } from "../provider/StellarContextProvider";
 import { Store } from "../stateStore";
 import { parseErrorMessage } from "../utils/errorParser";
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
 import { WalletConfigProps } from "../wallets/walletConfigs";
-import { useRozoPay } from "./useRozoPay";
 import { useDepositAddressOptions } from "./useDepositAddressOptions";
 import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
 import useIsMobile from "./useIsMobile";
 import { useOrderUsdLimits } from "./useOrderUsdLimits";
+import { useRozoPay } from "./useRozoPay";
 import { useSolanaPaymentOptions } from "./useSolanaPaymentOptions";
 import { useStellarPaymentOptions } from "./useStellarPaymentOptions";
 import { useWalletPaymentOptions } from "./useWalletPaymentOptions";
@@ -678,42 +676,47 @@ export function usePaymentState({
     let paymentId: string | undefined;
 
     capture(ROZO_EVENTS.PAYMENT_QUOTE_REQUESTED, {
+      payment_id: pay.order?.externalId,
       source_chain: walletOption.required.token.chainId,
       token: walletOption.required.token.symbol,
-      amount: walletOption.required.amount,
-      payment_id: pay.order?.externalId,
+      amount:
+        currPayParamsRef.current?.toUnits != null
+          ? String(currPayParamsRef.current.toUnits)
+          : pay.order?.destFinalCallTokenAmount?.usd != null
+            ? String(pay.order.destFinalCallTokenAmount.usd)
+            : undefined,
     });
 
     try {
-    // CRITICAL: Always check needRozoPayment FIRST - if switching chains, MUST create new payment
-    if (needRozoPayment) {
-      // Create Rozo payment and hydrate in one step (cross-chain switch)
-      const res = await handleCreateRozoPayment(walletOption, store as any);
+      // CRITICAL: Always check needRozoPayment FIRST - if switching chains, MUST create new payment
+      if (needRozoPayment) {
+        // Create Rozo payment and hydrate in one step (cross-chain switch)
+        const res = await handleCreateRozoPayment(walletOption, store as any);
 
-      if (!res) {
-        throw new Error("Failed to create Rozo payment");
+        if (!res) {
+          throw new Error("Failed to create Rozo payment");
+        }
+
+        paymentId = res.id;
+        hydratedOrder = formatPaymentResponseToHydratedOrder(res);
+      } else if (
+        pay.paymentState === "payment_unpaid" ||
+        pay.paymentState === "payment_started"
+      ) {
+        // Order is already hydrated for same chain, use it directly
+        hydratedOrder = pay.order;
+      } else {
+        // Hydrate existing order (from preview/unhydrated state)
+        const res = await pay.hydrateOrder(ethWalletAddress, walletOption);
+        hydratedOrder = res.order;
       }
 
-      paymentId = res.id;
-      hydratedOrder = formatPaymentResponseToHydratedOrder(res);
-    } else if (
-      pay.paymentState === "payment_unpaid" ||
-      pay.paymentState === "payment_started"
-    ) {
-      // Order is already hydrated for same chain, use it directly
-      hydratedOrder = pay.order;
-    } else {
-      // Hydrate existing order (from preview/unhydrated state)
-      const res = await pay.hydrateOrder(ethWalletAddress, walletOption);
-      hydratedOrder = res.order;
-    }
-
-    capture(ROZO_EVENTS.PAYMENT_QUOTE_RECEIVED, {
-      source_chain: walletOption.required.token.chainId,
-      token: walletOption.required.token.symbol,
-      payment_id: hydratedOrder.externalId ?? paymentId,
-      fee: walletOption.fees.amount,
-    });
+      capture(ROZO_EVENTS.PAYMENT_QUOTE_RECEIVED, {
+        source_chain: walletOption.required.token.chainId,
+        token: walletOption.required.token.symbol,
+        payment_id: hydratedOrder.externalId ?? paymentId,
+        fee: walletOption.fees.amount,
+      });
     } catch (quoteError) {
       capture(ROZO_EVENTS.PAYMENT_QUOTE_FAILED, {
         source_chain: walletOption.required.token.chainId,

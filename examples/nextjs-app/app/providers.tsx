@@ -7,6 +7,7 @@ import {
 } from "@rozoai/intent-pay"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useTheme } from "next-themes"
+import posthog from "posthog-js"
 import { useState, type ReactNode } from "react"
 import { createConfig, WagmiProvider } from "wagmi"
 
@@ -17,7 +18,7 @@ function RozoPayProviderWithTheme({ children }: { children: ReactNode }) {
   const mode = resolvedTheme === "dark" ? "dark" : "light"
 
   return (
-    <RozoPayProvider debugMode mode={mode} stellarWalletPersistence={false}>
+    <RozoPayProvider debugMode mode={mode} stellarWalletPersistence={false} posthog={posthog}>
       {children}
     </RozoPayProvider>
   )

@@ -19,7 +19,6 @@ import { ThemeProvider } from "styled-components";
 import { WagmiContext } from "wagmi";
 
 import type { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
-import type { PostHog } from "posthog-js";
 import { RozoPayModal } from "../components/RozoPayModal";
 import { ROUTES } from "../constants/routes";
 import { REQUIRED_CHAINS } from "../defaultConfig";
@@ -41,6 +40,7 @@ import {
   RozoPayModalOptions,
   Theme,
 } from "../types";
+import { parseErrorMessage } from "../utils/errorParser";
 import { createTrpcClient } from "../utils/trpc";
 import { validatePayoutToken } from "../utils/validatePayoutToken";
 import { setInWalletPaymentUrlFromApiUrl } from "../wallets/walletConfigs";
@@ -56,6 +56,10 @@ import {
   StellarWalletName,
 } from "./StellarContextProvider";
 import { Web3ContextProvider } from "./Web3ContextProvider";
+/** Minimal PostHog interface — only capture() is needed. Any posthog-js version works. */
+type PostHogCapture = {
+  capture: (event: string, properties?: Record<string, unknown>) => void;
+};
 
 const WagmiDependentEffects = ({
   onConnect,
@@ -90,7 +94,7 @@ type RozoPayUIProviderProps = {
   payApiUrl: string;
   log: (msg: string, ...props: any[]) => void;
   /** Optional PostHog instance from host app. All payment events fire through it. */
-  posthog?: PostHog;
+  posthog?: PostHogCapture;
 } & useConnectCallbackProps;
 
 const RozoPayUIProvider = ({
@@ -235,8 +239,8 @@ const RozoPayUIProvider = ({
           amount:
             paymentState.payParams?.toUnits != null
               ? String(paymentState.payParams.toUnits)
-              : order?.destFinalCallTokenAmount?.amount != null
-                ? String(order.destFinalCallTokenAmount.amount)
+              : order?.destFinalCallTokenAmount?.usd != null
+                ? String(order.destFinalCallTokenAmount.usd)
                 : undefined,
           destination_chain:
             paymentState.payParams?.toChain ??
@@ -328,7 +332,7 @@ const RozoPayUIProvider = ({
       setRoute(ROUTES.WAITING_DEPOSIT_ADDRESS);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pay.paymentState, isUnderpaid, paymentState]);
+  }, [pay.paymentState, isUnderpaid]);
 
   const showPayment = React.useCallback(
     async (modalOptions: RozoPayModalOptions) => {
@@ -354,6 +358,13 @@ const RozoPayUIProvider = ({
             validationError,
           );
           setOpen(true);
+
+          capture(ROZO_EVENTS.PAYMENT_VALIDATION_ERROR, {
+            source_chain: paymentState.payParams.toChain,
+            token: paymentState.payParams.toToken,
+            error_message: parseErrorMessage(validationError),
+          });
+
           setRoute(ROUTES.ERROR, { validationError });
           return;
         }
@@ -543,7 +554,7 @@ type RozoPayProviderProps = {
   /** Persistent Stellar wallet connection (localStorage) in StellarContextProvider. */
   stellarWalletPersistence?: boolean;
   /** Optional PostHog instance from host app. All payment events fire through it. */
-  posthog?: PostHog;
+  posthog?: PostHogCapture;
 } & useConnectCallbackProps;
 
 /**

@@ -52,9 +52,13 @@ export function BridgeMode() {
     ? knownToken.symbol === TokenSymbol.EURC
     : false
 
-  const preferredSymbol = isDestinationEURC
-    ? [TokenSymbol.EURC]
-    : [TokenSymbol.USDC, TokenSymbol.USDT]
+  const preferredSymbol = useMemo(
+    () =>
+      isDestinationEURC
+        ? [TokenSymbol.EURC]
+        : [TokenSymbol.USDC, TokenSymbol.USDT],
+    [isDestinationEURC]
+  )
 
   const addLog = useCallback(
     (type: LogEntry["type"], payload: unknown) => {
