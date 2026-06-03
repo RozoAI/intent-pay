@@ -19,11 +19,9 @@ import {
   getChainById,
   getKnownToken,
   getPayment,
-  isUUID,
   isValidSolanaAddress,
   PaymentResponse,
   PlatformType,
-  readRozoPayOrderID,
   RozoPayHydratedOrderWithOrg,
   RozoPayOrder,
   RozoPayOrderWithOrg,
@@ -80,19 +78,21 @@ import bs58 from "bs58";
 import { PayButtonPaymentProps } from "../components/RozoPayButton/types";
 import { ROUTES } from "../constants/routes";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
+import { ROZO_EVENTS } from "../lib/analytics/events";
 import { buildCreatePaymentPayload } from "../payment/createPaymentPayload";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
+import { useAnalytics } from "../provider/AnalyticsProvider";
 import { useStellar } from "../provider/StellarContextProvider";
 import { Store } from "../stateStore";
 import { parseErrorMessage } from "../utils/errorParser";
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
 import { WalletConfigProps } from "../wallets/walletConfigs";
-import { useRozoPay } from "./useRozoPay";
 import { useDepositAddressOptions } from "./useDepositAddressOptions";
 import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
 import useIsMobile from "./useIsMobile";
 import { useOrderUsdLimits } from "./useOrderUsdLimits";
+import { useRozoPay } from "./useRozoPay";
 import { useSolanaPaymentOptions } from "./useSolanaPaymentOptions";
 import { useStellarPaymentOptions } from "./useStellarPaymentOptions";
 import { useWalletPaymentOptions } from "./useWalletPaymentOptions";
@@ -105,7 +105,7 @@ type SourcePayment = Parameters<
 /** Creates (or loads) a payment and manages the corresponding modal. */
 export interface PaymentState {
   generatePreviewOrder: () => void;
-  resetOrder: (payParams?: Partial<PayParams>) => Promise<void>;
+  resetOrder: (payParams?: Partial<PayParams> | null) => Promise<void>;
 
   /// RozoPayButton props
   buttonProps: PayButtonPaymentProps | undefined;
@@ -243,6 +243,7 @@ export function usePaymentState({
   // Cache for payment validation to avoid repeated checks
   const paymentValidationCache = useRef<Map<string, boolean>>(new Map());
   const pay = useRozoPay();
+  const { capture } = useAnalytics();
 
   // Track deposit address calls to prevent duplicates
   const depositAddressCallRef = useRef<Set<DepositAddressPaymentOptions>>(
@@ -530,10 +531,9 @@ export function usePaymentState({
         ? (order as RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg)
         : undefined;
 
-    // payId mode: no payParams, but we have a pre-created payment ID.
-    // Checkout (refresh) the payment with the selected source token.
-    if (!payParams) {
-      const existingPayId = order?.externalId ?? undefined;
+    // If payment already exists (payId mode or rozoPaymentId set), checkout instead of create.
+    const existingPayId = order?.externalId ?? rozoPaymentId ?? undefined;
+    if (!payParams || existingPayId) {
       if (!existingPayId) {
         throw new Error("No pay params provided");
       }
@@ -675,27 +675,55 @@ export function usePaymentState({
     let hydratedOrder: RozoPayHydratedOrderWithOrg;
     let paymentId: string | undefined;
 
-    // CRITICAL: Always check needRozoPayment FIRST - if switching chains, MUST create new payment
-    if (needRozoPayment) {
-      // Create Rozo payment and hydrate in one step (cross-chain switch)
-      const res = await handleCreateRozoPayment(walletOption, store as any);
+    capture(ROZO_EVENTS.PAYMENT_QUOTE_REQUESTED, {
+      payment_id: pay.order?.externalId,
+      source_chain: walletOption.required.token.chainId,
+      token: walletOption.required.token.symbol,
+      amount:
+        currPayParamsRef.current?.toUnits != null
+          ? String(currPayParamsRef.current.toUnits)
+          : pay.order?.destFinalCallTokenAmount?.usd != null
+            ? String(pay.order.destFinalCallTokenAmount.usd)
+            : undefined,
+    });
 
-      if (!res) {
-        throw new Error("Failed to create Rozo payment");
+    try {
+      // CRITICAL: Always check needRozoPayment FIRST - if switching chains, MUST create new payment
+      if (needRozoPayment) {
+        // Create Rozo payment and hydrate in one step (cross-chain switch)
+        const res = await handleCreateRozoPayment(walletOption, store as any);
+
+        if (!res) {
+          throw new Error("Failed to create Rozo payment");
+        }
+
+        paymentId = res.id;
+        hydratedOrder = formatPaymentResponseToHydratedOrder(res);
+      } else if (
+        pay.paymentState === "payment_unpaid" ||
+        pay.paymentState === "payment_started"
+      ) {
+        // Order is already hydrated for same chain, use it directly
+        hydratedOrder = pay.order;
+      } else {
+        // Hydrate existing order (from preview/unhydrated state)
+        const res = await pay.hydrateOrder(ethWalletAddress, walletOption);
+        hydratedOrder = res.order;
       }
 
-      paymentId = res.id;
-      hydratedOrder = formatPaymentResponseToHydratedOrder(res);
-    } else if (
-      pay.paymentState === "payment_unpaid" ||
-      pay.paymentState === "payment_started"
-    ) {
-      // Order is already hydrated for same chain, use it directly
-      hydratedOrder = pay.order;
-    } else {
-      // Hydrate existing order (from preview/unhydrated state)
-      const res = await pay.hydrateOrder(ethWalletAddress, walletOption);
-      hydratedOrder = res.order;
+      capture(ROZO_EVENTS.PAYMENT_QUOTE_RECEIVED, {
+        source_chain: walletOption.required.token.chainId,
+        token: walletOption.required.token.symbol,
+        payment_id: hydratedOrder.externalId ?? paymentId,
+        fee: walletOption.fees.amount,
+      });
+    } catch (quoteError) {
+      capture(ROZO_EVENTS.PAYMENT_QUOTE_FAILED, {
+        source_chain: walletOption.required.token.chainId,
+        token: walletOption.required.token.symbol,
+        error_message: parseErrorMessage(quoteError),
+      });
+      throw quoteError;
     }
 
     if (paymentId ?? hydratedOrder.externalId) {
@@ -767,7 +795,11 @@ export function usePaymentState({
         }
       } catch (e) {
         if (hydratedOrder.externalId) {
-          pay.setPaymentUnpaid(hydratedOrder.externalId);
+          try {
+            await pay.setPaymentUnpaid(hydratedOrder.externalId);
+          } catch (resetErr) {
+            console.error("[PAY TOKEN] failed to reset to unpaid:", resetErr);
+          }
         }
         console.error(`[PAY TOKEN] error sending token: ${e}`);
         throw e;
@@ -1385,9 +1417,22 @@ export function usePaymentState({
     async (payId: string | undefined) => {
       if (lockPayParams || payId == null) return;
 
-      // Always reset and re-fetch. The caller (RozoPayButton) already
-      // deduplicates via prevPayIdRef so this only fires on actual changes.
+      // Reset FSM and all UI selection state before loading the new payId.
+      // The caller (RozoPayButton) already deduplicates via prevPayIdRef so
+      // this only fires on actual changes.
       pay.reset();
+      setRozoPaymentId(undefined);
+      setSelectedExternalOption(undefined);
+      setSelectedTokenOption(undefined);
+      setSelectedSolanaTokenOption(undefined);
+      setSelectedStellarTokenOption(undefined);
+      setSelectedDepositAddressOption(undefined);
+      setSelectedWallet(undefined);
+      setSelectedWalletDeepLink(undefined);
+      setPaymentWaitingMessage(undefined);
+      setSenderAddress(undefined);
+      setRoute(ROUTES.SELECT_METHOD);
+
       pay.setPayId(payId);
     },
     [lockPayParams, pay],
@@ -1415,6 +1460,7 @@ export function usePaymentState({
       const myId = ++previewRequestIdRef.current;
       log?.("[SET PAY PARAMS] setting payParams", updatedPayParams);
       pay.reset();
+      setRozoPaymentId(undefined);
       await pay.createPreviewOrder(updatedPayParams);
       if (myId === previewRequestIdRef.current) {
         setCurrPayParams(updatedPayParams);
@@ -1435,11 +1481,30 @@ export function usePaymentState({
   }, [pay, currPayParams]);
 
   const resetOrder = useCallback(
-    async (payParams?: Partial<PayParams>) => {
+    async (payParams?: Partial<PayParams> | null) => {
       log?.("[resetOrder] Called with params:", {
         currentParams: currPayParams,
         newParams: payParams,
       });
+
+      // null = explicit clear: wipe currPayParams entirely (no preview re-created)
+      if (payParams === null) {
+        pay.reset();
+        setRozoPaymentId(undefined);
+        setSelectedExternalOption(undefined);
+        setSelectedTokenOption(undefined);
+        setSelectedSolanaTokenOption(undefined);
+        setSelectedStellarTokenOption(undefined);
+        setSelectedDepositAddressOption(undefined);
+        setSelectedWallet(undefined);
+        setSelectedWalletDeepLink(undefined);
+        setPaymentWaitingMessage(undefined);
+        setSenderAddress(undefined);
+        setCurrPayParams(undefined);
+        currPayParamsRef.current = undefined;
+        setRoute(ROUTES.SELECT_METHOD);
+        return;
+      }
 
       const mergedPayParams: PayParams | undefined =
         payParams != null && currPayParams != null
@@ -1457,6 +1522,7 @@ export function usePaymentState({
 
       // Clear the old order & state
       pay.reset();
+      setRozoPaymentId(undefined);
       setSelectedExternalOption(undefined);
       setSelectedTokenOption(undefined);
       setSelectedSolanaTokenOption(undefined);

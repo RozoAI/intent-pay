@@ -41,6 +41,9 @@ export {
 export { usePayContext } from "./hooks/usePayContext";
 export { PayContext as RozoPayContext } from "./provider/PayContext";
 
+// Analytics
+export { useAnalytics } from "./provider/AnalyticsProvider";
+
 // Stellar integration
 export { useRozoConnectStellar } from "./provider/StellarContextProvider";
 

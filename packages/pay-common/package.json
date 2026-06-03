@@ -1,6 +1,6 @@
 {
   "name": "@rozoai/intent-common",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "Intent Pay shared types and utilities",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,7 +10,7 @@
   "scripts": {
     "build": "pnpm run test && tsc",
     "dev": "tsc --watch",
-    "prepare": "pnpm run build",
+    "prepublishOnly": "pnpm run build",
     "test": "tape -r ts-node/register/transpile-only test/**/*.test.ts",
     "lint": "pnpm run lint:deps && pnpm run lint:style",
     "lint:deps": "npx depcheck --ignores @tsconfig/node20,@types/tape,ts-node",

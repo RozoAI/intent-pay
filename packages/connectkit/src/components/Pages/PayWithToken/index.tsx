@@ -6,8 +6,10 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { ROUTES } from "../../../constants/routes";
 import { useContactSupport } from "../../../hooks/useContactSupport";
-import { useRozoPay } from "../../../hooks/useRozoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
+import { useRozoPay } from "../../../hooks/useRozoPay";
+import { ROZO_EVENTS } from "../../../lib/analytics/events";
+import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import Button from "../../Common/Button";
 import {
   Link,
@@ -46,6 +48,7 @@ const PayWithToken: React.FC = () => {
   } = useRozoPay();
   const handleContactClick = useContactSupport();
 
+  const { capture } = useAnalytics();
   const [payState, setPayStateInner] = useState<PayState>(
     PayState.RequestingPayment,
   );
@@ -94,6 +97,17 @@ const PayWithToken: React.FC = () => {
 
   const handleTransfer = useCallback(
     async (option: WalletPaymentOption) => {
+      capture(ROZO_EVENTS.PAYMENT_CONFIRMED, {
+        payment_id: rozoPaymentId ?? order?.externalId,
+        source_chain: option.required.token.chainId,
+        token_symbol: option.required.token.symbol,
+        amount:
+          paymentState.payParams?.toUnits != null
+            ? String(paymentState.payParams.toUnits)
+            : order?.destFinalCallTokenAmount?.usd != null
+              ? String(order.destFinalCallTokenAmount.usd)
+              : undefined,
+      });
       // Switch chain if necessary
       setPayState(PayState.PreparingTransaction);
       const switchChain = await trySwitchingChain(option);
@@ -122,6 +136,12 @@ const PayWithToken: React.FC = () => {
           getChainExplorerTxUrl(option.required.token.chainId, result.txHash),
         );
         if (result.success) {
+          capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
+            payment_id: rozoPaymentId ?? order?.externalId,
+            tx_hash: result.txHash,
+            chain: option.required.token.chainId,
+            token_symbol: option.required.token.symbol,
+          });
           setSenderAddress(address);
           setPayState(PayState.RequestSuccessful);
           setTimeout(() => {
@@ -132,6 +152,11 @@ const PayWithToken: React.FC = () => {
             walletPaymentOptions.refreshOptions();
           }, 2000);
         } else {
+          capture(ROZO_EVENTS.PAYMENT_FAILED, {
+            payment_id: rozoPaymentId ?? order?.externalId,
+            error_message: "payment_unsuccessful",
+            source_chain: option.required.token.chainId,
+          });
           setPayState(PayState.RequestFailed);
         }
       } catch (e: any) {
@@ -150,6 +175,12 @@ const PayWithToken: React.FC = () => {
                 ),
               );
               if (retryResult.success) {
+                capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
+                  payment_id: rozoPaymentId ?? order?.externalId,
+                  tx_hash: retryResult.txHash,
+                  chain: option.required.token.chainId,
+                  token_symbol: option.required.token.symbol,
+                });
                 setSenderAddress(address);
                 setPayState(PayState.RequestSuccessful);
                 setTimeout(() => {
@@ -162,6 +193,11 @@ const PayWithToken: React.FC = () => {
                   walletPaymentOptions.refreshOptions();
                 }, 2000);
               } else {
+                capture(ROZO_EVENTS.PAYMENT_FAILED, {
+                  payment_id: rozoPaymentId ?? order?.externalId,
+                  error_message: "payment_unsuccessful_after_chain_switch",
+                  source_chain: option.required.token.chainId,
+                });
                 setPayState(PayState.RequestFailed);
               }
               return; // Payment handled after switching chain
@@ -174,6 +210,11 @@ const PayWithToken: React.FC = () => {
             }
           }
         }
+        capture(ROZO_EVENTS.PAYMENT_FAILED, {
+          payment_id: rozoPaymentId ?? order?.externalId,
+          error_message: (e as Error)?.message ?? "unknown_error",
+          source_chain: option.required.token.chainId,
+        });
         setPayState(PayState.RequestCancelled);
         console.error("Failed to pay with token", e);
       }

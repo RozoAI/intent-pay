@@ -22,6 +22,8 @@ import {
 } from "@rozoai/intent-common";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
+import { ROZO_EVENTS } from "../../../../lib/analytics/events";
+import { useAnalytics } from "../../../../provider/AnalyticsProvider";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
@@ -60,6 +62,7 @@ const PayWithSolanaToken: React.FC = () => {
   } = useRozoPay();
   const handleContactClick = useContactSupport();
 
+  const { capture } = useAnalytics();
   const [payState, setPayStateInner] = useState<PayState>(
     PayState.PreparingTransaction,
   );
@@ -73,6 +76,7 @@ const PayWithSolanaToken: React.FC = () => {
     }
   }, [state]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const setPayState = (state: PayState) => {
     if (state === payState) return;
     setPayStateInner(state);
@@ -150,15 +154,36 @@ const PayWithSolanaToken: React.FC = () => {
         ) {
           hydratedOrder = order;
         } else if (needRozoPayment) {
-          const res = await createPayment(option, store as any);
-
-          if (!res) {
-            throw new Error("Failed to create Rozo payment");
+          const existingId = rozoPaymentId ?? order.externalId ?? undefined;
+          if (existingId) {
+            const paymentRes = await getPayment(existingId);
+            if (!paymentRes?.data) {
+              throw new Error("Failed to fetch payment");
+            }
+            const checkoutRes = await checkoutPayment(
+              existingId,
+              buildCheckoutPayload(paymentRes.data, {
+                chainId: option.required.token.chainId,
+                tokenSymbol: option.required.token.symbol,
+                tokenAddress: option.required.token.token,
+                amount: String(option.required.usd),
+              }),
+            );
+            if (!checkoutRes?.data) {
+              throw new Error("Failed to checkout payment");
+            }
+            paymentId = checkoutRes.data.id;
+            hydratedOrder = formatPaymentResponseToHydratedOrder(
+              checkoutRes.data,
+            );
+          } else {
+            const res = await createPayment(option, store as any);
+            if (!res) {
+              throw new Error("Failed to create Rozo payment");
+            }
+            paymentId = res.id;
+            hydratedOrder = formatPaymentResponseToHydratedOrder(res);
           }
-          paymentId = res.id;
-
-          const formattedOrder = formatPaymentResponseToHydratedOrder(res);
-          hydratedOrder = formattedOrder;
         } else {
           // Hydrate existing order
           const res = await hydrateOrder(undefined, option);
@@ -255,19 +280,34 @@ const PayWithSolanaToken: React.FC = () => {
         setTxURL(getChainExplorerTxUrl(rozoSolana.chainId, result.txHash));
 
         if (result.success) {
+          capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
+            payment_id: newId ?? rozoPaymentId,
+            tx_hash: result.txHash,
+            chain: rozoSolana.chainId,
+            token_symbol: option.required.token.symbol,
+          });
           setPayState(PayState.RequestSuccessful);
           setTxHash(result.txHash);
           // Use `newId` (resolved this attempt) instead of the stale
           // `rozoPaymentId` React state captured in the useCallback closure.
           const completedPaymentId = newId ?? undefined;
           setTimeout(() => {
-            setPaymentCompleted(result.txHash, completedPaymentId, solanaPubKey ?? null);
+            setPaymentCompleted(
+              result.txHash,
+              completedPaymentId,
+              solanaPubKey ?? null,
+            );
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-solana" });
           }, 200);
           setTimeout(() => {
             solanaPaymentOptions.refreshOptions();
           }, 1000);
         } else {
+          capture(ROZO_EVENTS.PAYMENT_FAILED, {
+            payment_id: newId ?? rozoPaymentId,
+            error_message: "payment_unsuccessful",
+            source_chain: rozoSolana.chainId,
+          });
           setPayState(PayState.RequestCancelled);
         }
       } catch (error) {
@@ -282,7 +322,17 @@ const PayWithSolanaToken: React.FC = () => {
             console.error("Failed to set payment unpaid:", e);
           }
         }
-        if ((error as any).message.includes("rejected")) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const isRejected = errorMessage.includes("rejected");
+        capture(ROZO_EVENTS.PAYMENT_FAILED, {
+          payment_id: resolvedPaymentId ?? rozoPaymentId,
+          error_message: isRejected
+            ? "user_rejected"
+            : (errorMessage ?? "unknown_error"),
+          source_chain: rozoSolana.chainId,
+        });
+        if (isRejected) {
           setPayState(PayState.RequestCancelled);
         } else {
           setPayState(PayState.RequestFailed);
@@ -291,7 +341,27 @@ const PayWithSolanaToken: React.FC = () => {
         setIsLoading(false);
       }
     },
-    [order, state, rozoPaymentId],
+    [
+      setPayState,
+      order,
+      payParams,
+      state,
+      payWithSolanaTokenRozo,
+      log,
+      rozoPaymentId,
+      createPayment,
+      store,
+      hydrateOrder,
+      setRozoPaymentId,
+      setPaymentUnpaid,
+      setPaymentStarted,
+      capture,
+      setTxHash,
+      setPaymentCompleted,
+      solanaPubKey,
+      setRoute,
+      solanaPaymentOptions,
+    ],
   );
 
   useEffect(() => {

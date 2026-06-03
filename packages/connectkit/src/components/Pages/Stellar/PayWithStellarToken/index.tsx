@@ -16,7 +16,7 @@ import {
   getChainExplorerTxUrl,
   getPayment,
   RozoPayHydratedOrderWithOrg,
-  stellar,
+  rozoStellar,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import {
@@ -27,6 +27,8 @@ import {
 } from "@stellar/stellar-sdk";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
+import { ROZO_EVENTS } from "../../../../lib/analytics/events";
+import { useAnalytics } from "../../../../provider/AnalyticsProvider";
 import { useStellar } from "../../../../provider/StellarContextProvider";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
@@ -79,6 +81,7 @@ const PayWithStellarToken: React.FC = () => {
   );
   const cachedCheckoutPaymentIdRef = useRef<string | undefined>(undefined);
 
+  const { capture } = useAnalytics();
   const [payState, setPayState] = useState<PayState>(
     PayState.PreparingTransaction,
   );
@@ -191,14 +194,34 @@ const PayWithStellarToken: React.FC = () => {
       ) {
         hydratedOrder = order;
       } else if (needRozoPayment) {
-        const res = await createPayment(option, store as any);
-
-        if (!res) {
-          throw new Error("Failed to create Rozo payment");
+        const existingId = rozoPaymentId ?? order.externalId ?? undefined;
+        if (existingId) {
+          const paymentRes = await getPayment(existingId);
+          if (!paymentRes?.data) {
+            throw new Error("Failed to fetch payment");
+          }
+          const checkoutRes = await checkoutPayment(
+            existingId,
+            buildCheckoutPayload(paymentRes.data, {
+              chainId: option.required.token.chainId,
+              tokenSymbol: option.required.token.symbol,
+              tokenAddress: option.required.token.token,
+              amount: String(option.required.usd),
+            }),
+          );
+          if (!checkoutRes?.data) {
+            throw new Error("Failed to checkout payment");
+          }
+          paymentId = checkoutRes.data.id;
+          hydratedOrder = formatPaymentResponseToHydratedOrder(checkoutRes.data);
+        } else {
+          const res = await createPayment(option, store as any);
+          if (!res) {
+            throw new Error("Failed to create Rozo payment");
+          }
+          paymentId = res.id;
+          hydratedOrder = formatPaymentResponseToHydratedOrder(res);
         }
-
-        paymentId = res.id;
-        hydratedOrder = formatPaymentResponseToHydratedOrder(res);
       } else {
         // Hydrate existing order
         const res = await hydrateOrder(undefined, option);
@@ -316,7 +339,14 @@ const PayWithStellarToken: React.FC = () => {
         }
       }
 
-      if ((error as any).message.includes("rejected")) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isRejected = errorMessage.includes("rejected");
+      capture(ROZO_EVENTS.PAYMENT_FAILED, {
+        payment_id: resolvedPaymentId ?? rozoPaymentId,
+        error_message: isRejected ? "user_rejected" : (errorMessage ?? "unknown_error"),
+        source_chain: rozoStellar.chainId,
+      });
+      if (isRejected) {
         setPayState(PayState.RequestCancelled);
       } else {
         setPayState(PayState.RequestFailed);
@@ -348,22 +378,44 @@ const PayWithStellarToken: React.FC = () => {
         );
 
         if (response.successful) {
+          capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
+            payment_id: rozoPaymentId,
+            tx_hash: response.hash,
+            chain: rozoStellar.chainId,
+            token_symbol: selectedStellarTokenOption?.required.token.symbol,
+          });
           setPayState(PayState.RequestSuccessful);
           setTxHash(response.hash);
-          setTxURL(getChainExplorerTxUrl(stellar.chainId, response.hash));
+          setTxURL(getChainExplorerTxUrl(rozoStellar.chainId, response.hash));
           setTimeout(() => {
             setSignedTx(undefined);
-            setPaymentCompleted(response.hash, rozoPaymentId, stellarPublicKey ?? null);
+            setPaymentCompleted(
+              response.hash,
+              rozoPaymentId,
+              stellarPublicKey ?? null,
+            );
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
           }, 200);
           setTimeout(() => {
             stellarPaymentOptions.refreshOptions();
           }, 1000);
         } else {
+          capture(ROZO_EVENTS.PAYMENT_FAILED, {
+            payment_id: rozoPaymentId,
+            error_message: "payment_unsuccessful",
+            source_chain: rozoStellar.chainId,
+          });
           setPayState(PayState.RequestFailed);
         }
       } catch (error) {
-        if ((error as any).message.includes("rejected")) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isRejected = errorMessage.includes("rejected");
+        capture(ROZO_EVENTS.PAYMENT_FAILED, {
+          payment_id: rozoPaymentId,
+          error_message: isRejected ? "user_rejected" : (errorMessage ?? "unknown_error"),
+          source_chain: rozoStellar.chainId,
+        });
+        if (isRejected) {
           setPayState(PayState.RequestCancelled);
         } else {
           setPayState(PayState.RequestFailed);

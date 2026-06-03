@@ -4,6 +4,7 @@ import {
   RozoPayOrderMode,
   RozoPayOrderStatusSource,
   debugJson,
+  getOrderDestChainId,
 } from "@rozoai/intent-common";
 import { Buffer } from "buffer";
 import React, {
@@ -28,6 +29,7 @@ import {
 } from "../hooks/useConnectCallback";
 import { usePaymentState } from "../hooks/usePaymentState";
 import { useRozoPay } from "../hooks/useRozoPay";
+import { ROZO_EVENTS } from "../lib/analytics/events";
 import { PaymentEventProvider } from "../payment/paymentEventContext";
 import defaultTheme from "../styles/defaultTheme";
 import {
@@ -38,9 +40,11 @@ import {
   RozoPayModalOptions,
   Theme,
 } from "../types";
+import { parseErrorMessage } from "../utils/errorParser";
 import { createTrpcClient } from "../utils/trpc";
 import { validatePayoutToken } from "../utils/validatePayoutToken";
 import { setInWalletPaymentUrlFromApiUrl } from "../wallets/walletConfigs";
+import { AnalyticsProvider, useAnalytics } from "./AnalyticsProvider";
 import { PayContext, PayContextValue } from "./PayContext";
 import { PaymentContext, PaymentProvider } from "./PaymentProvider";
 import {
@@ -52,6 +56,10 @@ import {
   StellarWalletName,
 } from "./StellarContextProvider";
 import { Web3ContextProvider } from "./Web3ContextProvider";
+/** Minimal PostHog interface — only capture() is needed. Any posthog-js version works. */
+type PostHogCapture = {
+  capture: (event: string, properties?: Record<string, unknown>) => void;
+};
 
 const WagmiDependentEffects = ({
   onConnect,
@@ -85,6 +93,8 @@ type RozoPayUIProviderProps = {
   /** Custom Pay API, useful for test and staging. */
   payApiUrl: string;
   log: (msg: string, ...props: any[]) => void;
+  /** Optional PostHog instance from host app. All payment events fire through it. */
+  posthog?: PostHogCapture;
 } & useConnectCallbackProps;
 
 const RozoPayUIProvider = ({
@@ -99,7 +109,9 @@ const RozoPayUIProvider = ({
   apiVersion = "v2",
   payApiUrl,
   log,
+  posthog: _posthog,
 }: RozoPayUIProviderProps) => {
+  const { capture } = useAnalytics();
   const defaultOptions: RozoPayContextOptions = {
     language: "en-US",
     hideBalance: false,
@@ -207,16 +219,55 @@ const RozoPayUIProvider = ({
       if (open) {
         setLockPayParams(true);
       }
+      // Unlock on close so the next payId/payParams prop change can be processed
+      if (!open) {
+        setLockPayParams(false);
+      }
       // Reset payment state on close if resetOnSuccess is true
       if (!open && paymentCompleted && modalOptions?.resetOnSuccess) {
         setPaymentCompleted(false);
-        setLockPayParams(false);
         paymentState.resetOrder();
       }
 
       // Run the onOpen and onClose callbacks
-      if (open) onOpenRef.current?.();
-      else onCloseRef.current?.();
+      if (open) {
+        onOpenRef.current?.();
+        // payId mode: payParams is null — fall back to loaded order fields
+        const order = pay.order;
+        capture(ROZO_EVENTS.PAYMENT_FLOW_STARTED, {
+          payment_id: order?.externalId ?? undefined,
+          amount:
+            paymentState.payParams?.toUnits != null
+              ? String(paymentState.payParams.toUnits)
+              : order?.destFinalCallTokenAmount?.usd != null
+                ? String(order.destFinalCallTokenAmount.usd)
+                : undefined,
+          destination_chain:
+            paymentState.payParams?.toChain ??
+            (order ? getOrderDestChainId(order) : undefined),
+          token_symbol:
+            paymentState.payParams?.toToken ??
+            order?.destFinalCallTokenAmount?.token.symbol,
+        });
+      } else {
+        onCloseRef.current?.();
+        // Only fire cancelled if payment was in-progress (not completed/error — those fire their own events)
+        if (
+          pay.paymentState !== "payment_completed" &&
+          pay.paymentState !== "payment_bounced" &&
+          pay.paymentState !== "error" &&
+          pay.paymentState !== "idle"
+        ) {
+          capture(ROZO_EVENTS.PAYMENT_CANCELLED, {
+            payment_id:
+              paymentState.rozoPaymentId ??
+              pay.order?.externalId ??
+              pay.order?.id,
+            last_state: pay.paymentState,
+            reason: "user",
+          });
+        }
+      }
     },
     // We don't have good caching on paymentState, so don't include it as a dep
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -261,6 +312,129 @@ const RozoPayUIProvider = ({
     apiVersion,
   });
 
+  // Watch when the order gets paid and navigate to confirmation
+  // ...if underpaid, go to the deposit addr screen, let the user finish paying.
+  const isUnderpaid =
+    pay.order?.mode === RozoPayOrderMode.HYDRATED &&
+    pay.order.sourceStatus === RozoPayOrderStatusSource.WAITING_PAYMENT &&
+    pay.order.sourceTokenAmount != null;
+
+  useEffect(() => {
+    if (
+      pay.paymentState === "payment_completed" ||
+      pay.paymentState === "payment_bounced"
+    ) {
+      setRoute(ROUTES.CONFIRMATION, { event: "payment-completed" });
+    }
+
+    if (isUnderpaid) {
+      paymentState.setSelectedDepositAddressOption(undefined);
+      setRoute(ROUTES.WAITING_DEPOSIT_ADDRESS);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pay.paymentState, isUnderpaid]);
+
+  const showPayment = React.useCallback(
+    async (modalOptions: RozoPayModalOptions) => {
+      const id = pay.order?.id;
+      log(
+        `[PAY] showing modal ${debugJson({
+          id,
+          modalOptions,
+          paymentFsmState: pay.paymentState,
+        })}`,
+      );
+
+      // Validate chain/token support before opening modal
+      if (paymentState.payParams) {
+        const validationError = validatePayoutToken(
+          paymentState.payParams.toChain,
+          paymentState.payParams.toToken,
+        );
+
+        if (validationError) {
+          log(
+            "[PAY] Validation error detected, showing error page",
+            validationError,
+          );
+          setOpen(true);
+
+          capture(ROZO_EVENTS.PAYMENT_VALIDATION_ERROR, {
+            source_chain: paymentState.payParams.toChain,
+            token: paymentState.payParams.toToken,
+            error_message: parseErrorMessage(validationError),
+          });
+
+          setRoute(ROUTES.ERROR, { validationError });
+          return;
+        }
+      }
+
+      setModalOptions(modalOptions);
+      paymentState.setConnectedWalletOnly(
+        modalOptions.connectedWalletOnly ?? false,
+      );
+      setOpen(true);
+
+      // Set tokenMode based on paymentOptions, regardless of connectedWalletOnly
+      // This ensures token filtering respects the paymentOptions constraint
+      if (
+        paymentState.paymentOptions &&
+        paymentState.paymentOptions.length > 0
+      ) {
+        const hasEthereum = paymentState.paymentOptions.includes(
+          ExternalPaymentOptions.Ethereum,
+        );
+        const hasSolana = paymentState.paymentOptions.includes(
+          ExternalPaymentOptions.Solana,
+        );
+        const hasStellar = paymentState.paymentOptions.includes(
+          ExternalPaymentOptions.Stellar,
+        );
+
+        // Determine tokenMode based on which wallet payment options are included
+        if (hasEthereum && !hasSolana && !hasStellar) {
+          paymentState.setTokenMode("evm");
+        } else if (hasSolana && !hasEthereum && !hasStellar) {
+          paymentState.setTokenMode("solana");
+        } else if (hasStellar && !hasEthereum && !hasSolana) {
+          paymentState.setTokenMode("stellar");
+        } else if (hasEthereum || hasSolana || hasStellar) {
+          // Multiple wallet payment options are allowed, set to "all" but will be filtered in useTokenOptions
+          paymentState.setTokenMode("all");
+        } else {
+          // No wallet payment options specified, default to "all"
+          paymentState.setTokenMode("all");
+        }
+      } else {
+        // No paymentOptions constraint, default to "all"
+        paymentState.setTokenMode("all");
+      }
+
+      if (pay.paymentState === "error") {
+        setRoute(ROUTES.ERROR);
+      } else if (
+        pay.paymentState === "payment_completed" ||
+        pay.paymentState === "payment_bounced"
+      ) {
+        setRoute(ROUTES.CONFIRMATION);
+      } else if (modalOptions.connectedWalletOnly) {
+        setRoute(ROUTES.SELECT_TOKEN);
+      } else {
+        setRoute(ROUTES.SELECT_METHOD);
+      }
+    },
+    [
+      pay.order?.id,
+      pay.paymentState,
+      log,
+      paymentState,
+      setOpen,
+      setRoute,
+      setModalOptions,
+    ],
+  );
+
   if (!paymentContext) {
     throw Error("RozoPayProvider must be within a PaymentProvider");
   }
@@ -277,106 +451,6 @@ const RozoPayUIProvider = ({
       "Multiple, nested usages of RozoPayProvider detected. Please use only one.",
     );
   }
-
-  const showPayment = async (modalOptions: RozoPayModalOptions) => {
-    const id = pay.order?.id;
-    log(
-      `[PAY] showing modal ${debugJson({
-        id,
-        modalOptions,
-        paymentFsmState: pay.paymentState,
-      })}`,
-    );
-
-    // Validate chain/token support before opening modal
-    if (paymentState.payParams) {
-      const validationError = validatePayoutToken(
-        paymentState.payParams.toChain,
-        paymentState.payParams.toToken,
-      );
-
-      if (validationError) {
-        log(
-          "[PAY] Validation error detected, showing error page",
-          validationError,
-        );
-        setOpen(true);
-        setRoute(ROUTES.ERROR, { validationError });
-        return;
-      }
-    }
-
-    setModalOptions(modalOptions);
-    paymentState.setConnectedWalletOnly(
-      modalOptions.connectedWalletOnly ?? false,
-    );
-    setOpen(true);
-
-    // Set tokenMode based on paymentOptions, regardless of connectedWalletOnly
-    // This ensures token filtering respects the paymentOptions constraint
-    if (paymentState.paymentOptions && paymentState.paymentOptions.length > 0) {
-      const hasEthereum = paymentState.paymentOptions.includes(
-        ExternalPaymentOptions.Ethereum,
-      );
-      const hasSolana = paymentState.paymentOptions.includes(
-        ExternalPaymentOptions.Solana,
-      );
-      const hasStellar = paymentState.paymentOptions.includes(
-        ExternalPaymentOptions.Stellar,
-      );
-
-      // Determine tokenMode based on which wallet payment options are included
-      if (hasEthereum && !hasSolana && !hasStellar) {
-        paymentState.setTokenMode("evm");
-      } else if (hasSolana && !hasEthereum && !hasStellar) {
-        paymentState.setTokenMode("solana");
-      } else if (hasStellar && !hasEthereum && !hasSolana) {
-        paymentState.setTokenMode("stellar");
-      } else if (hasEthereum || hasSolana || hasStellar) {
-        // Multiple wallet payment options are allowed, set to "all" but will be filtered in useTokenOptions
-        paymentState.setTokenMode("all");
-      } else {
-        // No wallet payment options specified, default to "all"
-        paymentState.setTokenMode("all");
-      }
-    } else {
-      // No paymentOptions constraint, default to "all"
-      paymentState.setTokenMode("all");
-    }
-
-    if (pay.paymentState === "error") {
-      setRoute(ROUTES.ERROR);
-    } else if (
-      pay.paymentState === "payment_completed" ||
-      pay.paymentState === "payment_bounced"
-    ) {
-      setRoute(ROUTES.CONFIRMATION);
-    } else if (modalOptions.connectedWalletOnly) {
-      setRoute(ROUTES.SELECT_TOKEN);
-    } else {
-      setRoute(ROUTES.SELECT_METHOD);
-    }
-  };
-
-  // Watch when the order gets paid and navigate to confirmation
-  // ...if underpaid, go to the deposit addr screen, let the user finish paying.
-  const isUnderpaid =
-    pay.order?.mode === RozoPayOrderMode.HYDRATED &&
-    pay.order.sourceStatus === RozoPayOrderStatusSource.WAITING_PAYMENT &&
-    pay.order.sourceTokenAmount != null;
-
-  useEffect(() => {
-    if (
-      pay.paymentState === "payment_completed" ||
-      pay.paymentState === "payment_bounced"
-    ) {
-      setRoute(ROUTES.CONFIRMATION, { event: "payment-completed" });
-    } else if (isUnderpaid) {
-      paymentState.setSelectedDepositAddressOption(undefined);
-      setRoute(ROUTES.WAITING_DEPOSIT_ADDRESS);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pay.paymentState, setRoute, isUnderpaid]);
 
   const value: PayContextValue = {
     theme: ckTheme,
@@ -437,7 +511,10 @@ const RozoPayUIProvider = ({
     PayContext.Provider,
     { value },
     <Web3ContextProvider>
-      <WagmiDependentEffects onConnect={onConnect} onDisconnect={onDisconnect} />
+      <WagmiDependentEffects
+        onConnect={onConnect}
+        onDisconnect={onDisconnect}
+      />
       <ThemeProvider theme={defaultTheme}>
         {children}
         <RozoPayModal
@@ -476,6 +553,8 @@ type RozoPayProviderProps = {
   stellarKit?: StellarWalletsKit;
   /** Persistent Stellar wallet connection (localStorage) in StellarContextProvider. */
   stellarWalletPersistence?: boolean;
+  /** Optional PostHog instance from host app. All payment events fire through it. */
+  posthog?: PostHogCapture;
 } & useConnectCallbackProps;
 
 /**
@@ -491,24 +570,26 @@ export const RozoPayProvider = (props: RozoPayProviderProps) => {
   );
 
   return (
-    <PaymentProvider payApiUrl={payApiUrl} apiVersion={apiVersion} log={log}>
-      <PaymentEventProvider>
-        <SolanaContextProvider rpcUrl={props.solanaRpcUrl}>
-          <StellarContextProvider
-            rpcUrl={props.stellarRpcUrl}
-            kit={props.stellarKit}
-            stellarWalletPersistence={props.stellarWalletPersistence}
-            log={log}
-          >
-            <RozoPayUIProvider
-              {...props}
-              apiVersion={apiVersion}
-              payApiUrl={payApiUrl}
+    <AnalyticsProvider posthog={props.posthog}>
+      <PaymentProvider payApiUrl={payApiUrl} apiVersion={apiVersion} log={log}>
+        <PaymentEventProvider>
+          <SolanaContextProvider rpcUrl={props.solanaRpcUrl}>
+            <StellarContextProvider
+              rpcUrl={props.stellarRpcUrl}
+              kit={props.stellarKit}
+              stellarWalletPersistence={props.stellarWalletPersistence}
               log={log}
-            />
-          </StellarContextProvider>
-        </SolanaContextProvider>
-      </PaymentEventProvider>
-    </PaymentProvider>
+            >
+              <RozoPayUIProvider
+                {...props}
+                apiVersion={apiVersion}
+                payApiUrl={payApiUrl}
+                log={log}
+              />
+            </StellarContextProvider>
+          </SolanaContextProvider>
+        </PaymentEventProvider>
+      </PaymentProvider>
+    </AnalyticsProvider>
   );
 };

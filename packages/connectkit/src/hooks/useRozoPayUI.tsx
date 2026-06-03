@@ -3,7 +3,7 @@ import { PayParams } from "../payment/paymentFsm";
 import { PayContext } from "../provider/PayContext";
 
 type UseRozoPayUI = {
-  resetPayment: (payParams?: Partial<PayParams>) => Promise<void>;
+  resetPayment: (payParams?: Partial<PayParams> | null) => Promise<void>;
 };
 
 export function useRozoPayUI(): UseRozoPayUI {

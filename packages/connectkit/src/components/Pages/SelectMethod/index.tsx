@@ -1,6 +1,8 @@
 import React, { useMemo } from "react";
 import { ROUTES } from "../../../constants/routes";
 import { usePayContext } from "../../../hooks/usePayContext";
+import { useAnalytics } from "../../../provider/AnalyticsProvider";
+import { ROZO_EVENTS } from "../../../lib/analytics/events";
 
 import { PageContent } from "../../Common/Modal/styles";
 
@@ -58,6 +60,7 @@ export default function SelectMethod() {
 
   const { setRoute, paymentState, log, disableMobileInjector } =
     usePayContext();
+  const { capture } = useAnalytics();
   const { showSolanaPaymentMethod } = paymentState;
   const { disconnectAsync } = useDisconnect();
 
@@ -142,6 +145,11 @@ export default function SelectMethod() {
           />,
         ],
         onClick: () => {
+          capture(ROZO_EVENTS.PAYMENT_METHOD_SELECTED, {
+            field: "chain",
+            value: "evm",
+            wallet_id: connector?.id,
+          });
           paymentState.setTokenMode("evm");
           setRoute(ROUTES.SELECT_TOKEN, {
             event: "click-wallet",
@@ -199,6 +207,11 @@ export default function SelectMethod() {
           />,
         ],
         onClick: () => {
+          capture(ROZO_EVENTS.PAYMENT_METHOD_SELECTED, {
+            field: "chain",
+            value: "solana",
+            wallet_id: solanaWallet?.adapter.name,
+          });
           paymentState.setTokenMode("solana");
           setRoute(ROUTES.SELECT_TOKEN, {
             event: "click-wallet",
@@ -244,6 +257,11 @@ export default function SelectMethod() {
               />,
             ],
         onClick: () => {
+          capture(ROZO_EVENTS.PAYMENT_METHOD_SELECTED, {
+            field: "chain",
+            value: "stellar",
+            wallet_id: stellarConnector?.id,
+          });
           paymentState.setTokenMode("stellar");
           setRoute(ROUTES.SELECT_TOKEN, {
             event: "click-wallet",
@@ -308,6 +326,10 @@ export default function SelectMethod() {
             : `Pay with wallet`,
         icons: getBestUnconnectedWalletIcons(connector, isMobile),
         onClick: async () => {
+          capture(ROZO_EVENTS.PAYMENT_METHOD_SELECTED, {
+            field: "chain",
+            value: "unconnected_wallet",
+          });
           await disconnectAsync();
           await disconnectSolana();
           if (!isStellarExternalKit) await disconnectStellar();
@@ -346,6 +368,10 @@ export default function SelectMethod() {
         title: "Pay with Stellar",
         icons: getStellarWalletIcons(),
         onClick: async () => {
+          capture(ROZO_EVENTS.PAYMENT_METHOD_SELECTED, {
+            field: "chain",
+            value: "stellar",
+          });
           await disconnectAsync();
           await disconnectSolana();
           if (!isStellarExternalKit) await disconnectStellar();
