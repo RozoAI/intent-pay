@@ -112,6 +112,12 @@ const PayWithStellarToken: React.FC = () => {
   // FOR TRANSFER ACTION
   const handleTransfer = async (option: WalletPaymentOption) => {
     setIsLoading(true);
+    capture(ROZO_EVENTS.PAYMENT_CONFIRMED, {
+      payment_id: rozoPaymentId ?? order?.externalId,
+      source_chain: option.required.token.chainId,
+      token_symbol: option.required.token.symbol,
+      amount: option.required.usd != null ? String(option.required.usd) : undefined,
+    });
     // Hoist so the catch block can reference the payment ID resolved in this
     // attempt, instead of the stale React state value captured in the closure.
     let resolvedPaymentId: string | undefined;
@@ -381,9 +387,15 @@ const PayWithStellarToken: React.FC = () => {
           capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
             payment_id: rozoPaymentId,
             tx_hash: response.hash,
-            chain: rozoStellar.chainId,
+            source_chain: rozoStellar.chainId,
             token_symbol: selectedStellarTokenOption?.required.token.symbol,
           });
+          try {
+            sessionStorage.setItem(
+              `rozo_submitted_at:${rozoPaymentId}`,
+              String(Date.now()),
+            );
+          } catch {}
           setPayState(PayState.RequestSuccessful);
           setTxHash(response.hash);
           setTxURL(getChainExplorerTxUrl(rozoStellar.chainId, response.hash));

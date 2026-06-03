@@ -92,6 +92,12 @@ const PayWithSolanaToken: React.FC = () => {
   const handleTransfer = useCallback(
     async (option: WalletPaymentOption, isRetry: boolean = false) => {
       setIsLoading(true);
+      capture(ROZO_EVENTS.PAYMENT_CONFIRMED, {
+        payment_id: rozoPaymentId ?? order?.externalId,
+        source_chain: option.required.token.chainId,
+        token_symbol: option.required.token.symbol,
+        amount: option.required.usd != null ? String(option.required.usd) : undefined,
+      });
       if (isRetry) {
         setPayState(PayState.PreparingTransaction);
       }
@@ -283,9 +289,15 @@ const PayWithSolanaToken: React.FC = () => {
           capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
             payment_id: newId ?? rozoPaymentId,
             tx_hash: result.txHash,
-            chain: rozoSolana.chainId,
+            source_chain: rozoSolana.chainId,
             token_symbol: option.required.token.symbol,
           });
+          try {
+            sessionStorage.setItem(
+              `rozo_submitted_at:${newId ?? rozoPaymentId}`,
+              String(Date.now()),
+            );
+          } catch {}
           setPayState(PayState.RequestSuccessful);
           setTxHash(result.txHash);
           // Use `newId` (resolved this attempt) instead of the stale

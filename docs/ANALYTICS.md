@@ -1,21 +1,87 @@
-# Analytics Integration
+# Analytics & Telemetry
 
-Intent Pay SDK emits payment analytics events through an optional PostHog instance you provide.
-If you don't pass one, all tracking is a no-op — zero bundle impact.
+Intent Pay SDK ships with two independent analytics channels:
+
+| Channel                    | Who controls it   | Default                            |
+| -------------------------- | ----------------- | ---------------------------------- |
+| **Built-in SDK telemetry** | RozoAI (this SDK) | **On** (opt-out)                   |
+| **Host-app PostHog**       | You (integrator)  | Off unless you pass `posthog` prop |
 
 ---
 
-## Quick Start
+## Built-in SDK Telemetry
+
+The SDK sends anonymous payment funnel events to RozoAI's PostHog project. This helps us understand how the payment flow performs across integrations so we can improve it.
+
+### What IS tracked
+
+| Event                      | When                       | Properties sent                                      |
+| -------------------------- | -------------------------- | ---------------------------------------------------- |
+| `payment_flow_started`     | Modal opens                | `destination_chain`, `app_name`                      |
+| `payment_method_selected`  | User picks payment method  | `field`, `value`, `wallet_id`, `app_name`            |
+| `payment_quote_requested`  | Quote fetch begins         | `source_chain`, `app_name`                           |
+| `payment_quote_received`   | Quote returned             | `source_chain`, `fee`, `app_name`                    |
+| `payment_quote_failed`     | Quote fetch error          | `source_chain`, `error_type`, `app_name`             |
+| `payment_confirmed`        | User confirms payment      | `source_chain`, `destination_chain`, `app_name`      |
+| `payment_submitted`        | Transaction sent           | `destination_chain`, `app_name`                      |
+| `payment_completed`        | On-chain confirmed         | `destination_chain`, `app_name`                      |
+| `payment_failed`           | Terminal failure           | `error_type`, `destination_chain`, `app_name`        |
+| `payment_cancelled`        | Modal closed mid-flow      | `last_state`, `reason`, `app_name`                   |
+| `error_occurred`           | Error page shown           | `error_type`, `error_title`, `can_retry`, `app_name` |
+| `payment_validation_error` | Invalid chain/token config | `error_type`, `app_name`                             |
+
+### What is NEVER sent
+
+- **Wallet addresses** (EVM, Solana, Stellar)
+- **Token amounts** or USD values
+- **Transaction hashes**
+- **Payment IDs** (`payment_id`, internal Rozo order IDs)
+- **Error messages** containing any of the above
+- **Personal identifiers** (name, email)
+- **Page URLs or referrers**
+
+Every string property is run through a sanitizer before dispatch that replaces any pattern matching an address, tx hash, or numeric amount with `[address]`, `[tx_hash]`, or `[amount]` respectively. If something slips through the sanitizer, please [open an issue](https://github.com/RozoAI/intent-pay/issues).
+
+### PostHog configuration for built-in telemetry
+
+The built-in client is initialized with:
+
+```ts
+{
+  person_profiles: "identified_only",  // no anonymous profiles created
+  capture_pageview: false,
+  capture_pageleave: false,
+  autocapture: false,                  // no DOM click capture
+  disable_session_recording: true,
+  persistence: "memory",              // no localStorage/cookies
+}
+```
+
+### Opting out
+
+**Per integration** — pass `telemetry={false}` to `RozoPayProvider`:
+
+```tsx
+<RozoPayProvider telemetry={false} ...>
+  {children}
+</RozoPayProvider>
+```
+
+**Browser-level** — the SDK respects the browser's [Do Not Track](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/doNotTrack) setting. If `navigator.doNotTrack === "1"`, built-in telemetry is automatically disabled with no extra configuration needed.
+
+---
+
+## Host-App PostHog (optional)
+
+Pass your own PostHog instance to receive the same payment events in your own project:
 
 ### 1. Install PostHog
 
 ```bash
-npm install posthog-js
-# or
 pnpm add posthog-js
 ```
 
-### 2. Initialize PostHog in your app
+### 2. Initialize in your app
 
 ```ts
 // lib/analytics.ts
@@ -29,7 +95,7 @@ posthog.init("YOUR_POSTHOG_PROJECT_API_KEY", {
 export default posthog;
 ```
 
-### 3. Pass the instance to `RozoPayProvider`
+### 3. Pass to `RozoPayProvider`
 
 ```tsx
 import posthog from "./lib/analytics";
@@ -37,56 +103,22 @@ import { RozoPayProvider } from "@rozoai/intent-pay";
 
 export default function App() {
   return (
-    <RozoPayProvider
-      posthog={posthog}
-      // ... your other props
-    >
+    <RozoPayProvider posthog={posthog} ...>
       {children}
     </RozoPayProvider>
   );
 }
 ```
 
-That's it. All payment events fire automatically through your PostHog instance.
+All payment events fire through your instance too. The same sanitization applies — no addresses, amounts, or hashes reach your PostHog project either.
 
----
+### No host analytics (default)
 
-## No Analytics (default)
-
-Omit the `posthog` prop — nothing changes, no PostHog bundle included:
+Omit the `posthog` prop. Only built-in telemetry fires (unless you disabled that too).
 
 ```tsx
-<RozoPayProvider>
-  {children}
-</RozoPayProvider>
+<RozoPayProvider>{children}</RozoPayProvider>
 ```
-
----
-
-## Events Tracked
-
-All events fire automatically. You don't need to instrument anything else.
-
-| Event | When | Key Properties |
-|---|---|---|
-| `payment_flow_started` | Modal opens | `amount`, `destination_chain`, `token` |
-| `payment_method_selected` | User picks a payment method | `field`, `value`, `wallet_id` |
-| `payment_confirmed` | User confirms token + amount | `payment_id`, `source_chain`, `token`, `amount` |
-| `payment_quote_requested` | Quote fetch begins | `source_chain`, `token`, `amount`, `payment_id` |
-| `payment_quote_received` | Quote returned successfully | `source_chain`, `token`, `payment_id`, `fee` |
-| `payment_quote_failed` | Quote fetch error | `source_chain`, `token`, `error_message` |
-| `payment_submitted` | Transaction submitted to chain | `payment_id`, `destination_chain` |
-| `payment_completed` | Payment confirmed on-chain | `payment_id`, `amount`, `destination_chain` |
-| `payment_failed` | Terminal failure | `payment_id`, `destination_chain` |
-| `payment_cancelled` | User closes mid-flow or retries from error | `payment_id`, `last_state`, `reason` |
-| `error_occurred` | Error page shown | `context`, `error_message`, `error_title`, `payment_id`, `can_retry` |
-
-### `payment_cancelled` reasons
-
-| `reason` value | Meaning |
-|---|---|
-| `"user"` | User closed modal or clicked Cancel on error page |
-| `"retry"` | User clicked "Try Another Method" on error page |
 
 ---
 
@@ -94,30 +126,21 @@ All events fire automatically. You don't need to instrument anything else.
 
 Intent Pay does **not** call `posthog.identify()` automatically. Identity is your app's responsibility.
 
-**Why:** A single user can connect EVM, Solana, and Stellar wallets simultaneously — three different
-addresses. The SDK has no way to know which address represents the canonical user identity, and
-calling `identify()` with the wrong address would fragment your user profiles in PostHog.
+**Why:** A single user can connect EVM, Solana, and Stellar wallets simultaneously. The SDK has no way to know which address is the canonical user identity, and calling `identify()` with the wrong address would fragment your user profiles.
 
-Call `identify()` yourself at the point where your app has a canonical user identity
-(after auth, after wallet connect, after Privy session, etc.):
+Call `identify()` yourself after your app resolves user identity:
 
 ```ts
-import posthog from "./lib/analytics";
-
-// After your app resolves user identity
 posthog.identify(userId, {
-  wallet_address: evmAddress ?? solanaAddress ?? stellarAddress,
+  // safe to omit wallet_address here — SDK strips it from events anyway
 });
 ```
 
-All subsequent `payment_*` events will be attributed to that user in PostHog.
-
 ---
 
-## Using `useAnalytics` for Custom Events
+## Custom Events from Components
 
-If you need to fire additional events from within components that are children of `RozoPayProvider`,
-use the exported `useAnalytics` hook:
+Use `useAnalytics` to fire additional events from components inside `RozoPayProvider`:
 
 ```tsx
 import { useAnalytics } from "@rozoai/intent-pay";
@@ -125,71 +148,38 @@ import { useAnalytics } from "@rozoai/intent-pay";
 function MyComponent() {
   const { capture } = useAnalytics();
 
-  const handleCustomAction = () => {
-    capture("my_custom_event", {
-      some_property: "value",
-    });
-  };
-
-  return <button onClick={handleCustomAction}>Do something</button>;
+  return (
+    <button onClick={() => capture("my_custom_event", { source: "banner" })}>
+      Pay now
+    </button>
+  );
 }
 ```
 
-`useAnalytics` returns a no-op `capture` if no `posthog` was passed to `RozoPayProvider` —
-safe to call unconditionally.
-
----
-
-## PostHog Setup Tips
-
-### Same project as your app
-
-Pass the same PostHog instance your app already uses. Payment events will appear alongside
-your other product events, linked to the same user session.
-
-### Separate project
-
-If you want payment analytics isolated, initialize a second PostHog instance with a different
-project key and pass only that to `RozoPayProvider`.
-
-### App name property
-
-Set an `app_name` property on your PostHog instance so you can filter payment events by app
-in dashboards (useful if multiple apps use the same PostHog project):
-
-```ts
-posthog.init("YOUR_KEY", {
-  api_host: "https://us.i.posthog.com",
-  bootstrap: {
-    // or use posthog.register() after init:
-  },
-});
-
-posthog.register({ app_name: "your-app-name" });
-```
+`capture` is a no-op when both telemetry is off and no host PostHog is provided.
 
 ---
 
 ## Suggested PostHog Insights
 
-Once events are flowing, these insights answer the key product questions:
+### Funnel — payment completion rate
 
-**Funnel — payment completion rate**
-```
+```text
 payment_flow_started → payment_confirmed → payment_submitted → payment_completed
 ```
 
-**Most common failure reason**
+### Most common failure type
+
 > Breakdown `error_occurred` by `error_title`
 
-**Quote reliability**
+### Quote reliability by chain
+
 > `payment_quote_failed` / `payment_quote_requested` ratio, breakdown by `source_chain`
 
-**Time to complete**
-> Duration between `payment_submitted` and `payment_completed`, breakdown by `destination_chain`
+### Abandonment vs retry
 
-**Abandonment vs retry**
 > `payment_cancelled` breakdown by `reason` (`"user"` vs `"retry"`)
 
-**Method preference**
+### Method preference
+
 > `payment_method_selected` breakdown by `value` (`evm`, `solana`, `stellar`, `unconnected_wallet`)

@@ -1,3 +1,8 @@
+export const WALLET_EVENTS = {
+  WALLET_CONNECTED: "wallet_connected",
+  WALLET_DISCONNECTED: "wallet_disconnected",
+} as const;
+
 export const PAYMENT_EVENTS = {
   PAYMENT_FLOW_STARTED: "payment_flow_started",
   PAYMENT_METHOD_SELECTED: "payment_method_selected",
@@ -20,6 +25,7 @@ export const GLOBAL_EVENTS = {
 
 export const ROZO_EVENTS = {
   ...GLOBAL_EVENTS,
+  ...WALLET_EVENTS,
   ...PAYMENT_EVENTS,
 } as const;
 

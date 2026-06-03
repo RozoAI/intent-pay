@@ -678,7 +678,7 @@ export function usePaymentState({
     capture(ROZO_EVENTS.PAYMENT_QUOTE_REQUESTED, {
       payment_id: pay.order?.externalId,
       source_chain: walletOption.required.token.chainId,
-      token: walletOption.required.token.symbol,
+      token_symbol: walletOption.required.token.symbol,
       amount:
         currPayParamsRef.current?.toUnits != null
           ? String(currPayParamsRef.current.toUnits)
@@ -713,14 +713,14 @@ export function usePaymentState({
 
       capture(ROZO_EVENTS.PAYMENT_QUOTE_RECEIVED, {
         source_chain: walletOption.required.token.chainId,
-        token: walletOption.required.token.symbol,
+        token_symbol: walletOption.required.token.symbol,
         payment_id: hydratedOrder.externalId ?? paymentId,
         fee: walletOption.fees.amount,
       });
     } catch (quoteError) {
       capture(ROZO_EVENTS.PAYMENT_QUOTE_FAILED, {
         source_chain: walletOption.required.token.chainId,
-        token: walletOption.required.token.symbol,
+        token_symbol: walletOption.required.token.symbol,
         error_message: parseErrorMessage(quoteError),
       });
       throw quoteError;

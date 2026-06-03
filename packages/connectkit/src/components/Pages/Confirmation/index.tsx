@@ -211,6 +211,20 @@ const Confirmation: React.FC = () => {
     if (analyticsCompletedSent.current === key) return;
     analyticsCompletedSent.current = key;
     const destChainId = order ? getOrderDestChainId(order) : undefined;
+
+    let duration_ms: number | undefined;
+    try {
+      const submittedAt = sessionStorage.getItem(
+        `rozo_submitted_at:${rozoPaymentId}`,
+      );
+      if (submittedAt) {
+        duration_ms = Date.now() - Number(submittedAt);
+        sessionStorage.removeItem(`rozo_submitted_at:${rozoPaymentId}`);
+      }
+    } catch {
+      // sessionStorage unavailable — omit duration
+    }
+
     capture(ROZO_EVENTS.PAYMENT_COMPLETED, {
       payment_id: rozoPaymentId,
       tx_hash: rawPayInHash,
@@ -224,6 +238,7 @@ const Confirmation: React.FC = () => {
             ? String(order.destFinalCallTokenAmount.usd)
             : undefined,
       token_symbol: order?.destFinalCallTokenAmount?.token.symbol,
+      ...(duration_ms !== undefined && { duration_ms }),
     });
   }, [done, rawPayInHash, rozoPaymentId]); // eslint-disable-line react-hooks/exhaustive-deps
 

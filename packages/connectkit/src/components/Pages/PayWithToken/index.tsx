@@ -139,9 +139,15 @@ const PayWithToken: React.FC = () => {
           capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
             payment_id: rozoPaymentId ?? order?.externalId,
             tx_hash: result.txHash,
-            chain: option.required.token.chainId,
+            source_chain: option.required.token.chainId,
             token_symbol: option.required.token.symbol,
           });
+          try {
+            sessionStorage.setItem(
+              `rozo_submitted_at:${rozoPaymentId ?? order?.externalId}`,
+              String(Date.now()),
+            );
+          } catch {}
           setSenderAddress(address);
           setPayState(PayState.RequestSuccessful);
           setTimeout(() => {
@@ -178,9 +184,15 @@ const PayWithToken: React.FC = () => {
                 capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
                   payment_id: rozoPaymentId ?? order?.externalId,
                   tx_hash: retryResult.txHash,
-                  chain: option.required.token.chainId,
+                  source_chain: option.required.token.chainId,
                   token_symbol: option.required.token.symbol,
                 });
+                try {
+                  sessionStorage.setItem(
+                    `rozo_submitted_at:${rozoPaymentId ?? order?.externalId}`,
+                    String(Date.now()),
+                  );
+                } catch {}
                 setSenderAddress(address);
                 setPayState(PayState.RequestSuccessful);
                 setTimeout(() => {

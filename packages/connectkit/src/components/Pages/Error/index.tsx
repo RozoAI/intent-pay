@@ -8,10 +8,10 @@ import {
 import { useEffect, useMemo } from "react";
 import { AlertIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
-import { useRozoPay } from "../../../hooks/useRozoPay";
 import { usePayContext } from "../../../hooks/usePayContext";
-import { useAnalytics } from "../../../provider/AnalyticsProvider";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
+import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import styled from "../../../styles/styled";
 import { categorizeError, ErrorType } from "../../../utils/errorParser";
 import {
@@ -89,8 +89,8 @@ export default function ErrorPage() {
       },
       [ErrorType.NOT_UNPAID]: {
         title: "Payment Invalid",
-        canRetry: false
-      }
+        canRetry: false,
+      },
     } satisfies Partial<
       Record<
         ErrorType,
@@ -117,7 +117,6 @@ export default function ErrorPage() {
 
   const handleRetry = () => {
     capture(ROZO_EVENTS.PAYMENT_CANCELLED, {
-      payment_id: pay.order?.id,
       last_state: pay.paymentState,
       reason: "retry",
     });
@@ -130,7 +129,6 @@ export default function ErrorPage() {
 
   const handleCancel = () => {
     capture(ROZO_EVENTS.PAYMENT_CANCELLED, {
-      payment_id: pay.order?.id,
       last_state: pay.paymentState,
       reason: "user",
     });
@@ -146,10 +144,12 @@ export default function ErrorPage() {
   }, [errorCategory]);
 
   useEffect(() => {
+    const errorType = categorizeError(errorCategory.message);
     capture(ROZO_EVENTS.ERROR_OCCURRED, {
       context: "payment",
       error_message: errorCategory.message,
       error_title: errorCategory.title,
+      error_type: errorType,
       payment_id: pay.order?.id,
       can_retry: errorCategory.canRetry,
     });

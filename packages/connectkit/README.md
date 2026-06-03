@@ -35,6 +35,8 @@ For in-repo SDK prop reference, see [RozoPayButton Props](../../docs/ROZO_PAY_BU
 
 For correct provider setup (Next.js App Router, Vite, SSR patterns), see [Provider Setup Guide](../../docs/PROVIDER_SETUP.md).
 
+For analytics, telemetry opt-out, and what data is tracked, see [Analytics & Telemetry](../../docs/ANALYTICS.md).
+
 ## Examples
 
 Check out complete examples and code snippets at [Complete Examples](https://docs.rozo.ai/integration/rozointentpay/examples), including:
@@ -63,7 +65,7 @@ pnpm run dev
 The rollup bundler will now watch file changes in the background. Try using one of the examples for testing:
 
 ```sh
-cd examples/nextjs
+cd examples/nextjs-app
 pnpm i
 pnpm run dev
 ```

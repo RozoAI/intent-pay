@@ -150,6 +150,11 @@ export default function SelectMethod() {
             value: "evm",
             wallet_id: connector?.id,
           });
+          capture(ROZO_EVENTS.WALLET_CONNECTED, {
+            wallet_id: connector?.id,
+            chain_type: "evm",
+            chain: chain?.id,
+          });
           paymentState.setTokenMode("evm");
           setRoute(ROUTES.SELECT_TOKEN, {
             event: "click-wallet",
@@ -212,6 +217,10 @@ export default function SelectMethod() {
             value: "solana",
             wallet_id: solanaWallet?.adapter.name,
           });
+          capture(ROZO_EVENTS.WALLET_CONNECTED, {
+            wallet_id: solanaWallet?.adapter.name,
+            chain_type: "solana",
+          });
           paymentState.setTokenMode("solana");
           setRoute(ROUTES.SELECT_TOKEN, {
             event: "click-wallet",
@@ -261,6 +270,10 @@ export default function SelectMethod() {
             field: "chain",
             value: "stellar",
             wallet_id: stellarConnector?.id,
+          });
+          capture(ROZO_EVENTS.WALLET_CONNECTED, {
+            wallet_id: stellarConnector?.id,
+            chain_type: "stellar",
           });
           paymentState.setTokenMode("stellar");
           setRoute(ROUTES.SELECT_TOKEN, {
@@ -330,6 +343,24 @@ export default function SelectMethod() {
             field: "chain",
             value: "unconnected_wallet",
           });
+          if (isEthConnected) {
+            capture(ROZO_EVENTS.WALLET_DISCONNECTED, {
+              wallet_id: connector?.id,
+              chain_type: "evm",
+            });
+          }
+          if (isSolanaConnected) {
+            capture(ROZO_EVENTS.WALLET_DISCONNECTED, {
+              wallet_id: solanaWallet?.adapter.name,
+              chain_type: "solana",
+            });
+          }
+          if (isStellarConnected && !isStellarExternalKit) {
+            capture(ROZO_EVENTS.WALLET_DISCONNECTED, {
+              wallet_id: stellarConnector?.id,
+              chain_type: "stellar",
+            });
+          }
           await disconnectAsync();
           await disconnectSolana();
           if (!isStellarExternalKit) await disconnectStellar();
@@ -347,11 +378,17 @@ export default function SelectMethod() {
         paymentOptions.includes(ExternalPaymentOptions.Stellar);
 
       if (!isOnlyStellar && depositAddressOptions.options.length > 0) {
-        const depositAddressOption = getDepositAddressOption(
-          setRoute,
-          payParams?.appId
-        );
-        options.push(depositAddressOption);
+        const base = getDepositAddressOption(setRoute, payParams?.appId);
+        options.push({
+          ...base,
+          onClick: () => {
+            capture(ROZO_EVENTS.PAYMENT_METHOD_SELECTED, {
+              field: "chain",
+              value: "deposit_address",
+            });
+            base.onClick();
+          },
+        });
       }
     }
 

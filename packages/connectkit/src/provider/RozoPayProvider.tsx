@@ -1,10 +1,10 @@
 import {
   ApiVersion,
+  debugJson,
   ExternalPaymentOptions,
+  getOrderDestChainId,
   RozoPayOrderMode,
   RozoPayOrderStatusSource,
-  debugJson,
-  getOrderDestChainId,
 } from "@rozoai/intent-common";
 import { Buffer } from "buffer";
 import React, {
@@ -16,7 +16,7 @@ import React, {
   useState,
 } from "react";
 import { ThemeProvider } from "styled-components";
-import { WagmiContext } from "wagmi";
+import { useChainId, WagmiContext } from "wagmi";
 
 import type { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
 import { RozoPayModal } from "../components/RozoPayModal";
@@ -95,6 +95,12 @@ type RozoPayUIProviderProps = {
   log: (msg: string, ...props: any[]) => void;
   /** Optional PostHog instance from host app. All payment events fire through it. */
   posthog?: PostHogCapture;
+  /**
+   * Enable built-in SDK telemetry (anonymous payment funnel events).
+   * Respects browser Do Not Track. Default: true.
+   * Set to false to fully disable all built-in tracking.
+   */
+  telemetry?: boolean;
 } & useConnectCallbackProps;
 
 const RozoPayUIProvider = ({
@@ -110,8 +116,10 @@ const RozoPayUIProvider = ({
   payApiUrl,
   log,
   posthog: _posthog,
+  telemetry: _telemetry,
 }: RozoPayUIProviderProps) => {
   const { capture } = useAnalytics();
+  const connectedChainId = useChainId();
   const defaultOptions: RozoPayContextOptions = {
     language: "en-US",
     hideBalance: false,
@@ -248,6 +256,7 @@ const RozoPayUIProvider = ({
           token_symbol:
             paymentState.payParams?.toToken ??
             order?.destFinalCallTokenAmount?.token.symbol,
+          source_chain: connectedChainId || undefined,
         });
       } else {
         onCloseRef.current?.();
@@ -259,10 +268,6 @@ const RozoPayUIProvider = ({
           pay.paymentState !== "idle"
         ) {
           capture(ROZO_EVENTS.PAYMENT_CANCELLED, {
-            payment_id:
-              paymentState.rozoPaymentId ??
-              pay.order?.externalId ??
-              pay.order?.id,
             last_state: pay.paymentState,
             reason: "user",
           });
@@ -555,6 +560,12 @@ type RozoPayProviderProps = {
   stellarWalletPersistence?: boolean;
   /** Optional PostHog instance from host app. All payment events fire through it. */
   posthog?: PostHogCapture;
+  /**
+   * Enable built-in SDK telemetry. Tracks anonymous payment funnel events
+   * (no addresses, amounts, or tx hashes). Respects browser Do Not Track.
+   * Default: true. Set to false to fully disable all built-in tracking.
+   */
+  telemetry?: boolean;
 } & useConnectCallbackProps;
 
 /**
@@ -570,7 +581,7 @@ export const RozoPayProvider = (props: RozoPayProviderProps) => {
   );
 
   return (
-    <AnalyticsProvider posthog={props.posthog}>
+    <AnalyticsProvider posthog={props.posthog} telemetry={props.telemetry}>
       <PaymentProvider payApiUrl={payApiUrl} apiVersion={apiVersion} log={log}>
         <PaymentEventProvider>
           <SolanaContextProvider rpcUrl={props.solanaRpcUrl}>

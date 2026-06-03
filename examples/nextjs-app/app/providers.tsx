@@ -18,7 +18,12 @@ function RozoPayProviderWithTheme({ children }: { children: ReactNode }) {
   const mode = resolvedTheme === "dark" ? "dark" : "light"
 
   return (
-    <RozoPayProvider debugMode mode={mode} stellarWalletPersistence={false} posthog={posthog}>
+    <RozoPayProvider
+      debugMode
+      mode={mode}
+      stellarWalletPersistence={false}
+      posthog={posthog}
+    >
       {children}
     </RozoPayProvider>
   )
