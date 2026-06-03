@@ -5,6 +5,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "lint": "pnpm --filter @rozoai/intent-common run lint && pnpm --filter @rozoai/intent-pay run lint && pnpm --filter examples/nextjs-app run lint",
+    "format": "pnpm --filter @rozoai/intent-common run format && pnpm --filter @rozoai/intent-pay run format && pnpm --filter examples/nextjs-app run format",
     "build": "pnpm run build:common && pnpm run build:pay",
     "build:common": "cd packages/pay-common && pnpm run build",
     "build:pay": "cd packages/connectkit && pnpm run build",
@@ -22,8 +24,14 @@
     "clean:all": "find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && find . -name 'dist' -type d -prune -exec rm -rf '{}' + && find . -name 'build' -type d -prune -exec rm -rf '{}' + && find . -name '.next' -type d -prune -exec rm -rf '{}' + && rm -f pnpm-lock.yaml"
   },
   "lint-staged": {
-    "packages/connectkit/**/*.{js,jsx,ts,tsx}": [
-      "cd packages/connectkit && pnpm exec eslint --quiet"
+    "packages/connectkit/src/**/*.{js,jsx,ts,tsx}": [
+      "oxlint"
+    ],
+    "packages/pay-common/src/**/*.{js,ts}": [
+      "oxlint"
+    ],
+    "examples/nextjs-app/**/*.{js,jsx,ts,tsx}": [
+      "oxlint"
     ]
   },
   "keywords": [],

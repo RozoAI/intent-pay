@@ -14,7 +14,9 @@
     "test": "tape -r ts-node/register/transpile-only test/**/*.test.ts",
     "lint": "pnpm run lint:deps && pnpm run lint:style",
     "lint:deps": "npx depcheck --ignores @tsconfig/node20,@types/tape,ts-node",
-    "lint:style": "eslint --max-warnings=0",
+    "lint:style": "oxlint src/",
+    "format": "oxfmt src/",
+    "format:check": "oxfmt --check src/",
     "publish:beta": "pnpm publish --no-git-checks --tag beta",
     "publish:latest": "pnpm publish --no-git-checks --tag latest"
   },
@@ -26,7 +28,8 @@
     "@tsconfig/node20": "^20.1.4",
     "@types/tape": "^5.6.0",
     "depcheck": "^1.4.3",
-    "eslint": "^8.56.0",
+    "oxlint": "latest",
+    "oxfmt": "latest",
     "tape": "^5.6.3",
     "ts-node": "^10.9.2",
     "typescript": "5.5.2"
