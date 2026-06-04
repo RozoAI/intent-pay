@@ -1,27 +1,37 @@
 {
   "name": "@rozoai/intent-pay",
+  "version": "0.1.27-beta.1",
   "private": false,
-  "version": "0.1.26",
-  "author": "RozoAI",
+  "description": "Seamless crypto payments. Onboard users from any chain, any coin into your app with one click.",
+  "keywords": [
+    "blockchain",
+    "crypto",
+    "ens",
+    "ethereum",
+    "family",
+    "hooks",
+    "pay",
+    "payment",
+    "react",
+    "react-hook",
+    "rozoai"
+  ],
   "homepage": "https://github.com/RozoAI/intent-pay",
   "license": "BSD-2-Clause",
-  "description": "Seamless crypto payments. Onboard users from any chain, any coin into your app with one click.",
-  "main": "./src/index.ts",
+  "author": "RozoAI",
+  "files": [
+    "build",
+    "README.md"
+  ],
   "type": "module",
+  "main": "./src/index.ts",
+  "types": "./build/index.d.ts",
   "exports": {
     ".": {
       "import": "./build/src/index.js",
       "types": "./build/index.d.ts"
     }
   },
-  "types": "./build/index.d.ts",
-  "engines": {
-    "node": ">=12.4"
-  },
-  "files": [
-    "build",
-    "README.md"
-  ],
   "scripts": {
     "start": "rollup --config rollup.config.js -w",
     "dev": "rollup --config rollup.config.js -w",
@@ -34,24 +44,12 @@
     "publish:beta": "pnpm publish --no-git-checks --tag beta",
     "publish:latest": "pnpm publish --no-git-checks --tag latest"
   },
-  "keywords": [
-    "ens",
-    "react-hook",
-    "blockchain",
-    "hooks",
-    "family",
-    "ethereum",
-    "react",
-    "rozoai",
-    "pay",
-    "payment",
-    "crypto"
-  ],
   "dependencies": {
     "@reown/appkit": "^1.7.0",
     "@rollup/plugin-image": "^3.0.3",
     "@rollup/plugin-typescript": "^12.1.2",
-    "@rozoai/intent-common": "0.1.18",
+    "@rozoai/intent-common": "^0.1.19-beta.1",
+    "@solana/spl-memo": "^0.2.5",
     "@solana/spl-token": "^0.4.14",
     "@solana/wallet-adapter-base": "^0.9.27",
     "@solana/wallet-adapter-react": "^0.15.39",
@@ -71,11 +69,25 @@
     "resize-observer-polyfill": "^1.5.1",
     "styled-components": "^5.3.5"
   },
+  "devDependencies": {
+    "@rollup/plugin-json": "^6.1.0",
+    "@types/node": "^20.14.12",
+    "@types/qrcode": "^1.4.2",
+    "@types/react": "^18.2.47",
+    "@types/react-dom": "^18.2.18",
+    "@types/styled-components": "^5.1.25",
+    "@walletconnect/types": "^2.22.3",
+    "oxfmt": "latest",
+    "oxlint": "latest",
+    "rollup": "^3.29.5",
+    "rollup-plugin-peer-deps-external": "^2.2.4",
+    "rollup-plugin-visualizer": "^6.0.5"
+  },
   "peerDependencies": {
     "@creit.tech/stellar-wallets-kit": "^1.9.5",
-    "posthog-js": "^1.0.0",
     "@stellar/stellar-sdk": "^14.2.0",
     "@tanstack/react-query": ">=5.0.0",
+    "posthog-js": "^1.0.0",
     "react": "18.x || 19.x",
     "react-dom": "18.x || 19.x",
     "viem": "2.x",
@@ -89,18 +101,7 @@
       "optional": true
     }
   },
-  "devDependencies": {
-    "@rollup/plugin-json": "^6.1.0",
-    "@types/node": "^20.14.12",
-    "@types/qrcode": "^1.4.2",
-    "@types/react": "^18.2.47",
-    "@types/react-dom": "^18.2.18",
-    "@types/styled-components": "^5.1.25",
-    "@walletconnect/types": "^2.22.3",
-    "oxlint": "latest",
-    "oxfmt": "latest",
-    "rollup": "^3.29.5",
-    "rollup-plugin-peer-deps-external": "^2.2.4",
-    "rollup-plugin-visualizer": "^6.0.5"
+  "engines": {
+    "node": ">=12.4"
   }
 }

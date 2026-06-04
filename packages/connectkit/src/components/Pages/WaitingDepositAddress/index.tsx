@@ -4,6 +4,7 @@ import {
   generateEVMDeepLink,
   generateSolanaDeepLink,
   getAddressContraction,
+  getCanonicalDestination,
   getChainName,
   getFee,
   getKnownToken,
@@ -283,12 +284,16 @@ export default function WaitingDepositAddress() {
         if (amount && payParams?.appId) {
           try {
             // @TODO: Handle fee calculation for other currencies
+            const destToken = order?.destFinalCallTokenAmount?.token;
             const feeResponse = await getFee({
-              currency: "USD",
               type: payParams?.feeType ?? FeeType.ExactIn,
-              toUnits: amount.toString(),
               appId: payParams.appId,
-              toChain: selectedDepositAddressOption.token.chainId,
+              sourceChainId: selectedDepositAddressOption.token.chainId.toString(),
+              sourceTokenSymbol: selectedDepositAddressOption.token.symbol,
+              amount: amount.toString(),
+              destChainId: (destToken?.chainId ?? selectedDepositAddressOption.token.chainId).toString(),
+              destReceiverAddress: (order ? getCanonicalDestination(order).finalDestinationAddress : undefined) ?? payParams?.toAddress ?? "",
+              destTokenSymbol: destToken?.symbol ?? selectedDepositAddressOption.token.symbol,
             });
 
             if (feeResponse.data) {
@@ -301,10 +306,7 @@ export default function WaitingDepositAddress() {
               if (errorMessage) {
                 // Create error data from message and stop execution
                 setFeeError({
-                  error: "Can't process payment",
-                  message: errorMessage,
-                  received: amount,
-                  maxAllowed: 0,
+                  error: { code: "PAYMENT_ERROR", message: errorMessage },
                 });
                 setFeeData(null);
                 setIsLoading(false);
@@ -556,13 +558,13 @@ function FeeErrorContent({
         </ModalH1>
         <div style={{ height: 16 }} />
         <ModalBody style={{ textAlign: "center" }}>
-          {feeError.message || feeError.error}
-          {feeError.maxAllowed > 0 && (
+          {feeError.error.message}
+          {feeError.data?.maxAmount != null && feeError.data.maxAmount > 0 && (
             <>
               <br />
               <br />
               Maximum allowed amount:{" "}
-              {formatUsd(feeError.maxAllowed, "nearest", fiatISO)}
+              {formatUsd(feeError.data.maxAmount, "nearest", fiatISO)}
             </>
           )}
         </ModalBody>
@@ -672,9 +674,9 @@ function CopyableInfo({
         <FeeDisplayRow
           title="Fee"
           value={
-            feeData.fee === 0
+            parseFloat(feeData.source.fee) === 0
               ? "Free"
-              : formatAmountWithTokenSymbol(feeData.fee, sourceTokenSymbol)
+              : `${feeData.source.fee} ${feeData.source.tokenSymbol} (${feeData.feeInfo.feePercentage})`
           }
         />
       )}

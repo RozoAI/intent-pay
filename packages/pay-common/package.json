@@ -1,12 +1,19 @@
 {
   "name": "@rozoai/intent-common",
-  "version": "0.1.18",
+  "version": "0.1.19-beta.1",
   "description": "Intent Pay shared types and utilities",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "author": "RozoAI",
   "homepage": "https://github.com/RozoAI/intent-pay",
   "license": "BSD-2-Clause",
+  "author": "RozoAI",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "pnpm run test && tsc",
     "dev": "tsc --watch",
@@ -20,20 +27,6 @@
     "publish:beta": "pnpm publish --no-git-checks --tag beta",
     "publish:latest": "pnpm publish --no-git-checks --tag latest"
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
-  "devDependencies": {
-    "@tsconfig/node20": "^20.1.4",
-    "@types/tape": "^5.6.0",
-    "depcheck": "^1.4.3",
-    "oxlint": "latest",
-    "oxfmt": "latest",
-    "tape": "^5.6.3",
-    "ts-node": "^10.9.2",
-    "typescript": "5.5.2"
-  },
   "dependencies": {
     "@scure/base": "^1.2.4",
     "@solana/web3.js": "^1.98.4",
@@ -41,7 +34,14 @@
     "viem": "^2.23.2",
     "zod": "^3.25.76"
   },
-  "publishConfig": {
-    "access": "public"
+  "devDependencies": {
+    "@tsconfig/node20": "^20.1.4",
+    "@types/tape": "^5.6.0",
+    "depcheck": "^1.4.3",
+    "oxfmt": "latest",
+    "oxlint": "latest",
+    "tape": "^5.6.3",
+    "ts-node": "^10.9.2",
+    "typescript": "5.5.2"
   }
 }

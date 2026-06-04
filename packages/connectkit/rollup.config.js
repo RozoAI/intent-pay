@@ -15,6 +15,7 @@ export default [
       "@reown/appkit/networks",
       "@rozoai/intent-common",
       "@solana/spl-token",
+      "@solana/spl-memo",
       "@solana/wallet-adapter-base",
       "@solana/wallet-adapter-react",
       "@solana/web3.js",

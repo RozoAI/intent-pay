@@ -62,9 +62,7 @@ export function resolveDestinationAddress(payParams: PayParams): string {
  * - Address normalization across EVM/Solana/Stellar
  * - FeeType handling (ExactIn / ExactOut)
  */
-export function buildCreatePaymentPayload(
-  ctx: CreatePaymentContext
-): CreateNewPaymentParams {
+export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewPaymentParams {
   const {
     payParams,
     order,
@@ -91,16 +89,11 @@ export function buildCreatePaymentPayload(
 
     const token = getKnownToken(toChain, toTokenAddress);
     if (!token) {
-      throw new Error(
-        `Token not found for chain ${toChain} and token ${toTokenAddress}`
-      );
+      throw new Error(`Token not found for chain ${toChain} and token ${toTokenAddress}`);
     }
 
     tokenDecimals = token.decimals;
-    rawAmountUnitsStr = formatUnits(
-      BigInt(order.destFinalCallTokenAmount.amount),
-      tokenDecimals
-    );
+    rawAmountUnitsStr = formatUnits(BigInt(order.destFinalCallTokenAmount.amount), tokenDecimals);
   } else {
     toChain = payParams.toChain;
     toTokenAddress = payParams.toToken;
@@ -140,9 +133,7 @@ export function buildCreatePaymentPayload(
   // --------------------------------------------------
   const feeUsd = walletOption?.fees.usd ?? 0;
   const calculatedToUnits =
-    feeType === FeeType.ExactIn
-      ? rawAmountNumber
-      : rawAmountNumber - Number(feeUsd);
+    feeType === FeeType.ExactIn ? rawAmountNumber : rawAmountNumber - Number(feeUsd);
 
   // Clamp to zero to avoid negative amounts when fees exceed amount
   const safeToUnits = Math.max(calculatedToUnits, 0);
@@ -152,10 +143,7 @@ export function buildCreatePaymentPayload(
   // --------------------------------------------------
   const toAddress = resolveDestinationAddress(payParams);
 
-  const isAbleToIncludeReceiverMemo = [
-    rozoSolana.chainId,
-    rozoStellar.chainId,
-  ].includes(toChain);
+  const isAbleToIncludeReceiverMemo = [rozoSolana.chainId, rozoStellar.chainId].includes(toChain);
 
   const title =
     payParams.metadata?.intent ??
@@ -170,8 +158,8 @@ export function buildCreatePaymentPayload(
   const orderMetadata =
     includeOrderMetadata && order
       ? {
-          ...(order.metadata ?? {}),
-          ...((order as any).userMetadata ?? {}),
+          ...order.metadata,
+          ...order.userMetadata,
         }
       : {};
 
@@ -192,7 +180,7 @@ export function buildCreatePaymentPayload(
     description: payParams.metadata?.description ?? "",
     metadata: mergedMetadata({
       ...orderMetadata,
-      ...(payParams.metadata ?? {}),
+      ...payParams.metadata,
     }),
   };
 
