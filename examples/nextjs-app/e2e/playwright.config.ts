@@ -25,12 +25,16 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    command: "pnpm dev",
-    url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-    stdout: "ignore",
-    stderr: "ignore",
-  },
+  // Run `pnpm dev` in examples/nextjs-app before running tests.
+  // In CI, set E2E_START_SERVER=1 to have Playwright start the server automatically.
+  webServer: process.env.E2E_START_SERVER
+    ? {
+        command: "pnpm dev",
+        url: "http://localhost:3000",
+        reuseExistingServer: false,
+        timeout: 180_000,
+        stdout: "ignore",
+        stderr: "ignore",
+      }
+    : undefined,
 })

@@ -11,9 +11,9 @@
     "format": "oxfmt src/ app/ components/ lib/ && prettier --write \"**/*.{ts,tsx}\"",
     "format:check": "oxfmt --check src/ app/ components/ lib/ && prettier --check \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test --config e2e/playwright.config.ts",
-    "test:e2e:ui": "playwright test --config e2e/playwright.config.ts --ui",
-    "test:e2e:headed": "playwright test --config e2e/playwright.config.ts --headed"
+    "test:e2e": "node_modules/.bin/playwright test --config e2e/playwright.config.ts",
+    "test:e2e:ui": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --ui",
+    "test:e2e:headed": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --headed"
   },
   "dependencies": {
     "@rozoai/intent-common": "workspace:*",
