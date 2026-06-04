@@ -16,9 +16,10 @@ const CFG = {
 }
 
 test.describe("Bridge mode — config form", () => {
-  test("Pay Now is disabled before config is confirmed", async ({ page }) => {
+  test("Pay Now is not shown before config is confirmed", async ({ page }) => {
     await gotoMode(page, "bridge")
-    await expect(page.getByRole("button", { name: /pay now/i })).toBeDisabled()
+    await expect(page.getByRole("button", { name: /pay now/i })).not.toBeVisible()
+    await expect(page.getByText("Fill in all fields to enable the payment button.")).toBeVisible()
   })
 
   test("Confirm button is disabled when form is pristine", async ({ page }) => {
