@@ -12,6 +12,7 @@
   ],
   "main": "index.js",
   "scripts": {
+    "test:e2e": "pnpm --filter \"examples/nextjs-app\" test:e2e",
     "lint": "pnpm --filter @rozoai/intent-common run lint && pnpm --filter @rozoai/intent-pay run lint && pnpm --filter examples/nextjs-app run lint",
     "format": "pnpm --filter @rozoai/intent-common run format && pnpm --filter @rozoai/intent-pay run format && pnpm --filter examples/nextjs-app run format",
     "build": "pnpm run build:common && pnpm run build:pay",
