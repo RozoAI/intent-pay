@@ -476,6 +476,7 @@ const Modal: React.FC<ModalProps> = ({
     >
       <ModalContainer
         role="dialog"
+        data-testid="rozopay-modal"
         style={{
           pointerEvents: rendered ? "auto" : "none",
           position: positionInside ? "absolute" : undefined,
@@ -484,6 +485,7 @@ const Modal: React.FC<ModalProps> = ({
         {!inline && (
           <BackgroundOverlay
             $active={rendered}
+            data-testid="rozopay-modal-overlay"
             onClick={shouldDisableBackgroundClick ? undefined : onClose}
             $blur={context.options?.overlayBlur}
             style={{
@@ -563,6 +565,7 @@ const Modal: React.FC<ModalProps> = ({
               {onClose && (
                 <CloseButton
                   aria-label={flattenChildren(locales.close).toString()}
+                  data-testid="rozopay-modal-close"
                   onClick={onClose}
                 >
                   <CloseIcon />
