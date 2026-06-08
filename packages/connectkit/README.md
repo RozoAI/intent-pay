@@ -3,6 +3,79 @@
 Rozo Intent Pay enables seamless crypto payments for your app.
 Onboard users from any chain, any coin into your app with one click and maximize your conversion.
 
+## Quickstart — Get your `appId` and run a payment
+
+Every payment takes a required `appId`. **You do not need to email anyone or wait for approval to get one** — `appId` is a namespace string you choose to group your transactions in the Rozo dashboard.
+
+There are two ways to get going:
+
+### 1. Try it now with the public sandbox `appId`
+
+Use the shared sandbox `appId` `rozoSandbox` to run the SDK end-to-end immediately, no signup required:
+
+```tsx
+"use client";
+import { RozoPayButton } from "@rozoai/intent-pay";
+
+<RozoPayButton
+  appId="rozoSandbox"          // public shared sandbox — testing only
+  toChain={8453}               // Base
+  toAddress="0xRecipient..."   // your receiving address
+  toToken="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // USDC on Base
+  toUnits="1"                  // display amount, in USDC (string, not base units)
+  intent="Pay"
+  preferredSymbol={["USDC", "USDT"]}
+  onPaymentCompleted={(e) => console.log("done", e.paymentId)}
+/>
+```
+
+> `rozoSandbox` is a **shared, public** sandbox namespace meant only for trying the SDK out. **Do not use it in production** — transactions under it are co-mingled with everyone else's test traffic and the namespace may be cleared at any time. Switch to your own `appId` (below) before you ship.
+
+### 2. Get a production `appId` + API key (self-serve, no approval)
+
+When you're ready for production — your own namespace, webhook events, branded checkout, and API-key auth — self-register through the Rozo merchant portal. It's a 2-minute, fully self-serve flow (email OTP → pick a slug → done). No human approval step:
+
+1. Open the [Rozo Partners portal](https://partners.rozo.ai/) and enter your email; you'll get a 6-digit code.
+2. Choose **"Wallet (Dapp developer)"** as the account type (developers don't need to provide a settlement wallet — that's only for merchants).
+3. Pick a slug (e.g. `coffee-studio`). The portal derives your `appId` automatically: `wallet_<slug>` (or `merchant_<slug>` for merchant accounts).
+4. You're dropped into **Settings → API Keys**, where you issue your first `rz_live_...` API key (shown once — copy it). Pass it as the `X-API-Key` header when your `appId` uses a portal-issued prefix.
+
+That's the whole loop — no email to support, no domain whitelisting request.
+
+### Minimal end-to-end (provider → button → result)
+
+```bash
+npm install @rozoai/intent-pay @rozoai/intent-common \
+  @tanstack/react-query wagmi viem \
+  @creit.tech/stellar-wallets-kit @stellar/stellar-sdk
+```
+
+```tsx
+// providers.tsx — wrap your app once (see docs/PROVIDER_SETUP.md for SSR details)
+"use client";
+import { getDefaultConfig, RozoPayProvider } from "@rozoai/intent-pay";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
+import { createConfig, WagmiProvider } from "wagmi";
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [config] = useState(() =>
+    createConfig(getDefaultConfig({ appName: "Your App", ssr: true })));
+  const [qc] = useState(() => new QueryClient());
+  return (
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={qc}>
+        <RozoPayProvider>{children}</RozoPayProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
+  );
+}
+```
+
+Then drop a `<RozoPayButton appId="rozoSandbox" ... />` (snippet above) anywhere inside the provider and read the result from `onPaymentCompleted`, or poll with the `useRozoPayStatus()` hook / `getPayment(id)` on your backend.
+
+> **Result truth lives on the backend.** Treat `onPaymentCompleted` as a UI hint and confirm settlement server-side (webhook or `getPayment`) before fulfilling.
+
 ## Features
 
 - 🌱 Cross-chain payments from 1000+ tokens in under 1 minute.
@@ -55,7 +128,7 @@ Clone the repository and build the SDK in `dev` mode:
 
 ```sh
 git clone https://github.com/RozoAI/intent-pay.git
-cd pay/packages/connectkit
+cd intent-pay/packages/connectkit
 pnpm i
 pnpm run dev
 ```
@@ -63,7 +136,7 @@ pnpm run dev
 The rollup bundler will now watch file changes in the background. Try using one of the examples for testing:
 
 ```sh
-cd examples/nextjs
+cd examples/nextjs-app
 pnpm i
 pnpm run dev
 ```
