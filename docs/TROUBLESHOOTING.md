@@ -685,7 +685,7 @@ curl -X POST https://intentapiv4.rozo.ai/functions/v1/payment-api \
 ```
 
 **Common Causes:**
-- Invalid `appId` (not registered with Rozo)
+- Missing `appId` (it is required and must be non-empty). You do **not** need to pre-register an `appId` — any namespace string works for basic payments, and only portal-issued prefixes (`wallet_*`, `merchant*`) require an `X-API-Key` header. To try the SDK without signing up, use the public sandbox `appId` `rozoSandbox`. See the **Quickstart** in the [README](../README.md) for how to get a production `appId` + key (self-serve, no approval).
 - Unsupported chain/token combination
 - Amount below minimum ($1 USD)
 - Invalid destination address format
@@ -720,7 +720,7 @@ has been blocked by CORS policy
 ```
 
 **Root Cause:**
-Rozo API has CORS restrictions. Localhost is usually allowed, but some configurations aren't.
+The Rozo payment API responds with `Access-Control-Allow-Origin: *`, so cross-origin requests are not blocked by an allow-list — you do **not** need to register your domain to whitelist CORS. A CORS error in the browser is therefore almost always a local issue (a network proxy/firewall stripping headers, a service worker, or a misconfigured request), not a domain-whitelist requirement.
 
 **Debug Steps:**
 
@@ -763,7 +763,7 @@ module.exports = {
 ```
 
 **For production:**
-Register your domain with Rozo support to whitelist CORS.
+No domain registration is required — the API allows all origins (`Access-Control-Allow-Origin: *`). If you still see CORS errors in production, check for an intermediary (CDN/WAF/proxy) stripping CORS headers, or call the API from your backend instead of the browser.
 
 ---
 
