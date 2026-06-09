@@ -77,12 +77,12 @@ test.describe("Bridge mode — modal", () => {
 
   test("modal renders options list after loading", async ({ page }) => {
     await openModal(page)
-    await expect(page.getByTestId("rozopay-options-list")).toBeVisible({ timeout: 25_000 })
+    await expect(page.getByTestId("rozopay-options-list").first()).toBeVisible({ timeout: 25_000 })
   })
 
   test("modal shows at least one payment option button", async ({ page }) => {
     await openModal(page)
-    await expect(page.getByTestId("rozopay-options-list")).toBeVisible({ timeout: 25_000 })
+    await expect(page.getByTestId("rozopay-options-list").first()).toBeVisible({ timeout: 25_000 })
     const options = page.locator("[data-testid^='rozopay-option-']")
     await expect(options.first()).toBeVisible({ timeout: 25_000 })
     expect(await options.count()).toBeGreaterThan(0)

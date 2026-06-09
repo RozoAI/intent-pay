@@ -1,4 +1,4 @@
-import { defineConfig, devices } from "@playwright/test"
+import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: ".",
@@ -12,12 +12,13 @@ export default defineConfig({
     : [["html", { open: "on-failure" }]],
   timeout: 60_000,
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: process.env.BASE_URL || "http://localhost:3000",
     actionTimeout: 10_000,
     navigationTimeout: 15_000,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
+    headless: true,
   },
   projects: [
     {
@@ -30,11 +31,11 @@ export default defineConfig({
   webServer: process.env.E2E_START_SERVER
     ? {
         command: "pnpm dev",
-        url: "http://localhost:3000",
+        url: process.env.BASE_URL || "http://localhost:3000",
         reuseExistingServer: false,
         timeout: 180_000,
         stdout: "ignore",
         stderr: "ignore",
       }
     : undefined,
-})
+});
