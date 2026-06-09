@@ -327,9 +327,10 @@ export function usePaymentState({
 
   // Memoize appId from currPayParams to prevent unnecessary refetches when payParams object reference changes
   // This is important because appId may change from default (rozoIntentPay) to user-provided
+  const orderAppId = (pay.order?.metadata as any)?.appId as string | undefined;
   const stableAppId = useMemo(
-    () => currPayParams?.appId ?? DEFAULT_ROZO_APP_ID,
-    [currPayParams?.appId],
+    () => currPayParams?.appId ?? orderAppId ?? DEFAULT_ROZO_APP_ID,
+    [currPayParams?.appId, orderAppId],
   );
 
   // Create a stable payParams object that only changes when appId actually changes
