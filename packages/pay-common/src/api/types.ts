@@ -255,6 +255,11 @@ export interface PaymentResponse {
    * Store this securely to verify incoming webhook signatures.
    */
   webhookSecret: string | null;
+  /**
+   * Whether this payment is a merchant payment.
+   * Present on v2+ API responses.
+   */
+  isMerchant?: boolean;
   [property: string]: any;
 }
 

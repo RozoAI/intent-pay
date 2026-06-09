@@ -23,6 +23,7 @@ import {
   BadgeCheckIcon,
   ExternalLinkIcon,
   LoadingCircleIcon,
+  Ring,
 } from "../../../assets/icons";
 import defaultTheme from "../../../constants/defaultTheme";
 import { ROZO_INVOICE_URL } from "../../../constants/rozoConfig";
@@ -75,8 +76,22 @@ const Confirmation: React.FC = () => {
   const pusherEnabledRef = useRef<boolean>(true);
   const prevRozoPaymentIdRef = useRef<string | undefined>(undefined);
 
+  // Whether this is a non-merchant (rozo) payment — stellar, solana, or evm with a user-submitted txHash
+  const { tokens: supportedTokens } = useSupportedChains();
+
+  // showProcessingPayout: true only when the merchant explicitly opts in AND
+  // the API tells us this is not a merchant payment (isMerchant = false).
+  // Merchant payments always resolve immediately — no payout waiting step.
   const showProcessingPayout = useMemo(() => {
     const { payParams, tokenMode } = paymentStateContext;
+
+    // If the API says this is a merchant payment, always suppress payout step
+    if (order && "metadata" in order && order.metadata != null) {
+      const meta = order.metadata as any;
+      if (meta.isMerchant === true) {
+        return false;
+      }
+    }
 
     if (
       payParams &&
@@ -86,7 +101,7 @@ const Confirmation: React.FC = () => {
     }
 
     return false;
-  }, [paymentStateContext]);
+  }, [order, paymentStateContext]);
 
   // Compute Pusher payout URL at render time to avoid stale closure issues
   // (the onPayoutCompleted callback may have stale `order` reference)
@@ -115,8 +130,6 @@ const Confirmation: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rozoPaymentId, order?.externalId, paymentStateContext.rozoPaymentId]);
-
-  const { tokens: supportedTokens } = useSupportedChains();
 
   // Separate useEffect to handle payment completion (no setState in useMemo)
   useEffect(() => {
@@ -280,10 +293,17 @@ const Confirmation: React.FC = () => {
     triggerResize,
   });
 
+  // Payout is resolved when either Pusher or polling has found the destination txhash
+  const payoutResolved = !!(
+    (pusherPayoutTxHash && computedPusherPayoutTxHashUrl) ||
+    (payoutTxHash && payoutTxHashUrl)
+  );
+
   // Use Pusher hook for real-time status updates
   // Start with Pusher enabled, will switch to polling after 1 minute if no data received
+  // Only enable Pusher when showProcessingPayout is true — no need to track payout otherwise
   const { unsubscribe: pusherUnsubscribe } = usePusherPayout({
-    enabled: pusherEnabled && !!rozoPaymentId,
+    enabled: !!showProcessingPayout && pusherEnabled && !!rozoPaymentId,
     rozoPaymentId,
     onDataReceived: () => {
       // Track that we received data from Pusher
@@ -336,8 +356,8 @@ const Confirmation: React.FC = () => {
   // Initialize Pusher timer when Pusher is enabled and rozoPaymentId is available
   // This effect sets up the timeout to switch to polling after 1 minute if no data is received
   useEffect(() => {
-    // Only proceed if we have a payment ID and Pusher is enabled
-    if (!rozoPaymentId || !pusherEnabled) {
+    // Only proceed if showProcessingPayout is enabled, we have a payment ID and Pusher is enabled
+    if (!showProcessingPayout || !rozoPaymentId || !pusherEnabled) {
       context.log("[CONFIRMATION] Timeout setup skipped:", {
         rozoPaymentId: !!rozoPaymentId,
         pusherEnabled,
@@ -412,7 +432,7 @@ const Confirmation: React.FC = () => {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rozoPaymentId, pusherEnabled]);
+  }, [showProcessingPayout, rozoPaymentId, pusherEnabled]);
 
   // Reset tracking when rozoPaymentId changes to a DIFFERENT value (not on initial mount)
   useEffect(() => {
@@ -548,8 +568,13 @@ const Confirmation: React.FC = () => {
       >
         <AnimationContainer>
           <InsetContainer>
-            {!done && <Spinner $status={done} />}
-            {done && <SuccessIcon $status={done} />}
+            {!done && <Spinner $status={false} />}
+            {done && (!showProcessingPayout || payoutResolved) && (
+              <SuccessIcon $status={true} />
+            )}
+            {done && showProcessingPayout && !payoutResolved && (
+              <Ring width={100} height={100} color="#0052ff" />
+            )}
           </InsetContainer>
         </AnimationContainer>
 
@@ -565,7 +590,9 @@ const Confirmation: React.FC = () => {
                 flexDirection: "column",
               }}
             >
-              Payment Completed
+              {showProcessingPayout && !payoutResolved
+                ? "Payment Confirmed"
+                : "Payment Completed"}
             </ModalH1>
 
             {txURL && (
@@ -624,15 +651,17 @@ const Confirmation: React.FC = () => {
           </>
         )}
 
-        {done && generateReceiptUrl && (
-          <Button
-            iconPosition="right"
-            href={generateReceiptUrl}
-            style={{ width: "100%" }}
-          >
-            See Receipt
-          </Button>
-        )}
+        {done &&
+          (!showProcessingPayout || payoutResolved) &&
+          generateReceiptUrl && (
+            <Button
+              iconPosition="right"
+              href={generateReceiptUrl}
+              style={{ width: "100%" }}
+            >
+              See Receipt
+            </Button>
+          )}
         <PoweredByFooter
           showSupport={!done}
           preFilledMessage={`Transaction: ${txURL}`}

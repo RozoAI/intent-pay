@@ -522,6 +522,7 @@ const PayWithSolanaToken: React.FC = () => {
                 : selectedSolanaTokenOption.fees.usd,
             },
           }}
+          feeData={feeData}
           feeLoading={feeLoading}
         />
         {payState === PayState.RequestCancelled && !isLoading && (

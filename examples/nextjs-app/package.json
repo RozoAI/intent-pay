@@ -16,8 +16,8 @@
     "test:e2e:headed": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --headed"
   },
   "dependencies": {
-    "@rozoai/intent-common": "0.1.19-beta.2",
-    "@rozoai/intent-pay": "0.1.27-beta.3",
+    "@rozoai/intent-common": "0.1.19-beta.3",
+    "@rozoai/intent-pay": "0.1.27-beta.4",
     "@tanstack/react-query": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

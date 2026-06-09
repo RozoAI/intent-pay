@@ -607,6 +607,7 @@ const PayWithStellarToken: React.FC = () => {
                 : selectedStellarTokenOption.fees.usd,
             },
           }}
+          feeData={feeData}
           feeLoading={feeLoading}
         />
         {payState === PayState.WaitingForConfirmation && signedTx && (

@@ -334,6 +334,7 @@ const PayWithToken: React.FC = () => {
                 : selectedTokenOption.fees.usd,
             },
           }}
+          feeData={feeData}
           feeLoading={feeLoading}
         />
         {payState === PayState.RequestCancelled && (
