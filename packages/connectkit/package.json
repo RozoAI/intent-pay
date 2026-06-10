@@ -1,6 +1,6 @@
 {
   "name": "@rozoai/intent-pay",
-  "version": "0.1.27-beta.4",
+  "version": "0.1.27-beta.5",
   "private": false,
   "description": "Seamless crypto payments. Onboard users from any chain, any coin into your app with one click.",
   "keywords": [
@@ -41,8 +41,8 @@
     "format": "oxfmt src/",
     "format:check": "oxfmt --check src/",
     "release": "bumpp",
-    "publish:beta": "pnpm publish --no-git-checks --tag beta",
-    "publish:latest": "pnpm publish --no-git-checks --tag latest"
+    "publish:beta": "node scripts/release.js beta",
+    "publish:latest": "node scripts/release.js latest"
   },
   "dependencies": {
     "@reown/appkit": "^1.7.0",
