@@ -105,9 +105,7 @@ export const setApiConfig = (config: Partial<ApiConfig>): void => {
  */
 const createUrl = (url: string, params?: Record<string, string>): string => {
   const config = getApiConfig();
-  const fullUrl = url.startsWith("/")
-    ? `${config.baseUrl}${url}`
-    : `${config.baseUrl}/${url}`;
+  const fullUrl = url.startsWith("/") ? `${config.baseUrl}${url}` : `${config.baseUrl}/${url}`;
 
   if (!params) return fullUrl;
 
@@ -196,10 +194,8 @@ export const apiClient = {
    * @param options - Request options
    * @returns Promise with response data
    */
-  get: <T = any>(
-    url: string,
-    options: Omit<RequestOptions, "method" | "body"> = {},
-  ) => fetchApi<T>(url, { ...options, method: "GET" }),
+  get: <T = any>(url: string, options: Omit<RequestOptions, "method" | "body"> = {}) =>
+    fetchApi<T>(url, { ...options, method: "GET" }),
 
   /**
    * POST request
@@ -208,11 +204,8 @@ export const apiClient = {
    * @param options - Additional request options
    * @returns Promise with response data
    */
-  post: <T = any>(
-    url: string,
-    body: any,
-    options: Omit<RequestOptions, "method" | "body"> = {},
-  ) => fetchApi<T>(url, { ...options, method: "POST", body }),
+  post: <T = any>(url: string, body: any, options: Omit<RequestOptions, "method" | "body"> = {}) =>
+    fetchApi<T>(url, { ...options, method: "POST", body }),
 
   /**
    * PUT request
@@ -221,11 +214,8 @@ export const apiClient = {
    * @param options - Additional request options
    * @returns Promise with response data
    */
-  put: <T = any>(
-    url: string,
-    body: any,
-    options: Omit<RequestOptions, "method" | "body"> = {},
-  ) => fetchApi<T>(url, { ...options, method: "PUT", body }),
+  put: <T = any>(url: string, body: any, options: Omit<RequestOptions, "method" | "body"> = {}) =>
+    fetchApi<T>(url, { ...options, method: "PUT", body }),
 
   /**
    * PATCH request
@@ -234,11 +224,8 @@ export const apiClient = {
    * @param options - Additional request options
    * @returns Promise with response data
    */
-  patch: <T = any>(
-    url: string,
-    body: any,
-    options: Omit<RequestOptions, "method" | "body"> = {},
-  ) => fetchApi<T>(url, { ...options, method: "PATCH", body }),
+  patch: <T = any>(url: string, body: any, options: Omit<RequestOptions, "method" | "body"> = {}) =>
+    fetchApi<T>(url, { ...options, method: "PATCH", body }),
 
   /**
    * DELETE request
@@ -246,8 +233,6 @@ export const apiClient = {
    * @param options - Request options
    * @returns Promise with response data
    */
-  delete: <T = any>(
-    url: string,
-    options: Omit<RequestOptions, "method"> = {},
-  ) => fetchApi<T>(url, { ...options, method: "DELETE" }),
+  delete: <T = any>(url: string, options: Omit<RequestOptions, "method"> = {}) =>
+    fetchApi<T>(url, { ...options, method: "DELETE" }),
 };

@@ -12,7 +12,10 @@ import {
 import {
   buildCheckoutPayload,
   checkoutPayment,
+  FeeResponseData,
+  FeeType,
   formatPaymentResponseToHydratedOrder,
+  getCanonicalDestination,
   getChainExplorerTxUrl,
   getPayment,
   RozoPayHydratedOrderWithOrg,
@@ -30,6 +33,7 @@ import { useRozoPay } from "../../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../../lib/analytics/events";
 import { useAnalytics } from "../../../../provider/AnalyticsProvider";
 import { useStellar } from "../../../../provider/StellarContextProvider";
+import { getCachedFee } from "../../../../utils/feeCache";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
@@ -88,6 +92,39 @@ const PayWithStellarToken: React.FC = () => {
   const [txURL, setTxURL] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
   const [signedTx, setSignedTx] = useState<string | undefined>();
+  const [feeData, setFeeData] = useState<FeeResponseData | null>(null);
+  const [feeLoading, setFeeLoading] = useState(false);
+
+  // useEffect(() => {
+  //   if (!selectedStellarTokenOption || !order) return;
+
+  //   const destToken = order.destFinalCallTokenAmount?.token;
+  //   if (!destToken) return;
+
+  //   setFeeLoading(true);
+  //   getCachedFee({
+  //     appId: payParams?.appId,
+  //     type: payParams?.feeType ?? FeeType.ExactIn,
+  //     sourceChainId:
+  //       selectedStellarTokenOption.balance.token.chainId.toString(),
+  //     sourceTokenSymbol: selectedStellarTokenOption.balance.token.symbol,
+  //     amount: selectedStellarTokenOption.required.usd.toString(),
+  //     destChainId: destToken.chainId.toString(),
+  //     destReceiverAddress:
+  //       getCanonicalDestination(order).finalDestinationAddress ??
+  //       payParams?.toStellarAddress ??
+  //       payParams?.toAddress ??
+  //       "",
+  //     destTokenSymbol: destToken.symbol,
+  //   })
+  //     .then((res) => {
+  //       setFeeData(res.data);
+  //     })
+  //     .finally(() => {
+  //       setFeeLoading(false);
+  //     });
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [selectedStellarTokenOption?.balance.token.chainId, order?.id]);
 
   const destinationAddress = useMemo(() => {
     return (
@@ -112,6 +149,13 @@ const PayWithStellarToken: React.FC = () => {
   // FOR TRANSFER ACTION
   const handleTransfer = async (option: WalletPaymentOption) => {
     setIsLoading(true);
+    capture(ROZO_EVENTS.PAYMENT_CONFIRMED, {
+      payment_id: rozoPaymentId ?? order?.externalId,
+      source_chain: option.required.token.chainId,
+      token_symbol: option.required.token.symbol,
+      amount:
+        option.required.usd != null ? String(option.required.usd) : undefined,
+    });
     // Hoist so the catch block can reference the payment ID resolved in this
     // attempt, instead of the stale React state value captured in the closure.
     let resolvedPaymentId: string | undefined;
@@ -153,6 +197,40 @@ const PayWithStellarToken: React.FC = () => {
       // of creating a new one to avoid re-creating a payment that already exists.
       const existingPayId = order.externalId ?? undefined;
       const isPayIdMode = !payParams && !!existingPayId;
+
+      // @NOTE: Fee calculation
+      const destToken = order.destFinalCallTokenAmount?.token;
+      setFeeLoading(true);
+      const feeData = await getCachedFee({
+        appId: paymentState.payParams?.appId,
+        type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
+        sourceChainId: option.required.token.chainId.toString(),
+        sourceTokenSymbol: option.required.token.symbol,
+        amount: option.required.usd.toString(),
+        destChainId: destToken.chainId.toString(),
+        destReceiverAddress:
+          getCanonicalDestination(order).finalDestinationAddress ??
+          paymentState.payParams?.toAddress ??
+          "",
+        destTokenSymbol: destToken.symbol,
+      });
+      setFeeLoading(false);
+
+      if (feeData.error) {
+        capture(ROZO_EVENTS.PAYMENT_FAILED, {
+          payment_id: rozoPaymentId ?? order?.externalId,
+          error_message: feeData.error.message,
+          source_chain: option.required.token.chainId,
+          source_token: option.required.token.symbol,
+          dest_chain: destToken.chainId,
+          dest_token: destToken.symbol,
+        });
+        console.error("Fee calculation failed", feeData.error);
+        setPayState(PayState.RequestFailed);
+        return;
+      }
+
+      setFeeData(feeData.data);
 
       if (isPayIdMode) {
         // payId mode: checkout (refresh) the payment with the selected source token.
@@ -213,9 +291,22 @@ const PayWithStellarToken: React.FC = () => {
             throw new Error("Failed to checkout payment");
           }
           paymentId = checkoutRes.data.id;
-          hydratedOrder = formatPaymentResponseToHydratedOrder(checkoutRes.data);
+          hydratedOrder = formatPaymentResponseToHydratedOrder(
+            checkoutRes.data,
+          );
         } else {
-          const res = await createPayment(option, store as any);
+          const res = await createPayment(
+            {
+              ...option,
+              fees: {
+                ...option.fees,
+                usd: feeData.data?.source.fee != null
+                  ? Number(feeData.data.source.fee)
+                  : option.fees.usd,
+              },
+            },
+            store as any,
+          );
           if (!res) {
             throw new Error("Failed to create Rozo payment");
           }
@@ -224,7 +315,15 @@ const PayWithStellarToken: React.FC = () => {
         }
       } else {
         // Hydrate existing order
-        const res = await hydrateOrder(undefined, option);
+        const res = await hydrateOrder(undefined, {
+          ...option,
+          fees: {
+            ...option.fees,
+            usd: feeData.data?.source.fee != null
+              ? Number(feeData.data.source.fee)
+              : option.fees.usd,
+          },
+        });
         hydratedOrder = res.order;
       }
 
@@ -313,7 +412,6 @@ const PayWithStellarToken: React.FC = () => {
 
       const paymentData = {
         destAddress: finalDestAddress,
-        usdcAmount: String(option.required.usd),
       };
 
       if (hydratedOrder.memo) {
@@ -322,7 +420,18 @@ const PayWithStellarToken: React.FC = () => {
         });
       }
 
-      const result = await payWithStellarToken(option, paymentData);
+      const result = await payWithStellarToken(
+        {
+          ...option,
+          fees: {
+            ...option.fees,
+            usd: feeData.data?.source.fee != null
+              ? Number(feeData.data.source.fee)
+              : option.fees.usd,
+          },
+        },
+        paymentData,
+      );
       setSignedTx(result.signedTx);
       setPayState(PayState.WaitingForConfirmation);
     } catch (error) {
@@ -339,11 +448,14 @@ const PayWithStellarToken: React.FC = () => {
         }
       }
 
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       const isRejected = errorMessage.includes("rejected");
       capture(ROZO_EVENTS.PAYMENT_FAILED, {
         payment_id: resolvedPaymentId ?? rozoPaymentId,
-        error_message: isRejected ? "user_rejected" : (errorMessage ?? "unknown_error"),
+        error_message: isRejected
+          ? "user_rejected"
+          : (errorMessage ?? "unknown_error"),
         source_chain: rozoStellar.chainId,
       });
       if (isRejected) {
@@ -381,9 +493,15 @@ const PayWithStellarToken: React.FC = () => {
           capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
             payment_id: rozoPaymentId,
             tx_hash: response.hash,
-            chain: rozoStellar.chainId,
+            source_chain: rozoStellar.chainId,
             token_symbol: selectedStellarTokenOption?.required.token.symbol,
           });
+          try {
+            sessionStorage.setItem(
+              `rozo_submitted_at:${rozoPaymentId}`,
+              String(Date.now()),
+            );
+          } catch {}
           setPayState(PayState.RequestSuccessful);
           setTxHash(response.hash);
           setTxURL(getChainExplorerTxUrl(rozoStellar.chainId, response.hash));
@@ -408,11 +526,14 @@ const PayWithStellarToken: React.FC = () => {
           setPayState(PayState.RequestFailed);
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         const isRejected = errorMessage.includes("rejected");
         capture(ROZO_EVENTS.PAYMENT_FAILED, {
           payment_id: rozoPaymentId,
-          error_message: isRejected ? "user_rejected" : (errorMessage ?? "unknown_error"),
+          error_message: isRejected
+            ? "user_rejected"
+            : (errorMessage ?? "unknown_error"),
           source_chain: rozoStellar.chainId,
         });
         if (isRejected) {
@@ -476,7 +597,19 @@ const PayWithStellarToken: React.FC = () => {
         ) : (
           <ModalH1>{payState}</ModalH1>
         )}
-        <PaymentBreakdown paymentOption={selectedStellarTokenOption} />
+        <PaymentBreakdown
+          paymentOption={{
+            ...selectedStellarTokenOption,
+            fees: {
+              ...selectedStellarTokenOption.fees,
+              usd: feeData?.source.fee != null
+                ? Number(feeData.source.fee)
+                : selectedStellarTokenOption.fees.usd,
+            },
+          }}
+          feeData={feeData}
+          feeLoading={feeLoading}
+        />
         {payState === PayState.WaitingForConfirmation && signedTx && (
           <Button variant="primary" onClick={handleSubmitTx}>
             Confirm Payment

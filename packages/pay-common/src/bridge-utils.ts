@@ -423,6 +423,7 @@ export function formatPaymentResponseToHydratedOrder(
         order.source?.chainId ?? Number(order.destination.chainId),
       receivingAddress: intentAddress ?? "",
       memo: intentMemo ?? null,
+      isMerchant: order.isMerchant ?? false,
     } as any,
     externalId: order.externalId ?? order.id ?? null,
     userMetadata: order.userMetadata as RozoPayUserMetadata | null,

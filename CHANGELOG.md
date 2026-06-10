@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.27] - 2026-06-10
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Enhance payment tracking with analytics events for confirmation and payment states &nbsp;-&nbsp; by @akbarsaputrait [<samp>(aebb5)</samp>](https://github.com/RozoAI/intent-pay/commit/aebb5f63)
+- Force to use checkout API if token switched and rozoPaymentId exist &nbsp;-&nbsp; by @akbarsaputrait [<samp>(96360)</samp>](https://github.com/RozoAI/intent-pay/commit/963600d1)
+- Introduce new playground with preview and code toggle &nbsp;-&nbsp; by @akbarsaputrait [<samp>(6b125)</samp>](https://github.com/RozoAI/intent-pay/commit/6b125aaa)
+- Improve playground state and snippet &nbsp;-&nbsp; by @akbarsaputrait [<samp>(545d8)</samp>](https://github.com/RozoAI/intent-pay/commit/545d8307)
+- Add logo and favicon &nbsp;-&nbsp; by @akbarsaputrait [<samp>(43f5d)</samp>](https://github.com/RozoAI/intent-pay/commit/43f5da7c)
+- Add resetPayId for checkout mode &nbsp;-&nbsp; by @akbarsaputrait [<samp>(38915)</samp>](https://github.com/RozoAI/intent-pay/commit/3891529d)
+- Introduce "telemetry" props to prevent analytics and sanitize sensitive data &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e0cdf)</samp>](https://github.com/RozoAI/intent-pay/commit/e0cdfadf)
+- Add data-testid attributes to modal and options list for E2E testing &nbsp;-&nbsp; by @akbarsaputrait [<samp>(038ce)</samp>](https://github.com/RozoAI/intent-pay/commit/038ce874)
+- Add e2e test on playground &nbsp;-&nbsp; by @akbarsaputrait [<samp>(00107)</samp>](https://github.com/RozoAI/intent-pay/commit/00107192)
+- Add payment confirmed state on Confirmation modal &nbsp;-&nbsp; by @akbarsaputrait [<samp>(7dad9)</samp>](https://github.com/RozoAI/intent-pay/commit/7dad9f6b)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Build &nbsp;-&nbsp; by @akbarsaputrait [<samp>(28f1e)</samp>](https://github.com/RozoAI/intent-pay/commit/28f1e526)
+- Use local playwright binary and make webServer opt-in via E2E_START_SERVER &nbsp;-&nbsp; by @akbarsaputrait [<samp>(bf52e)</samp>](https://github.com/RozoAI/intent-pay/commit/bf52e0d3)
+- Update fee handling to check for null values and improve fee caching expiration &nbsp;-&nbsp; by @akbarsaputrait [<samp>(26fec)</samp>](https://github.com/RozoAI/intent-pay/commit/26fecc7d)
+- **e2e**: Pay Now not rendered before config confirmed, assert not visible &nbsp;-&nbsp; by @akbarsaputrait [<samp>(8c13e)</samp>](https://github.com/RozoAI/intent-pay/commit/8c13e47f)
+
+---
+
+
 ## [0.1.26] - 2026-06-02
 
 ### ✨ New Features

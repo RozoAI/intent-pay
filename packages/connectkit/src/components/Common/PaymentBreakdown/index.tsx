@@ -1,47 +1,65 @@
 import React from "react";
 
-import { WalletPaymentOption } from "@rozoai/intent-common";
+import { FeeResponseData, WalletPaymentOption } from "@rozoai/intent-common";
 import defaultTheme from "../../../constants/defaultTheme";
 import styled from "../../../styles/styled";
 import { roundTokenAmount } from "../../../utils/format";
 import { ModalBody } from "../../Common/Modal/styles";
+import { Spinner } from "../Spinner";
+import { SpinnerContainer } from "../Spinner/styles";
 
 const PaymentBreakdown: React.FC<{
   paymentOption: WalletPaymentOption;
-}> = ({ paymentOption }) => {
-  const feesUsd = paymentOption.fees.usd;
+  feeData?: FeeResponseData | null;
+  feeLoading?: boolean;
+}> = ({ paymentOption, feeData, feeLoading }) => {
   const tokenSymbol = paymentOption.required.token.symbol;
-  const feeTokenAmount = roundTokenAmount(
-    paymentOption.fees.amount,
-    paymentOption.fees.token,
-    "nearest",
-  );
-  const totalTokenAmount = roundTokenAmount(
-    paymentOption.required.amount,
-    paymentOption.required.token,
-    "nearest",
-  );
+
+  const feeDisplay = (() => {
+    if (feeLoading) return null;
+    if (feeData) {
+      const feeAmount = parseFloat(feeData.source.fee);
+      if (feeAmount === 0) return "free";
+      return `${feeData.source.fee} ${feeData.source.tokenSymbol}`;
+    }
+    const feesUsd = paymentOption.fees.usd;
+    if (feesUsd === 0) return "free";
+    return `${roundTokenAmount(paymentOption.fees.amount, paymentOption.fees.token, "nearest")} ${tokenSymbol}`;
+  })();
+
+  const totalDisplay = (() => {
+    if (feeData) {
+      return `${feeData.source.amount} ${feeData.source.tokenSymbol}`;
+    }
+    return `${roundTokenAmount(paymentOption.required.amount, paymentOption.required.token, "nearest")} ${tokenSymbol}`;
+  })();
 
   return (
     <FeesContainer>
-      {/* {feesUsd > 0 && (
-        <FeeRow>
-          <ModalBody>Subtotal</ModalBody>
-          <ModalBody>${(subtotalUsd - feesUsd).toFixed(2)}</ModalBody>
-        </FeeRow>
-      )} */}
       <FeeRow>
         <ModalBody>Fees</ModalBody>
-        {feesUsd === 0 ? (
+        {feeLoading ? (
+          <ModalBody>
+            <SpinnerContainer>
+              <Spinner />
+            </SpinnerContainer>
+          </ModalBody>
+        ) : feeDisplay === "free" ? (
           <Badge>Free</Badge>
         ) : (
-          <ModalBody>{`${feeTokenAmount} ${tokenSymbol}`}</ModalBody>
+          <ModalBody>{feeDisplay}</ModalBody>
         )}
       </FeeRow>
       <FeeRow style={{ marginTop: 8 }}>
         <ModalBody style={{ fontWeight: 600 }}>Total</ModalBody>
         <ModalBody style={{ fontWeight: 600 }}>
-          {`${totalTokenAmount} ${tokenSymbol}`}
+          {feeLoading ? (
+            <SpinnerContainer>
+              <Spinner />
+            </SpinnerContainer>
+          ) : (
+            totalDisplay
+          )}
         </ModalBody>
       </FeeRow>
     </FeesContainer>

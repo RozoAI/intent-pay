@@ -1,4 +1,7 @@
 import {
+  FeeResponseData,
+  FeeType,
+  getCanonicalDestination,
   getChainExplorerTxUrl,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
@@ -10,6 +13,7 @@ import { usePayContext } from "../../../hooks/usePayContext";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
+import { getCachedFee } from "../../../utils/feeCache";
 import Button from "../../Common/Button";
 import {
   Link,
@@ -53,6 +57,8 @@ const PayWithToken: React.FC = () => {
     PayState.RequestingPayment,
   );
   const [txURL, setTxURL] = useState<string | undefined>();
+  const [feeData, setFeeData] = useState<FeeResponseData | null>(null);
+  const [feeLoading, setFeeLoading] = useState(true);
 
   useEffect(() => {
     if (rozoPaymentState === "error") {
@@ -97,6 +103,10 @@ const PayWithToken: React.FC = () => {
 
   const handleTransfer = useCallback(
     async (option: WalletPaymentOption) => {
+      if (!order) {
+        throw new Error("Order not initialized");
+      }
+
       capture(ROZO_EVENTS.PAYMENT_CONFIRMED, {
         payment_id: rozoPaymentId ?? order?.externalId,
         source_chain: option.required.token.chainId,
@@ -131,7 +141,52 @@ const PayWithToken: React.FC = () => {
           }
         }
 
-        const result = await payWithToken(option, store as any);
+        // @NOTE: Fee calculation
+        const destToken = order.destFinalCallTokenAmount?.token;
+        setFeeLoading(true);
+        const feeData = await getCachedFee({
+          appId: paymentState.payParams?.appId,
+          type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
+          sourceChainId: option.required.token.chainId.toString(),
+          sourceTokenSymbol: option.required.token.symbol,
+          amount: option.required.usd.toString(),
+          destChainId: destToken.chainId.toString(),
+          destReceiverAddress:
+            getCanonicalDestination(order).finalDestinationAddress ??
+            paymentState.payParams?.toAddress ??
+            "",
+          destTokenSymbol: destToken.symbol,
+        });
+        setFeeLoading(false);
+
+        if (feeData.error) {
+          capture(ROZO_EVENTS.PAYMENT_FAILED, {
+            payment_id: rozoPaymentId ?? order?.externalId,
+            error_message: feeData.error.message,
+            source_chain: option.required.token.chainId,
+            source_token: option.required.token.symbol,
+            dest_chain: destToken.chainId,
+            dest_token: destToken.symbol,
+          });
+          console.error("Fee calculation failed", feeData.error);
+          setPayState(PayState.RequestFailed);
+          return;
+        }
+
+        setFeeData(feeData.data);
+
+        const result = await payWithToken(
+          {
+            ...option,
+            fees: {
+              ...option.fees,
+              usd: feeData.data?.source.fee != null
+                ? Number(feeData.data.source.fee)
+                : option.fees.usd,
+            },
+          },
+          store as any,
+        );
         setTxURL(
           getChainExplorerTxUrl(option.required.token.chainId, result.txHash),
         );
@@ -139,9 +194,15 @@ const PayWithToken: React.FC = () => {
           capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
             payment_id: rozoPaymentId ?? order?.externalId,
             tx_hash: result.txHash,
-            chain: option.required.token.chainId,
+            source_chain: option.required.token.chainId,
             token_symbol: option.required.token.symbol,
           });
+          try {
+            sessionStorage.setItem(
+              `rozo_submitted_at:${rozoPaymentId ?? order?.externalId}`,
+              String(Date.now()),
+            );
+          } catch {}
           setSenderAddress(address);
           setPayState(PayState.RequestSuccessful);
           setTimeout(() => {
@@ -178,9 +239,15 @@ const PayWithToken: React.FC = () => {
                 capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
                   payment_id: rozoPaymentId ?? order?.externalId,
                   tx_hash: retryResult.txHash,
-                  chain: option.required.token.chainId,
+                  source_chain: option.required.token.chainId,
                   token_symbol: option.required.token.symbol,
                 });
+                try {
+                  sessionStorage.setItem(
+                    `rozo_submitted_at:${rozoPaymentId ?? order?.externalId}`,
+                    String(Date.now()),
+                  );
+                } catch {}
                 setSenderAddress(address);
                 setPayState(PayState.RequestSuccessful);
                 setTimeout(() => {
@@ -257,7 +324,19 @@ const PayWithToken: React.FC = () => {
         ) : (
           <ModalH1>{payState}</ModalH1>
         )}
-        <PaymentBreakdown paymentOption={selectedTokenOption} />
+        <PaymentBreakdown
+          paymentOption={{
+            ...selectedTokenOption,
+            fees: {
+              ...selectedTokenOption.fees,
+              usd: feeData?.source.fee != null
+                ? Number(feeData.source.fee)
+                : selectedTokenOption.fees.usd,
+            },
+          }}
+          feeData={feeData}
+          feeLoading={feeLoading}
+        />
         {payState === PayState.RequestCancelled && (
           <Button onClick={() => handleTransfer(selectedTokenOption)}>
             Retry Payment

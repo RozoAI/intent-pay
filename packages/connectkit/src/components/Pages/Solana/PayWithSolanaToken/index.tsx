@@ -12,7 +12,10 @@ import {
 import {
   buildCheckoutPayload,
   checkoutPayment,
+  FeeResponseData,
+  FeeType,
   formatPaymentResponseToHydratedOrder,
+  getCanonicalDestination,
   getChainExplorerTxUrl,
   getPayment,
   RozoPayHydratedOrderWithOrg,
@@ -24,6 +27,7 @@ import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../../lib/analytics/events";
 import { useAnalytics } from "../../../../provider/AnalyticsProvider";
+import { getCachedFee } from "../../../../utils/feeCache";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
@@ -68,6 +72,38 @@ const PayWithSolanaToken: React.FC = () => {
   );
   const [txURL, setTxURL] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
+  const [feeData, setFeeData] = useState<FeeResponseData | null>(null);
+  const [feeLoading, setFeeLoading] = useState(false);
+
+  // useEffect(() => {
+  //   if (!selectedSolanaTokenOption || !order) return;
+
+  //   const destToken = order.destFinalCallTokenAmount?.token;
+  //   if (!destToken) return;
+
+  //   setFeeLoading(true);
+  //   getCachedFee({
+  //     appId: payParams?.appId,
+  //     type: payParams?.feeType ?? FeeType.ExactIn,
+  //     sourceChainId: selectedSolanaTokenOption.balance.token.chainId.toString(),
+  //     sourceTokenSymbol: selectedSolanaTokenOption.balance.token.symbol,
+  //     amount: selectedSolanaTokenOption.required.usd.toString(),
+  //     destChainId: destToken.chainId.toString(),
+  //     destReceiverAddress:
+  //       getCanonicalDestination(order).finalDestinationAddress ??
+  //       payParams?.toSolanaAddress ??
+  //       payParams?.toAddress ??
+  //       "",
+  //     destTokenSymbol: destToken.symbol,
+  //   })
+  //     .then((res) => {
+  //       setFeeData(res.data);
+  //     })
+  //     .finally(() => {
+  //       setFeeLoading(false);
+  //     });
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [selectedSolanaTokenOption?.balance.token.chainId, order?.id]);
 
   useEffect(() => {
     if (state === "error") {
@@ -92,6 +128,13 @@ const PayWithSolanaToken: React.FC = () => {
   const handleTransfer = useCallback(
     async (option: WalletPaymentOption, isRetry: boolean = false) => {
       setIsLoading(true);
+      capture(ROZO_EVENTS.PAYMENT_CONFIRMED, {
+        payment_id: rozoPaymentId ?? order?.externalId,
+        source_chain: option.required.token.chainId,
+        token_symbol: option.required.token.symbol,
+        amount:
+          option.required.usd != null ? String(option.required.usd) : undefined,
+      });
       if (isRetry) {
         setPayState(PayState.PreparingTransaction);
       }
@@ -116,6 +159,40 @@ const PayWithSolanaToken: React.FC = () => {
         // of creating a new one to avoid re-creating a payment that already exists.
         const existingPayId = order.externalId ?? undefined;
         const isPayIdMode = !payParams && !!existingPayId;
+
+        // @NOTE: Fee calculation
+        const destToken = order.destFinalCallTokenAmount?.token;
+        setFeeLoading(true);
+        const feeData = await getCachedFee({
+          appId: paymentState.payParams?.appId,
+          type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
+          sourceChainId: option.required.token.chainId.toString(),
+          sourceTokenSymbol: option.required.token.symbol,
+          amount: option.required.usd.toString(),
+          destChainId: destToken.chainId.toString(),
+          destReceiverAddress:
+            getCanonicalDestination(order).finalDestinationAddress ??
+            paymentState.payParams?.toAddress ??
+            "",
+          destTokenSymbol: destToken.symbol,
+        });
+        setFeeLoading(false);
+
+        if (feeData.error) {
+          capture(ROZO_EVENTS.PAYMENT_FAILED, {
+            payment_id: rozoPaymentId ?? order?.externalId,
+            error_message: feeData.error.message,
+            source_chain: option.required.token.chainId,
+            source_token: option.required.token.symbol,
+            dest_chain: destToken.chainId,
+            dest_token: destToken.symbol,
+          });
+          console.error("Fee calculation failed", feeData.error);
+          setPayState(PayState.RequestFailed);
+          return;
+        }
+
+        setFeeData(feeData.data);
 
         if (isPayIdMode) {
           // payId mode: checkout (refresh) the payment with the selected source token
@@ -177,7 +254,18 @@ const PayWithSolanaToken: React.FC = () => {
               checkoutRes.data,
             );
           } else {
-            const res = await createPayment(option, store as any);
+            const res = await createPayment(
+              {
+                ...option,
+                fees: {
+                  ...option.fees,
+                  usd: feeData.data?.source.fee != null
+                    ? Number(feeData.data.source.fee)
+                    : option.fees.usd,
+                },
+              },
+              store as any,
+            );
             if (!res) {
               throw new Error("Failed to create Rozo payment");
             }
@@ -186,7 +274,15 @@ const PayWithSolanaToken: React.FC = () => {
           }
         } else {
           // Hydrate existing order
-          const res = await hydrateOrder(undefined, option);
+          const res = await hydrateOrder(undefined, {
+            ...option,
+            fees: {
+              ...option.fees,
+              usd: feeData.data?.source.fee != null
+                ? Number(feeData.data.source.fee)
+                : option.fees.usd,
+            },
+          });
           hydratedOrder = res.order;
         }
 
@@ -262,7 +358,6 @@ const PayWithSolanaToken: React.FC = () => {
 
         const paymentData = {
           destAddress: hydratedOrder.intentAddr,
-          usdcAmount: String(option.required.usd),
         };
 
         if (hydratedOrder.memo) {
@@ -271,7 +366,18 @@ const PayWithSolanaToken: React.FC = () => {
           });
         }
 
-        const result = await payWithSolanaTokenRozo(option, paymentData);
+        const result = await payWithSolanaTokenRozo(
+          {
+            ...option,
+            fees: {
+              ...option.fees,
+              usd: feeData.data?.source.fee != null
+                ? Number(feeData.data.source.fee)
+                : option.fees.usd,
+            },
+          },
+          paymentData,
+        );
         log(
           "[PAY SOLANA] Result",
           result,
@@ -283,9 +389,15 @@ const PayWithSolanaToken: React.FC = () => {
           capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
             payment_id: newId ?? rozoPaymentId,
             tx_hash: result.txHash,
-            chain: rozoSolana.chainId,
+            source_chain: rozoSolana.chainId,
             token_symbol: option.required.token.symbol,
           });
+          try {
+            sessionStorage.setItem(
+              `rozo_submitted_at:${newId ?? rozoPaymentId}`,
+              String(Date.now()),
+            );
+          } catch {}
           setPayState(PayState.RequestSuccessful);
           setTxHash(result.txHash);
           // Use `newId` (resolved this attempt) instead of the stale
@@ -400,7 +512,19 @@ const PayWithSolanaToken: React.FC = () => {
         ) : (
           <ModalH1>{payState}</ModalH1>
         )}
-        <PaymentBreakdown paymentOption={selectedSolanaTokenOption} />
+        <PaymentBreakdown
+          paymentOption={{
+            ...selectedSolanaTokenOption,
+            fees: {
+              ...selectedSolanaTokenOption.fees,
+              usd: feeData?.source.fee != null
+                ? Number(feeData.source.fee)
+                : selectedSolanaTokenOption.fees.usd,
+            },
+          }}
+          feeData={feeData}
+          feeLoading={feeLoading}
+        />
         {payState === PayState.RequestCancelled && !isLoading && (
           <Button
             onClick={() => handleTransfer(selectedSolanaTokenOption, true)}

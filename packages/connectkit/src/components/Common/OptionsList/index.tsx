@@ -55,7 +55,7 @@ export const OptionsList = ({
       : 0;
 
     return (
-      <OptionsContainer $totalResults={options.length}>
+      <OptionsContainer $totalResults={options.length} data-testid="rozopay-options-list">
         {options.map((option) => (
           <OptionItem key={option.id} option={option} />
         ))}
@@ -75,7 +75,7 @@ export const OptionsList = ({
         hideBottomLine={orDivider || hideBottomLine}
         totalItems={options.length}
       >
-        <OptionsContainer $totalResults={options.length}>
+        <OptionsContainer $totalResults={options.length} data-testid="rozopay-options-list">
           {options.map((option) => (
             <OptionItem key={option.id} option={option} />
           ))}
@@ -176,6 +176,7 @@ const OptionItem = ({ option }: { option: Option }) => {
   return (
     <OptionButton
       type="button"
+      data-testid={`rozopay-option-${option.id}`}
       onClick={option.onClick}
       disabled={option.disabled}
     >

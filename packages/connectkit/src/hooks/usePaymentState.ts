@@ -44,36 +44,19 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  erc20Abi,
-  getAddress,
-  Hex,
-  hexToBytes,
-  parseUnits,
-  zeroAddress,
-} from "viem";
-import {
-  useAccount,
-  useSendTransaction,
-  useSwitchChain,
-  useWriteContract,
-} from "wagmi";
+import { erc20Abi, getAddress, Hex, hexToBytes, parseUnits, zeroAddress } from "viem";
+import { useAccount, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { convertPreferredSymbolsToTokens } from "../utils/token";
 
 import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
+import { createMemoInstruction } from "@solana/spl-memo";
 import {
   createAssociatedTokenAccountInstruction,
   createTransferCheckedInstruction,
   getAssociatedTokenAddress,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
-import {
-  Asset,
-  Memo,
-  Networks,
-  Operation,
-  TransactionBuilder,
-} from "@stellar/stellar-sdk";
+import { Asset, Memo, Networks, Operation, TransactionBuilder } from "@stellar/stellar-sdk";
 import bs58 from "bs58";
 import { PayButtonPaymentProps } from "../components/RozoPayButton/types";
 import { ROUTES } from "../constants/routes";
@@ -98,9 +81,7 @@ import { useStellarPaymentOptions } from "./useStellarPaymentOptions";
 import { useWalletPaymentOptions } from "./useWalletPaymentOptions";
 
 /** Wallet payment details, sent to processSourcePayment after submitting tx. (internal type) */
-type SourcePayment = Parameters<
-  TrpcClient["processSourcePayment"]["mutate"]
->[0];
+type SourcePayment = Parameters<TrpcClient["processSourcePayment"]["mutate"]>[0];
 
 /** Creates (or loads) a payment and manages the corresponding modal. */
 export interface PaymentState {
@@ -147,16 +128,10 @@ export interface PaymentState {
   setTokenMode: (mode: "evm" | "solana" | "stellar" | "all") => void;
   setSelectedWallet: (wallet: WalletConfigProps | undefined) => void;
   setSelectedWalletDeepLink: (deepLink: string | undefined) => void;
-  setSelectedExternalOption: (
-    option: ExternalPaymentOptionMetadata | undefined,
-  ) => void;
+  setSelectedExternalOption: (option: ExternalPaymentOptionMetadata | undefined) => void;
   setSelectedTokenOption: (option: WalletPaymentOption | undefined) => void;
-  setSelectedSolanaTokenOption: (
-    option: WalletPaymentOption | undefined,
-  ) => void;
-  setSelectedStellarTokenOption: (
-    option: WalletPaymentOption | undefined,
-  ) => void;
+  setSelectedSolanaTokenOption: (option: WalletPaymentOption | undefined) => void;
+  setSelectedStellarTokenOption: (option: WalletPaymentOption | undefined) => void;
   setSelectedDepositAddressOption: (
     option: DepositAddressPaymentOptionMetadata | undefined,
   ) => void;
@@ -171,10 +146,7 @@ export interface PaymentState {
     store: Store<PaymentState, PaymentEvent>,
     fees: FeeResponseData | null,
     log?: (message: string) => void,
-  ) => Promise<
-    | (DepositAddressPaymentOptionData & { externalId: string; memo: string })
-    | null
-  >;
+  ) => Promise<(DepositAddressPaymentOptionData & { externalId: string; memo: string }) | null>;
   payWithSolanaToken: (
     walletPaymentOption: WalletPaymentOption,
   ) => Promise<{ txHash: string; success: boolean }>;
@@ -182,15 +154,13 @@ export interface PaymentState {
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
-      usdcAmount: string;
       memo?: string;
     },
   ) => Promise<{ txHash: string; success: boolean }>;
   payWithStellarToken: (
-    option: WalletPaymentOption,
+    walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
-      usdcAmount: string;
       memo?: string;
     },
   ) => Promise<{ signedTx: string; success: boolean }>;
@@ -246,9 +216,7 @@ export function usePaymentState({
   const { capture } = useAnalytics();
 
   // Track deposit address calls to prevent duplicates
-  const depositAddressCallRef = useRef<Set<DepositAddressPaymentOptions>>(
-    new Set(),
-  );
+  const depositAddressCallRef = useRef<Set<DepositAddressPaymentOptions>>(new Set());
 
   // Browser state.
   const [platform, setPlatform] = useState<PlatformType>();
@@ -299,23 +267,16 @@ export function usePaymentState({
   }, [currPayParams]);
 
   // Modal options
-  const [connectedWalletOnly, setConnectedWalletOnly] =
-    useState<boolean>(false);
+  const [connectedWalletOnly, setConnectedWalletOnly] = useState<boolean>(false);
 
   const [paymentWaitingMessage, setPaymentWaitingMessage] = useState<string>();
   const [isDepositFlow, setIsDepositFlow] = useState<boolean>(false);
 
-  const [tokenMode, setTokenMode] = useState<
-    "evm" | "solana" | "stellar" | "all"
-  >("evm");
+  const [tokenMode, setTokenMode] = useState<"evm" | "solana" | "stellar" | "all">("evm");
 
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
-  const [rozoPaymentId, setRozoPaymentId] = useState<string | undefined>(
-    undefined,
-  );
-  const [senderAddress, setSenderAddress] = useState<string | undefined>(
-    undefined,
-  );
+  const [rozoPaymentId, setRozoPaymentId] = useState<string | undefined>(undefined);
+  const [senderAddress, setSenderAddress] = useState<string | undefined>(undefined);
 
   // TODO: backend should determine whether to show solana payment method
   const paymentOptions = useMemo(() => {
@@ -327,8 +288,7 @@ export function usePaymentState({
   const showSolanaPaymentMethod = useMemo(() => {
     const paymentOptions = currPayParams?.paymentOptions;
     return (
-      (paymentOptions == null ||
-        paymentOptions?.includes(ExternalPaymentOptions.Solana)) &&
+      (paymentOptions == null || paymentOptions?.includes(ExternalPaymentOptions.Solana)) &&
       pay.order != null
       // isCCTPV1Chain(getOrderDestChainId(pay.order))
     );
@@ -350,15 +310,10 @@ export function usePaymentState({
 
     // Otherwise, show based on paymentOptions and order
     return (
-      (paymentOptions == null ||
-        paymentOptions?.includes(ExternalPaymentOptions.Stellar)) &&
+      (paymentOptions == null || paymentOptions?.includes(ExternalPaymentOptions.Stellar)) &&
       pay.order != null
     );
-  }, [
-    currPayParams?.paymentOptions,
-    pay.order,
-    currPayParams?.preferredTokens,
-  ]);
+  }, [currPayParams?.paymentOptions, pay.order, currPayParams?.preferredTokens]);
 
   // Memoize usdRequired and destChainId to prevent unnecessary refetches when order object reference changes
   const usdRequired = useMemo(
@@ -372,9 +327,10 @@ export function usePaymentState({
 
   // Memoize appId from currPayParams to prevent unnecessary refetches when payParams object reference changes
   // This is important because appId may change from default (rozoIntentPay) to user-provided
+  const orderAppId = (pay.order?.metadata as any)?.appId as string | undefined;
   const stableAppId = useMemo(
-    () => currPayParams?.appId ?? DEFAULT_ROZO_APP_ID,
-    [currPayParams?.appId],
+    () => currPayParams?.appId ?? orderAppId ?? DEFAULT_ROZO_APP_ID,
+    [currPayParams?.appId, orderAppId],
   );
 
   // Create a stable payParams object that only changes when appId actually changes
@@ -396,14 +352,9 @@ export function usePaymentState({
       // Derive preferredSymbol from destination: EURC destinations show EURC,
       // everything else defaults to USDC + USDT.
       const preferredSymbol: TokenSymbol[] =
-        destSymbol === TokenSymbol.EURC
-          ? [TokenSymbol.EURC]
-          : [TokenSymbol.USDC, TokenSymbol.USDT];
+        destSymbol === TokenSymbol.EURC ? [TokenSymbol.EURC] : [TokenSymbol.USDC, TokenSymbol.USDT];
 
-      const preferredTokens = convertPreferredSymbolsToTokens(
-        preferredSymbol,
-        undefined,
-      );
+      const preferredTokens = convertPreferredSymbolsToTokens(preferredSymbol, undefined);
 
       return {
         toChain: pay.order.destFinalCallTokenAmount.token.chainId,
@@ -422,8 +373,7 @@ export function usePaymentState({
   const externalPaymentOptions = useExternalPaymentOptions({
     trpc,
     // allow <RozoPayButton payId={...} paymentOptions={override} />
-    filterIds:
-      buttonProps?.paymentOptions ?? pay.order?.metadata.payer?.paymentOptions,
+    filterIds: buttonProps?.paymentOptions ?? pay.order?.metadata.payer?.paymentOptions,
     platform,
     usdRequired,
     mode: pay.order?.mode,
@@ -464,11 +414,9 @@ export function usePaymentState({
   const [selectedExternalOption, setSelectedExternalOption] =
     useState<ExternalPaymentOptionMetadata>();
 
-  const [selectedTokenOption, setSelectedTokenOption] =
-    useState<WalletPaymentOption>();
+  const [selectedTokenOption, setSelectedTokenOption] = useState<WalletPaymentOption>();
 
-  const [selectedSolanaTokenOption, setSelectedSolanaTokenOption] =
-    useState<WalletPaymentOption>();
+  const [selectedSolanaTokenOption, setSelectedSolanaTokenOption] = useState<WalletPaymentOption>();
 
   const [selectedStellarTokenOption, setSelectedStellarTokenOption] =
     useState<WalletPaymentOption>();
@@ -482,8 +430,7 @@ export function usePaymentState({
   }, [selectedDepositAddressOption]);
 
   const [selectedWallet, setSelectedWallet] = useState<WalletConfigProps>();
-  const [selectedWalletDeepLink, setSelectedWalletDeepLink] =
-    useState<string>();
+  const [selectedWalletDeepLink, setSelectedWalletDeepLink] = useState<string>();
 
   const getOrderUsdLimit = () => {
     const DEFAULT_USD_LIMIT = 20000;
@@ -577,19 +524,11 @@ export function usePaymentState({
         includeOrderMetadata: false,
       });
 
-      log?.(
-        `[handleCreateRozoPayment] payload: ${JSON.stringify(payload, null, 2)}`,
-      );
+      log?.(`[handleCreateRozoPayment] payload: ${JSON.stringify(payload, null, 2)}`);
 
       const response = await createPayment(payload);
 
-      log?.(
-        `[handleCreateRozoPayment] response: ${JSON.stringify(
-          response,
-          null,
-          2,
-        )}`,
-      );
+      log?.(`[handleCreateRozoPayment] response: ${JSON.stringify(response, null, 2)}`);
 
       if (!response?.id) {
         throw new Error("Payment creation failed");
@@ -612,10 +551,7 @@ export function usePaymentState({
     walletOption: WalletPaymentOption,
     store: Store<PaymentState, PaymentEvent>,
   ): Promise<{ txHash: Hex; success: boolean }> => {
-    assert(
-      ethWalletAddress != null,
-      `[PAY TOKEN] null ethWalletAddress when paying on ethereum`,
-    );
+    assert(ethWalletAddress != null, `[PAY TOKEN] null ethWalletAddress when paying on ethereum`);
     assert(
       pay.paymentState === "preview" ||
         pay.paymentState === "unhydrated" ||
@@ -640,26 +576,19 @@ export function usePaymentState({
 
     // @NOTE: Fee handled by Rozo API
     // const paymentAmount = BigInt(required.amount) + BigInt(fees.amount);
-    const paymentAmount = parseUnits(
-      required.usd.toString(),
-      required.token.decimals,
-    );
+    const paymentAmount = parseUnits(required.usd.toString(), required.token.decimals);
 
     // Check if we need to create a new Rozo payment (cache this check)
-    const previousChainId = pay.order.preferredChainId
-      ? Number(pay.order.preferredChainId)
-      : null;
+    const previousChainId = pay.order.preferredChainId ? Number(pay.order.preferredChainId) : null;
 
     // If we have an existing payment and chain differs, MUST create new payment
     // Also check if order has externalId (existing payment) and we're on different chain
     const hasExistingPayment = pay.order.externalId != null;
     const needRozoPayment =
-      (previousChainId !== null &&
-        previousChainId !== required.token.chainId) ||
+      (previousChainId !== null && previousChainId !== required.token.chainId) ||
       (hasExistingPayment &&
         previousChainId === null &&
-        pay.order.destFinalCallTokenAmount?.token?.chainId !==
-          required.token.chainId);
+        pay.order.destFinalCallTokenAmount?.token?.chainId !== required.token.chainId);
 
     log?.(
       `[PAY TOKEN] Chain check: previous=${previousChainId}, current=${required.token.chainId}, hasExistingPayment=${hasExistingPayment}, needRozoPayment=${needRozoPayment}`,
@@ -667,9 +596,7 @@ export function usePaymentState({
 
     // Prepare transaction parameters early (before async operations)
     const isNativeToken = required.token.token === zeroAddress;
-    const tokenAddress = isNativeToken
-      ? null
-      : getAddress(required.token.token);
+    const tokenAddress = isNativeToken ? null : getAddress(required.token.token);
 
     // Get hydrated order efficiently with parallel preparation
     let hydratedOrder: RozoPayHydratedOrderWithOrg;
@@ -678,7 +605,7 @@ export function usePaymentState({
     capture(ROZO_EVENTS.PAYMENT_QUOTE_REQUESTED, {
       payment_id: pay.order?.externalId,
       source_chain: walletOption.required.token.chainId,
-      token: walletOption.required.token.symbol,
+      token_symbol: walletOption.required.token.symbol,
       amount:
         currPayParamsRef.current?.toUnits != null
           ? String(currPayParamsRef.current.toUnits)
@@ -699,10 +626,7 @@ export function usePaymentState({
 
         paymentId = res.id;
         hydratedOrder = formatPaymentResponseToHydratedOrder(res);
-      } else if (
-        pay.paymentState === "payment_unpaid" ||
-        pay.paymentState === "payment_started"
-      ) {
+      } else if (pay.paymentState === "payment_unpaid" || pay.paymentState === "payment_started") {
         // Order is already hydrated for same chain, use it directly
         hydratedOrder = pay.order;
       } else {
@@ -713,14 +637,14 @@ export function usePaymentState({
 
       capture(ROZO_EVENTS.PAYMENT_QUOTE_RECEIVED, {
         source_chain: walletOption.required.token.chainId,
-        token: walletOption.required.token.symbol,
+        token_symbol: walletOption.required.token.symbol,
         payment_id: hydratedOrder.externalId ?? paymentId,
         fee: walletOption.fees.amount,
       });
     } catch (quoteError) {
       capture(ROZO_EVENTS.PAYMENT_QUOTE_FAILED, {
         source_chain: walletOption.required.token.chainId,
-        token: walletOption.required.token.symbol,
+        token_symbol: walletOption.required.token.symbol,
         error_message: parseErrorMessage(quoteError),
       });
       throw quoteError;
@@ -743,10 +667,7 @@ export function usePaymentState({
             await pay.setPaymentStarted(String(newId), hydratedOrder);
           } catch (e) {
             // State might have changed during async operations
-            console.warn(
-              "[PAY TOKEN] State transition failed, attempting direct start:",
-              e,
-            );
+            console.warn("[PAY TOKEN] State transition failed, attempting direct start:", e);
             // Try to set started directly if state is already unpaid
             try {
               await pay.setPaymentStarted(String(newId), hydratedOrder);
@@ -817,14 +738,8 @@ export function usePaymentState({
   ): Promise<{ txHash: string; success: boolean }> => {
     const inputToken = walletPaymentOption.required.token.token;
     const payerPublicKey = solanaWallet.publicKey;
-    assert(
-      payerPublicKey != null,
-      "[PAY SOLANA] null payerPublicKey when paying on solana",
-    );
-    assert(
-      pay.order?.id != null,
-      "[PAY SOLANA] null orderId when paying on solana",
-    );
+    assert(payerPublicKey != null, "[PAY SOLANA] null payerPublicKey when paying on solana");
+    assert(pay.order?.id != null, "[PAY SOLANA] null orderId when paying on solana");
     assert(
       pay.paymentState === "preview" ||
         pay.paymentState === "unhydrated" ||
@@ -871,9 +786,7 @@ export function usePaymentState({
       });
       return { txHash: paymentTxHash, success: true };
     } catch {
-      console.error(
-        `[PAY SOLANA] could not verify payment tx on chain: ${paymentTxHash}`,
-      );
+      console.error(`[PAY SOLANA] could not verify payment tx on chain: ${paymentTxHash}`);
       return { txHash: paymentTxHash, success: false };
     }
   };
@@ -883,17 +796,12 @@ export function usePaymentState({
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
-      usdcAmount: string;
       memo?: string;
     },
   ): Promise<{ txHash: string; success: boolean }> => {
     try {
       log?.(
-        `[PAY SOLANA] Starting Solana payment transaction: ${JSON.stringify(
-          rozoPayment,
-          null,
-          2,
-        )}`,
+        `[PAY SOLANA] Starting Solana payment transaction: ${JSON.stringify(rozoPayment, null, 2)}`,
       );
 
       const payerPublicKey = solanaWallet.publicKey;
@@ -931,9 +839,7 @@ export function usePaymentState({
       // Validate that the address is a valid Solana Base58 address
       // Check for invalid characters that would cause Base58 decode errors
       if (!isValidSolanaAddress(rozoPayment.destAddress)) {
-        throw new Error(
-          `Invalid Solana destination address format: ${rozoPayment.destAddress}`,
-        );
+        throw new Error(`Invalid Solana destination address format: ${rozoPayment.destAddress}`);
       }
 
       // Set up token addresses
@@ -956,31 +862,20 @@ export function usePaymentState({
         tokenMint: mintAddress.toString(),
         fromKey: fromKey.toString(),
         toKey: toKey.toString(),
-        amount: rozoPayment.usdcAmount,
+        amount: walletPaymentOption.required.usd,
         memo: rozoPayment.memo,
       });
 
       // Get token accounts for sender and recipient
       log("[PAY SOLANA] Deriving associated token accounts...");
-      const senderTokenAccount = await getAssociatedTokenAddress(
-        mintAddress,
-        fromKey,
-      );
-      const recipientTokenAccount = await getAssociatedTokenAddress(
-        mintAddress,
-        toKey,
-      );
+      const senderTokenAccount = await getAssociatedTokenAddress(mintAddress, fromKey);
+      const recipientTokenAccount = await getAssociatedTokenAddress(mintAddress, toKey);
       log("[PAY SOLANA] Sender token account:", senderTokenAccount.toString());
-      log(
-        "[PAY SOLANA] Recipient token account:",
-        recipientTokenAccount.toString(),
-      );
+      log("[PAY SOLANA] Recipient token account:", recipientTokenAccount.toString());
 
       // Check if recipient token account exists
       log("[PAY SOLANA] Checking if recipient token account exists...");
-      const recipientTokenInfo = await connection.getAccountInfo(
-        recipientTokenAccount,
-      );
+      const recipientTokenInfo = await connection.getAccountInfo(recipientTokenAccount);
 
       // Create recipient token account if it doesn't exist
       if (!recipientTokenInfo) {
@@ -998,7 +893,7 @@ export function usePaymentState({
 
       // Add transfer instruction
       log("[PAY SOLANA] Adding transfer instruction...");
-      const transferAmount = parseFloat(rozoPayment.usdcAmount) * 1_000_000;
+      const transferAmount = parseFloat(walletPaymentOption.required.usd.toString()) * 1_000_000;
       log("[PAY SOLANA] Transfer amount (with decimals):", transferAmount);
 
       instructions.push(
@@ -1015,23 +910,13 @@ export function usePaymentState({
       // Add memo if provided
       if (rozoPayment.memo) {
         log("[PAY SOLANA] Adding memo instruction:", rozoPayment.memo);
-        instructions.push(
-          new TransactionInstruction({
-            keys: [
-              { pubkey: payerPublicKey, isSigner: true, isWritable: true },
-            ],
-            programId: new PublicKey(
-              "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
-            ),
-            data: Buffer.from(rozoPayment.memo, "utf-8"),
-          }),
-        );
+        const memoInstruction = createMemoInstruction(rozoPayment.memo);
+        instructions.push(memoInstruction);
       }
 
       // Create and partially sign transaction
       log("[PAY SOLANA] Building transaction...");
-      const { blockhash, lastValidBlockHeight } =
-        await connection.getLatestBlockhash("confirmed");
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
       log("[PAY SOLANA] Got blockhash:", blockhash);
 
       const transaction = new Transaction();
@@ -1070,7 +955,6 @@ export function usePaymentState({
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
-      usdcAmount: string;
       memo?: string;
     },
   ): Promise<{ signedTx: string; success: boolean }> => {
@@ -1108,18 +992,13 @@ export function usePaymentState({
       let issuer = "";
       if (walletPaymentOption.required.token.token === rozoStellarUSDC.token) {
         issuer = rozoStellarUSDC.token.split(":")[1];
-      } else if (
-        walletPaymentOption.required.token.token === rozoStellarEURC.token
-      ) {
+      } else if (walletPaymentOption.required.token.token === rozoStellarEURC.token) {
         issuer = rozoStellarEURC.token.split(":")[1];
       } else {
         throw new Error("Unsupported token");
       }
 
-      const destAsset = new Asset(
-        walletPaymentOption.required.token.symbol,
-        issuer,
-      );
+      const destAsset = new Asset(walletPaymentOption.required.token.symbol, issuer);
       const fee = String(await stellarServer.fetchBaseFee());
 
       // Build transaction
@@ -1131,7 +1010,7 @@ export function usePaymentState({
           Operation.payment({
             destination: destinationAddress,
             asset: destAsset,
-            amount: String(rozoPayment.usdcAmount),
+            amount: String(walletPaymentOption.required.usd),
           }),
         )
         .setTimeout(180);
@@ -1155,17 +1034,13 @@ export function usePaymentState({
     assert(platform != null, "[PAY EXTERNAL] platform cannot be null");
 
     const { order } = await pay.hydrateOrder();
-    const externalPaymentOptionData =
-      await trpc.getExternalPaymentOptionData.query({
-        id: order.id.toString(),
-        externalPaymentOption: option,
-        platform,
-        redirectReturnUrl,
-      });
-    assert(
-      externalPaymentOptionData != null,
-      "[PAY EXTERNAL] missing externalPaymentOptionData",
-    );
+    const externalPaymentOptionData = await trpc.getExternalPaymentOptionData.query({
+      id: order.id.toString(),
+      externalPaymentOption: option,
+      platform,
+      redirectReturnUrl,
+    });
+    assert(externalPaymentOptionData != null, "[PAY EXTERNAL] missing externalPaymentOptionData");
 
     log(
       `[PAY EXTERNAL] hydrated order: ${debugJson(
@@ -1186,9 +1061,7 @@ export function usePaymentState({
   ) => {
     // Prevent duplicate calls for the same option
     if (depositAddressCallRef.current.has(option.id)) {
-      log?.(
-        `[PAY DEPOSIT ADDRESS] Already processing ${option}, skipping duplicate call`,
-      );
+      log?.(`[PAY DEPOSIT ADDRESS] Already processing ${option}, skipping duplicate call`);
       return null;
     }
 
@@ -1207,9 +1080,7 @@ export function usePaymentState({
           throw new Error("No pay params and no existing payment ID");
         }
 
-        log?.(
-          `[PAY DEPOSIT ADDRESS] payId mode — fetching payment ${existingPayId}`,
-        );
+        log?.(`[PAY DEPOSIT ADDRESS] payId mode — fetching payment ${existingPayId}`);
 
         const paymentRes = await getPayment(existingPayId);
         if (!paymentRes?.data) {
@@ -1256,7 +1127,7 @@ export function usePaymentState({
             } as any,
           } as any,
           fees: {
-            usd: fees?.fee ?? 0,
+            usd: fees?.source?.fee != null ? parseFloat(fees.source.fee) : 0,
           },
         } as any);
 
@@ -1292,9 +1163,7 @@ export function usePaymentState({
       let uriDeeplink: string | null = null;
 
       // Use Solana deep link if it's a Solana chain
-      if (
-        [solana.chainId, rozoSolana.chainId].includes(preferredToken.chainId)
-      ) {
+      if ([solana.chainId, rozoSolana.chainId].includes(preferredToken.chainId)) {
         uriDeeplink = generateSolanaDeepLink({
           amountUnits: order.destFinalCallTokenAmount.usd.toString(),
           recipientAddress: order.intentAddr,
@@ -1303,9 +1172,7 @@ export function usePaymentState({
         });
       }
       // If Stellar, do not generate a link (set to null)
-      else if (
-        [stellar.chainId, rozoStellar.chainId].includes(preferredToken.chainId)
-      ) {
+      else if ([stellar.chainId, rozoStellar.chainId].includes(preferredToken.chainId)) {
         uriDeeplink = null;
       }
       // Otherwise use EVM deep link
@@ -1403,10 +1270,7 @@ export function usePaymentState({
 
   /** User picked a different deposit amount. */
   const setChosenUsd = (usd: number) => {
-    assert(
-      pay.paymentState === "preview",
-      "[SET CHOSEN USD] paymentState is not preview",
-    );
+    assert(pay.paymentState === "preview", "[SET CHOSEN USD] paymentState is not preview");
 
     // Too expensive to make an API call to regenerate preview order each time
     // the user changes the amount. Instead, we modify the order in memory.
@@ -1512,8 +1376,7 @@ export function usePaymentState({
               ...currPayParams,
               // If we are providing new preferredSymbols but NOT providing new preferredTokens,
               // we must clear the inherited preferredTokens so they can be recalculated from the symbols.
-              ...(payParams.preferredSymbol !== undefined &&
-              payParams.preferredTokens === undefined
+              ...(payParams.preferredSymbol !== undefined && payParams.preferredTokens === undefined
                 ? { preferredTokens: undefined }
                 : {}),
               ...payParams,
@@ -1561,10 +1424,7 @@ export function usePaymentState({
           }
         } catch (error) {
           if (myId === previewRequestIdRef.current) {
-            console.error(
-              "[resetOrder] Failed to create preview order:",
-              error,
-            );
+            console.error("[resetOrder] Failed to create preview order:", error);
           }
           throw error;
         }
