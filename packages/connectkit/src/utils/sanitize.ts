@@ -6,8 +6,9 @@ const SOLANA_ADDRESS_RE = /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g;
 const STELLAR_ADDRESS_RE = /\bG[A-Z2-7]{55}\b/g;
 // EVM tx hash: 0x + 64 hex chars
 const TX_HASH_RE = /0x[0-9a-fA-F]{64}/g;
-// Numeric amounts (standalone decimals that look like token amounts)
-const AMOUNT_RE = /\b\d+(\.\d+)?\s*(USDC|USDT|ETH|SOL|XLM|BTC|[A-Z]{2,6})?\b/g;
+// Numeric amounts followed by a currency/token symbol, e.g. "12.5 USDC"
+// Requires the suffix so bare numbers (chain ids, timestamps, order ids) pass through.
+const AMOUNT_RE = /\b\d+(\.\d+)?\s*(USDC|USDT|ETH|SOL|XLM|BTC|[A-Z]{2,6})\b/g;
 
 /**
  * Strips addresses, tx hashes, and token amounts from a string before

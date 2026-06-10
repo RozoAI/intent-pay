@@ -180,8 +180,8 @@ const PayWithToken: React.FC = () => {
             ...option,
             fees: {
               ...option.fees,
-              usd: feeData.data?.source.fee
-                ? Number(feeData.data?.source.fee)
+              usd: feeData.data?.source.fee != null
+                ? Number(feeData.data.source.fee)
                 : option.fees.usd,
             },
           },
@@ -329,7 +329,7 @@ const PayWithToken: React.FC = () => {
             ...selectedTokenOption,
             fees: {
               ...selectedTokenOption.fees,
-              usd: feeData?.source.fee
+              usd: feeData?.source.fee != null
                 ? Number(feeData.source.fee)
                 : selectedTokenOption.fees.usd,
             },

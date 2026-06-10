@@ -259,7 +259,7 @@ const PayWithSolanaToken: React.FC = () => {
                 ...option,
                 fees: {
                   ...option.fees,
-                  usd: feeData.data?.source.fee
+                  usd: feeData.data?.source.fee != null
                     ? Number(feeData.data.source.fee)
                     : option.fees.usd,
                 },
@@ -278,7 +278,7 @@ const PayWithSolanaToken: React.FC = () => {
             ...option,
             fees: {
               ...option.fees,
-              usd: feeData.data?.source.fee
+              usd: feeData.data?.source.fee != null
                 ? Number(feeData.data.source.fee)
                 : option.fees.usd,
             },
@@ -371,7 +371,7 @@ const PayWithSolanaToken: React.FC = () => {
             ...option,
             fees: {
               ...option.fees,
-              usd: feeData.data?.source.fee
+              usd: feeData.data?.source.fee != null
                 ? Number(feeData.data.source.fee)
                 : option.fees.usd,
             },
@@ -517,7 +517,7 @@ const PayWithSolanaToken: React.FC = () => {
             ...selectedSolanaTokenOption,
             fees: {
               ...selectedSolanaTokenOption.fees,
-              usd: feeData?.source.fee
+              usd: feeData?.source.fee != null
                 ? Number(feeData.source.fee)
                 : selectedSolanaTokenOption.fees.usd,
             },
