@@ -31,11 +31,11 @@ For a complete list of supported tokens and chains, see the [Supported Tokens an
 
 You can find the full Rozo Pay documentation at [docs.rozo.ai](https://docs.rozo.ai).
 
-For in-repo SDK prop reference, see [RozoPayButton Props](../../docs/ROZO_PAY_BUTTON_PROPS.md).
+For in-repo SDK prop reference, see [RozoPayButton Props](https://github.com/RozoAI/intent-pay/blob/master/docs/ROZO_PAY_BUTTON_PROPS.md).
 
-For correct provider setup (Next.js App Router, Vite, SSR patterns), see [Provider Setup Guide](../../docs/PROVIDER_SETUP.md).
+For correct provider setup (Next.js App Router, Vite, SSR patterns), see [Provider Setup Guide](https://github.com/RozoAI/intent-pay/blob/master/docs/PROVIDER_SETUP.md).
 
-For analytics, telemetry opt-out, and what data is tracked, see [Analytics & Telemetry](../../docs/ANALYTICS.md).
+For analytics, telemetry opt-out, and what data is tracked, see [Analytics & Telemetry](https://github.com/RozoAI/intent-pay/blob/master/docs/ANALYTICS.md).
 
 ## Examples
 
@@ -74,7 +74,7 @@ Any changes will be reflected on the Pay button in the example app.
 
 ## Contracts
 
-Daimo Pay is noncustodial and runs on open-source, audited contracts. See `/packages/contract`.
+Daimo Pay is noncustodial and runs on open-source, audited contracts. See [`packages/contract`](https://github.com/RozoAI/intent-pay/tree/master/packages/contract).
 
 Audits:
 
@@ -94,12 +94,14 @@ Rozo Intent Pay SDK is a fork of [Daimo](https://github.com/daimo-eth/pay) devel
 
 Daimo Pay SDK is a fork of [Connectkit](https://github.com/family/connectkit) developed by [Family](https://family.co). We're grateful to them for making Connectkit fast, beatiful and open-source.
 
-## How to release `connectkit` package
-
 ## Release
 
-```sh
-pnpm run release
-```
+To publish a new version of `@rozoai/intent-pay`:
 
-Choose the version on the prompt.
+```sh
+# Beta release (bumps prerelease version, publishes with `beta` tag)
+pnpm run publish:beta
+
+# Latest release (bumps stable version, updates CHANGELOG, publishes with `latest` tag)
+pnpm run publish:latest
+```

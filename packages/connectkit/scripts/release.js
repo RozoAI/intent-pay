@@ -64,9 +64,14 @@ writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
 
 // 2. For latest releases, generate a CHANGELOG entry via changelogithub from commits since the last tag
 if (mode === "latest") {
+  // Find the most recent stable (non-prerelease) tag, ignoring beta tags,
+  // so the changelog diff compares against the last "latest" release.
   let lastTag = "";
   try {
-    lastTag = run("git describe --tags --abbrev=0", { cwd: repoRoot });
+    const stableTags = run('git tag --list "v[0-9]*" --sort=-v:refname', { cwd: repoRoot })
+      .split("\n")
+      .filter((t) => t && !t.includes("-"));
+    lastTag = stableTags[0] ?? "";
   } catch {
     // no tags yet, changelogithub will use the first commit
   }
@@ -78,7 +83,13 @@ if (mode === "latest") {
     { cwd: repoRoot },
   );
 
-  const entry = `${readFileSync(tmpPath, "utf-8").trimEnd()}\n\n---\n`;
+  const today = new Date().toISOString().slice(0, 10);
+  const body = readFileSync(tmpPath, "utf-8")
+    .trimEnd()
+    // Drop the "View changes on GitHub" footer line changelogithub appends
+    .replace(/\n*##### .*View changes on GitHub.*$/m, "")
+    .trimEnd();
+  const entry = `## [${nextVersion}] - ${today}\n\n${body}\n\n---\n`;
   run(`rm "${tmpPath}"`, { cwd: repoRoot });
 
   const changelog = readFileSync(changelogPath, "utf-8");
@@ -99,9 +110,11 @@ if (mode === "latest") {
 const distTag = mode === "beta" ? "beta" : "latest";
 runInherit(`npm publish --tag ${distTag}`, { cwd: pkgRoot });
 
-// 4. Commit + tag
-const filesToAdd = mode === "latest" ? [pkgPath, changelogPath] : [pkgPath];
-runInherit(`git add ${filesToAdd.map((f) => `"${f}"`).join(" ")}`, { cwd: repoRoot });
+// 4. Commit + tag (stage all pending changes in the package, plus the changelog for latest)
+runInherit(`git add "${pkgRoot}"`, { cwd: repoRoot });
+if (mode === "latest") {
+  runInherit(`git add "${changelogPath}"`, { cwd: repoRoot });
+}
 runInherit(`git commit -m "chore(release): v${nextVersion}"`, { cwd: repoRoot });
 runInherit(`git tag v${nextVersion}`, { cwd: repoRoot });
 
