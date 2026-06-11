@@ -12,13 +12,13 @@
  * Run:    pnpm dev &  →  pnpm test:e2e:stellar-to-evm
  */
 import { test } from "@playwright/test"
-import { E2E } from "../env"
+import { E2E } from "../../env"
 import {
   payInWithStellarHeadless,
   startBridgePayment,
   useStellarSigner,
   waitForPayoutCompleted,
-} from "../helpers"
+} from "../../helpers"
 
 test.describe("Bridge: Stellar USDC → Base (mainnet, real funds)", () => {
   test.skip(

@@ -11,12 +11,12 @@
  */
 import { testWithChainwright } from "chainwright/core"
 import { metamaskFixture } from "chainwright/metamask"
-import { E2E } from "../env"
+import { E2E } from "../../env"
 import {
   payInWithMetaMask,
   startBridgePayment,
   waitForPayoutCompleted,
-} from "../helpers"
+} from "../../helpers"
 
 const test = testWithChainwright(metamaskFixture())
 

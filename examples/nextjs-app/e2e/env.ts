@@ -52,9 +52,24 @@ export const E2E = {
     address: process.env.E2E_STELLAR_ADDRESS ?? "",
   },
 
-  // Solana wallet — coming later.
-  // solana: {
-  //   secret: process.env.NEXT_PUBLIC_E2E_SOLANA_SECRET ?? "",
-  //   address: process.env.E2E_SOLANA_ADDRESS ?? "",
-  // },
+  /**
+   * Solana wallet — source via the Phantom extension (chainwright), destination
+   * via its address. Uses rozoSolana (chainId 900) as the payout chain; the
+   * source pay-in token lives on native Solana (chainId 501).
+   */
+  solana: {
+    /** 12/24-word recovery phrase imported into Phantom. The source wallet — needs USDC. */
+    seedPhrase: process.env.E2E_SOLANA_SEED_PHRASE ?? "",
+    /** Local password to unlock the Phantom vault in the test profile. */
+    walletPassword:
+      process.env.E2E_SOLANA_WALLET_PASSWORD ?? "TempE2ePassword123!",
+    /** Public address (Base58) — destination when paying TO Solana. */
+    address:
+      process.env.E2E_SOLANA_ADDRESS ??
+      "BK1CMQ2kSvxUNa8pZsfvN2UoZDHWVwgYsXKUVZgURAGF",
+    /** Source token to pay FROM (rozopay-option-{chainId}-{mint}). Default = Solana USDC. */
+    sourceOptionId:
+      process.env.E2E_SOLANA_SOURCE_OPTION_ID ??
+      "501-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  },
 } as const

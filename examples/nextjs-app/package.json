@@ -13,11 +13,16 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "node_modules/.bin/playwright test --config e2e/playwright.config.ts",
     "test:e2e:mocked": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=mocked",
-    "test:e2e:evm-to-stellar": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=evm-to-stellar",
-    "test:e2e:stellar-to-evm": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=stellar-to-evm",
-    "test:e2e:payment-flows": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=stellar-to-evm",
+    "test:e2e:evm-to-stellar": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=evm-to-stellar --no-deps",
+    "test:e2e:stellar-to-evm": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=stellar-to-evm --no-deps",
+    "test:e2e:stellar-to-solana": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=stellar-to-solana --no-deps",
+    "test:e2e:solana-to-stellar": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=solana-to-stellar --no-deps",
+    "test:e2e:solana-to-evm": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=solana-to-evm --no-deps",
+    "test:e2e:checkout-evm-to-stellar": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=checkout-evm-to-stellar --no-deps",
+    "test:e2e:deposit-stellar-to-evm": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=deposit-stellar-to-evm --no-deps",
+    "test:e2e:payment-flows": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=deposit-stellar-to-evm",
     "test:e2e:ui": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --ui",
-    "setup-wallets": "node_modules/.bin/chainwright e2e/wallet-setup -m -f"
+    "setup-wallets": "node_modules/.bin/chainwright e2e/wallet-setup --wallets phantom"
   },
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "^1.9.5",
