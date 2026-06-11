@@ -1,10 +1,16 @@
-import { existsSync } from "node:fs"
 import { defineConfig, devices } from "@playwright/test"
+// Importing env loads .env.e2e + .env.local as a side effect (see e2e/env.ts).
+import "./env"
 
-// Load real-wallet env vars if present (gitignored — copy from .env.e2e.example).
-// Safe to call at the top level; does nothing when the file doesn't exist.
-if (existsSync(".env.e2e")) {
-  process.loadEnvFile(".env.e2e")
+// Shared `use` defaults for the real-funds payment-flow projects.
+const realFundsUse = {
+  ...devices["Desktop Chrome"],
+  baseURL: process.env.BASE_URL || "http://localhost:3000",
+  actionTimeout: 30_000,
+  navigationTimeout: 30_000,
+  trace: "on" as const,
+  screenshot: "only-on-failure" as const,
+  video: "retain-on-failure" as const,
 }
 
 export default defineConfig({
@@ -31,11 +37,10 @@ export default defineConfig({
 
   projects: [
     // ── Mocked suite ──────────────────────────────────────────────────────────
-    // Headless, fast timeouts. Excludes the real-wallet test which needs a
-    // browser extension and real funds.
+    // Headless, fast. Excludes every real-funds flow under payment-flows/.
     {
       name: "mocked",
-      testIgnore: "**/payment-flow.spec.ts",
+      testIgnore: "**/payment-flows/**",
       use: {
         ...devices["Desktop Chrome"],
         baseURL: process.env.BASE_URL || "http://localhost:3000",
@@ -50,25 +55,30 @@ export default defineConfig({
       timeout: 60_000,
     },
 
-    // ── Real-wallet / mainnet suite ───────────────────────────────────────────
-    // Headed (extensions don't load headless). Single worker, no retries —
-    // real funds, must not double-send. Skipped unless E2E_SEED_PHRASE is set.
+    // ── EVM → Stellar (real funds) ────────────────────────────────────────────
+    // Headed — the MetaMask extension can't load headless. Skipped unless
+    // E2E_EVM_SEED_PHRASE is set. Depends on `mocked` so the fast mocked suite
+    // always runs first.
     {
-      name: "real-wallet",
-      testMatch: "**/payment-flow.spec.ts",
-      use: {
-        ...devices["Desktop Chrome"],
-        baseURL: process.env.BASE_URL || "http://localhost:3000",
-        headless: false,
-        actionTimeout: 30_000,
-        navigationTimeout: 30_000,
-        trace: "on",
-        screenshot: "only-on-failure",
-        video: "retain-on-failure",
-      },
+      name: "evm-to-stellar",
+      testMatch: "**/payment-flows/evm-to-stellar.spec.ts",
+      dependencies: ["mocked"],
+      use: { ...realFundsUse, headless: false },
       retries: 0,
-      // Generous budget — real cross-chain payout (e.g. to Stellar) can take
-      // several minutes to settle after the payin transaction confirms.
+      timeout: 10 * 60_000,
+    },
+
+    // ── Stellar → EVM (real funds) ────────────────────────────────────────────
+    // Headless is fine — no extension; the app injects a headless signer.
+    // Skipped unless a Stellar secret is set. Depends on evm-to-stellar, which in
+    // turn depends on mocked — giving the order mocked → evm-to-stellar →
+    // stellar-to-evm whenever this project is selected.
+    {
+      name: "stellar-to-evm",
+      testMatch: "**/payment-flows/stellar-to-evm.spec.ts",
+      dependencies: ["evm-to-stellar"],
+      use: { ...realFundsUse, headless: true },
+      retries: 0,
       timeout: 10 * 60_000,
     },
   ],
