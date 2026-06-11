@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.29] - 2026-06-11
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Revert see receipt button should appear by default &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b54e4)</samp>](https://github.com/RozoAI/intent-pay/commit/b54e4f34)
+
+---
+
+
 ## [0.1.28] - 2026-06-11
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
