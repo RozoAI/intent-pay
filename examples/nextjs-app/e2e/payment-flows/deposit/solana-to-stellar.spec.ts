@@ -24,8 +24,8 @@ const test = testWithChainwright(phantomFixture())
 
 test.describe("Deposit: Solana USDC → Stellar (mainnet, real funds)", () => {
   test.skip(
-    !E2E.solana.seedPhrase,
-    "E2E_SOLANA_SEED_PHRASE not set — see .env.e2e.example"
+    !E2E.solana.seedPhrase || !E2E.stellar.address,
+    "Set E2E_SOLANA_SEED_PHRASE and E2E_STELLAR_ADDRESS in .env.e2e"
   )
 
   test("deposit USDC from Solana to a Stellar destination", async ({
@@ -42,8 +42,8 @@ test.describe("Deposit: Solana USDC → Stellar (mainnet, real funds)", () => {
     })
     await payInWithPhantom(page, phantom, {
       sourceOptionId: E2E.solana.sourceOptionId,
-      // Deposit requires a minimum of 0.1 USDC.
-      amount: "0.1",
+      // depositAmount respects E2E_AMOUNT but enforces the 0.1 USDC SDK minimum.
+      amount: E2E.depositAmount,
     })
     await waitForPayoutCompleted(page)
   })

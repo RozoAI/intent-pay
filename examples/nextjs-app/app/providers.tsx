@@ -1,7 +1,6 @@
 "use client"
 
 import { ThemeProvider } from "@/components/theme-provider"
-import { createHeadlessStellarKit } from "@/lib/e2e-stellar-kit"
 import type { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit"
 import {
   getDefaultConfig as getDefaultConfigRozo,
@@ -48,22 +47,29 @@ export function Providers({ children }: { children: ReactNode }) {
   )
 
   // E2E-only: drive Stellar pay-in with a headless secret-key signer (no
-  // Freighter extension). The secret is ONLY ever provided at runtime via
-  // window.__E2E_STELLAR_SECRET__, which Playwright injects before the app loads
-  // (see e2e helper useStellarSigner). There is no env-var path, so the headless
-  // kit can never activate in the real playground or production — its presence
-  // is, by definition, E2E test mode.
+  // Freighter extension). Only active when the build was started with
+  // NEXT_PUBLIC_E2E=1 (set by the Playwright webServer config), so production
+  // builds dead-code-eliminate the entire import graph at bundle time.
   //
-  // Constructed once on the client in the state initializer so the external kit
-  // is present on the first client render — this prevents the SDK from spinning
-  // up its own internal (Freighter-based) kit.
+  // The secret is read from window.__E2E_STELLAR_SECRET__ (injected by
+  // Playwright's addInitScript before the app loads) and immediately deleted
+  // from the window to limit exposure to any analytics or third-party scripts
+  // that run later in the same page session.
   const [stellarKit] = useState<StellarWalletsKit | undefined>(() => {
     if (typeof window === "undefined") return undefined
+    if (!process.env.NEXT_PUBLIC_E2E) return undefined
 
-    const secret = (window as Window & { __E2E_STELLAR_SECRET__?: string })
-      .__E2E_STELLAR_SECRET__
+    const w = window as Window & { __E2E_STELLAR_SECRET__?: string }
+    const secret = w.__E2E_STELLAR_SECRET__
+    // Delete immediately so the key isn't readable later in the session.
+    delete w.__E2E_STELLAR_SECRET__
     if (!secret) return undefined
+
     try {
+      // Dynamic import is resolved at build time only when NEXT_PUBLIC_E2E=1,
+      // so the stellarWalletsKit bundle never enters the production chunk graph.
+      const { createHeadlessStellarKit } =
+        require("@/lib/e2e-stellar-kit") as typeof import("@/lib/e2e-stellar-kit")
       return createHeadlessStellarKit(secret)
     } catch (err) {
       console.error("[E2E] Failed to create headless Stellar kit:", err)

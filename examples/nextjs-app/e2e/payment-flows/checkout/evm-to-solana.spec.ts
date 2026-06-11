@@ -22,8 +22,8 @@ const test = testWithChainwright(metamaskFixture())
 
 test.describe("Checkout (payId): EVM USDC → Solana (mainnet, real funds)", () => {
   test.skip(
-    !E2E.evm.seedPhrase,
-    "E2E_EVM_SEED_PHRASE not set — see .env.e2e.example"
+    !E2E.evm.seedPhrase || !E2E.solana.address,
+    "Set E2E_EVM_SEED_PHRASE and E2E_SOLANA_ADDRESS in .env.e2e"
   )
 
   test("create a payId then pay it with USDC from EVM to Solana", async ({

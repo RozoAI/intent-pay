@@ -18,8 +18,8 @@ import {
 
 test.describe("Checkout (payId): Stellar USDC → Solana (mainnet, real funds)", () => {
   test.skip(
-    !E2E.stellar.secret,
-    "No Stellar secret — set E2E_STELLAR_SECRET in .env.e2e"
+    !E2E.stellar.secret || !E2E.solana.address,
+    "Set E2E_STELLAR_SECRET and E2E_SOLANA_ADDRESS in .env.e2e"
   )
 
   test("create a payId then pay it with USDC from Stellar to Solana", async ({

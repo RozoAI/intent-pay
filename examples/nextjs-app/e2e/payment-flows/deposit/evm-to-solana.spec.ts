@@ -21,8 +21,8 @@ const test = testWithChainwright(metamaskFixture())
 
 test.describe("Deposit: EVM USDC → Solana (mainnet, real funds)", () => {
   test.skip(
-    !E2E.evm.seedPhrase,
-    "E2E_EVM_SEED_PHRASE not set — see .env.e2e.example"
+    !E2E.evm.seedPhrase || !E2E.solana.address,
+    "Set E2E_EVM_SEED_PHRASE and E2E_SOLANA_ADDRESS in .env.e2e"
   )
 
   test("deposit USDC from EVM to Solana destination", async ({
@@ -37,8 +37,8 @@ test.describe("Deposit: EVM USDC → Solana (mainnet, real funds)", () => {
     })
     await payInWithMetaMask(page, metamask, {
       sourceOptionId: E2E.evm.sourceOptionId,
-      // Deposit requires a minimum of 0.1 USDC.
-      amount: "0.1",
+      // depositAmount respects E2E_AMOUNT but enforces the 0.1 USDC SDK minimum.
+      amount: E2E.depositAmount,
     })
     await waitForPayoutCompleted(page)
   })

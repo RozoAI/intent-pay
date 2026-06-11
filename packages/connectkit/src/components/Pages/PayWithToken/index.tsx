@@ -13,7 +13,7 @@ import { usePayContext } from "../../../hooks/usePayContext";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
-import { getCachedFee } from "../../../utils/feeCache";
+import { getCachedFee, resolveOrderAppId } from "../../../utils/feeCache";
 import Button from "../../Common/Button";
 import {
   Link,
@@ -145,12 +145,7 @@ const PayWithToken: React.FC = () => {
         const destToken = order.destFinalCallTokenAmount?.token;
         setFeeLoading(true);
         const feeData = await getCachedFee({
-          // Prefer the appId from the loaded order — payId (Checkout) flows carry
-          // it in order.metadata and don't pass it via props. Fall back to props
-          // for appId-mode payments (Bridge/Deposit).
-          appId:
-            (order.metadata as { appId?: string } | undefined)?.appId ??
-            paymentState.payParams?.appId,
+          appId: resolveOrderAppId(order, paymentState.payParams?.appId),
           type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
           sourceChainId: option.required.token.chainId.toString(),
           sourceTokenSymbol: option.required.token.symbol,
@@ -293,7 +288,7 @@ const PayWithToken: React.FC = () => {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletPaymentOptions, rozoPaymentId, order?.externalId, rozoPaymentState],
+    [walletPaymentOptions, rozoPaymentId, order, rozoPaymentState],
   );
 
   useEffect(() => {

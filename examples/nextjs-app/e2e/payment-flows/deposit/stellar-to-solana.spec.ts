@@ -19,8 +19,8 @@ import {
 
 test.describe("Deposit: Stellar USDC → Solana (mainnet, real funds)", () => {
   test.skip(
-    !E2E.stellar.secret,
-    "No Stellar secret — set E2E_STELLAR_SECRET in .env.e2e"
+    !E2E.stellar.secret || !E2E.solana.address,
+    "Set E2E_STELLAR_SECRET and E2E_SOLANA_ADDRESS in .env.e2e"
   )
 
   test("deposit USDC from Stellar to Solana destination", async ({ page }) => {
@@ -30,8 +30,8 @@ test.describe("Deposit: Stellar USDC → Solana (mainnet, real funds)", () => {
       destToken: "USDC",
       address: E2E.solana.address,
     })
-    // Deposit requires a minimum of 0.1 USDC.
-    await payInWithStellarHeadlessDeposit(page, "0.1")
+    // depositAmount respects E2E_AMOUNT but enforces the 0.1 USDC SDK minimum.
+    await payInWithStellarHeadlessDeposit(page, E2E.depositAmount)
     await waitForPayoutCompleted(page)
   })
 })

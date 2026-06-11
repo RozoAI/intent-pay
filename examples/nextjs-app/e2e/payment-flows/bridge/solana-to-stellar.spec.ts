@@ -24,8 +24,8 @@ const test = testWithChainwright(phantomFixture())
 
 test.describe("Bridge: Solana USDC → Stellar (mainnet, real funds)", () => {
   test.skip(
-    !E2E.solana.seedPhrase,
-    "E2E_SOLANA_SEED_PHRASE not set — see .env.e2e.example"
+    !E2E.solana.seedPhrase || !E2E.stellar.address,
+    "Set E2E_SOLANA_SEED_PHRASE and E2E_STELLAR_ADDRESS in .env.e2e"
   )
 
   test("send USDC from Solana to Stellar destination", async ({
