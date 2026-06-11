@@ -12,8 +12,10 @@
     "format:check": "oxfmt --check src/ app/ components/ lib/ && prettier --check \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "test:e2e": "node_modules/.bin/playwright test --config e2e/playwright.config.ts",
+    "test:e2e:mocked": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=mocked",
+    "test:e2e:mainnet": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=real-wallet",
     "test:e2e:ui": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --ui",
-    "test:e2e:headed": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --headed"
+    "setup-wallets": "node_modules/.bin/chainwright e2e/wallet-setup -m -f"
   },
   "dependencies": {
     "@rozoai/intent-common": "0.1.19",
@@ -42,11 +44,13 @@
     "@types/react": "^18.2.47",
     "@types/react-dom": "^18.2.18",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "chainwright": "^0.9.12",
     "oxfmt": "latest",
     "oxlint": "latest",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }
