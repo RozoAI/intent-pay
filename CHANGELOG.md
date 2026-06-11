@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.28] - 2026-06-11
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- E2E USDC Base to Stellar &nbsp;-&nbsp; by @akbarsaputrait [<samp>(3e441)</samp>](https://github.com/RozoAI/intent-pay/commit/3e441067)
+- E2E USDC Stellar to Base &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e8e95)</samp>](https://github.com/RozoAI/intent-pay/commit/e8e95b88)
+- E2E USDC Solana to Base/stellar &nbsp;-&nbsp; by @akbarsaputrait [<samp>(93c76)</samp>](https://github.com/RozoAI/intent-pay/commit/93c76d42)
+
+---
+
+
 ## [0.1.27] - 2026-06-10
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features

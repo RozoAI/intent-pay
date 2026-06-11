@@ -1,6 +1,6 @@
-import { defineConfig, devices } from "@playwright/test"
+import { defineConfig, devices } from "@playwright/test";
 // Importing env loads .env.e2e + .env.local as a side effect (see e2e/env.ts).
-import "./env"
+import "./env";
 
 // Shared `use` defaults for the real-funds payment-flow projects.
 const realFundsUse = {
@@ -11,7 +11,7 @@ const realFundsUse = {
   trace: "on" as const,
   screenshot: "only-on-failure" as const,
   video: "retain-on-failure" as const,
-}
+};
 
 export default defineConfig({
   testDir: ".",
@@ -44,7 +44,7 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         baseURL: process.env.BASE_URL || "http://localhost:3000",
-        headless: true,
+        headless: false,
         actionTimeout: 10_000,
         navigationTimeout: 15_000,
         trace: "on-first-retry",
@@ -77,7 +77,7 @@ export default defineConfig({
       name: "stellar-to-evm",
       testMatch: "**/payment-flows/bridge/stellar-to-evm.spec.ts",
       dependencies: ["evm-to-stellar"],
-      use: { ...realFundsUse, headless: true },
+      use: { ...realFundsUse, headless: false },
       retries: 0,
       timeout: 10 * 60_000,
     },
@@ -90,7 +90,7 @@ export default defineConfig({
       name: "stellar-to-solana",
       testMatch: "**/payment-flows/bridge/stellar-to-solana.spec.ts",
       dependencies: ["stellar-to-evm"],
-      use: { ...realFundsUse, headless: true },
+      use: { ...realFundsUse, headless: false },
       retries: 0,
       timeout: 10 * 60_000,
     },
@@ -123,33 +123,224 @@ export default defineConfig({
       timeout: 10 * 60_000,
     },
 
-    // ── Checkout (payId): EVM → Stellar (real funds) ──────────────────────────
-    // Same money movement as evm-to-stellar, but via Checkout mode (the order is
-    // created server-side with createPayment(), then paid against its payId).
-    // Headed — the MetaMask extension can't load headless. Skipped unless
-    // E2E_EVM_SEED_PHRASE is set. Depends on `mocked` so the fast mocked suite
-    // always runs first.
+    // ── EVM → Solana (real funds) ─────────────────────────────────────────────
     {
-      name: "checkout-evm-to-stellar",
-      testMatch: "**/payment-flows/checkout/evm-to-stellar.spec.ts",
+      name: "evm-to-solana",
+      testMatch: "**/payment-flows/bridge/evm-to-solana.spec.ts",
       dependencies: ["solana-to-evm"],
       use: { ...realFundsUse, headless: false },
       retries: 0,
       timeout: 10 * 60_000,
     },
 
-    // ── Deposit: Stellar → EVM (real funds) ───────────────────────────────────
-    // Same money movement as stellar-to-evm, but via Deposit mode (no upfront
-    // amount — it's entered inside the modal during pay-in). Headless is fine —
-    // no extension; the app injects a headless signer. Skipped unless a Stellar
-    // secret is set.
+    // ── EVM → EVM / Base → Arbitrum (real funds) ──────────────────────────────
+    {
+      name: "evm-to-evm",
+      testMatch: "**/payment-flows/bridge/evm-to-evm.spec.ts",
+      dependencies: ["evm-to-solana"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Stellar → Stellar (real funds) ────────────────────────────────────────
+    {
+      name: "stellar-to-stellar",
+      testMatch: "**/payment-flows/bridge/stellar-to-stellar.spec.ts",
+      dependencies: ["evm-to-evm"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Solana → Solana (real funds) ──────────────────────────────────────────
+    {
+      name: "solana-to-solana",
+      testMatch: "**/payment-flows/bridge/solana-to-solana.spec.ts",
+      dependencies: ["stellar-to-stellar"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Checkout: EVM → Stellar ────────────────────────────────────────────────
+    {
+      name: "checkout-evm-to-stellar",
+      testMatch: "**/payment-flows/checkout/evm-to-stellar.spec.ts",
+      dependencies: ["solana-to-solana"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Checkout: EVM → Solana ─────────────────────────────────────────────────
+    {
+      name: "checkout-evm-to-solana",
+      testMatch: "**/payment-flows/checkout/evm-to-solana.spec.ts",
+      dependencies: ["checkout-evm-to-stellar"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Checkout: EVM → EVM ────────────────────────────────────────────────────
+    {
+      name: "checkout-evm-to-evm",
+      testMatch: "**/payment-flows/checkout/evm-to-evm.spec.ts",
+      dependencies: ["checkout-evm-to-solana"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Checkout: Stellar → EVM ────────────────────────────────────────────────
+    {
+      name: "checkout-stellar-to-evm",
+      testMatch: "**/payment-flows/checkout/stellar-to-evm.spec.ts",
+      dependencies: ["checkout-evm-to-evm"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Checkout: Stellar → Solana ─────────────────────────────────────────────
+    {
+      name: "checkout-stellar-to-solana",
+      testMatch: "**/payment-flows/checkout/stellar-to-solana.spec.ts",
+      dependencies: ["checkout-stellar-to-evm"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Checkout: Stellar → Stellar ────────────────────────────────────────────
+    {
+      name: "checkout-stellar-to-stellar",
+      testMatch: "**/payment-flows/checkout/stellar-to-stellar.spec.ts",
+      dependencies: ["checkout-stellar-to-solana"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Checkout: Solana → Stellar ─────────────────────────────────────────────
+    {
+      name: "checkout-solana-to-stellar",
+      testMatch: "**/payment-flows/checkout/solana-to-stellar.spec.ts",
+      dependencies: ["checkout-stellar-to-stellar"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Checkout: Solana → EVM ─────────────────────────────────────────────────
+    {
+      name: "checkout-solana-to-evm",
+      testMatch: "**/payment-flows/checkout/solana-to-evm.spec.ts",
+      dependencies: ["checkout-solana-to-stellar"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Checkout: Solana → Solana ──────────────────────────────────────────────
+    {
+      name: "checkout-solana-to-solana",
+      testMatch: "**/payment-flows/checkout/solana-to-solana.spec.ts",
+      dependencies: ["checkout-solana-to-evm"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Deposit: Stellar → EVM ─────────────────────────────────────────────────
     {
       name: "deposit-stellar-to-evm",
       testMatch: "**/payment-flows/deposit/stellar-to-evm.spec.ts",
-      dependencies: ["checkout-evm-to-stellar"],
-      use: { ...realFundsUse, headless: true },
+      dependencies: ["checkout-solana-to-solana"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Deposit: Stellar → Solana ──────────────────────────────────────────────
+    {
+      name: "deposit-stellar-to-solana",
+      testMatch: "**/payment-flows/deposit/stellar-to-solana.spec.ts",
+      dependencies: ["deposit-stellar-to-evm"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Deposit: Stellar → Stellar ─────────────────────────────────────────────
+    {
+      name: "deposit-stellar-to-stellar",
+      testMatch: "**/payment-flows/deposit/stellar-to-stellar.spec.ts",
+      dependencies: ["deposit-stellar-to-solana"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Deposit: EVM → Stellar ─────────────────────────────────────────────────
+    {
+      name: "deposit-evm-to-stellar",
+      testMatch: "**/payment-flows/deposit/evm-to-stellar.spec.ts",
+      dependencies: ["deposit-stellar-to-stellar"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Deposit: EVM → Solana ──────────────────────────────────────────────────
+    {
+      name: "deposit-evm-to-solana",
+      testMatch: "**/payment-flows/deposit/evm-to-solana.spec.ts",
+      dependencies: ["deposit-evm-to-stellar"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Deposit: EVM → EVM ─────────────────────────────────────────────────────
+    {
+      name: "deposit-evm-to-evm",
+      testMatch: "**/payment-flows/deposit/evm-to-evm.spec.ts",
+      dependencies: ["deposit-evm-to-solana"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Deposit: Solana → Stellar ──────────────────────────────────────────────
+    {
+      name: "deposit-solana-to-stellar",
+      testMatch: "**/payment-flows/deposit/solana-to-stellar.spec.ts",
+      dependencies: ["deposit-evm-to-evm"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Deposit: Solana → EVM ──────────────────────────────────────────────────
+    {
+      name: "deposit-solana-to-evm",
+      testMatch: "**/payment-flows/deposit/solana-to-evm.spec.ts",
+      dependencies: ["deposit-solana-to-stellar"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Deposit: Solana → Solana ───────────────────────────────────────────────
+    {
+      name: "deposit-solana-to-solana",
+      testMatch: "**/payment-flows/deposit/solana-to-solana.spec.ts",
+      dependencies: ["deposit-solana-to-evm"],
+      use: { ...realFundsUse, headless: false },
       retries: 0,
       timeout: 10 * 60_000,
     },
   ],
-})
+});

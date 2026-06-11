@@ -1,0 +1,48 @@
+/**
+ * Payment flow E2E — Deposit: Solana USDC → EVM (Base) (mainnet, real funds).
+ *
+ * Source: Solana wallet via Phantom (chainwright). Destination: E2E.evm.address.
+ * No upfront amount — entered inside the SDK modal during pay-in.
+ *
+ * THIS TEST MOVES REAL MONEY. Skipped unless E2E_SOLANA_SEED_PHRASE is set.
+ *
+ * Setup:  set E2E_SOLANA_SEED_PHRASE in .env.e2e  →  pnpm setup-wallets
+ * Run:    pnpm dev &  →  pnpm test:e2e:deposit-solana-to-evm
+ */
+import { testWithChainwright } from "chainwright/core"
+import { phantomFixture } from "chainwright/phantom"
+import { E2E } from "../../env"
+import {
+  payInWithPhantom,
+  startDepositPayment,
+  unlockPhantomIfNeeded,
+  waitForPayoutCompleted,
+} from "../../helpers"
+
+const test = testWithChainwright(phantomFixture())
+
+test.describe("Deposit: Solana USDC → EVM (Base) (mainnet, real funds)", () => {
+  test.skip(
+    !E2E.solana.seedPhrase,
+    "E2E_SOLANA_SEED_PHRASE not set — see .env.e2e.example"
+  )
+
+  test("deposit USDC from Solana to EVM destination", async ({
+    page,
+    phantom,
+    phantomPage,
+  }) => {
+    await unlockPhantomIfNeeded(phantom, phantomPage)
+    await startDepositPayment(page, {
+      destChain: "Base",
+      destToken: "USDC",
+      address: E2E.evm.address,
+    })
+    await payInWithPhantom(page, phantom, {
+      sourceOptionId: E2E.solana.sourceOptionId,
+      // Deposit requires a minimum of 0.1 USDC.
+      amount: "0.1",
+    })
+    await waitForPayoutCompleted(page)
+  })
+})

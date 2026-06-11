@@ -219,11 +219,15 @@ export async function enterDepositAmount(page: Page, amount: string) {
 /**
  * Pay in via the MetaMask extension (chainwright): pick wallet + chain, connect,
  * select the source token, and confirm the on-chain transaction.
+ *
+ * Pass `amount` for Deposit flows: after the token is selected the SDK shows an
+ * in-modal amount screen (SELECT_AMOUNT) before the wallet confirmation, since
+ * deposit sets no upfront toUnits.
  */
 export async function payInWithMetaMask(
   page: Page,
   metamask: Metamask,
-  opts: { sourceOptionId: string }
+  opts: { sourceOptionId: string; amount?: string }
 ) {
   await page.getByRole("button", { name: /pay with wallet/i }).click()
   await page.getByRole("button", { name: /metamask/i }).click()
@@ -251,6 +255,10 @@ export async function payInWithMetaMask(
   await expect(sourceOption).toBeEnabled({ timeout: 10_000 })
   await sourceOption.click()
 
+  if (opts.amount != null) {
+    await enterDepositAmount(page, opts.amount)
+  }
+
   await metamask.confirmTransaction()
 }
 
@@ -272,11 +280,15 @@ export async function unlockPhantomIfNeeded(
  * connect, select the source token, and confirm the on-chain transaction.
  * Mirrors payInWithMetaMask — Phantom is multi-chain, so a chain-selection step
  * appears after picking the wallet.
+ *
+ * Pass `amount` for Deposit flows: after the token is selected the SDK shows an
+ * in-modal amount screen (SOLANA_SELECT_AMOUNT) before the wallet confirmation,
+ * since deposit sets no upfront toUnits.
  */
 export async function payInWithPhantom(
   page: Page,
   phantom: Phantom,
-  opts: { sourceOptionId: string }
+  opts: { sourceOptionId: string; amount?: string }
 ) {
   await page.getByRole("button", { name: /pay with wallet/i }).click()
   await page.getByRole("button", { name: /phantom/i }).click()
@@ -300,6 +312,10 @@ export async function payInWithPhantom(
   await expect(sourceOption).toBeVisible({ timeout: 120_000 })
   await expect(sourceOption).toBeEnabled({ timeout: 10_000 })
   await sourceOption.click()
+
+  if (opts.amount != null) {
+    await enterDepositAmount(page, opts.amount)
+  }
 
   await phantom.confirmTransaction()
 }

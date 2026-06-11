@@ -39,7 +39,8 @@ test.describe("Deposit: Stellar USDC → Base (mainnet, real funds)", () => {
       address: E2E.evm.address,
     })
     // Deposit has no preset amount — enter it inside the modal during pay-in.
-    await payInWithStellarHeadlessDeposit(page, E2E.amount)
+    // Deposit requires a minimum of 0.1 USDC.
+    await payInWithStellarHeadlessDeposit(page, "0.1")
     await waitForPayoutCompleted(page)
   })
 })

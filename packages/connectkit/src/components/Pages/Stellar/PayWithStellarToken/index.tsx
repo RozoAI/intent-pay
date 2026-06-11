@@ -202,7 +202,12 @@ const PayWithStellarToken: React.FC = () => {
       const destToken = order.destFinalCallTokenAmount?.token;
       setFeeLoading(true);
       const feeData = await getCachedFee({
-        appId: paymentState.payParams?.appId,
+        // Prefer the appId from the loaded order — payId (Checkout) flows carry
+        // it in order.metadata and don't pass it via props. Fall back to props
+        // for appId-mode payments (Bridge/Deposit).
+        appId:
+          (order.metadata as { appId?: string } | undefined)?.appId ??
+          paymentState.payParams?.appId,
         type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
         sourceChainId: option.required.token.chainId.toString(),
         sourceTokenSymbol: option.required.token.symbol,
@@ -300,9 +305,10 @@ const PayWithStellarToken: React.FC = () => {
               ...option,
               fees: {
                 ...option.fees,
-                usd: feeData.data?.source.fee != null
-                  ? Number(feeData.data.source.fee)
-                  : option.fees.usd,
+                usd:
+                  feeData.data?.source.fee != null
+                    ? Number(feeData.data.source.fee)
+                    : option.fees.usd,
               },
             },
             store as any,
@@ -319,9 +325,10 @@ const PayWithStellarToken: React.FC = () => {
           ...option,
           fees: {
             ...option.fees,
-            usd: feeData.data?.source.fee != null
-              ? Number(feeData.data.source.fee)
-              : option.fees.usd,
+            usd:
+              feeData.data?.source.fee != null
+                ? Number(feeData.data.source.fee)
+                : option.fees.usd,
           },
         });
         hydratedOrder = res.order;
@@ -425,9 +432,10 @@ const PayWithStellarToken: React.FC = () => {
           ...option,
           fees: {
             ...option.fees,
-            usd: feeData.data?.source.fee != null
-              ? Number(feeData.data.source.fee)
-              : option.fees.usd,
+            usd:
+              feeData.data?.source.fee != null
+                ? Number(feeData.data.source.fee)
+                : option.fees.usd,
           },
         },
         paymentData,
@@ -602,9 +610,10 @@ const PayWithStellarToken: React.FC = () => {
             ...selectedStellarTokenOption,
             fees: {
               ...selectedStellarTokenOption.fees,
-              usd: feeData?.source.fee != null
-                ? Number(feeData.source.fee)
-                : selectedStellarTokenOption.fees.usd,
+              usd:
+                feeData?.source.fee != null
+                  ? Number(feeData.source.fee)
+                  : selectedStellarTokenOption.fees.usd,
             },
           }}
           feeData={feeData}
