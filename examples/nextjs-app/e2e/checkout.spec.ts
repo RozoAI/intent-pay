@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test"
+import { E2E } from "./env"
 import {
   closeModalBackdrop,
   closeModalEscape,
@@ -45,6 +46,8 @@ test.describe("Checkout mode — config form", () => {
 })
 
 test.describe("Checkout mode — Create Payment API flow", () => {
+  test.skip(!E2E.realApi, "set E2E_REAL_API=true to run specs against the live createPayment() API")
+
   test.beforeEach(async ({ page }) => {
     await gotoMode(page, "checkout")
     await fillConfig(page, CFG)
@@ -87,6 +90,7 @@ test.describe("Checkout mode — manual Payment ID", () => {
   })
 
   test("entering a payment ID and clicking Use shows Pay Now", async ({ page }) => {
+    test.skip(!E2E.realApi, "set E2E_REAL_API=true to run specs against the live createPayment() API")
     // Use a plausible UUID-shaped ID; API will fail but UI shows Pay Now optimistically
     const fakeId = "00000000-0000-0000-0000-000000000001"
     await page.getByPlaceholder(/xxxx/i).fill(fakeId)
@@ -95,6 +99,7 @@ test.describe("Checkout mode — manual Payment ID", () => {
   })
 
   test("pressing Enter in payment ID input triggers Use", async ({ page }) => {
+    test.skip(!E2E.realApi, "set E2E_REAL_API=true to run specs against the live createPayment() API")
     const fakeId = "00000000-0000-0000-0000-000000000002"
     await page.getByPlaceholder(/xxxx/i).fill(fakeId)
     await page.keyboard.press("Enter")
@@ -103,6 +108,8 @@ test.describe("Checkout mode — manual Payment ID", () => {
 })
 
 test.describe("Checkout mode — modal (via Create Payment)", () => {
+  test.skip(!E2E.realApi, "set E2E_REAL_API=true to run specs against the live createPayment() API")
+
   test.beforeEach(async ({ page }) => {
     await gotoMode(page, "checkout")
     await fillConfig(page, CFG)

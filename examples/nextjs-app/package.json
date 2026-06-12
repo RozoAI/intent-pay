@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "node_modules/.bin/playwright test --config e2e/playwright.config.ts",
     "test:e2e:mocked": "SKIP_ENV_VALIDATION=1 node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=mocked",
+    "test:e2e:checkout-api": "SKIP_ENV_VALIDATION=1 E2E_REAL_API=true node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=mocked --grep \"Create Payment API flow|manual Payment ID|modal \\\\(via Create Payment\\\\)\"",
     "test:e2e:evm-to-stellar": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=evm-to-stellar --no-deps",
     "test:e2e:stellar-to-evm": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=stellar-to-evm --no-deps",
     "test:e2e:stellar-to-solana": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=stellar-to-solana --no-deps",

@@ -26,6 +26,13 @@ const SOLANA_USDC_OPTION_ID = "501-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 const TEMP_PASSWORD = "TempE2ePassword123!"
 
 export const E2E = {
+  /**
+   * Set to run specs that call the live createPayment() API (checkout.spec.ts).
+   * Off by default so the `mocked` project stays network-free and doesn't write
+   * real payment rows to the production DB under the rozoDemo appId.
+   */
+  realApi: process.env.E2E_REAL_API === "true",
+
   /** USDC amount to send (human units), applies to every flow. */
   amount: process.env.E2E_AMOUNT ?? "0.02",
 
