@@ -103,14 +103,14 @@ export function CheckoutMode() {
   const preview = (
     <div className="flex flex-col items-center gap-6 py-4">
       {!paymentId ? (
-        <div className="flex flex-col items-center gap-4 w-full max-w-sm">
+        <div className="flex w-full max-w-sm flex-col items-center gap-4">
           {isConfigValid && (
             <>
               <Button
                 onClick={handleCreatePayment}
                 disabled={creating}
                 size="lg"
-                className="min-w-44 w-full"
+                className="w-full min-w-44"
               >
                 {creating ? "Creating Payment…" : "Create Payment"}
               </Button>
@@ -127,14 +127,14 @@ export function CheckoutMode() {
                   </Button>
                 </div>
               )}
-              <div className="flex items-center gap-2 w-full">
+              <div className="flex w-full items-center gap-2">
                 <div className="h-px flex-1 bg-border" />
                 <span className="text-xs text-muted-foreground">or</span>
                 <div className="h-px flex-1 bg-border" />
               </div>
             </>
           )}
-          <div className="flex flex-col gap-1.5 w-full">
+          <div className="flex w-full flex-col gap-1.5">
             <Label className="text-xs text-muted-foreground">
               Enter Payment ID manually
             </Label>
@@ -144,7 +144,7 @@ export function CheckoutMode() {
                 onChange={(e) => setManualPayId(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleUseManualPayId()}
                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                className="border-border bg-secondary font-mono text-xs flex-1"
+                className="flex-1 border-border bg-secondary font-mono text-xs"
               />
               <Button
                 onClick={handleUseManualPayId}
@@ -157,8 +157,9 @@ export function CheckoutMode() {
             </div>
           </div>
           {!isConfigValid && (
-            <p className="text-xs text-muted-foreground text-center">
-              Fill in configuration fields to use Create Payment, or enter a Payment ID directly.
+            <p className="text-center text-xs text-muted-foreground">
+              Fill in configuration fields to use Create Payment, or enter a
+              Payment ID directly.
             </p>
           )}
         </div>

@@ -13,7 +13,7 @@ import { usePayContext } from "../../../hooks/usePayContext";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
-import { getCachedFee } from "../../../utils/feeCache";
+import { getCachedFee, resolveOrderAppId } from "../../../utils/feeCache";
 import Button from "../../Common/Button";
 import {
   Link,
@@ -145,7 +145,7 @@ const PayWithToken: React.FC = () => {
         const destToken = order.destFinalCallTokenAmount?.token;
         setFeeLoading(true);
         const feeData = await getCachedFee({
-          appId: paymentState.payParams?.appId,
+          appId: resolveOrderAppId(order, paymentState.payParams?.appId),
           type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
           sourceChainId: option.required.token.chainId.toString(),
           sourceTokenSymbol: option.required.token.symbol,
@@ -180,9 +180,10 @@ const PayWithToken: React.FC = () => {
             ...option,
             fees: {
               ...option.fees,
-              usd: feeData.data?.source.fee != null
-                ? Number(feeData.data.source.fee)
-                : option.fees.usd,
+              usd:
+                feeData.data?.source.fee != null
+                  ? Number(feeData.data.source.fee)
+                  : option.fees.usd,
             },
           },
           store as any,
@@ -287,7 +288,7 @@ const PayWithToken: React.FC = () => {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletPaymentOptions, rozoPaymentId, order?.externalId, rozoPaymentState],
+    [walletPaymentOptions, rozoPaymentId, order, rozoPaymentState],
   );
 
   useEffect(() => {
@@ -329,9 +330,10 @@ const PayWithToken: React.FC = () => {
             ...selectedTokenOption,
             fees: {
               ...selectedTokenOption.fees,
-              usd: feeData?.source.fee != null
-                ? Number(feeData.source.fee)
-                : selectedTokenOption.fees.usd,
+              usd:
+                feeData?.source.fee != null
+                  ? Number(feeData.source.fee)
+                  : selectedTokenOption.fees.usd,
             },
           }}
           feeData={feeData}
