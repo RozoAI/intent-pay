@@ -651,17 +651,15 @@ const Confirmation: React.FC = () => {
           </>
         )}
 
-        {done &&
-          (!showProcessingPayout || payoutResolved) &&
-          generateReceiptUrl && (
-            <Button
-              iconPosition="right"
-              href={generateReceiptUrl}
-              style={{ width: "100%" }}
-            >
-              See Receipt
-            </Button>
-          )}
+        {done && generateReceiptUrl && (
+          <Button
+            iconPosition="right"
+            href={generateReceiptUrl}
+            style={{ width: "100%" }}
+          >
+            See Receipt
+          </Button>
+        )}
         <PoweredByFooter
           showSupport={!done}
           preFilledMessage={`Transaction: ${txURL}`}
