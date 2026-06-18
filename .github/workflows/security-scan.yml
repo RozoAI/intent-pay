@@ -1,0 +1,39 @@
+name: Security scan
+
+# Pre-merge security gate. Runs scripts/security.sh (one file: code-injection +
+# secret-leak checks) on every push and PR. See scripts/SECURITY.md.
+#
+# A finding fails the job. If/when you want to soften it while cleaning up known
+# pre-existing findings, add `continue-on-error: true` to the job.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+permissions:
+  contents: read
+
+jobs:
+  security-scan:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run security gate
+        run: |
+          chmod +x scripts/security.sh
+          bash scripts/security.sh scan
+
+      - name: On failure, explain
+        if: failure()
+        run: |
+          echo "::error::scripts/security.sh found a code-injection or secret-leak issue."
+          echo "Matched secret values are intentionally hidden — inspect the reported file:line."
+          echo "Real secret → remove + rotate + use a secret manager. Build-config injection → see docs/incident-tailwind-malware-2026-06-18.md."
+          echo "Confirmed false positive → add a '# security.sh:allow' comment on that line. See scripts/SECURITY.md."
