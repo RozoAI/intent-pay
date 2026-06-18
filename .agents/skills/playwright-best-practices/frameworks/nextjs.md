@@ -68,7 +68,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3000/api
 DATABASE_URL=postgresql://localhost:5432/test_db
 
 # .env.test.local (gitignored)
-NEXTAUTH_SECRET=test-secret-local
+NEXTAUTH_SECRET=test-secret-local # security.sh:allow (doc example placeholder)
 ```
 
 ## App Router Patterns
