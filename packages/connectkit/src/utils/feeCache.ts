@@ -72,3 +72,18 @@ export function getCachedFee(params: GetFeeParams): Promise<FeeResult> {
 export function clearFeeCache(): void {
   cache.clear();
 }
+
+/**
+ * Resolve the appId for fee-quote calls: prefer `order.metadata.appId` (set by
+ * Checkout / payId flows) over the prop-based `payParams.appId` (Bridge/Deposit).
+ * Validates the metadata value is a non-empty string before trusting it.
+ */
+export function resolveOrderAppId(
+  order: { metadata?: unknown } | undefined | null,
+  payParamsAppId?: string,
+): string | undefined {
+  const metaAppId = (order?.metadata as { appId?: unknown } | undefined)?.appId;
+  return typeof metaAppId === "string" && metaAppId.length > 0
+    ? metaAppId
+    : payParamsAppId;
+}

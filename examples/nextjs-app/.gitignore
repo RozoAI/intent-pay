@@ -39,6 +39,7 @@ pnpm-debug.log*
 .env.production
 .env.staging
 .env.development
+.env.e2e
 
 # typescript
 *.tsbuildinfo
@@ -47,3 +48,7 @@ next-env.d.ts
 # test
 test-results/
 playwright-report/
+
+# chainwright wallet cache
+.wallet-cache/
+

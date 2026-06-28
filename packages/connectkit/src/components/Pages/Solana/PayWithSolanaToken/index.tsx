@@ -27,7 +27,7 @@ import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../../lib/analytics/events";
 import { useAnalytics } from "../../../../provider/AnalyticsProvider";
-import { getCachedFee } from "../../../../utils/feeCache";
+import { getCachedFee, resolveOrderAppId } from "../../../../utils/feeCache";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
@@ -164,7 +164,7 @@ const PayWithSolanaToken: React.FC = () => {
         const destToken = order.destFinalCallTokenAmount?.token;
         setFeeLoading(true);
         const feeData = await getCachedFee({
-          appId: paymentState.payParams?.appId,
+          appId: resolveOrderAppId(order, paymentState.payParams?.appId),
           type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
           sourceChainId: option.required.token.chainId.toString(),
           sourceTokenSymbol: option.required.token.symbol,
@@ -259,9 +259,10 @@ const PayWithSolanaToken: React.FC = () => {
                 ...option,
                 fees: {
                   ...option.fees,
-                  usd: feeData.data?.source.fee != null
-                    ? Number(feeData.data.source.fee)
-                    : option.fees.usd,
+                  usd:
+                    feeData.data?.source.fee != null
+                      ? Number(feeData.data.source.fee)
+                      : option.fees.usd,
                 },
               },
               store as any,
@@ -278,9 +279,10 @@ const PayWithSolanaToken: React.FC = () => {
             ...option,
             fees: {
               ...option.fees,
-              usd: feeData.data?.source.fee != null
-                ? Number(feeData.data.source.fee)
-                : option.fees.usd,
+              usd:
+                feeData.data?.source.fee != null
+                  ? Number(feeData.data.source.fee)
+                  : option.fees.usd,
             },
           });
           hydratedOrder = res.order;
@@ -371,9 +373,10 @@ const PayWithSolanaToken: React.FC = () => {
             ...option,
             fees: {
               ...option.fees,
-              usd: feeData.data?.source.fee != null
-                ? Number(feeData.data.source.fee)
-                : option.fees.usd,
+              usd:
+                feeData.data?.source.fee != null
+                  ? Number(feeData.data.source.fee)
+                  : option.fees.usd,
             },
           },
           paymentData,
@@ -517,9 +520,10 @@ const PayWithSolanaToken: React.FC = () => {
             ...selectedSolanaTokenOption,
             fees: {
               ...selectedSolanaTokenOption.fees,
-              usd: feeData?.source.fee != null
-                ? Number(feeData.source.fee)
-                : selectedSolanaTokenOption.fees.usd,
+              usd:
+                feeData?.source.fee != null
+                  ? Number(feeData.source.fee)
+                  : selectedSolanaTokenOption.fees.usd,
             },
           }}
           feeData={feeData}
