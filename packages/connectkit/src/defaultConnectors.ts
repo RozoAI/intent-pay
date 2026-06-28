@@ -5,6 +5,10 @@ import {
   safe,
   walletConnect,
 } from "wagmi/connectors";
+import type { Hex } from "viem";
+
+let globalDataSuffix: Hex | undefined;
+export const getDataSuffix = () => globalDataSuffix;
 
 type DefaultConnectorsProps = {
   app: {
@@ -14,6 +18,7 @@ type DefaultConnectorsProps = {
     url?: string;
   };
   coinbaseWalletPreference?: CoinbaseWalletParameters<"4">["preference"];
+  dataSuffix?: Hex;
   additionalConnectors?: CreateConnectorFn[];
   walletConnectProjectId?: string;
 };
@@ -21,6 +26,7 @@ type DefaultConnectorsProps = {
 const defaultConnectors = ({
   app,
   coinbaseWalletPreference,
+  dataSuffix,
   additionalConnectors,
   walletConnectProjectId,
 }: DefaultConnectorsProps): CreateConnectorFn[] => {
@@ -39,13 +45,33 @@ const defaultConnectors = ({
     );
   }
 
-  // Add the rest of the connectors
+  // Merge dataSuffix into Coinbase Wallet attribution preference.
+  // CoinbaseWalletParameters preference is `"eoaOnly" | "smartWalletOnly" | "all" | PreferenceObject`.
+  // String shorthands map to `{ options: value }` in the full object form.
+  // CWS SDK rejects both `auto` and `dataSuffix` on the same attribution object — skip if auto is set.
+  if (dataSuffix !== undefined) globalDataSuffix = dataSuffix;
+  let mergedPreference: CoinbaseWalletParameters<"4">["preference"] = coinbaseWalletPreference;
+  if (dataSuffix) {
+    const base: Record<string, unknown> = typeof coinbaseWalletPreference === "string"
+      ? { options: coinbaseWalletPreference }
+      : { ...coinbaseWalletPreference };
+    const existingAttribution = (base.attribution as Record<string, unknown>) ?? {};
+    if (!existingAttribution.auto) {
+      mergedPreference = {
+        ...base,
+        attribution: { ...existingAttribution, dataSuffix },
+      } as CoinbaseWalletParameters<"4">["preference"];
+    } else {
+      console.warn("[RozoPay] dataSuffix ignored — attribution.auto is set, cannot combine with dataSuffix");
+    }
+  }
+
   connectors.push(
     coinbaseWallet({
       appName: app.name,
       appLogoUrl: app.icon,
       overrideIsMetaMask: false,
-      preference: coinbaseWalletPreference,
+      preference: mergedPreference,
     })
   );
 

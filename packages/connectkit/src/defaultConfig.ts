@@ -1,4 +1,5 @@
 import { type CreateConfigParameters, CreateConnectorFn, http } from "wagmi";
+import type { Hex } from "viem";
 import {
   arbitrum,
   base,
@@ -26,6 +27,9 @@ type DefaultConfigProps = {
   // Coinbase Wallet preference
   coinbaseWalletPreference?: CoinbaseWalletParameters<"4">["preference"];
 
+  // Base builder code attribution suffix (https://docs.base.org/apps/builder-codes/app-developers)
+  dataSuffix?: Hex;
+
   // Additional connectors to use
   additionalConnectors?: CreateConnectorFn[];
 } & Partial<CreateConfigParameters>;
@@ -51,6 +55,7 @@ const defaultConfig = ({
   appDescription,
   appUrl,
   coinbaseWalletPreference,
+  dataSuffix,
   additionalConnectors,
   chains = REQUIRED_CHAINS,
   client,
@@ -76,6 +81,10 @@ const defaultConfig = ({
     }
   }
 
+  if (dataSuffix && props?.connectors) {
+    console.warn("[RozoPay] dataSuffix is ignored when custom connectors are provided. Configure attribution in your connectors directly.");
+  }
+
   const connectors: CreateConfigParameters["connectors"] =
     props?.connectors ??
     defaultConnectors({
@@ -86,6 +95,7 @@ const defaultConfig = ({
         url: appUrl,
       },
       coinbaseWalletPreference,
+      dataSuffix,
       additionalConnectors,
     });
 

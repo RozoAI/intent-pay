@@ -45,7 +45,13 @@ import {
 } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { erc20Abi, getAddress, Hex, hexToBytes, parseUnits, zeroAddress } from "viem";
-import { useAccount, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
+import {
+  useAccount,
+  useConnectorClient,
+  useSendTransaction,
+  useSwitchChain,
+  useWriteContract,
+} from "wagmi";
 import { convertPreferredSymbolsToTokens } from "../utils/token";
 
 import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
@@ -70,6 +76,7 @@ import { Store } from "../stateStore";
 import { parseErrorMessage } from "../utils/errorParser";
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
+import { getDataSuffix } from "../defaultConnectors";
 import { WalletConfigProps } from "../wallets/walletConfigs";
 import { useDepositAddressOptions } from "./useDepositAddressOptions";
 import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
@@ -233,6 +240,8 @@ export function usePaymentState({
 
   const { sendTransactionAsync } = useSendTransaction();
   const { writeContractAsync } = useWriteContract();
+  const { data: connectorClient } = useConnectorClient({ query: { enabled: !getDataSuffix() } });
+  const resolvedDataSuffix = getDataSuffix() ?? (connectorClient?.dataSuffix as Hex | undefined);
 
   // Solana wallet state.
   const solanaWallet = useWallet();
@@ -712,6 +721,7 @@ export function usePaymentState({
             chainId: required.token.chainId,
             functionName: "transfer",
             args: [getAddress(destinationAddress), paymentAmount],
+            dataSuffix: resolvedDataSuffix,
           });
         }
       } catch (e) {
