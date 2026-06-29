@@ -239,7 +239,12 @@ export function usePaymentState({
 
   const { sendTransactionAsync } = useSendTransaction();
   const { writeContractAsync } = useWriteContract();
-  const resolvedDataSuffix = getDataSuffix();
+  // ponytail: order.metadata.dataSuffix survives ROZO_INVOICE_URL redirects where the
+  // consumer's wagmi config (globalDataSuffix) is absent. Invoice checkout fetches the
+  // order first and passes metadata.dataSuffix into getDefaultConfig, but this fallback
+  // covers the in-SDK path where the order is already loaded.
+  const resolvedDataSuffix =
+    getDataSuffix() ?? (pay.order?.metadata?.dataSuffix as Hex | undefined);
 
   // Solana wallet state.
   const solanaWallet = useWallet();

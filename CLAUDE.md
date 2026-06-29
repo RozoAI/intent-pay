@@ -227,7 +227,8 @@ components/
 
 ### Key Configuration Files
 
-- **packages/connectkit/src/defaultConfig.ts** - Auto-generates wagmi config for EVM chains
+- **packages/connectkit/src/defaultConfig.ts** - Auto-generates wagmi config for EVM chains; accepts `dataSuffix?: Hex` for Base builder code attribution
+- **packages/connectkit/src/defaultConnectors.ts** - Builds wagmi connectors; stores `dataSuffix` in `globalDataSuffix` (module singleton) and merges it into Coinbase Wallet `preference.attribution`
 - **packages/connectkit/src/constants/rozoConfig.ts** - API URLs, token configs
 - **packages/connectkit/src/constants/routes.ts** - Payment flow navigation
 - **packages/connectkit/rollup.config.js** - Build configuration
@@ -499,7 +500,23 @@ Once `hydrateOrder()` is called, payment amount/destination cannot change withou
 
 **Tradeoff:** Changing payment details feels "heavy" because it requires restarting the full flow.
 
-### 10. Error Recovery Requires Order Context
+### 10. Base Builder Code Attribution Survives Invoice Redirects via `metadata.dataSuffix`
+**Location:** `packages/connectkit/src/hooks/usePaymentState.ts`, `packages/pay-common/src/rozoPay.ts`
+
+`dataSuffix` set in `getDefaultConfig()` lives only in the consumer's wagmi runtime. When the user is redirected to `ROZO_INVOICE_URL`, the invoice app has its own wagmi config — `globalDataSuffix` is gone.
+
+**Pattern:** Consumer passes `dataSuffix` in both places:
+```tsx
+const dataSuffix = Attribution.toDataSuffix({ codes: [BC] });
+// 1. wagmi config — for direct payments in consumer app
+getDefaultConfig({ dataSuffix })
+// 2. order metadata — survives ROZO_INVOICE_URL redirect
+<RozoPayButton metadata={{ dataSuffix }} />
+```
+
+`usePaymentState` resolves: `getDataSuffix() ?? order.metadata?.dataSuffix`. Invoice app reads `order.metadata.dataSuffix` and passes it to its own `getDefaultConfig`.
+
+### 11. Error Recovery Requires Order Context
 **Pattern:**
 ```typescript
 try {
