@@ -47,10 +47,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { erc20Abi, getAddress, Hex, hexToBytes, parseUnits, zeroAddress } from "viem";
 import {
   useAccount,
+  useCapabilities,
   useSendTransaction,
   useSwitchChain,
+  useWalletClient,
   useWriteContract,
 } from "wagmi";
+import { useWriteContracts } from "wagmi/experimental";
 import { convertPreferredSymbolsToTokens } from "../utils/token";
 
 import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
@@ -63,9 +66,11 @@ import {
 } from "@solana/spl-token";
 import { Asset, Memo, Networks, Operation, TransactionBuilder } from "@stellar/stellar-sdk";
 import bs58 from "bs58";
+import { waitForCallsStatus } from "viem/actions";
 import { PayButtonPaymentProps } from "../components/RozoPayButton/types";
 import { ROUTES } from "../constants/routes";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
+import { getDataSuffix } from "../defaultConnectors";
 import { ROZO_EVENTS } from "../lib/analytics/events";
 import { buildCreatePaymentPayload } from "../payment/createPaymentPayload";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
@@ -75,7 +80,6 @@ import { Store } from "../stateStore";
 import { parseErrorMessage } from "../utils/errorParser";
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
-import { getDataSuffix } from "../defaultConnectors";
 import { WalletConfigProps } from "../wallets/walletConfigs";
 import { useDepositAddressOptions } from "./useDepositAddressOptions";
 import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
@@ -239,6 +243,9 @@ export function usePaymentState({
 
   const { sendTransactionAsync } = useSendTransaction();
   const { writeContractAsync } = useWriteContract();
+  const { data: walletClient } = useWalletClient();
+  const { data: walletCapabilities, isPending: capabilitiesPending } = useCapabilities();
+  const { writeContractsAsync } = useWriteContracts();
   // ponytail: order.metadata.dataSuffix survives ROZO_INVOICE_URL redirects where the
   // consumer's wagmi config (globalDataSuffix) is absent. Invoice checkout fetches the
   // order first and passes metadata.dataSuffix into getDefaultConfig, but this fallback
@@ -720,6 +727,43 @@ export function usePaymentState({
           if (required.token.chainId !== bscUSDT.chainId) {
             await switchChainAsync({ chainId: required.token.chainId });
           }
+          log?.(`[PAY ERC20] dataSuffix: ${resolvedDataSuffix ?? "(none)"}`);
+
+          // EIP-5792 path: only when wallet advertises dataSuffix capability (Base App / Coinbase Wallet).
+          const chainCapabilities = walletCapabilities?.[required.token.chainId];
+          const supportsDataSuffix =
+            !capabilitiesPending &&
+            resolvedDataSuffix != null &&
+            !!chainCapabilities?.dataSuffix;
+
+          if (supportsDataSuffix) {
+            if (!walletClient) throw new Error("No walletClient available");
+            const { id } = await writeContractsAsync({
+              contracts: [
+                {
+                  abi: erc20Abi,
+                  address: tokenAddress!,
+                  functionName: "transfer",
+                  args: [getAddress(destinationAddress), paymentAmount],
+                },
+              ],
+              capabilities: {
+                dataSuffix: {
+                  value: resolvedDataSuffix,
+                  optional: true,
+                },
+              },
+              chainId: required.token.chainId,
+            });
+            const result = await waitForCallsStatus(walletClient, {
+              id,
+              pollingInterval: 1000,
+              timeout: 120_000,
+            });
+            if (!result.receipts?.[0]) throw new Error("No receipt from batched call");
+            return result.receipts[0].transactionHash;
+          }
+
           return await writeContractAsync({
             abi: erc20Abi,
             address: tokenAddress!,
