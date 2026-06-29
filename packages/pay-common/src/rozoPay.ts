@@ -144,6 +144,13 @@ export const zRozoPayOrderMetadata = z.object({
     .string()
     .optional()
     .describe("Custom deeplink URL for the payment."),
+  // Base builder code attribution suffix. Stored so invoice checkout can
+  // forward it to getDefaultConfig even when the consumer's wagmi config
+  // is not present (ROZO_INVOICE_URL redirect path).
+  dataSuffix: z
+    .string()
+    .optional()
+    .describe("Base builder code attribution suffix (0x-prefixed hex)."),
 });
 
 export type RozoPayOrderMetadata = z.infer<typeof zRozoPayOrderMetadata>;

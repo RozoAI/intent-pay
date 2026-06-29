@@ -21,7 +21,7 @@ This doc covers inline params mode: `appId` + `toChain` + `toAddress` + `toToken
 | `preferredChains`      | `number[]`                       | No       | Prioritize source assets from these chains.                                              |
 | `preferredTokens`      | `Token[]`                        | No       | Prioritize specific source tokens.                                                       |
 | `preferredSymbol`      | `TokenSymbol[]`                  | No       | Prioritize symbols (`USDC`, `USDT`, `EURC`).                                             |
-| `metadata`             | `Record<string, any>`            | No       | Arbitrary metadata for tracking.                                                         |
+| `metadata`             | `Record<string, string>`         | No       | Metadata stored on the order. Supports reserved key `dataSuffix` for Base builder code attribution (see below). |
 | `defaultOpen`          | `boolean`                        | No       | Open modal by default.                                                                   |
 | `closeOnSuccess`       | `boolean`                        | No       | Auto-close modal after successful payment.                                               |
 | `resetOnSuccess`       | `boolean`                        | No       | Reset payment state after success.                                                       |
@@ -84,6 +84,54 @@ This doc covers inline params mode: `appId` + `toChain` + `toAddress` + `toToken
   {({ show }) => <button onClick={show}>Make Payment</button>}
 </RozoPayButton.Custom>
 ```
+
+## Base Builder Code Attribution
+
+Rozo Pay supports [Base builder codes](https://docs.base.org/apps/builder-codes/app-developers) for EVM transactions on Base.
+
+### Option 1 — wagmi config (direct payments only)
+
+```ts
+import { Attribution } from "@base-org/account";
+
+const config = createConfig(
+  getDefaultConfig({
+    appName: "My App",
+    dataSuffix: Attribution.toDataSuffix({ codes: [process.env.NEXT_PUBLIC_BASE_BUILDER_CODE] }),
+  })
+);
+```
+
+Attribution is appended to every EVM transaction in the current app session.
+
+### Option 2 — `metadata.dataSuffix` (survives invoice redirects)
+
+```tsx
+import { Attribution } from "@base-org/account";
+
+const dataSuffix = Attribution.toDataSuffix({ codes: [process.env.NEXT_PUBLIC_BASE_BUILDER_CODE] });
+
+<RozoPayButton
+  metadata={{ dataSuffix }}
+  // ...other props
+/>
+```
+
+The value is stored on the order backend. When the user is redirected to `ROZO_INVOICE_URL`, the invoice checkout reads `order.metadata.dataSuffix` and applies it automatically.
+
+### Recommended (both together)
+
+```tsx
+const dataSuffix = Attribution.toDataSuffix({ codes: [process.env.NEXT_PUBLIC_BASE_BUILDER_CODE] });
+
+// wagmi config
+const config = createConfig(getDefaultConfig({ appName: "My App", dataSuffix }));
+
+// button — so invoice redirect also gets it
+<RozoPayButton metadata={{ dataSuffix }} ... />
+```
+
+`getDefaultConfig({ dataSuffix })` takes precedence over `metadata.dataSuffix` at tx time; both are safe to set simultaneously.
 
 ## Notes
 

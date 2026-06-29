@@ -45,7 +45,12 @@ import {
 } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { erc20Abi, getAddress, Hex, hexToBytes, parseUnits, zeroAddress } from "viem";
-import { useAccount, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
+import {
+  useAccount,
+  useSendTransaction,
+  useSwitchChain,
+  useWriteContract,
+} from "wagmi";
 import { convertPreferredSymbolsToTokens } from "../utils/token";
 
 import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
@@ -70,6 +75,7 @@ import { Store } from "../stateStore";
 import { parseErrorMessage } from "../utils/errorParser";
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
+import { getDataSuffix } from "../defaultConnectors";
 import { WalletConfigProps } from "../wallets/walletConfigs";
 import { useDepositAddressOptions } from "./useDepositAddressOptions";
 import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
@@ -233,6 +239,12 @@ export function usePaymentState({
 
   const { sendTransactionAsync } = useSendTransaction();
   const { writeContractAsync } = useWriteContract();
+  // ponytail: order.metadata.dataSuffix survives ROZO_INVOICE_URL redirects where the
+  // consumer's wagmi config (globalDataSuffix) is absent. Invoice checkout fetches the
+  // order first and passes metadata.dataSuffix into getDefaultConfig, but this fallback
+  // covers the in-SDK path where the order is already loaded.
+  const resolvedDataSuffix =
+    getDataSuffix() ?? (pay.order?.metadata?.dataSuffix as Hex | undefined);
 
   // Solana wallet state.
   const solanaWallet = useWallet();
@@ -698,6 +710,8 @@ export function usePaymentState({
     const paymentTxHash = await (async () => {
       try {
         if (isNativeToken) {
+          // dataSuffix intentionally omitted — appending data to bare ETH transfers
+          // changes wallet UI display; builder-code attribution targets contract calls.
           return await sendTransactionAsync({
             to: getAddress(destinationAddress),
             value: paymentAmount,
@@ -712,6 +726,7 @@ export function usePaymentState({
             chainId: required.token.chainId,
             functionName: "transfer",
             args: [getAddress(destinationAddress), paymentAmount],
+            dataSuffix: resolvedDataSuffix,
           });
         }
       } catch (e) {

@@ -60,7 +60,12 @@ import { createConfig, WagmiProvider } from "wagmi";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [config] = useState(() =>
-    createConfig(getDefaultConfig({ appName: "Your App", ssr: true })));
+    createConfig(getDefaultConfig({
+      appName: "Your App",
+      ssr: true,
+      // Optional: Base builder code attribution (https://docs.base.org/apps/builder-codes)
+      // dataSuffix: Attribution.toDataSuffix({ codes: [process.env.NEXT_PUBLIC_BASE_BUILDER_CODE] }),
+    })));
   const [qc] = useState(() => new QueryClient());
   return (
     <WagmiProvider config={config}>
