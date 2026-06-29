@@ -7,6 +7,9 @@ import {
 } from "wagmi/connectors";
 import type { Hex } from "viem";
 
+// ponytail: module singleton — last-write-wins, never reset, not SSR-safe.
+// Matches globalAppName/globalAppIcon pattern. Single-config assumption; if
+// multi-config or SSR is needed, carry dataSuffix on wagmi Config/context instead.
 let globalDataSuffix: Hex | undefined;
 export const getDataSuffix = () => globalDataSuffix;
 

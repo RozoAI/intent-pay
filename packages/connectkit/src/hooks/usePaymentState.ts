@@ -47,7 +47,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { erc20Abi, getAddress, Hex, hexToBytes, parseUnits, zeroAddress } from "viem";
 import {
   useAccount,
-  useConnectorClient,
   useSendTransaction,
   useSwitchChain,
   useWriteContract,
@@ -240,8 +239,7 @@ export function usePaymentState({
 
   const { sendTransactionAsync } = useSendTransaction();
   const { writeContractAsync } = useWriteContract();
-  const { data: connectorClient } = useConnectorClient({ query: { enabled: !getDataSuffix() } });
-  const resolvedDataSuffix = getDataSuffix() ?? (connectorClient?.dataSuffix as Hex | undefined);
+  const resolvedDataSuffix = getDataSuffix();
 
   // Solana wallet state.
   const solanaWallet = useWallet();
@@ -707,6 +705,8 @@ export function usePaymentState({
     const paymentTxHash = await (async () => {
       try {
         if (isNativeToken) {
+          // dataSuffix intentionally omitted — appending data to bare ETH transfers
+          // changes wallet UI display; builder-code attribution targets contract calls.
           return await sendTransactionAsync({
             to: getAddress(destinationAddress),
             value: paymentAmount,
