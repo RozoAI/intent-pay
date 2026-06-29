@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.30] - 2026-06-29
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Remove same-chain e2e and add restricted env &nbsp;-&nbsp; by @akbarsaputrait [<samp>(c8f65)</samp>](https://github.com/RozoAI/intent-pay/commit/c8f65248)
+- Support Base builder code attribution via dataSuffix &nbsp;-&nbsp; by @akbarsaputrait [<samp>(ed686)</samp>](https://github.com/RozoAI/intent-pay/commit/ed686953)
+- Enhance Base builder code attribution with dataSuffix support in payment flow &nbsp;-&nbsp; by @akbarsaputrait [<samp>(dd66e)</samp>](https://github.com/RozoAI/intent-pay/commit/dd66ebbc)
+
+---
+
+
 ## [0.1.29] - 2026-06-11
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes

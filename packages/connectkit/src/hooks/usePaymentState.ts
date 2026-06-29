@@ -45,12 +45,7 @@ import {
 } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { erc20Abi, getAddress, Hex, hexToBytes, parseUnits, zeroAddress } from "viem";
-import {
-  useAccount,
-  useSendTransaction,
-  useSwitchChain,
-  useWriteContract,
-} from "wagmi";
+import { useAccount, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { convertPreferredSymbolsToTokens } from "../utils/token";
 
 import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
@@ -66,6 +61,7 @@ import bs58 from "bs58";
 import { PayButtonPaymentProps } from "../components/RozoPayButton/types";
 import { ROUTES } from "../constants/routes";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
+import { getDataSuffix } from "../defaultConnectors";
 import { ROZO_EVENTS } from "../lib/analytics/events";
 import { buildCreatePaymentPayload } from "../payment/createPaymentPayload";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
@@ -75,7 +71,6 @@ import { Store } from "../stateStore";
 import { parseErrorMessage } from "../utils/errorParser";
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
-import { getDataSuffix } from "../defaultConnectors";
 import { WalletConfigProps } from "../wallets/walletConfigs";
 import { useDepositAddressOptions } from "./useDepositAddressOptions";
 import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
