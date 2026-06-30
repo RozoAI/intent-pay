@@ -9,6 +9,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
+import { headers } from "next/headers";
 import pkg from "../package.json";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -21,13 +22,14 @@ export const metadata: Metadata = {
   description: "Interactive developer playground for @rozoai/intent-pay",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   const payVersion = pkg.dependencies["@rozoai/intent-pay"];
   const commonVersion = pkg.dependencies["@rozoai/intent-common"];
+  const cookie = (await headers()).get("cookie");
 
   return (
     <html
@@ -36,7 +38,7 @@ export default function RootLayout({
       className={cn("antialiased", fontMono.variable, "font-sans", geist.variable)}
     >
       <body>
-        <Providers>
+        <Providers cookie={cookie}>
           <div className="min-h-screen bg-background flex flex-col">
             <header className="border-b border-border px-6 py-3 shrink-0">
               <div className="max-w-7xl mx-auto flex items-center gap-3 flex-wrap">
