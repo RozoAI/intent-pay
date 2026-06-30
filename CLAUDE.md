@@ -547,6 +547,20 @@ return connectedNetworksCount > 1 ? "all" : tokenMode;
 ```
 **Why a ref instead of state:** the flag only needs to be read inside a memo computation during render, not drive its own re-render — `usePaymentState`'s `setTokenMode` already triggers a re-render via `setTokenModeRaw`.
 
+**Race C — mobile in-app browser injects both EVM and Solana but only EVM was reachable.**
+`useWallets()` (`packages/connectkit/src/wallets/useWallets.tsx`) has two branches: a desktop branch that fuzzy-matches each EVM connector's name against `solanaWallet.wallets` to set `solanaConnectorName`, and a separate mobile branch (`if (isMobile) {...}`) that never did this match — it only pushed the generic injected EVM connector. Inside Phantom's in-app browser, wagmi's injected connector picks up `window.ethereum` as the generic `"injected"` id (the explicit `isPhantomConnector` id `"phantom"` is filtered out, used only for the desktop extension case). With no `solanaConnectorName` on that mobile entry, `ConnectorList`'s mobile `onClick` always fell through to `connect({connector: wallet.connector})` — EVM only, with no UI path to Solana. Symptom: after disconnecting via "Pay with another wallet" and re-tapping Phantom on mobile, the SDK got stuck connecting EVM only, no way to reach Solana tokens.
+
+**Fix:** mobile branch in `useWallets.tsx` now runs the same fuzzy-match against `solanaWallet.wallets` and sets `solanaConnectorName` on the injected entry. `ConnectorList`'s `onClick` (`packages/connectkit/src/components/Common/ConnectorList/index.tsx`) gained a mobile-specific branch: when both `wallet.connector` and `wallet.solanaConnectorName` are present, it kicks off the EVM connect (`ROUTES.CONNECT`) and `solanaWallets.select(name)` together, instead of forcing a chain choice or connecting EVM only:
+```tsx
+if (isMobile && wallet.connector && wallet.solanaConnectorName) {
+  context.setPendingConnectorId(wallet.id);
+  context.setRoute(ROUTES.CONNECT, meta);
+  solanaWallets.select(wallet.solanaConnectorName);
+  return;
+}
+```
+**Why connect both instead of picking one:** desktop shows a `SELECT_WALLET_CHAIN` picker before connecting; mobile skips that screen entirely on purpose (smaller UI, one tap). Once both chains connect, `SELECT_METHOD` already renders them as separate "Pay with [eth]"/"Pay with [sol]" tiles (Race B's `tokenModeExplicit` keeps their token lists from bleeding into each other) — so connecting both up front loses nothing and removes the dead end.
+
 ### 12. Error Recovery Requires Order Context
 **Pattern:**
 ```typescript
