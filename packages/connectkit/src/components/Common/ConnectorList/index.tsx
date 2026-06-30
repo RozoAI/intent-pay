@@ -2,6 +2,7 @@ import {
   ExternalPaymentOptions,
   ExternalPaymentOptionsString,
 } from "@rozoai/intent-common";
+import { useWallet as useSolanaWalletAdapter } from "@solana/wallet-adapter-react";
 import { useEffect, useMemo } from "react";
 import { ROUTES } from "../../../constants/routes";
 import { useConnect } from "../../../hooks/useConnect";
@@ -120,6 +121,7 @@ const ConnectorItem = ({
   const { isMobile } = useIsMobile();
   const context = usePayContext();
   const { connect } = useConnect();
+  const solanaWallets = useSolanaWalletAdapter();
 
   // The "Other" 2x2 connector, goes to the MobileConnectors page.
   const redirectToMoreWallets =
@@ -191,6 +193,17 @@ const ConnectorItem = ({
         context.setRoute(ROUTES.CONNECT, meta);
         return;
       }
+    }
+
+    // Mobile in-app browser injecting both an EVM provider and a Solana
+    // wallet-standard provider (e.g. Phantom): connect both chains at once
+    // instead of forcing a chain choice. SELECT_METHOD already shows
+    // separate "Pay with [eth]"/"Pay with [sol]" tiles once both are connected.
+    if (isMobile && wallet.connector && wallet.solanaConnectorName) {
+      context.setPendingConnectorId(wallet.id);
+      context.setRoute(ROUTES.CONNECT, meta);
+      solanaWallets.select(wallet.solanaConnectorName);
+      return;
     }
 
     if (redirectToMoreWallets) {

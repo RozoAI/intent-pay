@@ -332,6 +332,26 @@ Depend on `isEthConnected`/`isSolanaConnected`/`isStellarConnected`/`ethStatus`/
 
 **Solution**: `usePaymentState` tracks a `tokenModeExplicit` flag, set whenever `setTokenMode()` is called from an explicit user action (e.g. `SelectMethod`'s click handler) and cleared on `resetOrder()`. `SelectToken`'s `effectiveTokenMode` respects this flag before applying the multi-network override — see insight #11 in the root `CLAUDE.md`.
 
+### Issue: Mobile In-App Browser (Phantom) Stuck Connecting EVM Only, No Way to Reach Solana
+
+**Symptom**: Inside Phantom's mobile in-app browser, disconnecting (e.g. via "Pay with another wallet") and re-tapping Phantom in the connector list always reconnects EVM only — no way to connect or pay with Solana.
+
+**Root Cause**:
+- `useWallets()`'s mobile branch never matched the injected EVM connector to its Solana wallet-adapter counterpart (`solanaConnectorName`); only the desktop branch did this fuzzy name match.
+- Phantom's in-app browser injects `window.ethereum`, which wagmi surfaces as the generic `"injected"` connector id — not the explicit `"phantom"` id, which is filtered out for the desktop-extension case.
+- Without `solanaConnectorName`, `ConnectorList`'s mobile `onClick` always fell through to `connect({connector: wallet.connector})` — EVM only, no Solana path.
+
+**Solution**: mobile branch in `useWallets.tsx` now runs the same fuzzy-match against `solanaWallet.wallets`. `ConnectorList`'s `onClick` gained a mobile branch that connects both chains at once when both are available, instead of forcing a chain pick or connecting EVM only:
+```tsx
+if (isMobile && wallet.connector && wallet.solanaConnectorName) {
+  context.setPendingConnectorId(wallet.id);
+  context.setRoute(ROUTES.CONNECT, meta);
+  solanaWallets.select(wallet.solanaConnectorName);
+  return;
+}
+```
+Once both connect, `SELECT_METHOD` shows them as separate tiles — see insight #11 (Race C) in the root `CLAUDE.md`.
+
 ---
 
 ## Payment State Validation

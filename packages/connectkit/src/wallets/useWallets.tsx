@@ -53,6 +53,21 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
         if (!isInjectedConnector(connector.type)) return;
         // Skip any connectors that mention WalletConnect
         if (connector.name?.toLowerCase().includes("walletconnect")) return;
+
+        // In-app browsers that inject both window.ethereum and a Solana
+        // wallet-standard provider (e.g. Phantom) surface as one generic
+        // "injected" EVM connector here. Match it to its Solana adapter by
+        // name so onClick can connect both chains at once instead of only EVM.
+        let solanaConnectorName: SolanaWalletName | undefined;
+        if (showSolanaPaymentMethod && connector.name) {
+          const evmName = connector.name.toLowerCase();
+          const match = solanaWallet.wallets?.find((sw) => {
+            const solName = sw.adapter.name.toLowerCase();
+            return evmName.includes(solName) || solName.includes(evmName);
+          });
+          solanaConnectorName = match?.adapter.name;
+        }
+
         mobileWallets.push({
           id: connector.id,
           connector,
@@ -60,6 +75,7 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
           iconConnector: <img src={connector.icon} alt={connector.name} />,
           iconShape: "squircle",
           type: connector.type,
+          solanaConnectorName,
         });
       });
     }
