@@ -143,6 +143,37 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
 Without this, every page load pays the full reconnect race — `ssr: true` alone does not close it. This is a consumer-app configuration choice, not something the SDK can do on your behalf, since cookies are read on your server.
 
+### Non-Next.js / SPA apps (Vite, CRA, plain React)
+
+No SSR means no server-rendered HTML to mismatch, so `ssr: true` and cookie `initialState` don't apply — there's nothing to hydrate against. The reconnect race is still real client-side though: wagmi's `reconnect()` starts at `isConnected: false` on every load and resolves async, same as Next.js. Skip the cookie machinery and just `createConfig` normally:
+
+```tsx
+// providers.tsx
+import { getDefaultConfig, RozoPayProvider } from "@rozoai/intent-pay";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
+import { createConfig, WagmiProvider } from "wagmi";
+
+const config = createConfig(
+  getDefaultConfig({
+    appName: "Your App",
+  })
+);
+const queryClient = new QueryClient();
+
+export function Providers({ children }: { children: ReactNode }) {
+  return (
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <RozoPayProvider>{children}</RozoPayProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
+  );
+}
+```
+
+`createConfig` can live at module scope here — there's no SSR module-evaluation pass to trip over (see "Common Mistakes" below, which is Next.js-specific). The SDK's own `status === "reconnecting"` gate (see Race A notes in `CLAUDE.md`) still covers the auto-navigate flash; there's just no extra cookie step to add since there's no server to read them on.
+
 ---
 
 ## Alternative Pattern — `dynamic` with `ssr: false`
