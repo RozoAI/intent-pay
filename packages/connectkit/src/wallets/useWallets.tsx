@@ -45,6 +45,26 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
   if (isMobile) {
     const mobileWallets: WalletProps[] = [];
 
+    // Add the live Coinbase Wallet SDK connector first, unless disabled.
+    // Inside Base App / Coinbase Wallet's own in-app browser, the SDK
+    // connects in-place via the injected provider — using it directly here
+    // (instead of falling through to the deeplink stub below) avoids an
+    // unnecessary cbwallet:// / universal-link round-trip when the wallet
+    // is already open.
+    if (!disableMobileInjector) {
+      const coinbaseConnector = connectors.find((connector) =>
+        isCoinbaseWalletConnector(connector.id)
+      );
+      if (coinbaseConnector) {
+        const walletConfig = walletConfigs["coinbaseWallet, coinbaseWalletSDK,com.coinbase.wallet"];
+        mobileWallets.push({
+          id: coinbaseConnector.id,
+          connector: coinbaseConnector,
+          ...walletConfig,
+        });
+      }
+    }
+
     // Add injected wallet (if any) first, unless disabled
     if (!disableMobileInjector) {
       connectors.forEach((connector) => {
