@@ -257,10 +257,12 @@ export const RozoPayModal: React.FC<{
     if (!context.open) return;
     if (context.route !== ROUTES.SELECT_METHOD) return;
 
-    // Wait for wagmi to finish reconnecting from storage before deciding.
-    // 'reconnecting' means wagmi is restoring a previous session — isConnected
-    // is still false during this window even if a wallet will connect.
-    if (ethStatus === "reconnecting") return;
+    // Wait for wagmi to finish connecting/reconnecting before deciding.
+    // 'reconnecting' = restoring a stored session; 'connecting' = a fresh
+    // autoConnect (e.g. Phantom's in-app browser injected provider, which
+    // has no prior session so it never passes through 'reconnecting').
+    // isConnected is false during both windows even if a wallet will connect.
+    if (ethStatus === "reconnecting" || ethStatus === "connecting") return;
 
     // Wait for Solana adapter autoConnect to finish.
     if (isSolanaConnecting) return;
