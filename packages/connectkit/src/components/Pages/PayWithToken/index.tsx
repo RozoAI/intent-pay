@@ -59,6 +59,9 @@ const PayWithToken: React.FC = () => {
   const [txURL, setTxURL] = useState<string | undefined>();
   const [feeData, setFeeData] = useState<FeeResponseData | null>(null);
   const [feeLoading, setFeeLoading] = useState(true);
+  const [switchChainError, setSwitchChainError] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (rozoPaymentState === "error") {
@@ -89,6 +92,12 @@ const PayWithToken: React.FC = () => {
           });
         } catch (e) {
           console.error("Failed to switch chain", e);
+          setSwitchChainError((e as Error)?.message ?? "switch_chain_failed");
+          capture(ROZO_EVENTS.PAYMENT_FAILED, {
+            payment_id: rozoPaymentId ?? order?.externalId,
+            error_message: (e as Error)?.message ?? "switch_chain_failed",
+            source_chain: option.required.token.chainId,
+          });
           return null;
         }
       })();
@@ -119,6 +128,7 @@ const PayWithToken: React.FC = () => {
               : undefined,
       });
       // Switch chain if necessary
+      setSwitchChainError(null);
       setPayState(PayState.PreparingTransaction);
       const switchChain = await trySwitchingChain(option);
 
@@ -340,9 +350,16 @@ const PayWithToken: React.FC = () => {
           feeLoading={feeLoading}
         />
         {payState === PayState.RequestCancelled && (
-          <Button onClick={() => handleTransfer(selectedTokenOption)}>
-            Retry Payment
-          </Button>
+          <>
+            {switchChainError && (
+              <ModalContent style={{ color: "var(--ck-body-color-danger)" }}>
+                {switchChainError}
+              </ModalContent>
+            )}
+            <Button onClick={() => handleTransfer(selectedTokenOption)}>
+              Retry Payment
+            </Button>
+          </>
         )}
         {payState === PayState.RequestFailed && (
           <Button onClick={handleContactClick}>Contact Support</Button>
