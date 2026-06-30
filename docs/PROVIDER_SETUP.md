@@ -86,6 +86,65 @@ export default function CheckoutPage() {
 
 ---
 
+## Minimizing the Wallet Reconnect Flash (In-App Browsers)
+
+`ssr: true` above only stops SSR hydration mismatches — it does **not** make wagmi know a wallet is connected before first paint. On every page load, wagmi's `reconnect()` and the Solana adapter's `autoConnect` both start from `isConnected: false`/`connected: false` and asynchronously restore the session (iterating connectors, calling `isAuthorized()`, waiting for wallet-standard `readyStateChange` events). The SDK waits for this to settle before auto-navigating to the token list, so during that window users opening the app inside a wallet's in-app browser (MetaMask, Base App, Phantom) can briefly see the method-selection screen instead of jumping straight to their tokens.
+
+To shortcut this, persist the connection in cookies server-side and pass it as `initialState` so wagmi already knows the wallet is connected on the very first render:
+
+```tsx
+// app/providers.tsx
+"use client";
+import { cookieStorage, createConfig, createStorage, WagmiProvider, type State } from "wagmi";
+
+export function Providers({
+  children,
+  initialState,
+}: {
+  children: ReactNode;
+  initialState?: State;
+}) {
+  const [config] = useState(() =>
+    createConfig(
+      getDefaultConfig({
+        appName: "Your App",
+        ssr: true,
+        storage: createStorage({ storage: cookieStorage }),
+      })
+    )
+  );
+
+  return (
+    <WagmiProvider config={config} initialState={initialState}>
+      {/* ... */}
+    </WagmiProvider>
+  );
+}
+```
+
+```tsx
+// app/layout.tsx (server component)
+import { cookieToInitialState } from "wagmi";
+import { headers } from "next/headers";
+import { Providers } from "./providers";
+import { config } from "./wagmi-config"; // export the same config used above
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const initialState = cookieToInitialState(config, (await headers()).get("cookie"));
+  return (
+    <html>
+      <body>
+        <Providers initialState={initialState}>{children}</Providers>
+      </body>
+    </html>
+  );
+}
+```
+
+Without this, every page load pays the full reconnect race — `ssr: true` alone does not close it. This is a consumer-app configuration choice, not something the SDK can do on your behalf, since cookies are read on your server.
+
+---
+
 ## Alternative Pattern — `dynamic` with `ssr: false`
 
 Use this when wallet SDKs have module-level side effects that throw on import during SSR (e.g. accessing `window` or `localStorage` at import time).

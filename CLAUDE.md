@@ -516,7 +516,38 @@ getDefaultConfig({ dataSuffix })
 
 `usePaymentState` resolves: `getDataSuffix() ?? order.metadata?.dataSuffix`. Invoice app reads `order.metadata.dataSuffix` and passes it to its own `getDefaultConfig`.
 
-### 11. Error Recovery Requires Order Context
+### 11. Wallet Auto-Connect Is a Race, Not an Event
+**Location:** `packages/connectkit/src/components/RozoPayModal/index.tsx`, `packages/connectkit/src/components/Pages/SelectToken/index.tsx`
+
+Opening the SDK inside a wallet's in-app browser (MetaMask, Base App, Phantom) should skip `SELECT_METHOD` and jump straight to `SELECT_TOKEN` for the already-connected wallet. Two independent async races can break this:
+
+**Race A — wagmi/Solana reconnect hasn't settled yet.**
+`useAccount().isConnected` and `useWallet().connected` both start `false` on every page load, even if a wallet *will* reconnect. Wagmi's `reconnect()` (triggered by `WagmiProvider`'s mount/hydrate, `@wagmi/core`'s `reconnect.js`) iterates connectors asynchronously (`getProvider()` → `isAuthorized()` → `connect({isReconnecting:true})`) and only flips `status` to `'connected'` once it finds one. The Solana wallet-adapter's `autoConnect` similarly waits for the wallet's `readyState` to become `Installed`/`Loadable` via an async `readyStateChange` event. If the modal's auto-navigate effect runs before either settles, it sees "not connected" and shows `SELECT_METHOD` — the bug the user has to "refresh a few times" to dodge.
+
+**Fix:** gate the auto-navigate effect on `useAccount().status === 'reconnecting'` and `useWallet().connecting`, not on `isConnected` alone:
+```tsx
+if (ethStatus === "reconnecting") return; // wagmi still restoring session
+if (isSolanaConnecting) return;           // adapter still autoConnecting
+```
+Depend on these plus `isEthConnected`/`isSolanaConnected`/`isStellarConnected` directly — never on a downstream proxy like a balance-fetch result (`walletPaymentOptions.options`), which resolves far later than the connection itself and widens the race window instead of closing it.
+
+**Residual gap (documented, not fixed):** `showSolanaPaymentMethod`/`showStellarPaymentMethod` are also gated on `pay.order != null`, which depends on the async `createPreviewOrder()` API call — a second, independent race. A flash of `SELECT_METHOD` can still occur if the wallet reconnects before the preview order resolves.
+
+**Consumer-side mitigation:** the SDK can't fully eliminate Race A — it can only wait for it. Consumers who configure wagmi with SSR + cookie storage (`createConfig({ ssr: true, storage: createStorage({ storage: cookieStorage }) })` and pass `initialState` from cookies into `WagmiProvider`) shortcut the reconnect race entirely, since the connected state is known before first paint. `examples/nextjs-app/app/providers.tsx` does NOT do this today, so it always pays the full reconnect window on every load — don't copy that example's wagmi setup as a "fast reconnect" reference.
+
+**Race B — multiple wallets connected simultaneously (e.g. Phantom connects both EVM and Solana).**
+`SelectToken` used to override `tokenMode` to `"all"` whenever more than one network was connected — so explicitly clicking "Pay with [Solana address]" in `SelectMethod` would still show EVM tokens too, because the override didn't know the choice was explicit.
+
+**Fix:** `usePaymentState.ts` tracks `tokenModeExplicit` (a ref-backed flag, not state, since it shouldn't itself trigger re-renders) that flips `true` only when `setTokenMode()` is called from an explicit user action, and resets to `false` in both branches of `resetOrder()`. `SelectToken`'s `effectiveTokenMode` now checks this flag before applying the "multiple networks connected → show all" override:
+```tsx
+if (tokenModeExplicit || connectedWalletOnly || hasPaymentOptionsConstraint) {
+  return tokenMode; // respect the user's explicit choice
+}
+return connectedNetworksCount > 1 ? "all" : tokenMode;
+```
+**Why a ref instead of state:** the flag only needs to be read inside a memo computation during render, not drive its own re-render — `usePaymentState`'s `setTokenMode` already triggers a re-render via `setTokenModeRaw`.
+
+### 12. Error Recovery Requires Order Context
 **Pattern:**
 ```typescript
 try {
