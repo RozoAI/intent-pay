@@ -90,13 +90,14 @@ export const RozoPayModal: React.FC<{
   // EVM
   const {
     isConnected: isEthConnected,
+    status: ethStatus,
     connector,
     chain,
     address,
   } = useAccount();
 
   // Solana
-  const { connected: isSolanaConnected } = useWallet();
+  const { connected: isSolanaConnected, connecting: isSolanaConnecting } = useWallet();
 
   // Stellar
   const { isConnected: isStellarConnected } = useStellar();
@@ -248,10 +249,21 @@ export const RozoPayModal: React.FC<{
   const { isMobile } = useIsMobile();
 
   // If the user has a wallet already connected upon opening the modal, go
-  // straight to the select token screen
+  // straight to the select token screen.
+  // Gated on wagmi reconnect and Solana autoConnect completing first —
+  // both are async and start false, causing a flash of SELECT_METHOD if we
+  // navigate before they settle.
   useEffect(() => {
     if (!context.open) return;
     if (context.route !== ROUTES.SELECT_METHOD) return;
+
+    // Wait for wagmi to finish reconnecting from storage before deciding.
+    // 'reconnecting' means wagmi is restoring a previous session — isConnected
+    // is still false during this window even if a wallet will connect.
+    if (ethStatus === "reconnecting") return;
+
+    // Wait for Solana adapter autoConnect to finish.
+    if (isSolanaConnecting) return;
 
     // Only auto-navigate to SELECT_TOKEN when the modal is initially opened,
     // not when the user explicitly navigates to SELECT_METHOD from SELECT_TOKEN.
@@ -263,7 +275,7 @@ export const RozoPayModal: React.FC<{
 
     // Skip to token selection if exactly one wallet is connected. If both
     // wallets are connected, stay on the SELECT_METHOD screen to allow the
-    // user to select which wallet to use
+    // user to select which wallet to use.
     // If mobile injector is disabled, don't show the connected wallets.
     if (
       isEthConnected &&
@@ -305,9 +317,11 @@ export const RozoPayModal: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     context.open,
-    paymentState.walletPaymentOptions.options,
-    paymentState.solanaPaymentOptions.options,
-    paymentState.stellarPaymentOptions.options,
+    ethStatus,
+    isSolanaConnecting,
+    isEthConnected,
+    isSolanaConnected,
+    isStellarConnected,
     showSolanaPaymentMethod,
     showStellarPaymentMethod,
     address,

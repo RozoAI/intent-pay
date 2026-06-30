@@ -29,7 +29,7 @@ export default function SelectToken() {
     isMobile || window?.innerWidth < defaultTheme.mobileWidth;
 
   const { paymentState, setRoute } = usePayContext();
-  const { tokenMode, connectedWalletOnly, paymentOptions } = paymentState;
+  const { tokenMode, tokenModeExplicit, connectedWalletOnly, paymentOptions } = paymentState;
 
   const { isConnected: isEvmConnected } = useAccount();
   const { isConnected: isStellarConnected, connector } = useStellar();
@@ -60,16 +60,17 @@ export default function SelectToken() {
   }, [paymentOptions]);
 
   // If multiple networks are connected, override tokenMode to "all" to show all available tokens
-  // UNLESS there are explicit paymentOptions constraints (connectedWalletOnly or specific wallet options)
+  // UNLESS the user explicitly selected a wallet in SelectMethod (tokenModeExplicit=true),
+  // or there are explicit paymentOptions constraints.
   const effectiveTokenMode = useMemo(() => {
-    if (connectedWalletOnly || hasPaymentOptionsConstraint) {
-      // Respect the tokenMode set by paymentOptions when there are explicit constraints
+    if (tokenModeExplicit || connectedWalletOnly || hasPaymentOptionsConstraint) {
       return tokenMode;
     }
     return connectedNetworksCount > 1 ? "all" : tokenMode;
   }, [
     connectedNetworksCount,
     tokenMode,
+    tokenModeExplicit,
     connectedWalletOnly,
     hasPaymentOptionsConstraint,
   ]);

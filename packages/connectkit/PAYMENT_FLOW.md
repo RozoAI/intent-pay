@@ -306,6 +306,32 @@ if (rozoPaymentId && order && 'org' in order) {
 }
 ```
 
+### Issue: Wallet Connected But SELECT_METHOD Shows Instead of Auto Token List
+
+**Symptom**: SDK opened inside a wallet's in-app browser (MetaMask, Base App, Phantom) with an already-connected wallet, but shows the "Pay with Wallet"/"Pay to Address" method list instead of jumping straight to the token list. Refreshing the page once or twice "fixes" it.
+
+**Root Cause**:
+- `useAccount().isConnected` (wagmi) and `useWallet().connected` (Solana adapter) both start `false` on every page load, even when a wallet will reconnect.
+- Wagmi's `reconnect()` and the Solana adapter's `autoConnect` are both async — they iterate connectors / wait for `readyStateChange` before flipping to connected.
+- `RozoPayModal`'s auto-navigate effect used to depend on indirect proxy state (balance-fetch results), which resolves even later than the connection itself, widening the race window.
+
+**Solution**: gate the auto-navigate effect on wagmi's reconnect status and the Solana adapter's `connecting` flag, not on `isConnected` alone:
+```tsx
+if (ethStatus === "reconnecting") return; // wagmi still restoring session from storage
+if (isSolanaConnecting) return;           // adapter still autoConnecting
+```
+Depend on `isEthConnected`/`isSolanaConnected`/`isStellarConnected`/`ethStatus`/`isSolanaConnecting` directly in the effect's dependency array — see `RozoPayModal/index.tsx`.
+
+**Consumer mitigation**: configure wagmi with SSR + cookie storage and pass `initialState` into `WagmiProvider` so the connected state is known before first paint, shortcutting the reconnect window entirely. See insight #11 in the root `CLAUDE.md`.
+
+### Issue: Selecting a Specific Wallet Still Shows Tokens From Other Chains
+
+**Symptom**: Opened in a wallet that connects multiple chains at once (e.g. Phantom connects both EVM and Solana). Explicitly clicking "Pay with [Solana address]" on `SelectMethod` still shows EVM tokens mixed into the Solana token list.
+
+**Root Cause**: `SelectToken` overrode `tokenMode` to `"all"` whenever more than one network was connected, with no way to distinguish "user explicitly picked a wallet" from "multiple wallets happen to be connected."
+
+**Solution**: `usePaymentState` tracks a `tokenModeExplicit` flag, set whenever `setTokenMode()` is called from an explicit user action (e.g. `SelectMethod`'s click handler) and cleared on `resetOrder()`. `SelectToken`'s `effectiveTokenMode` respects this flag before applying the multi-network override — see insight #11 in the root `CLAUDE.md`.
+
 ---
 
 ## Payment State Validation
