@@ -43,6 +43,7 @@ export enum ErrorType {
   TRUSTLINE = "trustline",
   UNKNOWN = "unknown",
   NOT_UNPAID = "not_unpaid",
+  UNSUPPORTED_CHAIN = "unsupported_chain",
 }
 
 /**
@@ -69,6 +70,15 @@ export function categorizeError(errorMessage: string): ErrorType {
     lowerMsg.includes("transaction failed")
   ) {
     return ErrorType.PAYMENT_FAILED;
+  }
+
+  if (
+    lowerMsg.includes("caip25") ||
+    lowerMsg.includes("authorizedscopes") ||
+    lowerMsg.includes("not supported by the wallet") ||
+    lowerMsg.includes("attempting to switch chain")
+  ) {
+    return ErrorType.UNSUPPORTED_CHAIN;
   }
 
   if (lowerMsg.includes("network") || lowerMsg.includes("connection")) {
