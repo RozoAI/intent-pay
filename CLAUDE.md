@@ -516,7 +516,52 @@ getDefaultConfig({ dataSuffix })
 
 `usePaymentState` resolves: `getDataSuffix() ?? order.metadata?.dataSuffix`. Invoice app reads `order.metadata.dataSuffix` and passes it to its own `getDefaultConfig`.
 
-### 11. Error Recovery Requires Order Context
+### 11. Wallet Auto-Connect Is a Race, Not an Event
+**Location:** `packages/connectkit/src/components/RozoPayModal/index.tsx`, `packages/connectkit/src/components/Pages/SelectToken/index.tsx`
+
+Opening the SDK inside a wallet's in-app browser (MetaMask, Base App, Phantom) should skip `SELECT_METHOD` and jump straight to `SELECT_TOKEN` for the already-connected wallet. Two independent async races can break this:
+
+**Race A — wagmi/Solana reconnect hasn't settled yet.**
+`useAccount().isConnected` and `useWallet().connected` both start `false` on every page load, even if a wallet *will* reconnect. Wagmi's `reconnect()` (triggered by `WagmiProvider`'s mount/hydrate, `@wagmi/core`'s `reconnect.js`) iterates connectors asynchronously (`getProvider()` → `isAuthorized()` → `connect({isReconnecting:true})`) and only flips `status` to `'connected'` once it finds one. The Solana wallet-adapter's `autoConnect` similarly waits for the wallet's `readyState` to become `Installed`/`Loadable` via an async `readyStateChange` event. If the modal's auto-navigate effect runs before either settles, it sees "not connected" and shows `SELECT_METHOD` — the bug the user has to "refresh a few times" to dodge.
+
+**Fix:** gate the auto-navigate effect on `useAccount().status === 'reconnecting'` and `useWallet().connecting`, not on `isConnected` alone:
+```tsx
+if (ethStatus === "reconnecting") return; // wagmi still restoring session
+if (isSolanaConnecting) return;           // adapter still autoConnecting
+```
+Depend on these plus `isEthConnected`/`isSolanaConnected`/`isStellarConnected` directly — never on a downstream proxy like a balance-fetch result (`walletPaymentOptions.options`), which resolves far later than the connection itself and widens the race window instead of closing it.
+
+**Residual gap (documented, not fixed):** `showSolanaPaymentMethod`/`showStellarPaymentMethod` are also gated on `pay.order != null`, which depends on the async `createPreviewOrder()` API call — a second, independent race. A flash of `SELECT_METHOD` can still occur if the wallet reconnects before the preview order resolves.
+
+**Consumer-side mitigation:** the SDK can't fully eliminate Race A — it can only wait for it. Consumers who configure wagmi with SSR + cookie storage (`createConfig({ ssr: true, storage: createStorage({ storage: cookieStorage }) })` and pass `initialState` from cookies into `WagmiProvider`) shortcut the reconnect race entirely, since the connected state is known before first paint. `examples/nextjs-app/app/providers.tsx` does NOT do this today, so it always pays the full reconnect window on every load — don't copy that example's wagmi setup as a "fast reconnect" reference.
+
+**Race B — multiple wallets connected simultaneously (e.g. Phantom connects both EVM and Solana).**
+`SelectToken` used to override `tokenMode` to `"all"` whenever more than one network was connected — so explicitly clicking "Pay with [Solana address]" in `SelectMethod` would still show EVM tokens too, because the override didn't know the choice was explicit.
+
+**Fix:** `usePaymentState.ts` tracks `tokenModeExplicit` (a ref-backed flag, not state, since it shouldn't itself trigger re-renders) that flips `true` only when `setTokenMode()` is called from an explicit user action, and resets to `false` in both branches of `resetOrder()`. `SelectToken`'s `effectiveTokenMode` now checks this flag before applying the "multiple networks connected → show all" override:
+```tsx
+if (tokenModeExplicit || connectedWalletOnly || hasPaymentOptionsConstraint) {
+  return tokenMode; // respect the user's explicit choice
+}
+return connectedNetworksCount > 1 ? "all" : tokenMode;
+```
+**Why a ref instead of state:** the flag only needs to be read inside a memo computation during render, not drive its own re-render — `usePaymentState`'s `setTokenMode` already triggers a re-render via `setTokenModeRaw`.
+
+**Race C — mobile in-app browser injects both EVM and Solana but only EVM was reachable.**
+`useWallets()` (`packages/connectkit/src/wallets/useWallets.tsx`) has two branches: a desktop branch that fuzzy-matches each EVM connector's name against `solanaWallet.wallets` to set `solanaConnectorName`, and a separate mobile branch (`if (isMobile) {...}`) that never did this match — it only pushed the generic injected EVM connector. Inside Phantom's in-app browser, wagmi's injected connector picks up `window.ethereum` as the generic `"injected"` id (the explicit `isPhantomConnector` id `"phantom"` is filtered out, used only for the desktop extension case). With no `solanaConnectorName` on that mobile entry, `ConnectorList`'s mobile `onClick` always fell through to `connect({connector: wallet.connector})` — EVM only, with no UI path to Solana. Symptom: after disconnecting via "Pay with another wallet" and re-tapping Phantom on mobile, the SDK got stuck connecting EVM only, no way to reach Solana tokens.
+
+**Fix:** mobile branch in `useWallets.tsx` now runs the same fuzzy-match against `solanaWallet.wallets` and sets `solanaConnectorName` on the injected entry. `ConnectorList`'s `onClick` (`packages/connectkit/src/components/Common/ConnectorList/index.tsx`) gained a mobile-specific branch: when both `wallet.connector` and `wallet.solanaConnectorName` are present, it kicks off the EVM connect (`ROUTES.CONNECT`) and `solanaWallets.select(name)` together, instead of forcing a chain choice or connecting EVM only:
+```tsx
+if (isMobile && wallet.connector && wallet.solanaConnectorName) {
+  context.setPendingConnectorId(wallet.id);
+  context.setRoute(ROUTES.CONNECT, meta);
+  solanaWallets.select(wallet.solanaConnectorName);
+  return;
+}
+```
+**Why connect both instead of picking one:** desktop shows a `SELECT_WALLET_CHAIN` picker before connecting; mobile skips that screen entirely on purpose (smaller UI, one tap). Once both chains connect, `SELECT_METHOD` already renders them as separate "Pay with [eth]"/"Pay with [sol]" tiles (Race B's `tokenModeExplicit` keeps their token lists from bleeding into each other) — so connecting both up front loses nothing and removes the dead end.
+
+### 12. Error Recovery Requires Order Context
 **Pattern:**
 ```typescript
 try {

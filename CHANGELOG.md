@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.31] - 2026-07-01
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Check capabilities wallet for contract based dataSuffix &nbsp;-&nbsp; by @akbarsaputrait [<samp>(d67e3)</samp>](https://github.com/RozoAI/intent-pay/commit/d67e33c8)
+- Support Base builder code attribution via dataSuffix &nbsp;-&nbsp; by @akbarsaputrait [<samp>(7e0fa)</samp>](https://github.com/RozoAI/intent-pay/commit/7e0faad2)
+- Check capabilities wallet for contract based dataSuffix" &nbsp;-&nbsp; by @akbarsaputrait [<samp>(528bb)</samp>](https://github.com/RozoAI/intent-pay/commit/528bbf89)
+- Enhance example app layout and provider for cookie management &nbsp;-&nbsp; by @akbarsaputrait [<samp>(4e17a)</samp>](https://github.com/RozoAI/intent-pay/commit/4e17abdc)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Use EIP-5792 writeContractsAsync for dataSuffix on Base App / Coinbase Wallet &nbsp;-&nbsp; by @akbarsaputrait [<samp>(9fee8)</samp>](https://github.com/RozoAI/intent-pay/commit/9fee8f60)
+- Improve mobile wallet connection for Solana and EVM integration &nbsp;-&nbsp; by @akbarsaputrait [<samp>(1d9b6)</samp>](https://github.com/RozoAI/intent-pay/commit/1d9b6c36)
+
+---
+
+
 ## [0.1.30] - 2026-06-29
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features

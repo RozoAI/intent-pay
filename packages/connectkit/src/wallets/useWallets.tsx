@@ -45,6 +45,26 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
   if (isMobile) {
     const mobileWallets: WalletProps[] = [];
 
+    // Add the live Coinbase Wallet SDK connector first, unless disabled.
+    // Inside Base App / Coinbase Wallet's own in-app browser, the SDK
+    // connects in-place via the injected provider — using it directly here
+    // (instead of falling through to the deeplink stub below) avoids an
+    // unnecessary cbwallet:// / universal-link round-trip when the wallet
+    // is already open.
+    if (!disableMobileInjector) {
+      const coinbaseConnector = connectors.find((connector) =>
+        isCoinbaseWalletConnector(connector.id)
+      );
+      if (coinbaseConnector) {
+        const walletConfig = walletConfigs["coinbaseWallet, coinbaseWalletSDK,com.coinbase.wallet"];
+        mobileWallets.push({
+          id: coinbaseConnector.id,
+          connector: coinbaseConnector,
+          ...walletConfig,
+        });
+      }
+    }
+
     // Add injected wallet (if any) first, unless disabled
     if (!disableMobileInjector) {
       connectors.forEach((connector) => {
@@ -53,6 +73,21 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
         if (!isInjectedConnector(connector.type)) return;
         // Skip any connectors that mention WalletConnect
         if (connector.name?.toLowerCase().includes("walletconnect")) return;
+
+        // In-app browsers that inject both window.ethereum and a Solana
+        // wallet-standard provider (e.g. Phantom) surface as one generic
+        // "injected" EVM connector here. Match it to its Solana adapter by
+        // name so onClick can connect both chains at once instead of only EVM.
+        let solanaConnectorName: SolanaWalletName | undefined;
+        if (showSolanaPaymentMethod && connector.name) {
+          const evmName = connector.name.toLowerCase();
+          const match = solanaWallet.wallets?.find((sw) => {
+            const solName = sw.adapter.name.toLowerCase();
+            return evmName.includes(solName) || solName.includes(evmName);
+          });
+          solanaConnectorName = match?.adapter.name;
+        }
+
         mobileWallets.push({
           id: connector.id,
           connector,
@@ -60,6 +95,7 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
           iconConnector: <img src={connector.icon} alt={connector.name} />,
           iconShape: "squircle",
           type: connector.type,
+          solanaConnectorName,
         });
       });
     }

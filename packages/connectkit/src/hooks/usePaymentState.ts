@@ -45,7 +45,15 @@ import {
 } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { erc20Abi, getAddress, Hex, hexToBytes, parseUnits, zeroAddress } from "viem";
-import { useAccount, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
+import {
+  useAccount,
+  useCapabilities,
+  useSendTransaction,
+  useSwitchChain,
+  useWalletClient,
+  useWriteContract,
+} from "wagmi";
+import { useWriteContracts } from "wagmi/experimental";
 import { convertPreferredSymbolsToTokens } from "../utils/token";
 
 import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
@@ -58,6 +66,7 @@ import {
 } from "@solana/spl-token";
 import { Asset, Memo, Networks, Operation, TransactionBuilder } from "@stellar/stellar-sdk";
 import bs58 from "bs58";
+import { waitForCallsStatus } from "viem/actions";
 import { PayButtonPaymentProps } from "../components/RozoPayButton/types";
 import { ROUTES } from "../constants/routes";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
@@ -126,6 +135,7 @@ export interface PaymentState {
   getOrderUsdLimit: () => number;
   setPaymentWaitingMessage: (message: string | undefined) => void;
   tokenMode: "evm" | "solana" | "stellar" | "all";
+  tokenModeExplicit: boolean;
   setTokenMode: (mode: "evm" | "solana" | "stellar" | "all") => void;
   setSelectedWallet: (wallet: WalletConfigProps | undefined) => void;
   setSelectedWalletDeepLink: (deepLink: string | undefined) => void;
@@ -234,6 +244,9 @@ export function usePaymentState({
 
   const { sendTransactionAsync } = useSendTransaction();
   const { writeContractAsync } = useWriteContract();
+  const { data: walletClient } = useWalletClient();
+  const { data: walletCapabilities, isPending: capabilitiesPending } = useCapabilities();
+  const { writeContractsAsync } = useWriteContracts();
   // ponytail: order.metadata.dataSuffix survives ROZO_INVOICE_URL redirects where the
   // consumer's wagmi config (globalDataSuffix) is absent. Invoice checkout fetches the
   // order first and passes metadata.dataSuffix into getDefaultConfig, but this fallback
@@ -279,7 +292,15 @@ export function usePaymentState({
   const [paymentWaitingMessage, setPaymentWaitingMessage] = useState<string>();
   const [isDepositFlow, setIsDepositFlow] = useState<boolean>(false);
 
-  const [tokenMode, setTokenMode] = useState<"evm" | "solana" | "stellar" | "all">("evm");
+  const [tokenMode, setTokenModeRaw] = useState<"evm" | "solana" | "stellar" | "all">("evm");
+  // Tracks whether tokenMode was set by an explicit user action (e.g. clicking a wallet in SelectMethod).
+  // When true, SelectToken must not override it to "all" just because multiple wallets are connected.
+  const tokenModeExplicitRef = useRef(false);
+  const setTokenMode = useCallback((mode: "evm" | "solana" | "stellar" | "all") => {
+    tokenModeExplicitRef.current = true;
+    setTokenModeRaw(mode);
+  }, []);
+  const tokenModeExplicit = tokenModeExplicitRef.current;
 
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
   const [rozoPaymentId, setRozoPaymentId] = useState<string | undefined>(undefined);
@@ -715,6 +736,41 @@ export function usePaymentState({
           if (required.token.chainId !== bscUSDT.chainId) {
             await switchChainAsync({ chainId: required.token.chainId });
           }
+          log?.(`[PAY ERC20] dataSuffix: ${resolvedDataSuffix ?? "(none)"}`);
+
+          // EIP-5792 path: only when wallet advertises dataSuffix capability (Base App / Coinbase Wallet).
+          const chainCapabilities = walletCapabilities?.[required.token.chainId];
+          const supportsDataSuffix =
+            !capabilitiesPending && resolvedDataSuffix != null && !!chainCapabilities?.dataSuffix;
+
+          if (supportsDataSuffix) {
+            if (!walletClient) throw new Error("No walletClient available");
+            const { id } = await writeContractsAsync({
+              contracts: [
+                {
+                  abi: erc20Abi,
+                  address: tokenAddress!,
+                  functionName: "transfer",
+                  args: [getAddress(destinationAddress), paymentAmount],
+                },
+              ],
+              capabilities: {
+                dataSuffix: {
+                  value: resolvedDataSuffix,
+                  optional: true,
+                },
+              },
+              chainId: required.token.chainId,
+            });
+            const result = await waitForCallsStatus(walletClient, {
+              id,
+              pollingInterval: 1000,
+              timeout: 120_000,
+            });
+            if (!result.receipts?.[0]) throw new Error("No receipt from batched call");
+            return result.receipts[0].transactionHash;
+          }
+
           return await writeContractAsync({
             abi: erc20Abi,
             address: tokenAddress!,
@@ -1376,6 +1432,7 @@ export function usePaymentState({
         setSenderAddress(undefined);
         setCurrPayParams(undefined);
         currPayParamsRef.current = undefined;
+        tokenModeExplicitRef.current = false;
         setRoute(ROUTES.SELECT_METHOD);
         return;
       }
@@ -1405,6 +1462,7 @@ export function usePaymentState({
       setSelectedWalletDeepLink(undefined);
       setPaymentWaitingMessage(undefined);
       setSenderAddress(undefined);
+      tokenModeExplicitRef.current = false;
 
       // Set the new payParams
       if (mergedPayParams) {
@@ -1458,6 +1516,7 @@ export function usePaymentState({
     setPayParams,
     payParams: currPayParams,
     tokenMode,
+    tokenModeExplicit,
     setTokenMode,
     generatePreviewOrder,
     isDepositFlow,

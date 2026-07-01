@@ -79,6 +79,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
 Then drop a `<RozoPayButton appId="rozoSandbox" ... />` (snippet above) anywhere inside the provider and read the result from `onPaymentCompleted`, or poll with the `useRozoPayStatus()` hook / `getPayment(id)` on your backend.
 
+> **Embedding inside a wallet's in-app browser (Base App, MetaMask, Phantom)?** `ssr: true` alone does not eliminate the auto-connect flash on first load — you also need cookie-persisted `initialState`. See [PROVIDER_SETUP.md § Minimizing the Wallet Reconnect Flash](../../docs/PROVIDER_SETUP.md#minimizing-the-wallet-reconnect-flash-in-app-browsers) (required, not optional, for this use case).
+
 > **Result truth lives on the backend.** Treat `onPaymentCompleted` as a UI hint and confirm settlement server-side (webhook or `getPayment`) before fulfilling.
 
 ## Features

@@ -28,6 +28,24 @@ type ErrorCategory = {
   showSupport: boolean;
 };
 
+// Map error types to UI title/retry configuration
+const ERROR_CONFIG = {
+  [ErrorType.TRUSTLINE]: { title: "Trustline Not Set Up", canRetry: false },
+  [ErrorType.LIQUIDITY]: { title: "Insufficient Liquidity", canRetry: false },
+  [ErrorType.PAYMENT_FAILED]: { title: "Payment Failed", canRetry: true },
+  [ErrorType.NETWORK]: { title: "Network Error", canRetry: true },
+  [ErrorType.INSUFFICIENT_FUNDS]: {
+    title: "Insufficient Funds",
+    canRetry: false,
+  },
+  [ErrorType.REJECTED]: { title: "Transaction Rejected", canRetry: true },
+  [ErrorType.NOT_UNPAID]: { title: "Payment Invalid", canRetry: false },
+  [ErrorType.UNSUPPORTED_CHAIN]: {
+    title: "Network Not Supported",
+    canRetry: true,
+  },
+} satisfies Partial<Record<ErrorType, { title: string; canRetry: boolean }>>;
+
 export default function ErrorPage() {
   const pay = useRozoPay();
   const context = usePayContext();
@@ -49,6 +67,24 @@ export default function ErrorPage() {
       };
     }
 
+    // Errors raised outside the FSM (e.g. wallet chain switch failures)
+    // are passed via route meta instead of pay.paymentState.
+    const routeError = context.routeMeta?.error as string | undefined;
+    if (routeError) {
+      const errorType = categorizeError(routeError);
+      return {
+        ...(ERROR_CONFIG[errorType] ?? {
+          title: "Payment Unavailable",
+          canRetry: true,
+        }),
+        message:
+          errorType === ErrorType.UNKNOWN
+            ? routeError
+            : "Your wallet couldn't complete this action. Please try a different network or wallet.",
+        showSupport: true,
+      };
+    }
+
     if (pay.paymentState !== "error") {
       return {
         title: "Unknown Error",
@@ -61,48 +97,8 @@ export default function ErrorPage() {
     const errorMsg = pay.paymentErrorMessage || "";
     const errorType = categorizeError(errorMsg);
 
-    // Map error types to UI configuration
-    const errorConfig = {
-      [ErrorType.TRUSTLINE]: {
-        title: "Trustline Not Set Up",
-        canRetry: false,
-      },
-      [ErrorType.LIQUIDITY]: {
-        title: "Insufficient Liquidity",
-        canRetry: false,
-      },
-      [ErrorType.PAYMENT_FAILED]: {
-        title: "Payment Failed",
-        canRetry: true,
-      },
-      [ErrorType.NETWORK]: {
-        title: "Network Error",
-        canRetry: true,
-      },
-      [ErrorType.INSUFFICIENT_FUNDS]: {
-        title: "Insufficient Funds",
-        canRetry: false,
-      },
-      [ErrorType.REJECTED]: {
-        title: "Transaction Rejected",
-        canRetry: true,
-      },
-      [ErrorType.NOT_UNPAID]: {
-        title: "Payment Invalid",
-        canRetry: false,
-      },
-    } satisfies Partial<
-      Record<
-        ErrorType,
-        {
-          title: string;
-          canRetry: boolean;
-        }
-      >
-    >;
-
     return {
-      ...(errorConfig[errorType] ?? {
+      ...(ERROR_CONFIG[errorType] ?? {
         title: "Payment Unavailable",
         canRetry: true,
       }),
@@ -113,6 +109,7 @@ export default function ErrorPage() {
     pay.paymentState,
     pay.paymentErrorMessage,
     context.routeMeta?.validationError,
+    context.routeMeta?.error,
   ]);
 
   const handleRetry = () => {

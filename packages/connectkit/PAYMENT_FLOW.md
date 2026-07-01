@@ -306,6 +306,52 @@ if (rozoPaymentId && order && 'org' in order) {
 }
 ```
 
+### Issue: Wallet Connected But SELECT_METHOD Shows Instead of Auto Token List
+
+**Symptom**: SDK opened inside a wallet's in-app browser (MetaMask, Base App, Phantom) with an already-connected wallet, but shows the "Pay with Wallet"/"Pay to Address" method list instead of jumping straight to the token list. Refreshing the page once or twice "fixes" it.
+
+**Root Cause**:
+- `useAccount().isConnected` (wagmi) and `useWallet().connected` (Solana adapter) both start `false` on every page load, even when a wallet will reconnect.
+- Wagmi's `reconnect()` and the Solana adapter's `autoConnect` are both async — they iterate connectors / wait for `readyStateChange` before flipping to connected.
+- `RozoPayModal`'s auto-navigate effect used to depend on indirect proxy state (balance-fetch results), which resolves even later than the connection itself, widening the race window.
+
+**Solution**: gate the auto-navigate effect on wagmi's reconnect status and the Solana adapter's `connecting` flag, not on `isConnected` alone:
+```tsx
+if (ethStatus === "reconnecting") return; // wagmi still restoring session from storage
+if (isSolanaConnecting) return;           // adapter still autoConnecting
+```
+Depend on `isEthConnected`/`isSolanaConnected`/`isStellarConnected`/`ethStatus`/`isSolanaConnecting` directly in the effect's dependency array — see `RozoPayModal/index.tsx`.
+
+**Consumer mitigation**: configure wagmi with SSR + cookie storage and pass `initialState` into `WagmiProvider` so the connected state is known before first paint, shortcutting the reconnect window entirely. See insight #11 in the root `CLAUDE.md`.
+
+### Issue: Selecting a Specific Wallet Still Shows Tokens From Other Chains
+
+**Symptom**: Opened in a wallet that connects multiple chains at once (e.g. Phantom connects both EVM and Solana). Explicitly clicking "Pay with [Solana address]" on `SelectMethod` still shows EVM tokens mixed into the Solana token list.
+
+**Root Cause**: `SelectToken` overrode `tokenMode` to `"all"` whenever more than one network was connected, with no way to distinguish "user explicitly picked a wallet" from "multiple wallets happen to be connected."
+
+**Solution**: `usePaymentState` tracks a `tokenModeExplicit` flag, set whenever `setTokenMode()` is called from an explicit user action (e.g. `SelectMethod`'s click handler) and cleared on `resetOrder()`. `SelectToken`'s `effectiveTokenMode` respects this flag before applying the multi-network override — see insight #11 in the root `CLAUDE.md`.
+
+### Issue: Mobile In-App Browser (Phantom) Stuck Connecting EVM Only, No Way to Reach Solana
+
+**Symptom**: Inside Phantom's mobile in-app browser, disconnecting (e.g. via "Pay with another wallet") and re-tapping Phantom in the connector list always reconnects EVM only — no way to connect or pay with Solana.
+
+**Root Cause**:
+- `useWallets()`'s mobile branch never matched the injected EVM connector to its Solana wallet-adapter counterpart (`solanaConnectorName`); only the desktop branch did this fuzzy name match.
+- Phantom's in-app browser injects `window.ethereum`, which wagmi surfaces as the generic `"injected"` connector id — not the explicit `"phantom"` id, which is filtered out for the desktop-extension case.
+- Without `solanaConnectorName`, `ConnectorList`'s mobile `onClick` always fell through to `connect({connector: wallet.connector})` — EVM only, no Solana path.
+
+**Solution**: mobile branch in `useWallets.tsx` now runs the same fuzzy-match against `solanaWallet.wallets`. `ConnectorList`'s `onClick` gained a mobile branch that connects both chains at once when both are available, instead of forcing a chain pick or connecting EVM only:
+```tsx
+if (isMobile && wallet.connector && wallet.solanaConnectorName) {
+  context.setPendingConnectorId(wallet.id);
+  context.setRoute(ROUTES.CONNECT, meta);
+  solanaWallets.select(wallet.solanaConnectorName);
+  return;
+}
+```
+Once both connect, `SELECT_METHOD` shows them as separate tiles — see insight #11 (Race C) in the root `CLAUDE.md`.
+
 ---
 
 ## Payment State Validation

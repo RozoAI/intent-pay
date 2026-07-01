@@ -10,7 +10,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useTheme } from "next-themes"
 import posthog from "posthog-js"
 import { useState, type ReactNode } from "react"
-import { createConfig, WagmiProvider } from "wagmi"
+import {
+  cookieStorage,
+  cookieToInitialState,
+  createConfig,
+  createStorage,
+  WagmiProvider,
+} from "wagmi"
 
 const queryClient = new QueryClient()
 
@@ -37,14 +43,23 @@ function RozoPayProviderWithTheme({
   )
 }
 
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({
+  children,
+  cookie,
+}: {
+  children: ReactNode
+  cookie?: string | null
+}) {
   const [rozoPayConfig] = useState(() =>
     createConfig(
       getDefaultConfigRozo({
         appName: "Rozo Pay Playground",
+        ssr: true,
+        storage: createStorage({ storage: cookieStorage }),
       })
     )
   )
+  const initialState = cookieToInitialState(rozoPayConfig, cookie)
 
   // E2E-only: drive Stellar pay-in with a headless secret-key signer (no
   // Freighter extension). Only active when the build was started with
@@ -78,7 +93,7 @@ export function Providers({ children }: { children: ReactNode }) {
   })
 
   return (
-    <WagmiProvider config={rozoPayConfig}>
+    <WagmiProvider config={rozoPayConfig} initialState={initialState}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme="light">
           <RozoPayProviderWithTheme stellarKit={stellarKit}>

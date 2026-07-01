@@ -361,6 +361,14 @@ if (!supportedTokens.includes(tokenSymbol)) {
 
 ## Wallet Connection Issues
 
+### Symptom: Base App / in-app browser shows method picker instead of auto-connecting
+
+User opens the app inside a wallet's in-app browser (Base App, MetaMask, Phantom). On first load, SDK shows `SELECT_METHOD` instead of jumping straight to the already-connected wallet's tokens. Refreshing, or manually choosing the wallet, fixes it for that session.
+
+**Root Cause:** wagmi's `reconnect()` (and the Solana adapter's `autoConnect`) start every page load at `isConnected: false` and restore the session asynchronously. The SDK can't know the wallet is connected until that resolves. Without `ssr: true` + cookie-persisted `initialState`, this state is unknown until client JS finishes the race — see CLAUDE.md "Race A" for the full mechanism.
+
+**Fix:** Required, not optional, for any app embedded in wallet in-app browsers — persist connection state in cookies so wagmi knows it pre-paint. See [PROVIDER_SETUP.md § Minimizing the Wallet Reconnect Flash](./PROVIDER_SETUP.md#minimizing-the-wallet-reconnect-flash-in-app-browsers).
+
 ### Rainbow Wallet: ConnectorChainMismatchError
 
 **Symptom:**

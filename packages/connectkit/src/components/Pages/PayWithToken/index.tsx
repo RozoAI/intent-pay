@@ -5,7 +5,7 @@ import {
   getChainExplorerTxUrl,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { ROUTES } from "../../../constants/routes";
 import { useContactSupport } from "../../../hooks/useContactSupport";
@@ -77,6 +77,8 @@ const PayWithToken: React.FC = () => {
     // });
   };
 
+  const switchChainErrorRef = useRef<string | null>(null);
+
   const trySwitchingChain = async (
     option: WalletPaymentOption,
     forceSwitch: boolean = false,
@@ -88,7 +90,14 @@ const PayWithToken: React.FC = () => {
             chainId: option.required.token.chainId,
           });
         } catch (e) {
+          const message = (e as Error)?.message ?? "switch_chain_failed";
           console.error("Failed to switch chain", e);
+          switchChainErrorRef.current = message;
+          capture(ROZO_EVENTS.PAYMENT_FAILED, {
+            payment_id: rozoPaymentId ?? order?.externalId,
+            error_message: message,
+            source_chain: option.required.token.chainId,
+          });
           return null;
         }
       })();
@@ -124,7 +133,10 @@ const PayWithToken: React.FC = () => {
 
       if (!switchChain) {
         console.error("Switching chain failed");
-        setPayState(PayState.RequestCancelled);
+        setFeeLoading(false);
+        setRoute(ROUTES.ERROR, {
+          error: switchChainErrorRef.current ?? "switch_chain_failed",
+        });
         return;
       }
 
