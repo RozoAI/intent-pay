@@ -296,13 +296,10 @@ export function usePaymentState({
   // Tracks whether tokenMode was set by an explicit user action (e.g. clicking a wallet in SelectMethod).
   // When true, SelectToken must not override it to "all" just because multiple wallets are connected.
   const tokenModeExplicitRef = useRef(false);
-  const setTokenMode = useCallback(
-    (mode: "evm" | "solana" | "stellar" | "all") => {
-      tokenModeExplicitRef.current = true;
-      setTokenModeRaw(mode);
-    },
-    [],
-  );
+  const setTokenMode = useCallback((mode: "evm" | "solana" | "stellar" | "all") => {
+    tokenModeExplicitRef.current = true;
+    setTokenModeRaw(mode);
+  }, []);
   const tokenModeExplicit = tokenModeExplicitRef.current;
 
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
@@ -744,9 +741,7 @@ export function usePaymentState({
           // EIP-5792 path: only when wallet advertises dataSuffix capability (Base App / Coinbase Wallet).
           const chainCapabilities = walletCapabilities?.[required.token.chainId];
           const supportsDataSuffix =
-            !capabilitiesPending &&
-            resolvedDataSuffix != null &&
-            !!chainCapabilities?.dataSuffix;
+            !capabilitiesPending && resolvedDataSuffix != null && !!chainCapabilities?.dataSuffix;
 
           if (supportsDataSuffix) {
             if (!walletClient) throw new Error("No walletClient available");
