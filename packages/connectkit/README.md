@@ -131,6 +131,8 @@ You can also check out the [Next.js example app](https://github.com/RozoAI/inten
 
 Check out our Demo Page at [demo.rozo.ai](https://demo.rozo.ai/)
 
+You can also try the intent-based bridge built with this SDK at [intents.rozo.ai/bridge](https://intents.rozo.ai/bridge?utm_source=npm&utm_medium=readme).
+
 ### Local Development
 
 Clone the repository and build the SDK in `dev` mode:
