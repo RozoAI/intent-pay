@@ -122,6 +122,8 @@ export interface PaymentState {
   selectedWalletDeepLink: string | undefined;
   showSolanaPaymentMethod: boolean;
   showStellarPaymentMethod: boolean;
+  solanaPaymentEligible: boolean;
+  stellarPaymentEligible: boolean;
   paymentOptions: ExternalPaymentOptionsString[] | undefined;
   walletPaymentOptions: ReturnType<typeof useWalletPaymentOptions>;
   solanaPaymentOptions: ReturnType<typeof useSolanaPaymentOptions>;
@@ -342,6 +344,35 @@ export function usePaymentState({
       pay.order != null
     );
   }, [currPayParams?.paymentOptions, pay.order, currPayParams?.preferredTokens]);
+
+  // Order-independent eligibility for Solana/Stellar. Same rules as
+  // show{Solana,Stellar}PaymentMethod but WITHOUT the `pay.order != null` gate,
+  // so the modal's auto-navigate-to-SELECT_TOKEN effect can fire the moment the
+  // wallet reconnects, instead of racing the async createPreviewOrder() call.
+  // The order gate stays on the show* flags because tapping a tile starts a
+  // payment (needs an order); auto-navigating to the token screen does not.
+  const solanaPaymentEligible = useMemo(() => {
+    const paymentOptions = currPayParams?.paymentOptions;
+    return (
+      paymentOptions == null ||
+      paymentOptions.includes(ExternalPaymentOptions.Solana)
+    );
+  }, [currPayParams?.paymentOptions]);
+
+  const stellarPaymentEligible = useMemo(() => {
+    const paymentOptions = currPayParams?.paymentOptions;
+    const preferredTokens = currPayParams?.preferredTokens;
+    if (preferredTokens && preferredTokens.length > 0) {
+      const hasStellarToken = preferredTokens
+        .filter((v) => !!v)
+        .some((t) => t.chainId === rozoStellar.chainId);
+      if (!hasStellarToken) return false;
+    }
+    return (
+      paymentOptions == null ||
+      paymentOptions.includes(ExternalPaymentOptions.Stellar)
+    );
+  }, [currPayParams?.paymentOptions, currPayParams?.preferredTokens]);
 
   // Memoize usdRequired and destChainId to prevent unnecessary refetches when order object reference changes
   const usdRequired = useMemo(
@@ -1527,6 +1558,8 @@ export function usePaymentState({
     selectedStellarTokenOption,
     showSolanaPaymentMethod,
     showStellarPaymentMethod,
+    solanaPaymentEligible,
+    stellarPaymentEligible,
     selectedWallet,
     paymentOptions,
     externalPaymentOptions,
