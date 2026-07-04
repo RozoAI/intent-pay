@@ -32,7 +32,7 @@ export function useAutoConnectGate() {
     const orderPending = paymentState === "idle";
     const orderError = paymentState === "error";
     const orderReady =
-      paymentState === "preview" || paymentState.startsWith("payment_");
+      paymentState !== "idle" && paymentState !== "error";
 
     let gateState: AutoConnectGateState;
     if (!anyWalletConnected) {
@@ -44,8 +44,10 @@ export function useAutoConnectGate() {
     } else if (orderReady) {
       gateState = "ready";
     } else {
-      // Defensive: unknown/transitional state → wait rather than flash tiles.
-      gateState = "waiting";
+      // Defensive: unrecognized state → degrade to tiles rather than an
+      // infinite spinner (chain is exhaustive given orderReady above, but
+      // this keeps future FSM states from getting stuck here).
+      gateState = "pass";
     }
 
     return {
