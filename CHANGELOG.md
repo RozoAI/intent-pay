@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.32] - 2026-07-05
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- **connectkit**:
+  - Add useAutoConnectGate readiness helper &nbsp;-&nbsp; by @akbarsaputrait [<samp>(a88d5)</samp>](https://github.com/RozoAI/intent-pay/commit/a88d521d)
+  - Add usePayinPolling fallback hook &nbsp;-&nbsp; by @akbarsaputrait [<samp>(f4dd4)</samp>](https://github.com/RozoAI/intent-pay/commit/f4dd43b5)
+  - 60s poll fallback for deposit payin detection &nbsp;-&nbsp; by @akbarsaputrait [<samp>(7daff)</samp>](https://github.com/RozoAI/intent-pay/commit/7daff1da)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**:
+  - Gate auto-navigate on wallet+order readiness &nbsp;-&nbsp; by @akbarsaputrait [<samp>(593d1)</samp>](https://github.com/RozoAI/intent-pay/commit/593d164d)
+  - Show spinner in SelectMethod while gate waits &nbsp;-&nbsp; by @akbarsaputrait [<samp>(13da0)</samp>](https://github.com/RozoAI/intent-pay/commit/13da0507)
+  - Cover unhydrated/payout_completed in readiness gate &nbsp;-&nbsp; by @akbarsaputrait [<samp>(833a9)</samp>](https://github.com/RozoAI/intent-pay/commit/833a9294)
+  - Reset payin poll hash when disabled &nbsp;-&nbsp; by @akbarsaputrait [<samp>(c045c)</samp>](https://github.com/RozoAI/intent-pay/commit/c045ce0d)
+
+---
+
+
 ## [0.1.31] - 2026-07-01
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features

@@ -1,6 +1,6 @@
 {
   "name": "@rozoai/intent-pay",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "private": false,
   "description": "Seamless crypto payments. Onboard users from any chain, any coin into your app with one click.",
   "keywords": [
