@@ -24,6 +24,7 @@ import { AlertIcon, WarningIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { usePayContext } from "../../../hooks/usePayContext";
+import { usePayinPolling } from "../../../hooks/usePayinPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import styled from "../../../styles/styled";
@@ -108,43 +109,64 @@ export default function WaitingDepositAddress() {
   const [feeData, setFeeData] = useState<FeeResponseData | null>(null);
   const [feeError, setFeeError] = useState<FeeErrorData | null>(null);
 
-  // Use Pusher to detect payin in real-time
-  const pusherEnabled = !!(
+  // Payin detection: start on Pusher, fall back to polling after 60s.
+  const [pusherFallbackEnabled, setPusherFallbackEnabled] = useState(true);
+  const [payinPollingEnabled, setPayinPollingEnabled] = useState(false);
+  const payinTimeoutIdRef = useRef<NodeJS.Timeout | null>(null);
+  const pusherFallbackEnabledRef = useRef(true);
+  const pusherUnsubscribeRef = useRef<(() => void) | null>(null);
+  const payinDetectedRef = useRef(false);
+  const prevActivePaymentIdRef = useRef<string | undefined>(undefined);
+
+  // The active deposit payment id (same expression the Pusher block uses).
+  const activePaymentId = rozoPaymentId || depAddr?.externalId;
+
+  const handlePayinDetected = (txHash: string, paymentId?: string) => {
+    if (payinDetectedRef.current) return; // run once
+    if (!selectedDepositAddressOption) return;
+    payinDetectedRef.current = true;
+
+    context.log("[PAYIN DETECTED] Payment received:", txHash);
+
+    setPaymentCompleted(txHash, paymentId, null);
+    setPaymentPayoutCompleted(txHash, paymentId);
+
+    const tokenMode =
+      selectedDepositAddressOption.id === DepositAddressPaymentOptions.SOLANA
+        ? "solana"
+        : selectedDepositAddressOption.id ===
+            DepositAddressPaymentOptions.STELLAR
+          ? "stellar"
+          : "evm";
+    setTokenMode(tokenMode);
+    setTxHash(txHash);
+
+    // Clear the fallback timer — detection done.
+    if (payinTimeoutIdRef.current) {
+      clearTimeout(payinTimeoutIdRef.current);
+      payinTimeoutIdRef.current = null;
+    }
+
+    context.setRoute(ROUTES.CONFIRMATION);
+  };
+
+  // Use Pusher to detect payin in real-time (until the 60s fallback flips to poll)
+  const pusherConditionsMet = !!(
     depAddr?.externalId &&
     (rozoPaymentId || depAddr?.externalId) &&
     rozoPaymentState !== "payment_started" &&
     rozoPaymentState !== "payment_completed"
   );
 
-  usePusherPayout({
-    enabled: pusherEnabled,
-    rozoPaymentId: rozoPaymentId || depAddr?.externalId,
+  const { unsubscribe: pusherUnsubscribe } = usePusherPayout({
+    enabled: pusherConditionsMet && pusherFallbackEnabled,
+    rozoPaymentId: activePaymentId,
     onPayinDetected: (payload) => {
-      if (payload.source_txhash && selectedDepositAddressOption) {
-        context.log(
-          "[PAYIN DETECTED] Payment received via Pusher:",
-          payload.source_txhash,
-        );
-        setPaymentCompleted(
-          payload.source_txhash,
-          rozoPaymentId || payload.payment_id,
-          null,
-        );
-        setPaymentPayoutCompleted(
+      if (payload.source_txhash) {
+        handlePayinDetected(
           payload.source_txhash,
           rozoPaymentId || payload.payment_id,
         );
-        const tokenMode =
-          selectedDepositAddressOption?.id ===
-          DepositAddressPaymentOptions.SOLANA
-            ? "solana"
-            : selectedDepositAddressOption?.id ===
-                DepositAddressPaymentOptions.STELLAR
-              ? "stellar"
-              : "evm";
-        setTokenMode(tokenMode);
-        setTxHash(payload.source_txhash);
-        context.setRoute(ROUTES.CONFIRMATION);
       }
     },
     onDataReceived: () => {
@@ -152,6 +174,75 @@ export default function WaitingDepositAddress() {
     },
     log: context.log,
   });
+
+  useEffect(() => {
+    pusherUnsubscribeRef.current = pusherUnsubscribe;
+  }, [pusherUnsubscribe]);
+
+  // 60s after an address is shown, if Pusher hasn't detected the payin,
+  // unsubscribe Pusher and switch to polling. Mirrors Confirmation's payout fallback.
+  useEffect(() => {
+    if (!activePaymentId || !pusherFallbackEnabled) return;
+    if (payinTimeoutIdRef.current !== null) return; // one timer per id
+
+    context.log("[WAITING_DEPOSIT] Arming 60s payin fallback timer");
+    payinTimeoutIdRef.current = setTimeout(() => {
+      if (pusherFallbackEnabledRef.current && !payinDetectedRef.current) {
+        context.log(
+          "[WAITING_DEPOSIT] 60s elapsed, no payin — switching to polling",
+        );
+        if (pusherUnsubscribeRef.current) {
+          pusherUnsubscribeRef.current();
+        }
+        pusherFallbackEnabledRef.current = false;
+        setPusherFallbackEnabled(false);
+        setPayinPollingEnabled(true);
+      }
+      payinTimeoutIdRef.current = null;
+    }, 60000);
+
+    return () => {
+      if (payinTimeoutIdRef.current) {
+        clearTimeout(payinTimeoutIdRef.current);
+        payinTimeoutIdRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePaymentId, pusherFallbackEnabled]);
+
+  // When the active deposit id changes (QR refresh / option switch), reset the
+  // fallback: re-enable Pusher, disable polling, clear the detection guard.
+  useEffect(() => {
+    if (
+      prevActivePaymentIdRef.current &&
+      prevActivePaymentIdRef.current !== activePaymentId
+    ) {
+      context.log("[WAITING_DEPOSIT] Active id changed — resetting fallback");
+      payinDetectedRef.current = false;
+      pusherFallbackEnabledRef.current = true;
+      setPusherFallbackEnabled(true);
+      setPayinPollingEnabled(false);
+      if (payinTimeoutIdRef.current) {
+        clearTimeout(payinTimeoutIdRef.current);
+        payinTimeoutIdRef.current = null;
+      }
+    }
+    prevActivePaymentIdRef.current = activePaymentId;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePaymentId]);
+
+  const { payinTxHash: polledPayinTxHash } = usePayinPolling({
+    enabled: payinPollingEnabled && !!activePaymentId,
+    rozoPaymentId: activePaymentId,
+    log: context.log,
+  });
+
+  useEffect(() => {
+    if (polledPayinTxHash) {
+      handlePayinDetected(polledPayinTxHash, activePaymentId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polledPayinTxHash]);
 
   useEffect(() => {
     if (rozoPaymentState === "error") {
