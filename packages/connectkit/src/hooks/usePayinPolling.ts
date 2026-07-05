@@ -32,6 +32,8 @@ export const usePayinPolling = (
 
   useEffect(() => {
     if (!enabled || !rozoPaymentId) {
+      // Clear any stale hash so a later deposit can't observe a prior one.
+      setPayinTxHash(undefined);
       return;
     }
 
