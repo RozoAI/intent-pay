@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.33] - 2026-07-07
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**: Ensure fresh order state is used in payment flows and fee calculations &nbsp;-&nbsp; by @akbarsaputrait [<samp>(43466)</samp>](https://github.com/RozoAI/intent-pay/commit/434666ea)
+
+---
+
+
 ## [0.1.32] - 2026-07-05
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
