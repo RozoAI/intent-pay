@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.34] - 2026-07-07
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- **conneckit**: Enhance error handling in payment flows &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e9d4c)</samp>](https://github.com/RozoAI/intent-pay/commit/e9d4cbf8)
+
+---
+
+
 ## [0.1.33] - 2026-07-07
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
