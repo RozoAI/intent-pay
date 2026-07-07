@@ -112,16 +112,27 @@ export default function ErrorPage() {
     context.routeMeta?.error,
   ]);
 
+  // Re-initialize a fresh order after reset. In appId mode we re-create the
+  // preview from payParams; in payId mode (no payParams) we re-fetch the
+  // existing payment by its ID so the user can retry the same payId order
+  // instead of landing on an empty SELECT_METHOD.
+  const reinitOrder = () => {
+    const payId = pay.order?.externalId ?? undefined;
+    pay.reset();
+    if (context.paymentState.payParams) {
+      pay.createPreviewOrder(context.paymentState.payParams);
+    } else if (payId) {
+      pay.setPayId(payId);
+    }
+  };
+
   const handleRetry = () => {
     capture(ROZO_EVENTS.PAYMENT_CANCELLED, {
       last_state: pay.paymentState,
       reason: "retry",
     });
     context.setRoute(ROUTES.SELECT_METHOD);
-    pay.reset();
-    if (context.paymentState.payParams) {
-      pay.createPreviewOrder(context.paymentState.payParams);
-    }
+    reinitOrder();
   };
 
   const handleCancel = () => {
@@ -130,10 +141,7 @@ export default function ErrorPage() {
       reason: "user",
     });
     context.setOpen(false);
-    pay.reset();
-    if (context.paymentState.payParams) {
-      pay.createPreviewOrder(context.paymentState.payParams);
-    }
+    reinitOrder();
   };
 
   useEffect(() => {

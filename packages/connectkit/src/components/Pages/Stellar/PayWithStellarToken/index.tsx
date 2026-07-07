@@ -233,7 +233,7 @@ const PayWithStellarToken: React.FC = () => {
           dest_token: destToken.symbol,
         });
         console.error("Fee calculation failed", feeData.error);
-        setPayState(PayState.RequestFailed);
+        setRoute(ROUTES.ERROR, { error: feeData.error.message });
         return;
       }
 
@@ -469,9 +469,13 @@ const PayWithStellarToken: React.FC = () => {
         source_chain: rozoStellar.chainId,
       });
       if (isRejected) {
+        // User rejected in-wallet before signing — keep them in-modal with a
+        // Retry affordance instead of the full Error page.
         setPayState(PayState.RequestCancelled);
       } else {
-        setPayState(PayState.RequestFailed);
+        // Pre-submit failure (setup/network/checkout). Route to the dedicated
+        // Error page for proper categorization + retry/support.
+        setRoute(ROUTES.ERROR, { error: errorMessage });
       }
     } finally {
       setIsLoading(false);

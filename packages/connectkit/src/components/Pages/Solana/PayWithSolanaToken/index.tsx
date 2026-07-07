@@ -195,7 +195,7 @@ const PayWithSolanaToken: React.FC = () => {
             dest_token: destToken.symbol,
           });
           console.error("Fee calculation failed", feeData.error);
-          setPayState(PayState.RequestFailed);
+          setRoute(ROUTES.ERROR, { error: feeData.error.message });
           return;
         }
 
@@ -456,9 +456,13 @@ const PayWithSolanaToken: React.FC = () => {
           source_chain: rozoSolana.chainId,
         });
         if (isRejected) {
+          // User rejected in-wallet — keep them in-modal with a Retry affordance.
           setPayState(PayState.RequestCancelled);
         } else {
-          setPayState(PayState.RequestFailed);
+          // Setup/checkout/create-payment failure (the realistic RequestFailed
+          // triggers here are all pre-submit throws). Route to the dedicated
+          // Error page for proper categorization + retry/support.
+          setRoute(ROUTES.ERROR, { error: errorMessage });
         }
       } finally {
         setIsLoading(false);
@@ -544,6 +548,8 @@ const PayWithSolanaToken: React.FC = () => {
             Retry Payment
           </Button>
         )}
+        {/* ponytail: RequestFailed is no longer set on Solana (hard failures
+            route to ROUTES.ERROR); kept as a defensive fallback. */}
         {payState === PayState.RequestFailed && (
           <Button onClick={handleContactClick}>Contact Support</Button>
         )}

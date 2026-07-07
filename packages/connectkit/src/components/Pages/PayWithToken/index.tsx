@@ -189,7 +189,7 @@ const PayWithToken: React.FC = () => {
             dest_token: destToken.symbol,
           });
           console.error("Fee calculation failed", feeData.error);
-          setPayState(PayState.RequestFailed);
+          setRoute(ROUTES.ERROR, { error: feeData.error.message });
           return;
         }
 
