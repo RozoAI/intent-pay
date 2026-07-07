@@ -112,7 +112,14 @@ const PayWithToken: React.FC = () => {
 
   const handleTransfer = useCallback(
     async (option: WalletPaymentOption) => {
-      if (!order) {
+      // Read the freshest order straight from the store instead of the React
+      // closure snapshot. For payId mode this is the getPayment-derived order
+      // loaded by runSetPayIdEffects, so getFee below runs against the latest
+      // payment response (correct appId, amount, destination, etc.).
+      const currentState = store.getState();
+      const currentOrder =
+        currentState.type !== "idle" ? currentState.order : undefined;
+      if (!currentOrder) {
         throw new Error("Order not initialized");
       }
 
@@ -142,7 +149,8 @@ const PayWithToken: React.FC = () => {
 
       try {
         setPayState(PayState.RequestingPayment);
-        const currentRozoPaymentId = rozoPaymentId ?? order?.externalId;
+        const currentRozoPaymentId =
+          rozoPaymentId ?? currentOrder.externalId ?? undefined;
         // Only set unpaid if state is payment_started (for retry scenarios and cross-chain switches)
         if (currentRozoPaymentId && rozoPaymentState === "payment_started") {
           try {
@@ -154,17 +162,17 @@ const PayWithToken: React.FC = () => {
         }
 
         // @NOTE: Fee calculation
-        const destToken = order.destFinalCallTokenAmount?.token;
+        const destToken = currentOrder.destFinalCallTokenAmount?.token;
         setFeeLoading(true);
         const feeData = await getCachedFee({
-          appId: resolveOrderAppId(order, paymentState.payParams?.appId),
+          appId: resolveOrderAppId(currentOrder, paymentState.payParams?.appId),
           type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
           sourceChainId: option.required.token.chainId.toString(),
           sourceTokenSymbol: option.required.token.symbol,
           amount: option.required.usd.toString(),
           destChainId: destToken.chainId.toString(),
           destReceiverAddress:
-            getCanonicalDestination(order).finalDestinationAddress ??
+            getCanonicalDestination(currentOrder).finalDestinationAddress ??
             paymentState.payParams?.toAddress ??
             "",
           destTokenSymbol: destToken.symbol,

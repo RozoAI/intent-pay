@@ -1347,7 +1347,10 @@ export function usePaymentState({
     const deeplink = wallet.getRozoPayDeeplink({
       payId: pay.order?.externalId ?? pay.rozoPaymentId ?? payId,
       ref,
-      appId: currPayParams?.appId,
+      // Use stableAppId (payParams.appId ?? order.metadata.appId ?? default)
+      // so payId mode — where currPayParams is null — still forwards an appId
+      // in the invoice deeplink instead of dropping it (missingAppId on invoice).
+      appId: stableAppId,
       customDeeplink,
     });
 

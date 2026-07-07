@@ -28,6 +28,7 @@ import { usePayinPolling } from "../../../hooks/usePayinPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import styled from "../../../styles/styled";
+import { resolveOrderAppId } from "../../../utils/feeCache";
 import { formatUsd, roundUsd } from "../../../utils/format";
 import Button from "../../Common/Button";
 import CircleTimer from "../../Common/CircleTimer";
@@ -371,19 +372,27 @@ export default function WaitingDepositAddress() {
 
       try {
         let feeData: FeeResponseData | null = null;
+        // Read the freshest order from the store, then resolve appId from it
+        // (order.metadata.appId) with payParams.appId as fallback. In payId mode
+        // payParams is null, so gating on payParams?.appId alone skips the fee
+        // fetch entirely — resolveOrderAppId recovers it from the order instead.
+        const currentState = store.getState();
+        const currentOrder =
+          currentState.type !== "idle" ? currentState.order : order;
+        const resolvedAppId = resolveOrderAppId(currentOrder, payParams?.appId);
         // Fetch fee using amount and appId before generating deposit address
-        if (amount && payParams?.appId) {
+        if (amount && resolvedAppId) {
           try {
             // @TODO: Handle fee calculation for other currencies
-            const destToken = order?.destFinalCallTokenAmount?.token;
+            const destToken = currentOrder?.destFinalCallTokenAmount?.token;
             const feeResponse = await getFee({
               type: payParams?.feeType ?? FeeType.ExactIn,
-              appId: payParams.appId,
+              appId: resolvedAppId,
               sourceChainId: selectedDepositAddressOption.token.chainId.toString(),
               sourceTokenSymbol: selectedDepositAddressOption.token.symbol,
               amount: amount.toString(),
               destChainId: (destToken?.chainId ?? selectedDepositAddressOption.token.chainId).toString(),
-              destReceiverAddress: (order ? getCanonicalDestination(order).finalDestinationAddress : undefined) ?? payParams?.toAddress ?? "",
+              destReceiverAddress: (currentOrder ? getCanonicalDestination(currentOrder).finalDestinationAddress : undefined) ?? payParams?.toAddress ?? "",
               destTokenSymbol: destToken?.symbol ?? selectedDepositAddressOption.token.symbol,
             });
 

@@ -180,36 +180,43 @@ const PayWithStellarToken: React.FC = () => {
         toStellarAddress: payParams?.toStellarAddress,
       });
 
-      if (!order) {
+      // Read the freshest order straight from the store instead of the React
+      // closure snapshot. For payId mode this is the getPayment-derived order
+      // loaded by runSetPayIdEffects, so getFee/checkout below run against the
+      // latest payment response (correct appId, amount, destination, etc.).
+      const currentState = store.getState();
+      const currentOrder =
+        currentState.type !== "idle" ? currentState.order : undefined;
+      if (!currentOrder) {
         throw new Error("Order not initialized");
       }
 
       const { required } = option;
 
       const needRozoPayment =
-        order.preferredChainId !== null &&
-        order.preferredChainId !== required.token.chainId;
+        currentOrder.preferredChainId !== null &&
+        currentOrder.preferredChainId !== required.token.chainId;
 
       let hydratedOrder: RozoPayHydratedOrderWithOrg;
       let paymentId: string | undefined;
 
       // When payId is used (no payParams), fetch the existing payment instead
       // of creating a new one to avoid re-creating a payment that already exists.
-      const existingPayId = order.externalId ?? undefined;
+      const existingPayId = currentOrder.externalId ?? undefined;
       const isPayIdMode = !payParams && !!existingPayId;
 
       // @NOTE: Fee calculation
-      const destToken = order.destFinalCallTokenAmount?.token;
+      const destToken = currentOrder.destFinalCallTokenAmount?.token;
       setFeeLoading(true);
       const feeData = await getCachedFee({
-        appId: resolveOrderAppId(order, paymentState.payParams?.appId),
+        appId: resolveOrderAppId(currentOrder, paymentState.payParams?.appId),
         type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
         sourceChainId: option.required.token.chainId.toString(),
         sourceTokenSymbol: option.required.token.symbol,
         amount: option.required.usd.toString(),
         destChainId: destToken.chainId.toString(),
         destReceiverAddress:
-          getCanonicalDestination(order).finalDestinationAddress ??
+          getCanonicalDestination(currentOrder).finalDestinationAddress ??
           paymentState.payParams?.toAddress ??
           "",
         destTokenSymbol: destToken.symbol,
@@ -270,9 +277,9 @@ const PayWithStellarToken: React.FC = () => {
         (state === "payment_unpaid" || state === "payment_started") &&
         !needRozoPayment
       ) {
-        hydratedOrder = order;
+        hydratedOrder = currentOrder as RozoPayHydratedOrderWithOrg;
       } else if (needRozoPayment) {
-        const existingId = rozoPaymentId ?? order.externalId ?? undefined;
+        const existingId = rozoPaymentId ?? currentOrder.externalId ?? undefined;
         if (existingId) {
           const paymentRes = await getPayment(existingId);
           if (!paymentRes?.data) {
