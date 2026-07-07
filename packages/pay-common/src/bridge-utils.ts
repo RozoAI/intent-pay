@@ -408,6 +408,10 @@ export function formatPaymentResponseToHydratedOrder(
     orgId: order.orgId ?? "",
     metadata: {
       ...(order?.metadata ?? {}),
+      // Preserve the top-level appId from the payment API response so
+      // payId/checkout mode (which has no payParams.appId) can still resolve
+      // it via order.metadata.appId (see resolveOrderAppId in connectkit).
+      appId: (order?.metadata as any)?.appId ?? order?.appId,
       // Map display.title to intent so the SDK heading shows the correct label
       // (e.g. "Purchase", "Pay", "Deposit") when using payId mode.
       intent:

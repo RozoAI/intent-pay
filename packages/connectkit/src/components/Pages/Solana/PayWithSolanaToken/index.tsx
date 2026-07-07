@@ -142,36 +142,43 @@ const PayWithSolanaToken: React.FC = () => {
       // attempt, instead of the stale React state value captured in the closure.
       let resolvedPaymentId: string | undefined;
       try {
-        if (!order) {
+        // Read the freshest order straight from the store instead of the React
+        // closure snapshot. For payId mode this is the getPayment-derived order
+        // loaded by runSetPayIdEffects, so getFee/checkout below run against the
+        // latest payment response (correct appId, amount, destination, etc.).
+        const currentState = store.getState();
+        const currentOrder =
+          currentState.type !== "idle" ? currentState.order : undefined;
+        if (!currentOrder) {
           throw new Error("Order not initialized");
         }
 
         const { required } = option;
 
         const needRozoPayment =
-          order.preferredChainId !== null &&
-          order.preferredChainId !== required.token.chainId;
+          currentOrder.preferredChainId !== null &&
+          currentOrder.preferredChainId !== required.token.chainId;
 
         let hydratedOrder: RozoPayHydratedOrderWithOrg;
         let paymentId: string | undefined;
 
         // When payId is used (no payParams), fetch the existing payment instead
         // of creating a new one to avoid re-creating a payment that already exists.
-        const existingPayId = order.externalId ?? undefined;
+        const existingPayId = currentOrder.externalId ?? undefined;
         const isPayIdMode = !payParams && !!existingPayId;
 
         // @NOTE: Fee calculation
-        const destToken = order.destFinalCallTokenAmount?.token;
+        const destToken = currentOrder.destFinalCallTokenAmount?.token;
         setFeeLoading(true);
         const feeData = await getCachedFee({
-          appId: resolveOrderAppId(order, paymentState.payParams?.appId),
+          appId: resolveOrderAppId(currentOrder, paymentState.payParams?.appId),
           type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
           sourceChainId: option.required.token.chainId.toString(),
           sourceTokenSymbol: option.required.token.symbol,
           amount: option.required.usd.toString(),
           destChainId: destToken.chainId.toString(),
           destReceiverAddress:
-            getCanonicalDestination(order).finalDestinationAddress ??
+            getCanonicalDestination(currentOrder).finalDestinationAddress ??
             paymentState.payParams?.toAddress ??
             "",
           destTokenSymbol: destToken.symbol,
@@ -188,7 +195,7 @@ const PayWithSolanaToken: React.FC = () => {
             dest_token: destToken.symbol,
           });
           console.error("Fee calculation failed", feeData.error);
-          setPayState(PayState.RequestFailed);
+          setRoute(ROUTES.ERROR, { error: feeData.error.message });
           return;
         }
 
@@ -229,9 +236,10 @@ const PayWithSolanaToken: React.FC = () => {
           (state === "payment_unpaid" || state === "payment_started") &&
           !needRozoPayment
         ) {
-          hydratedOrder = order;
+          hydratedOrder = currentOrder as RozoPayHydratedOrderWithOrg;
         } else if (needRozoPayment) {
-          const existingId = rozoPaymentId ?? order.externalId ?? undefined;
+          const existingId =
+            rozoPaymentId ?? currentOrder.externalId ?? undefined;
           if (existingId) {
             const paymentRes = await getPayment(existingId);
             if (!paymentRes?.data) {
@@ -448,9 +456,13 @@ const PayWithSolanaToken: React.FC = () => {
           source_chain: rozoSolana.chainId,
         });
         if (isRejected) {
+          // User rejected in-wallet — keep them in-modal with a Retry affordance.
           setPayState(PayState.RequestCancelled);
         } else {
-          setPayState(PayState.RequestFailed);
+          // Setup/checkout/create-payment failure (the realistic RequestFailed
+          // triggers here are all pre-submit throws). Route to the dedicated
+          // Error page for proper categorization + retry/support.
+          setRoute(ROUTES.ERROR, { error: errorMessage });
         }
       } finally {
         setIsLoading(false);
@@ -536,6 +548,8 @@ const PayWithSolanaToken: React.FC = () => {
             Retry Payment
           </Button>
         )}
+        {/* ponytail: RequestFailed is no longer set on Solana (hard failures
+            route to ROUTES.ERROR); kept as a defensive fallback. */}
         {payState === PayState.RequestFailed && (
           <Button onClick={handleContactClick}>Contact Support</Button>
         )}

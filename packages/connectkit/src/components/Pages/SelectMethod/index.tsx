@@ -22,12 +22,14 @@ import {
   Rainbow,
   WalletIcon,
 } from "../../../assets/logos";
+import { useAutoConnectGate } from "../../../hooks/useAutoConnectGate";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { useStellar } from "../../../provider/StellarContextProvider";
 import { walletConfigs } from "../../../wallets/walletConfigs";
 import { Option, OptionsList } from "../../Common/OptionsList";
 import { OrderHeader } from "../../Common/OrderHeader";
 import PoweredByFooter from "../../Common/PoweredByFooter";
+import { Spinner } from "../../Common/Spinner";
 import WalletChainLogo from "../../Common/WalletChainLogo";
 
 export default function SelectMethod() {
@@ -63,6 +65,7 @@ export default function SelectMethod() {
   const { capture } = useAnalytics();
   const { showSolanaPaymentMethod } = paymentState;
   const { disconnectAsync } = useDisconnect();
+  const autoConnectGate = useAutoConnectGate();
 
   const {
     externalPaymentOptions,
@@ -477,6 +480,26 @@ export default function SelectMethod() {
       externalPaymentOptions.loading
     }, options: ${JSON.stringify(externalPaymentOptions.options)}`
   );
+
+  // Wallet connected but reconnect/order not settled yet: show the reused
+  // spinner instead of flashing method tiles. The modal's auto-navigate effect
+  // moves us to SELECT_TOKEN (or ERROR) once the gate resolves.
+  if (autoConnectGate.gateState === "waiting") {
+    return (
+      <PageContent>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: 120,
+          }}
+        >
+          <Spinner />
+        </div>
+      </PageContent>
+    );
+  }
 
   return (
     <PageContent>

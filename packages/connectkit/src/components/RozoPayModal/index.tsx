@@ -4,6 +4,7 @@ import { useAccount } from "wagmi";
 
 import { ROUTES } from "../../constants/routes";
 import { getAppName } from "../../defaultConfig";
+import { useAutoConnectGate } from "../../hooks/useAutoConnectGate";
 import { useChainIsSupported } from "../../hooks/useChainIsSupported";
 import { useRozoPay } from "../../hooks/useRozoPay";
 import useIsMobile from "../../hooks/useIsMobile";
@@ -75,8 +76,8 @@ export const RozoPayModal: React.FC<{
   const {
     generatePreviewOrder,
     isDepositFlow,
-    showSolanaPaymentMethod,
-    showStellarPaymentMethod,
+    solanaPaymentEligible,
+    stellarPaymentEligible,
     setPaymentWaitingMessage,
     setSelectedExternalOption,
     setSelectedTokenOption,
@@ -86,18 +87,18 @@ export const RozoPayModal: React.FC<{
     setSelectedWallet,
   } = paymentState;
   const { paymentState: paymentFsmState } = useRozoPay();
+  const autoConnectGate = useAutoConnectGate();
 
   // EVM
   const {
     isConnected: isEthConnected,
-    status: ethStatus,
     connector,
     chain,
     address,
   } = useAccount();
 
   // Solana
-  const { connected: isSolanaConnected, connecting: isSolanaConnecting } = useWallet();
+  const { connected: isSolanaConnected } = useWallet();
 
   // Stellar
   const { isConnected: isStellarConnected } = useStellar();
@@ -257,28 +258,27 @@ export const RozoPayModal: React.FC<{
     if (!context.open) return;
     if (context.route !== ROUTES.SELECT_METHOD) return;
 
-    // Wait for wagmi to finish connecting/reconnecting before deciding.
-    // 'reconnecting' = restoring a stored session; 'connecting' = a fresh
-    // autoConnect (e.g. Phantom's in-app browser injected provider, which
-    // has no prior session so it never passes through 'reconnecting').
-    // isConnected is false during both windows even if a wallet will connect.
-    if (ethStatus === "reconnecting" || ethStatus === "connecting") return;
-
-    // Wait for Solana adapter autoConnect to finish.
-    if (isSolanaConnecting) return;
-
-    // Only auto-navigate to SELECT_TOKEN when the modal is initially opened,
-    // not when the user explicitly navigates to SELECT_METHOD from SELECT_TOKEN.
-    // We detect explicit navigation by checking if the last route event was
-    // "click-select-another-method"
+    // Only auto-navigate on initial open, not when the user explicitly
+    // navigated back to SELECT_METHOD from SELECT_TOKEN.
     const isExplicitBackNavigation =
       context.routeMeta?.event === "click-select-another-method";
     if (isExplicitBackNavigation) return;
 
-    // Skip to token selection if exactly one wallet is connected. If both
-    // wallets are connected, stay on the SELECT_METHOD screen to allow the
-    // user to select which wallet to use.
-    // If mobile injector is disabled, don't show the connected wallets.
+    // Readiness gate (wallet settled + order resolved, from FSM).
+    // "pass"    → no wallet connected: leave SELECT_METHOD showing tiles.
+    // "waiting" → wait; SelectMethod renders the spinner meanwhile.
+    // "error"   → route to the Error page with the FSM message.
+    // "ready"   → navigate to SELECT_TOKEN for the connected wallet.
+    if (autoConnectGate.gateState === "pass") return;
+    if (autoConnectGate.gateState === "waiting") return;
+    if (autoConnectGate.gateState === "error") {
+      context.setRoute(ROUTES.ERROR, {
+        error: autoConnectGate.errorMessage ?? undefined,
+      });
+      return;
+    }
+
+    // gateState === "ready": pick the token screen for the connected wallet.
     if (
       isEthConnected &&
       !isSolanaConnected &&
@@ -295,7 +295,7 @@ export const RozoPayModal: React.FC<{
       isSolanaConnected &&
       !isStellarConnected &&
       !isEthConnected &&
-      showSolanaPaymentMethod &&
+      solanaPaymentEligible &&
       !disableMobileInjector
     ) {
       paymentState.setTokenMode("solana");
@@ -306,7 +306,7 @@ export const RozoPayModal: React.FC<{
       isStellarConnected &&
       !isEthConnected &&
       !isSolanaConnected &&
-      showStellarPaymentMethod &&
+      stellarPaymentEligible &&
       !disableMobileInjector
     ) {
       paymentState.setTokenMode("stellar");
@@ -314,18 +314,18 @@ export const RozoPayModal: React.FC<{
         event: "stellar_connected_on_open",
       });
     }
-    // Don't include context.route in the dependency array otherwise the user
-    // can't go back from the select token screen to the select method screen
+    // Don't include context.route in deps or the user can't go back from
+    // SELECT_TOKEN to SELECT_METHOD.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     context.open,
-    ethStatus,
-    isSolanaConnecting,
+    autoConnectGate.gateState,
+    autoConnectGate.errorMessage,
     isEthConnected,
     isSolanaConnected,
     isStellarConnected,
-    showSolanaPaymentMethod,
-    showStellarPaymentMethod,
+    solanaPaymentEligible,
+    stellarPaymentEligible,
     address,
     chain?.id,
     connector?.id,
