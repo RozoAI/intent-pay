@@ -198,11 +198,45 @@ export default defineConfig({
       timeout: 10 * 60_000,
     },
 
+    // ── Merchant: EVM → merchant ───────────────────────────────────────────────
+    // payId created via the merchant endpoint; destination fixed server-side, so
+    // only the source (Base USDC via MetaMask) varies. Headed — MetaMask can't
+    // load headless. Skipped unless E2E_MERCHANT_APP_ID + E2E_EVM_SEED_PHRASE set.
+    {
+      name: "merchant-evm",
+      testMatch: "**/payment-flows/merchant/evm.spec.ts",
+      dependencies: ["checkout-solana-to-evm"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Merchant: Solana → merchant ────────────────────────────────────────────
+    {
+      name: "merchant-solana",
+      testMatch: "**/payment-flows/merchant/solana.spec.ts",
+      dependencies: ["merchant-evm"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Merchant: Stellar → merchant ───────────────────────────────────────────
+    // Headless — source is the in-page Stellar signer, no extension.
+    {
+      name: "merchant-stellar",
+      testMatch: "**/payment-flows/merchant/stellar.spec.ts",
+      dependencies: ["merchant-solana"],
+      use: { ...realFundsUse, headless: true },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
     // ── Deposit: Stellar → EVM ─────────────────────────────────────────────────
     {
       name: "deposit-stellar-to-evm",
       testMatch: "**/payment-flows/deposit/stellar-to-evm.spec.ts",
-      dependencies: ["checkout-solana-to-evm"],
+      dependencies: ["merchant-stellar"],
       use: { ...realFundsUse, headless: false },
       retries: 0,
       timeout: 10 * 60_000,

@@ -166,6 +166,67 @@ export async function startCheckoutPayment(
 }
 
 /**
+ * Create a merchant payId via the merchant endpoint, then open the SDK modal in
+ * Checkout mode against it.
+ *
+ * Unlike Checkout mode, the destination (chain/token/receiver) is fixed by the
+ * merchant's server-side config — the request only supplies the local amount and
+ * a source hint. We POST to `/payment-api/payments/merchant`, take `response.id`
+ * as the payId, and drive it through the checkout page's "Enter Payment ID
+ * manually" input. The in-modal pay-in steps are then identical to Bridge.
+ *
+ * Returns the created payId so callers can assert/log it.
+ */
+export async function startMerchantCheckout(
+  page: Page,
+  opts: {
+    apiUrl: string
+    appId: string
+    amountLocal: string
+    currencyLocal: string
+    /** Source chainId + token symbol hint for the merchant order (e.g. Base USDC). */
+    source: { chainId: string; tokenSymbol: string }
+  }
+) {
+  const res = await page.request.post(
+    `${opts.apiUrl}/payment-api/payments/merchant`,
+    {
+      headers: { "content-type": "application/json" },
+      data: {
+        appId: opts.appId,
+        amount_local: opts.amountLocal,
+        currency_local: opts.currencyLocal,
+        source: {
+          chainId: opts.source.chainId,
+          tokenSymbol: opts.source.tokenSymbol,
+        },
+      },
+    }
+  )
+  if (!res.ok()) {
+    throw new Error(
+      `Merchant payment create failed: ${res.status()} ${await res.text()}`
+    )
+  }
+  const body = (await res.json()) as { id?: string }
+  const payId = body.id
+  if (!payId) throw new Error(`Merchant response missing id: ${JSON.stringify(body)}`)
+
+  // Reuse the checkout page's manual payId path — no config form to fill, since
+  // the merchant order already locks destination + amount server-side.
+  await gotoMode(page, "checkout")
+  await page
+    .getByPlaceholder(/xxxxxxxx-xxxx|payment id/i)
+    .fill(payId)
+  await page.getByRole("button", { name: /^use$/i }).click()
+
+  await expect(page.getByText(/payment id:/i)).toBeVisible({ timeout: 10_000 })
+  await openModal(page)
+
+  return payId
+}
+
+/**
  * Configure a Deposit payment and open the SDK modal.
  *
  * Deposit takes no upfront amount — only destination chain/token/address. After
