@@ -17,6 +17,7 @@ import { phantomFixture } from "chainwright/phantom"
 import { E2E } from "../../env"
 import {
   payInWithPhantom,
+  reportPayment,
   startMerchantCheckout,
   unlockPhantomIfNeeded,
   waitForPayoutCompleted,
@@ -30,6 +31,18 @@ test.describe("Merchant (payId): Solana USDC → merchant (mainnet, real funds)"
     "Set E2E_MERCHANT_APP_ID and E2E_SOLANA_SEED_PHRASE in .env.e2e"
   )
 
+  // Captured mid-test so the afterEach report has the payId even if a later
+  // step fails. Reset per test so a skipped run doesn't inherit a stale id.
+  let payId: string | undefined
+
+  test.afterEach(async ({}, testInfo) => {
+    await reportPayment(testInfo, {
+      payId,
+      route: "Solana USDC → merchant",
+      status: testInfo.status,
+    })
+  })
+
   test("create a merchant payId then pay it with USDC from Solana", async ({
     page,
     phantom,
@@ -37,7 +50,7 @@ test.describe("Merchant (payId): Solana USDC → merchant (mainnet, real funds)"
   }) => {
     await unlockPhantomIfNeeded(phantom, phantomPage)
 
-    await startMerchantCheckout(page, {
+    payId = await startMerchantCheckout(page, {
       apiUrl: E2E.merchant.apiUrl,
       appId: E2E.merchant.appId!,
       amountLocal: E2E.merchant.amountLocal,

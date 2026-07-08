@@ -16,6 +16,7 @@ import { test } from "@playwright/test"
 import { E2E } from "../../env"
 import {
   payInWithStellarHeadless,
+  reportPayment,
   startMerchantCheckout,
   useStellarSigner,
   waitForPayoutCompleted,
@@ -27,12 +28,24 @@ test.describe("Merchant (payId): Stellar USDC → merchant (mainnet, real funds)
     "Set E2E_MERCHANT_APP_ID and E2E_STELLAR_SECRET in .env.e2e"
   )
 
+  // Captured mid-test so the afterEach report has the payId even if a later
+  // step fails. Reset per test so a skipped run doesn't inherit a stale id.
+  let payId: string | undefined
+
+  test.afterEach(async ({}, testInfo) => {
+    await reportPayment(testInfo, {
+      payId,
+      route: "Stellar USDC → merchant",
+      status: testInfo.status,
+    })
+  })
+
   test("create a merchant payId then pay it with USDC from Stellar", async ({
     page,
   }) => {
     await useStellarSigner(page, E2E.stellar.secret!)
 
-    await startMerchantCheckout(page, {
+    payId = await startMerchantCheckout(page, {
       apiUrl: E2E.merchant.apiUrl,
       appId: E2E.merchant.appId!,
       amountLocal: E2E.merchant.amountLocal,

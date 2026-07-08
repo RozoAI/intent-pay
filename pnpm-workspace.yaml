@@ -21,7 +21,7 @@ allowBuilds:
   utf-8-validate: true
 
 overrides:
-  playwright-core: "1.60.0"
+  playwright-core: "1.61.1"
   "@stellar/stellar-sdk": "^14.4.3"
   rollup: "^3.29.5"
   bs58: "^6.0.0"

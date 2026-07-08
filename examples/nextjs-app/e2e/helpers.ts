@@ -1,7 +1,57 @@
-import { type Locator, type Page, expect } from "@playwright/test"
+import { type Locator, type Page, type TestInfo, expect } from "@playwright/test"
 import type { Metamask } from "chainwright/metamask"
 import type { Phantom } from "chainwright/phantom"
 import { E2E_STELLAR_WALLET_NAME } from "../lib/e2e-stellar-constants"
+
+/**
+ * Attach a per-test payment summary to the Playwright report — rendered for
+ * every outcome (passed / failed / skipped / timed out). Call once per spec,
+ * ideally right after the payId is known, so the id is captured even if a later
+ * step fails.
+ *
+ * Two built-in surfaces, no custom reporter:
+ *  - annotations → the key/value rows at the top of each test's detail view.
+ *  - attach()    → a "payment-summary" JSON blob, clickable in the HTML report.
+ *
+ * `status` is the final outcome you know at call time; testInfo.status (set by
+ * Playwright after the test body returns) is also folded in so the attachment
+ * always reflects pass/fail even when the caller passes "unknown".
+ */
+export async function reportPayment(
+  testInfo: TestInfo,
+  info: {
+    payId?: string
+    /** e.g. "Base → USDC on Base" or the source→dest pair. */
+    route?: string
+    /** Final payment state you observed, if any. */
+    status?: string
+    /** Anything else worth surfacing (amounts, chain ids, notes). */
+    extra?: Record<string, unknown>
+  }
+) {
+  const push = (type: string, description?: string) => {
+    if (description) testInfo.annotations.push({ type, description })
+  }
+  push("Payment ID", info.payId)
+  push("Route", info.route)
+  push("Payment status", info.status)
+
+  const summary = {
+    project: testInfo.project.name,
+    title: testInfo.title,
+    // testInfo.status is undefined during the body; the reporter re-reads the
+    // attachment after the run, by which point Playwright has set it.
+    outcome: testInfo.status ?? "running",
+    payId: info.payId ?? null,
+    route: info.route ?? null,
+    status: info.status ?? null,
+    ...info.extra,
+  }
+  await testInfo.attach("payment-summary", {
+    body: JSON.stringify(summary, null, 2),
+    contentType: "application/json",
+  })
+}
 
 /**
  * Click a locator only if it shows up within `timeout`. Used for optional UI
@@ -222,6 +272,17 @@ export async function startMerchantCheckout(
 
   await expect(page.getByText(/payment id:/i)).toBeVisible({ timeout: 10_000 })
   await openModal(page)
+
+  // The modal's SELECT_METHOD wires each wallet's chain options (e.g. Phantom's
+  // Solana adapter) only AFTER the payId's order loads — `showSolanaPaymentMethod`
+  // gates on `pay.order != null` (usePaymentState). In the merchant/payId flow the
+  // order round-trips getPayment() async, so a fast click on "Pay with wallet"
+  // races the fetch: Phantom connects EVM-only with no Solana chain picker.
+  // "Pay with Stellar" is gated on the same loaded order, so waiting for it proves
+  // the order resolved and the multi-chain wallet entries are hydrated.
+  await expect(
+    page.getByRole("button", { name: /pay with stellar/i })
+  ).toBeVisible({ timeout: 30_000 })
 
   return payId
 }

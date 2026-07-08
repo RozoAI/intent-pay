@@ -1,22 +1,32 @@
-import { defineConfig, devices } from "@playwright/test"
+import { defineConfig, devices } from "@playwright/test";
 // Importing env loads .env.e2e + .env.local as a side effect (see e2e/env.ts).
-import "./env"
+import "./env";
 
 // Shared `use` defaults for the real-funds payment-flow projects.
+// Artifact policy (trace/screenshot/video) is set once at the top-level `use`
+// below and inherited here — don't re-declare it per project.
 const realFundsUse = {
   ...devices["Desktop Chrome"],
   baseURL: process.env.BASE_URL || "http://localhost:3000",
   actionTimeout: 30_000,
   navigationTimeout: 30_000,
-  // retain-on-failure avoids writing traces (and any injected secrets they contain)
-  // for successful runs. This also prevents CI artifact uploads from exposing keys.
-  trace: "retain-on-failure" as const,
-  screenshot: "only-on-failure" as const,
-  video: "retain-on-failure" as const,
-}
+};
 
 export default defineConfig({
   globalSetup: "./global-setup.ts",
+  // Artifact capture for EVERY test/project (projects inherit these).
+  //   video:      always on — full recording of every run.
+  //   screenshot: only on failure — a green run needs no still.
+  //   trace:      retain-on-failure ONLY. The trace embeds page state, which
+  //               includes the injected Stellar secret key; keeping it just for
+  //               failures limits secret exposure in CI artifacts. The trace
+  //               also carries the console + network logs (view in the trace
+  //               viewer), so no separate log fixture is needed.
+  use: {
+    video: "on",
+    screenshot: "only-on-failure",
+    trace: "retain-on-failure",
+  },
   testDir: ".",
   testMatch: "**/*.spec.ts",
   fullyParallel: false,
@@ -46,6 +56,10 @@ export default defineConfig({
     {
       name: "mocked",
       testIgnore: "**/payment-flows/**",
+      // The fast mocked suite runs on every CI push and holds no secret, so it
+      // opts OUT of the always-on video (too wasteful for hundreds of quick
+      // runs) and keeps failure-only artifacts. The real-funds projects below
+      // inherit the top-level always-on video.
       use: {
         ...devices["Desktop Chrome"],
         baseURL: process.env.BASE_URL || "http://localhost:3000",
@@ -292,4 +306,4 @@ export default defineConfig({
       timeout: 10 * 60_000,
     },
   ],
-})
+});
