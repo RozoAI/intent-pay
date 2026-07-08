@@ -435,13 +435,10 @@ export default function WaitingDepositAddress() {
           context.log,
         );
         if (details) {
-          // BSC and Solana pay-in no longer require a memo.
-          const shouldShowMemo = ![
-            DepositAddressPaymentOptions.BSC,
-            DepositAddressPaymentOptions.SOLANA,
-            DepositAddressPaymentOptions.SOLANA_USDT,
-            DepositAddressPaymentOptions.SOLANA_USDC,
-          ].includes(selectedDepositAddressOption.id);
+          // Only Stellar needs a memo (destination tag) to route the pay-in.
+          const shouldShowMemo =
+            selectedDepositAddressOption.id ===
+            DepositAddressPaymentOptions.STELLAR;
 
           setDepAddr({
             address: details.address,
