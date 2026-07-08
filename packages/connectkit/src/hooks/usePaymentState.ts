@@ -1259,13 +1259,13 @@ export function usePaymentState({
 
       let uriDeeplink: string | null = null;
 
-      // Use Solana deep link if it's a Solana chain
+      // Use Solana deep link if it's a Solana chain.
+      // Solana pay-in no longer requires a memo.
       if ([solana.chainId, rozoSolana.chainId].includes(preferredToken.chainId)) {
         uriDeeplink = generateSolanaDeepLink({
           amountUnits: order.destFinalCallTokenAmount.usd.toString(),
           recipientAddress: order.intentAddr,
           tokenAddress: preferredToken.token,
-          memo: order.memo || order.metadata?.memo || undefined,
         });
       }
       // If Stellar, do not generate a link (set to null)

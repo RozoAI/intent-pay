@@ -366,15 +366,10 @@ const PayWithSolanaToken: React.FC = () => {
 
         setPayState(PayState.RequestingPayment);
 
+        // Solana pay-in no longer requires a memo.
         const paymentData = {
           destAddress: hydratedOrder.intentAddr,
         };
-
-        if (hydratedOrder.memo) {
-          Object.assign(paymentData, {
-            memo: hydratedOrder.memo,
-          });
-        }
 
         const result = await payWithSolanaTokenRozo(
           {

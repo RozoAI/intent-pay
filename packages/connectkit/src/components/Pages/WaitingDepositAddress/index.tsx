@@ -435,9 +435,13 @@ export default function WaitingDepositAddress() {
           context.log,
         );
         if (details) {
-          const shouldShowMemo = ![DepositAddressPaymentOptions.BSC].includes(
-            selectedDepositAddressOption.id,
-          );
+          // BSC and Solana pay-in no longer require a memo.
+          const shouldShowMemo = ![
+            DepositAddressPaymentOptions.BSC,
+            DepositAddressPaymentOptions.SOLANA,
+            DepositAddressPaymentOptions.SOLANA_USDT,
+            DepositAddressPaymentOptions.SOLANA_USDC,
+          ].includes(selectedDepositAddressOption.id);
 
           setDepAddr({
             address: details.address,
