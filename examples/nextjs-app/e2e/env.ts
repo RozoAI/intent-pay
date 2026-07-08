@@ -86,4 +86,23 @@ export const E2E = {
     sourceOptionId:
       process.env.E2E_SOLANA_SOURCE_OPTION_ID ?? SOLANA_USDC_OPTION_ID,
   },
+
+  /**
+   * Merchant checkout — pays a payId created server-side via the merchant
+   * endpoint (`/payment-api/payments/merchant`). Unlike Checkout mode, the
+   * destination (chain/token/receiver) is fixed by the merchant's server config,
+   * so tests only vary the SOURCE wallet. Skipped unless E2E_MERCHANT_APP_ID is
+   * set, so runs never write real merchant orders unless opted in.
+   */
+  merchant: {
+    /** Merchant appId (e.g. "pos_rozostudio"). Gates the merchant specs. */
+    appId: process.env.E2E_MERCHANT_APP_ID,
+    /** Merchant API base — defaults to the v4 host that serves the merchant endpoint. */
+    apiUrl:
+      process.env.E2E_MERCHANT_API_URL ??
+      "https://intentapiv4.rozo.ai/functions/v1",
+    /** Local-currency amount + code sent to the merchant endpoint. */
+    amountLocal: process.env.E2E_MERCHANT_AMOUNT_LOCAL ?? "0.02",
+    currencyLocal: process.env.E2E_MERCHANT_CURRENCY_LOCAL ?? "RM",
+  },
 } as const

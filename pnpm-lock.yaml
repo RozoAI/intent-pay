@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  playwright-core: 1.60.0
+  playwright-core: 1.61.1
   '@stellar/stellar-sdk': ^14.4.3
   rollup: ^3.29.5
   bs58: ^6.0.0
@@ -121,8 +121,8 @@ importers:
         specifier: ^15.5.13
         version: 15.5.13
       chainwright:
-        specifier: ^0.9.12
-        version: 0.9.12(@playwright/test@1.61.1)(@types/node@20.19.43)
+        specifier: ^0.10.9
+        version: 0.10.9(@playwright/test@1.61.1)(@types/node@20.19.43)
       oxfmt:
         specifier: latest
         version: 0.56.0
@@ -4915,12 +4915,12 @@ packages:
   cashaddrjs@0.4.4:
     resolution: {integrity: sha512-xZkuWdNOh0uq/mxJIng6vYWfTowZLd9F4GMAlp2DwFHlcCqCm91NtuAc47RuV4L7r4PYcY5p6Cr2OKNb4hnkWA==}
 
-  chainwright@0.9.12:
-    resolution: {integrity: sha512-LW1csbXJOVWgtg5N7kEYnqgV2WhkrEg3mxMhFkLmfu92qRrfoiEo9/rEFUScz3AKzPLTI86DGgic2rSNRAZJcg==}
+  chainwright@0.10.9:
+    resolution: {integrity: sha512-HfrExRylW9oNv1N2S1M2g5p/86s8HlW52UJTzQ8wBOBvNimst90EanU84xMgwhkMoz2TAMUMu15i86qGx24fUA==}
     engines: {node: '>=22'}
     hasBin: true
     peerDependencies:
-      '@playwright/test': 1.60.0
+      '@playwright/test': 1.61.1
 
   chalk@4.1.2:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
@@ -7220,8 +7220,8 @@ packages:
     resolution: {integrity: sha512-nDywThFk1i4BQK4twPQ6TA4RT8bDY96yeuCVBWL3ePARCiEKDRSrNGbFIgUJpLp+XeIR65v8ra7WuJOFUBtkMA==}
     engines: {node: '>=8'}
 
-  playwright-core@1.60.0:
-    resolution: {integrity: sha512-9bW6zvX/m0lEbgTKJ6YppOKx8H3VOPBMOCFh2irXFOT4BbHgrx5hPjwJYLT40Lu+4qtD36qKc/Hn56StUW57IA==}
+  playwright-core@1.61.1:
+    resolution: {integrity: sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -15990,13 +15990,13 @@ snapshots:
     dependencies:
       big-integer: 1.6.36
 
-  chainwright@0.9.12(@playwright/test@1.61.1)(@types/node@20.19.43):
+  chainwright@0.10.9(@playwright/test@1.61.1)(@types/node@20.19.43):
     dependencies:
       '@inquirer/checkbox': 5.2.1(@types/node@20.19.43)
       '@playwright/test': 1.61.1
       adm-zip: 0.5.17
       cli-progress: 3.12.0
-      commander: 14.0.3
+      commander: 15.0.0
       glob: 13.0.6
       prool: 0.2.4
       tsx: 4.22.4
@@ -18650,11 +18650,11 @@ snapshots:
     dependencies:
       find-up: 3.0.0
 
-  playwright-core@1.60.0: {}
+  playwright-core@1.61.1: {}
 
   playwright@1.61.1:
     dependencies:
-      playwright-core: 1.60.0
+      playwright-core: 1.61.1
     optionalDependencies:
       fsevents: 2.3.2
 
