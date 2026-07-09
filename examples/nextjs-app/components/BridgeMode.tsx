@@ -15,8 +15,9 @@ import { PreviewPane } from "./PreviewPane"
 const APP_ID = "rozoDemo"
 
 export function BridgeMode() {
-  const [config, setConfig, hydrated] = useSharedConfig()
   const { resetPayment } = useRozoPayUI()
+  
+  const [config, setConfig, hydrated] = useSharedConfig()
   const [pending, setPending] = useState(config)
   const [ready, setReady] = useState(false)
   const [resetting, setResetting] = useState(false)
@@ -53,10 +54,7 @@ export function BridgeMode() {
     : false
 
   const preferredSymbol = useMemo(
-    () =>
-      isDestinationEURC
-        ? [TokenSymbol.EURC]
-        : [TokenSymbol.USDC, TokenSymbol.USDT],
+    () => (isDestinationEURC ? [TokenSymbol.EURC] : undefined),
     [isDestinationEURC]
   )
 

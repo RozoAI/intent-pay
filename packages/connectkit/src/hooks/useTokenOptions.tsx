@@ -484,6 +484,7 @@ function getEvmTokenOptions(
         <TokenChainLogo
           key={getRozoTokenKey(option.balance.token)}
           token={option.balance.token}
+          nativeAsChainIcon
         />,
       ],
       onClick: () => {
@@ -538,6 +539,7 @@ function getSolanaTokenOptions(
         <TokenChainLogo
           key={getRozoTokenKey(option.balance.token)}
           token={option.balance.token}
+          nativeAsChainIcon
         />,
       ],
       onClick: () => {
@@ -592,6 +594,7 @@ function getStellarTokenOptions(
         <TokenChainLogo
           key={getRozoTokenKey(option.balance.token)}
           token={option.balance.token}
+          nativeAsChainIcon
         />,
       ],
       onClick: () => {

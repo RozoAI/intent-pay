@@ -14,6 +14,7 @@ import { useRozoPay } from "../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import { getCachedFee, resolveOrderAppId } from "../../../utils/feeCache";
+import { tokenBaseAmountToDecimalString } from "../../../utils/format";
 import Button from "../../Common/Button";
 import {
   Link,
@@ -164,12 +165,31 @@ const PayWithToken: React.FC = () => {
         // @NOTE: Fee calculation
         const destToken = currentOrder.destFinalCallTokenAmount?.token;
         setFeeLoading(true);
+        // Use required.amount (base units, already priced by the backend)
+        // converted to a human-readable token amount — NOT required.usd,
+        // which is only equal to the token amount for 1:1-USD-pegged
+        // tokens (USDC/USDT). For native ETH/BNB/POL this would send the
+        // wrong amount (e.g. "1.00" ETH instead of ~0.0006 ETH for a $1
+        // payment). Decimal-tolerant: some endpoints return required.amount
+        // as an already-human-readable decimal string, which BigInt() rejects.
+        const sourceAmount = tokenBaseAmountToDecimalString(
+          option.required.amount,
+          option.required.token.decimals,
+        );
+
+        const feeType = paymentState.payParams?.feeType ?? FeeType.ExactIn;
+        // getFee maps `amount` to source.amount for exactIn and to
+        // destination.amount for exactOut. For exactIn send the source-token
+        // amount (e.g. ETH), NOT the USD/destination value.
         const feeData = await getCachedFee({
           appId: resolveOrderAppId(currentOrder, paymentState.payParams?.appId),
-          type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
+          type: feeType,
           sourceChainId: option.required.token.chainId.toString(),
           sourceTokenSymbol: option.required.token.symbol,
-          amount: option.required.usd.toString(),
+          amount:
+            feeType === FeeType.ExactOut
+              ? option.required.usd.toString()
+              : sourceAmount,
           destChainId: destToken.chainId.toString(),
           destReceiverAddress:
             getCanonicalDestination(currentOrder).finalDestinationAddress ??
@@ -334,7 +354,7 @@ const PayWithToken: React.FC = () => {
 
   return (
     <PageContent>
-      <TokenLogoSpinner token={selectedTokenOption.required.token} />
+      <TokenLogoSpinner token={selectedTokenOption.required.token} nativeAsChainIcon />
       <ModalContent style={{ paddingBottom: 0 }} $preserveDisplay={true}>
         {txURL ? (
           <ModalH1>

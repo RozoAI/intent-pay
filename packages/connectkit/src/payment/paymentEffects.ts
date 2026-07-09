@@ -22,10 +22,7 @@ import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { parseErrorMessage } from "../utils/errorParser";
 import { PollHandle, startPolling } from "../utils/polling";
 import { TrpcClient } from "../utils/trpc";
-import {
-  buildCreatePaymentPayload,
-  resolveDestinationAddress,
-} from "./createPaymentPayload";
+import { buildCreatePaymentPayload, resolveDestinationAddress } from "./createPaymentPayload";
 import { PaymentEvent, PaymentState } from "./paymentFsm";
 import { PaymentStore } from "./paymentStore";
 
@@ -93,11 +90,7 @@ export function attachPaymentEffectHandlers(
       }
 
       // Stop all pollers when the payment flow is completed or reset
-      if (
-        ["payment_completed", "payment_bounced", "error", "idle"].includes(
-          next.type,
-        )
-      ) {
+      if (["payment_completed", "payment_bounced", "error", "idle"].includes(next.type)) {
         if ("order" in prev && prev.order) {
           stopPoller(`${PollerType.FIND_SOURCE_PAYMENT}:${prev.order.id}`);
           stopPoller(`${PollerType.REFRESH_ORDER}:${prev.order.id}`);
@@ -139,9 +132,7 @@ export function attachPaymentEffectHandlers(
         } else if (prev.type === "payment_started") {
           // Order is already hydrated in payment_started state, no effect needed
           // This can happen when user goes back and selects the same payment method again
-          log(
-            `[EFFECT] skipping ${event.type} on state ${prev.type} - order already hydrated`,
-          );
+          log(`[EFFECT] skipping ${event.type} on state ${prev.type} - order already hydrated`);
         } else {
           log(`[EFFECT] invalid event ${event.type} on state ${prev.type}`);
         }
@@ -191,11 +182,7 @@ export function attachPaymentEffectHandlers(
   return cleanup;
 }
 
-async function pollFindPayments(
-  store: PaymentStore,
-  trpc: TrpcClient,
-  orderId: bigint,
-) {
+async function pollFindPayments(store: PaymentStore, trpc: TrpcClient, orderId: bigint) {
   const key = `${PollerType.FIND_SOURCE_PAYMENT}:${orderId}`;
 
   const stopPolling = startPolling({
@@ -216,11 +203,7 @@ async function pollFindPayments(
   pollers.set(key, stopPolling);
 }
 
-async function pollRefreshOrder(
-  store: PaymentStore,
-  trpc: TrpcClient,
-  orderId: bigint,
-) {
+async function pollRefreshOrder(store: PaymentStore, trpc: TrpcClient, orderId: bigint) {
   const key = `${PollerType.REFRESH_ORDER}:${orderId}`;
 
   const stopPolling = startPolling({
@@ -298,10 +281,9 @@ async function runSetPayParamsEffects(
         "organization-live-" +
         segments
           .map((len) =>
-            Array.from(
-              { length: len },
-              () => chars[Math.floor(Math.random() * chars.length)],
-            ).join(""),
+            Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join(
+              "",
+            ),
           )
           .join("-")
       );
@@ -321,7 +303,7 @@ async function runSetPayParamsEffects(
           token: payParams.toToken,
           symbol: token?.symbol ?? "USDC",
           usd: 1,
-          priceFromUsd: 1,
+          // priceFromUsd: 1,
           decimals: token?.decimals ?? 18,
           displayDecimals: 2,
           logoSourceURI: token?.logoSourceURI ?? TokenLogo.USDC,
@@ -356,9 +338,7 @@ async function runSetPayParamsEffects(
     };
 
     if (!isLatest()) {
-      log(
-        `[EFFECT] preview_generated skipped (stale set_pay_params, toUnits=${toUnits})`,
-      );
+      log(`[EFFECT] preview_generated skipped (stale set_pay_params, toUnits=${toUnits})`);
       return;
     }
 
@@ -460,13 +440,7 @@ async function runHydratePayParamsEffects(
   let rozoPaymentResponse: PaymentResponse | undefined = undefined;
 
   try {
-    log?.(
-      `[Payment Effect]: createRozoPayment: ${JSON.stringify(
-        payParams,
-        null,
-        2,
-      )}`,
-    );
+    log?.(`[Payment Effect]: createRozoPayment: ${JSON.stringify(payParams, null, 2)}`);
     const payload = buildCreatePaymentPayload({
       // payParamsData only carries a subset; normalise to full PayParams
       payParams: {
@@ -487,9 +461,7 @@ async function runHydratePayParamsEffects(
       throw new Error("Payment creation failed");
     }
 
-    log?.(
-      `[Payment Effect]: rozoPayment: ${JSON.stringify(rozoPayment, null, 2)}`,
-    );
+    log?.(`[Payment Effect]: rozoPayment: ${JSON.stringify(rozoPayment, null, 2)}`);
 
     rozoPaymentResponse = rozoPayment;
     rozoPaymentId = rozoPayment.id;
@@ -507,10 +479,7 @@ async function runHydratePayParamsEffects(
   // END ROZO API CALL
 
   try {
-    if (
-      typeof rozoPaymentResponse === "undefined" ||
-      rozoPaymentResponse === null
-    ) {
+    if (typeof rozoPaymentResponse === "undefined" || rozoPaymentResponse === null) {
       throw new Error("Payment data not found");
     }
 
@@ -592,7 +561,7 @@ async function runHydratePayIdEffects(
           token: order.destFinalCallTokenAmount.token.token,
           symbol: order.destFinalCallTokenAmount.token.symbol,
           usd: 1,
-          priceFromUsd: 1,
+          priceFromUsd: order.destFinalCallTokenAmount.token.priceFromUsd,
           decimals: token?.decimals ?? 18,
           displayDecimals: 2,
           logoSourceURI: order.destFinalCallTokenAmount.token.logoSourceURI,
@@ -634,8 +603,7 @@ async function runHydratePayIdEffects(
         ...(order?.metadata ?? {}),
         ...(order.userMetadata ?? {}),
       }) as any,
-      externalId:
-        orderData.data.externalId?.toString() ?? orderData.data.id ?? null,
+      externalId: orderData.data.externalId?.toString() ?? orderData.data.id ?? null,
       userMetadata: null,
       expirationTs: orderData.data.expirationTs as unknown as bigint,
       org: {

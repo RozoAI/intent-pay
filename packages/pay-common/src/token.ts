@@ -1,4 +1,4 @@
-import { getAddress, zeroAddress } from "viem";
+import { ethAddress, getAddress } from "viem";
 import { assertNotNull } from "./assert";
 import {
   arbitrum,
@@ -68,6 +68,7 @@ export enum TokenSymbol {
   CELO = "CELO",
   cUSD = "cUSD",
   DAI = "DAI",
+  ETH = "ETH",
   EURC = "EURC",
   MNT = "MNT",
   POL = "POL",
@@ -356,13 +357,7 @@ export const celoCUSD: Token = token({
   logoURI: TokenLogo.cUSD,
 });
 
-const celoTokens: Token[] = [
-  celoCelo,
-  celoAxlUSDC,
-  celoUSDC,
-  celoUSDT,
-  celoCUSD,
-];
+const celoTokens: Token[] = [celoCelo, celoAxlUSDC, celoUSDC, celoUSDT, celoCUSD];
 
 //
 // Ethereum
@@ -473,13 +468,7 @@ export const lineaDAI: Token = token({
   logoURI: TokenLogo.DAI,
 });
 
-const lineaTokens: Token[] = [
-  lineaETH,
-  lineaWETH,
-  lineaUSDC,
-  lineaAxlUSDC,
-  lineaDAI,
-];
+const lineaTokens: Token[] = [lineaETH, lineaWETH, lineaUSDC, lineaAxlUSDC, lineaDAI];
 
 //
 // Mantle
@@ -531,13 +520,7 @@ export const mantleAxlUSDC: Token = token({
   logoURI: TokenLogo.USDC,
 });
 
-const mantleTokens: Token[] = [
-  mantleMNT,
-  mantleWMNT,
-  mantleBridgedUSDC,
-  mantleUSDT,
-  mantleAxlUSDC,
-];
+const mantleTokens: Token[] = [mantleMNT, mantleWMNT, mantleBridgedUSDC, mantleUSDT, mantleAxlUSDC];
 
 //
 // Optimism
@@ -709,11 +692,11 @@ const polygonTokens: Token[] = [
 //
 
 export const solanaSOL = nativeToken({
-  chainId: solana.chainId,
+  chainId: rozoSolana.chainId,
   name: "Solana",
   symbol: TokenSymbol.SOL,
   logoURI: TokenLogo.SOL,
-  token: "11111111111111111111111111111111",
+  token: "11111111111111111111111111111112",
   decimals: 9,
 });
 
@@ -780,12 +763,12 @@ const solanaTokens: Token[] = [
 //
 
 export const stellarXLM = nativeToken({
-  chainId: stellar.chainId,
+  chainId: rozoStellar.chainId,
   name: "Stellar",
   symbol: TokenSymbol.XLM,
   logoURI: TokenLogo.XLM,
-  token: "11111111111111111111111111111111",
-  decimals: 9,
+  token: "XLM",
+  decimals: 7,
 });
 
 export const stellarUSDC: Token = token({
@@ -818,12 +801,7 @@ export const rozoStellarEURC: Token = token({
   logoURI: TokenLogo.EURC,
 });
 
-const stellarTokens: Token[] = [
-  stellarXLM,
-  stellarUSDC,
-  rozoStellarUSDC,
-  rozoStellarEURC,
-];
+const stellarTokens: Token[] = [stellarXLM, stellarUSDC, rozoStellarUSDC, rozoStellarEURC];
 
 //
 // Worldchain
@@ -960,16 +938,16 @@ const avalancheTokens: Token[] = [avalancheAVAX, avalancheUSDC, avalancheUSDT];
 
 /** Support tokens for Rozo Pay */
 export const supportedTokens: Map<number, Token[]> = new Map([
-  [arbitrum.chainId, [arbitrumUSDC, arbitrumUSDT]],
-  [base.chainId, [baseUSDC, baseEURC]],
-  [bsc.chainId, [bscUSDC, bscUSDT]],
-  [ethereum.chainId, [ethereumUSDC, ethereumUSDT]],
-  [polygon.chainId, [polygonUSDC, polygonUSDT]],
+  [arbitrum.chainId, [arbitrumETH, arbitrumUSDC, arbitrumUSDT]],
+  [base.chainId, [baseETH, baseUSDC, baseEURC]],
+  [bsc.chainId, [bscBNB, bscUSDC, bscUSDT]],
+  [ethereum.chainId, [ethereumETH, ethereumUSDC, ethereumUSDT]],
+  [polygon.chainId, [polygonPOL, polygonUSDC, polygonUSDT]],
   [hyperEVM.chainId, [hyperEVMUSDC]],
 
-  [solana.chainId, [solanaUSDC, solanaUSDT]],
-  [rozoSolana.chainId, [rozoSolanaUSDC, rozoSolanaUSDT]],
-  [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC]],
+  [solana.chainId, [solanaSOL, solanaUSDC, solanaUSDT]],
+  [rozoSolana.chainId, [solanaSOL, rozoSolanaUSDC, rozoSolanaUSDT]],
+  [rozoStellar.chainId, [stellarXLM, rozoStellarUSDC, rozoStellarEURC]],
 ]);
 
 export const supportedPayoutTokens: Map<number, Token[]> = new Map([
@@ -997,10 +975,7 @@ const tokensByChainAddr = new Map<string, Token>(
   knownTokens.map((t) => [`${t.chainId}-${t.token}`, t]),
 );
 
-export function getKnownToken(
-  chainId: number,
-  tokenAddress: string,
-): Token | undefined {
+export function getKnownToken(chainId: number, tokenAddress: string): Token | undefined {
   return tokensByChainAddr.get(`${chainId}-${tokenAddress}`);
 }
 
@@ -1016,10 +991,7 @@ enum TokenType {
   DAI = "DAI",
 }
 
-const tokensByChainAndType: Map<
-  number,
-  Partial<Record<TokenType, Token>>
-> = new Map([
+const tokensByChainAndType: Map<number, Partial<Record<TokenType, Token>>> = new Map([
   [
     arbitrum.chainId,
     {
@@ -1207,7 +1179,7 @@ function nativeETH(chainId: number): Token {
   return nativeToken({
     chainId,
     name: "Ether",
-    symbol: "ETH",
+    symbol: TokenSymbol.ETH,
     logoURI: TokenLogo.ETH,
   });
 }
@@ -1217,7 +1189,7 @@ function nativeToken({
   name,
   symbol,
   logoURI,
-  token = zeroAddress,
+  token = ethAddress,
   decimals = 18,
 }: {
   chainId: number;

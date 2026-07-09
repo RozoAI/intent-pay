@@ -16,6 +16,7 @@ import {
 } from "@rozoai/intent-common";
 import { formatUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
+import { tokenBaseAmountToDecimalString } from "../utils/format";
 import { PayParams } from "./paymentFsm";
 
 type OrderLike = RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg;
@@ -76,14 +77,19 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
   const feeType = feeTypeOverride ?? payParams.feeType ?? FeeType.ExactIn;
 
   // --------------------------------------------------
-  // Destination token / amount
+  // Destination token / amount + source (preferred) amount
   // --------------------------------------------------
+  // Two distinct amounts flow through here:
+  //  - `rawAmountUnitsStr` (destination payout): what the recipient receives,
+  //    always in destination-token units (e.g. 1.3 USDC).
+  //  - `sourceAmountUnitsStr` (source amount): what the user actually pays, in
+  //    source-token units (e.g. 0.016885 SOL). For 1:1-USD sources this equals
+  //    the destination amount, but for native tokens it differs.
   let toChain: number;
   let toTokenAddress: string;
   let rawAmountUnitsStr: string;
-  let tokenDecimals: number;
-
-  if (order) {
+  let sourceAmountUnitsStr: string | undefined;
+  if (order && walletOption) {
     toChain = getOrderDestChainId(order);
     toTokenAddress = order.destFinalCallTokenAmount.token.token;
 
@@ -92,14 +98,34 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
       throw new Error(`Token not found for chain ${toChain} and token ${toTokenAddress}`);
     }
 
-    tokenDecimals = token.decimals;
-    rawAmountUnitsStr = formatUnits(BigInt(order.destFinalCallTokenAmount.amount), tokenDecimals);
+    // Destination payout: derive from the order's destination token amount
+    // (NOT the source wallet amount, which is a different token entirely for
+    // cross-token bridges like SOL -> USDC).
+    rawAmountUnitsStr = formatUnits(
+      BigInt(order.destFinalCallTokenAmount.amount),
+      order.destFinalCallTokenAmount.token.decimals,
+    );
   } else {
     toChain = payParams.toChain;
     toTokenAddress = payParams.toToken;
-    const token = getKnownToken(toChain, toTokenAddress);
-    tokenDecimals = token?.decimals ?? 18;
     rawAmountUnitsStr = payParams.toUnits ?? "0";
+  }
+
+  // Source amount: what the user actually pays, in source-token units. This
+  // depends ONLY on the selected wallet option, not on whether we have a
+  // hydrated order — so compute it independently of the branch above (an order
+  // lacking `org` is narrowed to undefined by callers, which must NOT drop the
+  // source amount and silently fall back to the destination amount).
+  //
+  // required.amount is normally integer base units, but some endpoints return a
+  // human-readable decimal string, so use the decimal-tolerant converter. Keep
+  // full precision — do NOT round to 2 dp (that would corrupt native-token
+  // amounts, e.g. 0.016885 SOL -> 0.02 SOL).
+  if (walletOption) {
+    sourceAmountUnitsStr = tokenBaseAmountToDecimalString(
+      walletOption.required.amount,
+      walletOption.required.token.decimals,
+    );
   }
 
   const rawAmountNumber = Number(rawAmountUnitsStr);
@@ -174,6 +200,7 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     preferredChain,
     preferredTokenAddress,
     toUnits: safeToUnits.toFixed(2),
+    ...(sourceAmountUnitsStr ? { preferredAmountUnits: sourceAmountUnitsStr } : {}),
     ...(isAbleToIncludeReceiverMemo && payParams.receiverMemo
       ? { receiverMemo: payParams.receiverMemo }
       : {}),

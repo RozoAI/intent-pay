@@ -291,6 +291,14 @@ export default function WaitingDepositAddress() {
         throw new Error("Preferred token not found");
       }
 
+      // Amount to send, in source-token units. Prefer the backend source.amount
+      // (surfaced via metadata) over usdValue so native sources (SOL/ETH/XLM)
+      // show the correct token amount rather than the USD/destination value.
+      const sourceAmountUnits =
+        (order.metadata as any)?.sourceAmountUnits != null
+          ? String((order.metadata as any).sourceAmountUnits)
+          : String(order.usdValue);
+
       let uriDeeplink: string | null = null;
 
       // Use Solana deep link if it's a Solana chain
@@ -298,7 +306,7 @@ export default function WaitingDepositAddress() {
         [solana.chainId, rozoSolana.chainId].includes(preferredToken.chainId)
       ) {
         uriDeeplink = generateSolanaDeepLink({
-          amountUnits: order.destFinalCallTokenAmount.usd.toString(),
+          amountUnits: sourceAmountUnits,
           recipientAddress: order.intentAddr,
           tokenAddress: preferredToken.token,
           memo: order.memo || order.metadata?.memo || undefined,
@@ -314,7 +322,7 @@ export default function WaitingDepositAddress() {
       else {
         uriDeeplink = generateEVMDeepLink({
           amountUnits: parseUnits(
-            order.destFinalCallTokenAmount.usd.toString(),
+            sourceAmountUnits,
             preferredToken.decimals,
           ).toString(),
           chainId: preferredToken.chainId,
@@ -325,7 +333,7 @@ export default function WaitingDepositAddress() {
 
       setDepAddr({
         address: order.intentAddr,
-        amount: String(order.usdValue),
+        amount: sourceAmountUnits,
         underpayment: {
           unitsPaid: order.destFinalCallTokenAmount.amount,
           coin: order.destFinalCallTokenAmount.token.symbol,

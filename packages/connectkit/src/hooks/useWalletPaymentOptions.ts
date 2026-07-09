@@ -18,12 +18,17 @@ import { useSupportedChains } from "./useSupportedChains";
  * 2. Filtering to only show currently supported chains and tokens
  *
  * CURRENTLY SUPPORTED CHAINS & TOKENS IN WALLET PAYMENT OPTIONS:
- * - Base (Chain ID: 8453) - USDC
- * - Polygon (Chain ID: 137) - USDC
- * - Ethereum (Chain ID: 1) - USDC
- * - BSC (Chain ID: 56) - USDT (when MugglePay app, BSC preferred, or user has BSC USDT balance, even if disabled)
- * - Rozo Solana - USDC (native Solana USDC)
- * - Rozo Stellar - USDC/XLM (native Stellar tokens)
+ * - Base (Chain ID: 8453) - ETH, USDC
+ * - Polygon (Chain ID: 137) - POL, USDC
+ * - Ethereum (Chain ID: 1) - ETH, USDC
+ * - Arbitrum (Chain ID: 42161) - ETH, USDC, USDT
+ * - BSC (Chain ID: 56) - BNB, USDC, USDT (when MugglePay app, BSC preferred, or user has BSC USDT balance, even if disabled)
+ * - Solana / Rozo Solana - SOL, USDC (native Solana SOL/USDC)
+ * - Stellar / Rozo Stellar - XLM, USDC (native Stellar tokens)
+ *
+ * Source of truth: this list is derived from `supportedTokens` in
+ * pay-common/src/token.ts via `useSupportedChains()` — update that map,
+ * not this comment, to change what's actually shown.
  *
  * Note: The SDK supports many more chains/tokens (see pay-common/src/chain.ts and token.ts)
  * but wallet payment options are currently filtered to the above for optimal user experience.

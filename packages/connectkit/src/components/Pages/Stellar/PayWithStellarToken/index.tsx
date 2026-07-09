@@ -28,6 +28,7 @@ import {
   Transaction,
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
+import { tokenBaseAmountToDecimalString } from "../../../../utils/format";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../../lib/analytics/events";
@@ -208,12 +209,32 @@ const PayWithStellarToken: React.FC = () => {
       // @NOTE: Fee calculation
       const destToken = currentOrder.destFinalCallTokenAmount?.token;
       setFeeLoading(true);
+      // Use required.amount (base units, already priced by the backend)
+      // converted to a human-readable token amount — NOT required.usd,
+      // which is only equal to the token amount for 1:1-USD-pegged
+      // tokens (USDC/EURC). For native XLM this would send the wrong
+      // amount (e.g. "1.00" XLM instead of the correct ~2.7 XLM for a $1
+      // payment). Some endpoints return required.amount as an
+      // already-human-readable decimal string instead of integer base
+      // units, so detect the shape first — BigInt() throws on decimals.
+      const sourceAmount = tokenBaseAmountToDecimalString(
+        option.required.amount,
+        option.required.token.decimals,
+      );
+
+      const feeType = paymentState.payParams?.feeType ?? FeeType.ExactIn;
+      // getFee maps `amount` to source.amount for exactIn and to
+      // destination.amount for exactOut. For exactIn we must send the
+      // source-token amount (e.g. XLM), NOT the USD/destination value.
       const feeData = await getCachedFee({
         appId: resolveOrderAppId(currentOrder, paymentState.payParams?.appId),
-        type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
+        type: feeType,
         sourceChainId: option.required.token.chainId.toString(),
         sourceTokenSymbol: option.required.token.symbol,
-        amount: option.required.usd.toString(),
+        amount:
+          feeType === FeeType.ExactOut
+            ? option.required.usd.toString()
+            : sourceAmount,
         destChainId: destToken.chainId.toString(),
         destReceiverAddress:
           getCanonicalDestination(currentOrder).finalDestinationAddress ??
@@ -260,7 +281,7 @@ const PayWithStellarToken: React.FC = () => {
               chainId: option.required.token.chainId,
               tokenSymbol: option.required.token.symbol,
               tokenAddress: option.required.token.token,
-              amount: String(option.required.usd),
+              amount: sourceAmount,
             }),
           );
           if (!checkoutRes?.data) {
@@ -279,7 +300,8 @@ const PayWithStellarToken: React.FC = () => {
       ) {
         hydratedOrder = currentOrder as RozoPayHydratedOrderWithOrg;
       } else if (needRozoPayment) {
-        const existingId = rozoPaymentId ?? currentOrder.externalId ?? undefined;
+        const existingId =
+          rozoPaymentId ?? currentOrder.externalId ?? undefined;
         if (existingId) {
           const paymentRes = await getPayment(existingId);
           if (!paymentRes?.data) {
@@ -291,7 +313,7 @@ const PayWithStellarToken: React.FC = () => {
               chainId: option.required.token.chainId,
               tokenSymbol: option.required.token.symbol,
               tokenAddress: option.required.token.token,
-              amount: String(option.required.usd),
+              amount: sourceAmount,
             }),
           );
           if (!checkoutRes?.data) {
@@ -599,6 +621,7 @@ const PayWithStellarToken: React.FC = () => {
         <TokenLogoSpinner
           token={selectedStellarTokenOption.required.token}
           loading={isLoading}
+          nativeAsChainIcon
         />
       )}
       <ModalContent style={{ paddingBottom: 0 }}>

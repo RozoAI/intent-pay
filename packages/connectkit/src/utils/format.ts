@@ -1,5 +1,5 @@
 import { BigIntStr, RozoPayToken } from "@rozoai/intent-common";
-import { formatUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 
 export const USD_DECIMALS = 2;
 
@@ -150,4 +150,46 @@ export function tokenAmountToRoundedUsd(
 ): string {
   const amountUnits = formatUnits(BigInt(amount), token.decimals);
   return roundUsd(Number(amountUnits) * token.usd, round);
+}
+
+/**
+ * Convert a `RozoPayTokenAmount.amount` value to a full-precision, human-readable
+ * decimal string suitable for sending to the backend (checkout/create-payment
+ * payloads, on-chain transfer amounts, etc).
+ *
+ * `amount` is documented as `BigIntStr` (integer base units, e.g. lamports/wei)
+ * but some endpoints (e.g. Solana tRPC payment options) have been observed to
+ * return an already-human-readable decimal string instead (e.g. "0.012985327").
+ * `BigInt()` throws on decimal strings, so this detects the shape first:
+ * - Contains a "." → already a decimal token amount, pass through as-is.
+ * - Otherwise → integer base units, convert via `formatUnits`.
+ */
+export function tokenBaseAmountToDecimalString(
+  amount: bigint | BigIntStr,
+  decimals: number
+): string {
+  if (typeof amount === "string" && amount.includes(".")) {
+    return amount;
+  }
+  return formatUnits(BigInt(amount), decimals);
+}
+
+/**
+ * Inverse of `tokenBaseAmountToDecimalString`: convert a
+ * `RozoPayTokenAmount.amount` value to an integer base-units bigint, suitable
+ * for on-chain transfer instructions (e.g. lamports for SOL, raw SPL/ERC20
+ * transfer amounts).
+ *
+ * Same shape ambiguity as above — detects a decimal string (already
+ * human-readable) and converts it up to base units via `parseUnits`;
+ * otherwise assumes the string is already an integer base-units amount.
+ */
+export function tokenAmountToBaseUnits(
+  amount: bigint | BigIntStr,
+  decimals: number
+): bigint {
+  if (typeof amount === "string" && amount.includes(".")) {
+    return parseUnits(amount, decimals);
+  }
+  return BigInt(amount);
 }

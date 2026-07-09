@@ -50,6 +50,7 @@ export async function createPayment(
     preferredChain,
     preferredTokenAddress,
     toUnits,
+    preferredAmountUnits,
     appId,
     metadata,
     title,
@@ -103,7 +104,11 @@ export async function createPayment(
     source: {
       chainId: sourceChain.chainId,
       tokenSymbol: sourceToken.symbol,
-      amount: destination.amountUnits, // Use same amount for source
+      // Source amount the user actually pays, in source-token units. For
+      // 1:1-USD sources this equals the destination amount, but for native
+      // tokens (SOL/ETH/etc) it differs, so prefer the explicit source amount
+      // when provided and only fall back to the destination amount otherwise.
+      amount: preferredAmountUnits ?? destination.amountUnits,
       ...(preferred.preferredTokenAddress
         ? { tokenAddress: preferred.preferredTokenAddress }
         : {}),
