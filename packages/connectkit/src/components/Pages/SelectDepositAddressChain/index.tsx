@@ -87,7 +87,11 @@ const SelectDepositAddressChain: React.FC = () => {
                 title: option.id,
                 subtitle: disabledReason,
                 icons: [
-                  <TokenChainLogo key={option.id} token={option.token} />,
+                  <TokenChainLogo
+                    key={option.id}
+                    token={option.token}
+                    nativeAsChainIcon
+                  />,
                 ],
                 disabled: isDisabledByMinimum,
                 onClick: () => {

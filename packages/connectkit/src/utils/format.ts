@@ -98,10 +98,12 @@ export function roundTokenAmount(
 
   const formattedAmount = formatUnits(amountBigInt, token.decimals);
 
+  // Use the token's own displayDecimals so small-quantity, high-unit-value
+  // tokens render meaningfully: forcing 2 dp shows e.g. 0.00089 ETH as
+  // "0.00". Stablecoins keep displayDecimals=2 → "1.00"; natives use 5.
   return roundDecimals(
     Number(formattedAmount),
-    // token.displayDecimals,
-    USD_DECIMALS, // @NOTE: Force 2 decimal places
+    token.displayDecimals ?? USD_DECIMALS,
     round
   );
 }
@@ -114,9 +116,7 @@ export function roundTokenAmountUnits(
   token: RozoPayToken,
   round: "up" | "down" | "nearest" = "down"
 ): string {
-  // return roundDecimals(amountUnits, token.displayDecimals, round);
-  // @NOTE: Force 2 decimal places
-  return roundDecimals(amountUnits, USD_DECIMALS, round);
+  return roundDecimals(amountUnits, token.displayDecimals ?? USD_DECIMALS, round);
 }
 
 /**

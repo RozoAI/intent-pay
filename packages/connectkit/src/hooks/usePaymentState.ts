@@ -46,7 +46,7 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { erc20Abi, ethAddress, getAddress, Hex, hexToBytes, parseUnits } from "viem";
+import { erc20Abi, getAddress, Hex, hexToBytes, parseUnits } from "viem";
 import {
   useAccount,
   useCapabilities,
@@ -57,7 +57,7 @@ import {
 } from "wagmi";
 import { useWriteContracts } from "wagmi/experimental";
 import { tokenAmountToBaseUnits, tokenBaseAmountToDecimalString } from "../utils/format";
-import { convertPreferredSymbolsToTokens } from "../utils/token";
+import { convertPreferredSymbolsToTokens, isNativeToken } from "../utils/token";
 
 import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
 import { createMemoInstruction } from "@solana/spl-memo";
@@ -681,8 +681,11 @@ export function usePaymentState({
     );
 
     // Prepare transaction parameters early (before async operations)
-    const isNativeToken = required.token.token === ethAddress;
-    const tokenAddress = isNativeToken ? null : getAddress(required.token.token);
+    // Case-insensitive native detection: `required.token.token` is checksummed
+    // (from the API) while viem's `ethAddress` is lowercase, so a direct `===`
+    // would misclassify native ETH as an ERC20 and take the wrong transfer path.
+    const isNative = isNativeToken(required.token);
+    const tokenAddress = isNative ? null : getAddress(required.token.token);
 
     // Get hydrated order efficiently with parallel preparation
     let hydratedOrder: RozoPayHydratedOrderWithOrg;
@@ -794,7 +797,7 @@ export function usePaymentState({
         const supportsDataSuffix =
           !capabilitiesPending && resolvedDataSuffix != null && !!chainCapabilities?.dataSuffix;
 
-        if (isNativeToken) {
+        if (isNative) {
           // dataSuffix intentionally omitted — appending data to bare ETH transfers
           // changes wallet UI display; builder-code attribution targets contract calls.
           return await sendTransactionAsync({

@@ -105,11 +105,15 @@ export function useDepositAddressOptions({
   // Memoized configuration for deposit address options
   const filteredOptions = useMemo(() => {
     if (payParams?.preferredTokens && payParams?.preferredTokens.length > 0) {
-      return options.filter((option) =>
-        payParams?.preferredTokens?.some(
-          (pt) => pt.token === option.token.token,
-        ),
+      // Case-insensitive address match: token addresses can differ in casing
+      // between the SDK token registry (EVM natives are stored lowercase) and
+      // the API response (EIP-55 checksummed), so a strict `===` would drop
+      // native ETH/POL/BNB deposit options. Normalize both sides.
+      const normalize = (addr: string) => addr.toLowerCase();
+      const preferred = new Set(
+        payParams.preferredTokens.map((pt) => normalize(pt.token)),
       );
+      return options.filter((option) => preferred.has(normalize(option.token.token)));
     }
 
     return options;

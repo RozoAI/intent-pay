@@ -142,7 +142,8 @@ const Confirmation: React.FC = () => {
         order &&
         supportedTokens.some(
           (token) =>
-            token.token === order.destFinalCallTokenAmount?.token.token,
+            token.token.toLowerCase() ===
+            order.destFinalCallTokenAmount?.token.token.toLowerCase(),
         ));
 
     if (isRozoPayment && txHash && isConfirming) {
@@ -173,7 +174,8 @@ const Confirmation: React.FC = () => {
         order &&
         supportedTokens.some(
           (token) =>
-            token.token === order.destFinalCallTokenAmount?.token.token,
+            token.token.toLowerCase() ===
+            order.destFinalCallTokenAmount?.token.token.toLowerCase(),
         ));
 
     if (isRozoPayment && txHash) {

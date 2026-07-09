@@ -94,12 +94,19 @@ export function useWalletPaymentOptions({
 
     const normalizeAddress = (addr: string) => addr.toLowerCase();
 
-    // Filter out chains/tokens we don't support yet in wallet payment options
+    // Filter out chains/tokens we don't support yet in wallet payment options.
+    // Compare token addresses case-insensitively: the supported-tokens registry
+    // stores EVM natives lowercase (0xeeee…) while the API returns them EIP-55
+    // checksummed (0xEeee…), so a strict `===` would drop native ETH/BNB/POL.
     const isSupported = (o: WalletPaymentOption) =>
       chains.some(
         (c) =>
           c.chainId === o.balance.token.chainId &&
-          tokens.some((t) => t.token === o.balance.token.token),
+          tokens.some(
+            (t) =>
+              normalizeAddress(t.token) ===
+              normalizeAddress(o.balance.token.token),
+          ),
       );
 
     // If preferredTokens is provided and not empty, filter by matching chainId and token address

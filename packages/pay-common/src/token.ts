@@ -971,12 +971,18 @@ export const knownTokens: Token[] = Array.from(supportedTokens.values()).flat();
 export const knownChains: number[] = Array.from(supportedTokens.keys());
 /* --------------------- Tokens By Address --------------------- */
 
+// Token lookup index. Addresses are lower-cased in the key so lookups are
+// case-insensitive: EVM natives are stored with the lowercase `ethAddress`
+// placeholder while the API returns them EIP-55 checksummed, and a
+// case-sensitive key would miss (breaking getKnownToken / isTokenSupported /
+// createPaymentBridgeConfig for native ETH/BNB/POL). Solana/Stellar addresses
+// are lower-cased on both sides consistently, so they still resolve uniquely.
 const tokensByChainAddr = new Map<string, Token>(
-  knownTokens.map((t) => [`${t.chainId}-${t.token}`, t]),
+  knownTokens.map((t) => [`${t.chainId}-${t.token.toLowerCase()}`, t]),
 );
 
 export function getKnownToken(chainId: number, tokenAddress: string): Token | undefined {
-  return tokensByChainAddr.get(`${chainId}-${tokenAddress}`);
+  return tokensByChainAddr.get(`${chainId}-${tokenAddress.toLowerCase()}`);
 }
 
 /* --------------------- Tokens By Type --------------------- */
