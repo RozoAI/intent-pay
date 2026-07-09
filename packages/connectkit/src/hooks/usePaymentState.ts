@@ -56,11 +56,8 @@ import {
   useWriteContract,
 } from "wagmi";
 import { useWriteContracts } from "wagmi/experimental";
+import { tokenAmountToBaseUnits, tokenBaseAmountToDecimalString } from "../utils/format";
 import { convertPreferredSymbolsToTokens } from "../utils/token";
-import {
-  tokenAmountToBaseUnits,
-  tokenBaseAmountToDecimalString,
-} from "../utils/format";
 
 import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
 import { createMemoInstruction } from "@solana/spl-memo";
@@ -786,6 +783,17 @@ export function usePaymentState({
     // Execute transaction with optimized error handling
     const paymentTxHash = await (async () => {
       try {
+        if (required.token.chainId !== bscUSDT.chainId) {
+          await switchChainAsync({ chainId: required.token.chainId });
+        }
+
+        log?.(`[PAY ERC20] dataSuffix: ${resolvedDataSuffix ?? "(none)"}`);
+
+        // EIP-5792 path: only when wallet advertises dataSuffix capability (Base App / Coinbase Wallet).
+        const chainCapabilities = walletCapabilities?.[required.token.chainId];
+        const supportsDataSuffix =
+          !capabilitiesPending && resolvedDataSuffix != null && !!chainCapabilities?.dataSuffix;
+
         if (isNativeToken) {
           // dataSuffix intentionally omitted — appending data to bare ETH transfers
           // changes wallet UI display; builder-code attribution targets contract calls.
@@ -794,16 +802,6 @@ export function usePaymentState({
             value: paymentAmount,
           });
         } else {
-          if (required.token.chainId !== bscUSDT.chainId) {
-            await switchChainAsync({ chainId: required.token.chainId });
-          }
-          log?.(`[PAY ERC20] dataSuffix: ${resolvedDataSuffix ?? "(none)"}`);
-
-          // EIP-5792 path: only when wallet advertises dataSuffix capability (Base App / Coinbase Wallet).
-          const chainCapabilities = walletCapabilities?.[required.token.chainId];
-          const supportsDataSuffix =
-            !capabilitiesPending && resolvedDataSuffix != null && !!chainCapabilities?.dataSuffix;
-
           if (supportsDataSuffix) {
             if (!walletClient) throw new Error("No walletClient available");
             const { id } = await writeContractsAsync({
@@ -1386,10 +1384,7 @@ export function usePaymentState({
       // Otherwise use EVM deep link
       else {
         uriDeeplink = generateEVMDeepLink({
-          amountUnits: parseUnits(
-            sourceAmountUnits,
-            preferredToken.decimals,
-          ).toString(),
+          amountUnits: parseUnits(sourceAmountUnits, preferredToken.decimals).toString(),
           chainId: preferredToken.chainId,
           recipientAddress: order.intentAddr,
           tokenAddress: preferredToken.token,
