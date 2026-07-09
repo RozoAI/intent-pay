@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateDepositSnippet } from "@/lib/snippets"
-import { getKnownToken, TokenSymbol } from "@rozoai/intent-common"
+import { getKnownToken, FeeType, TokenSymbol } from "@rozoai/intent-common"
 import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay"
 import { useCallback, useEffect, useId, useMemo, useState } from "react"
 import { CodeSnippet } from "./CodeSnippet"
@@ -78,6 +78,7 @@ export function DepositMode() {
           toUnits: undefined, // explicit clear — user sets amount inside modal
           intent: "Deposit",
           preferredSymbol,
+          feeType: c.feeType,
         })
         setReady(true)
       } catch (err) {
@@ -115,6 +116,7 @@ export function DepositMode() {
             toToken={config.toToken}
             toAddress={config.toAddress}
             preferredSymbol={preferredSymbol}
+            feeType={config.feeType}
             intent="Deposit"
             resetOnSuccess
             showProcessingPayout
@@ -183,6 +185,7 @@ export function DepositMode() {
             values={pending}
             onChange={setPending}
             showAmount={false}
+            showFeeType
             hydrated={hydrated}
           />
           <Button

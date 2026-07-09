@@ -6,7 +6,6 @@ import {
   getAddressContraction,
   getCanonicalDestination,
   getChainName,
-  getFee,
   getKnownToken,
   isHydrated,
   rozoSolana,
@@ -15,6 +14,7 @@ import {
   stellar,
   type FeeErrorData,
   type FeeResponseData,
+  type RozoPayToken,
   type Token,
 } from "@rozoai/intent-common";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -28,8 +28,9 @@ import { usePayinPolling } from "../../../hooks/usePayinPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import styled from "../../../styles/styled";
-import { resolveOrderAppId } from "../../../utils/feeCache";
-import { formatUsd, roundUsd } from "../../../utils/format";
+import { getCachedFee, resolveOrderAppId } from "../../../utils/feeCache";
+import { formatUsd } from "../../../utils/format";
+import { isNativeToken } from "../../../utils/token";
 import Button from "../../Common/Button";
 import CircleTimer from "../../Common/CircleTimer";
 import CopyToClipboardIcon from "../../Common/CopyToClipboard/CopyToClipboardIcon";
@@ -53,7 +54,7 @@ const CenterContainer = styled.div`
 `;
 
 type DepositAddr = {
-  displayToken: Token | null;
+  displayToken: RozoPayToken | null;
   logoURI: string;
   expirationS?: number;
   uri?: string;
@@ -372,10 +373,19 @@ export default function WaitingDepositAddress() {
         amount = order?.destFinalCallTokenAmount.usd ?? null;
       }
 
+      // For native source tokens the "Send Exactly" amount is the backend-computed
+      // source.amount (native units), which is only known after the payment is
+      // created/checked out below. usdValue is the USD/destination value — NOT the
+      // native amount — so seeding it here would flash a wrong figure (e.g. "1.00
+      // SOL" for a $1 payout). Leave it unset so the row shows its skeleton until
+      // payWithDepositAddress resolves the real source.amount. Stablecoin sources
+      // (USDC/USDT) coincide with usdValue, so we still seed those for a snappy render.
+      const isNativeSource = isNativeToken(selectedDepositAddressOption.token);
+
       setDepAddr({
-        displayToken: displayToken ?? null,
+        displayToken: (displayToken as RozoPayToken | undefined) ?? null,
         logoURI,
-        amount: amount?.toString() ?? undefined,
+        amount: isNativeSource ? undefined : (amount?.toString() ?? undefined),
       });
 
       try {
@@ -393,21 +403,51 @@ export default function WaitingDepositAddress() {
           try {
             // @TODO: Handle fee calculation for other currencies
             const destToken = currentOrder?.destFinalCallTokenAmount?.token;
-            const feeResponse = await getFee({
-              type: payParams?.feeType ?? FeeType.ExactIn,
+            // Native source: force exactOut so `amount` is the destination USDC
+            // payout and the backend computes (and returns) the exact source.amount
+            // in native units. exactIn would instead treat `amount` (=usdValue) as
+            // the source amount — i.e. "1 SOL" — which is wrong for a native source.
+            const feeType = isNativeSource
+              ? FeeType.ExactOut
+              : (payParams?.feeType ?? FeeType.ExactIn);
+            const feeResponse = await getCachedFee({
+              type: feeType,
               appId: resolvedAppId,
-              sourceChainId: selectedDepositAddressOption.token.chainId.toString(),
+              sourceChainId:
+                selectedDepositAddressOption.token.chainId.toString(),
               sourceTokenSymbol: selectedDepositAddressOption.token.symbol,
               amount: amount.toString(),
-              destChainId: (destToken?.chainId ?? selectedDepositAddressOption.token.chainId).toString(),
-              destReceiverAddress: (currentOrder ? getCanonicalDestination(currentOrder).finalDestinationAddress : undefined) ?? payParams?.toAddress ?? "",
-              destTokenSymbol: destToken?.symbol ?? selectedDepositAddressOption.token.symbol,
+              destChainId: (
+                destToken?.chainId ?? selectedDepositAddressOption.token.chainId
+              ).toString(),
+              destReceiverAddress:
+                (currentOrder
+                  ? getCanonicalDestination(currentOrder)
+                      .finalDestinationAddress
+                  : undefined) ??
+                payParams?.toAddress ??
+                "",
+              destTokenSymbol:
+                destToken?.symbol ?? selectedDepositAddressOption.token.symbol,
             });
 
             if (feeResponse.data) {
               feeData = feeResponse.data;
               setFeeData(feeResponse.data);
               setFeeError(null);
+              // Native source: surface the backend-computed source.amount (native
+              // units) as the "Send Exactly" amount right away, instead of waiting
+              // for the create/checkout below.
+              if (isNativeSource && feeResponse.data.source?.amount != null) {
+                setDepAddr((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        amount: String(feeResponse.data!.source.amount),
+                      }
+                    : prev,
+                );
+              }
             } else if (feeResponse.error) {
               const errorMessage = feeResponse.error.message;
               // Check if it's an "Amount too high" error
@@ -454,7 +494,7 @@ export default function WaitingDepositAddress() {
             coins: details.suffix,
             expirationS: details.expirationS,
             uri: details.uri,
-            displayToken: displayToken ?? null,
+            displayToken: (displayToken as RozoPayToken | undefined) ?? null,
             logoURI,
             externalId: details.externalId,
             memo: shouldShowMemo ? details.memo || "" : undefined,
@@ -792,10 +832,11 @@ function CopyableInfo({
       <CopyRowOrThrobber
         title="Send Exactly"
         value={depAddr?.amount}
-        valueText={formatAmountWithTokenSymbol(
-          Number(depAddr?.amount) || 0,
-          sourceTokenSymbol,
-        )}
+        valueText={
+          depAddr?.amount
+            ? `${depAddr.amount} ${sourceTokenSymbol ?? ""}`.trim()
+            : undefined
+        }
         smallText={depAddr?.coins}
         disabled={isExpired}
       />
@@ -818,12 +859,6 @@ function CopyableInfo({
       </CountdownWrap>
     </CopyableInfoWrapper>
   );
-}
-
-function formatAmountWithTokenSymbol(amount: number, tokenSymbol?: string) {
-  const roundedAmount = roundUsd(amount, "nearest");
-  if (!tokenSymbol) return roundedAmount;
-  return `${roundedAmount} ${tokenSymbol}`;
 }
 
 function UnderpaymentInfo({ underpayment }: { underpayment: Underpayment }) {

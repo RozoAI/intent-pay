@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateCheckoutSnippet } from "@/lib/snippets"
-import { createPayment } from "@rozoai/intent-common"
+import { createPayment, FeeType } from "@rozoai/intent-common"
 import { RozoPayButton } from "@rozoai/intent-pay"
 import { useCallback, useEffect, useId, useMemo, useState } from "react"
 import { CodeSnippet } from "./CodeSnippet"
@@ -89,6 +89,7 @@ export function CheckoutMode() {
         toUnits: config.toUnits,
         preferredChain: config.toChain,
         preferredTokenAddress: config.toToken,
+        feeType: config.feeType,
       })
       setPaymentId(result.id)
     } catch (err) {
@@ -168,6 +169,7 @@ export function CheckoutMode() {
           <RozoPayButton.Custom
             payId={paymentId}
             intent="Checkout"
+            feeType={config.feeType}
             onPaymentStarted={(e) => addLog("started", e)}
             onPaymentCompleted={(e) => addLog("completed", e)}
             onPayoutCompleted={(e) => addLog("payout", e)}
@@ -226,6 +228,7 @@ export function CheckoutMode() {
             values={pending}
             onChange={setPending}
             showAmount
+            showFeeType
             hydrated={hydrated}
           />
           <Button

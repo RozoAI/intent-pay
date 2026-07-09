@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateBridgeSnippet } from "@/lib/snippets"
-import { getKnownToken, TokenSymbol } from "@rozoai/intent-common"
+import { getKnownToken, FeeType, TokenSymbol } from "@rozoai/intent-common"
 import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay"
 import { useCallback, useEffect, useId, useMemo, useState } from "react"
 import { CodeSnippet } from "./CodeSnippet"
@@ -83,6 +83,7 @@ export function BridgeMode() {
           toUnits: c.toUnits,
           intent: "Bridge",
           preferredSymbol,
+          feeType: c.feeType,
         })
         setReady(true)
       } catch (err) {
@@ -121,6 +122,7 @@ export function BridgeMode() {
             toAddress={config.toAddress}
             toUnits={config.toUnits}
             preferredSymbol={preferredSymbol}
+            feeType={config.feeType}
             resetOnSuccess
             showProcessingPayout
             intent="Bridge"
@@ -186,6 +188,7 @@ export function BridgeMode() {
             values={pending}
             onChange={setPending}
             showAmount
+            showFeeType
             hydrated={hydrated}
           />
           <Button

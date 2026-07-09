@@ -18,11 +18,13 @@ import {
   getCanonicalDestination,
   getChainExplorerTxUrl,
   getPayment,
+  PaymentResponse,
   RozoPayHydratedOrderWithOrg,
   rozoSolana,
   solana,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
+import { isNativeToken } from "../../../../utils/token";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../../lib/analytics/events";
@@ -161,6 +163,7 @@ const PayWithSolanaToken: React.FC = () => {
           currentOrder.preferredChainId !== required.token.chainId;
 
         let hydratedOrder: RozoPayHydratedOrderWithOrg;
+        let rozoPaymentResponse: PaymentResponse | undefined;
         let paymentId: string | undefined;
 
         // When payId is used (no payParams), fetch the existing payment instead
@@ -230,6 +233,16 @@ const PayWithSolanaToken: React.FC = () => {
 
         setFeeData(feeData.data);
 
+        // ponytail: backend forbids `checkout` when rotating to a native source.
+        // In payId mode there are no payParams to create a new order, so surface
+        // a clear error instead of silently hanging on "Preparing Transaction".
+        if (isPayIdMode && isNativeToken(option.required.token)) {
+          const msg =
+            "Rotating an existing order to a native token is not supported. Please create a new payment.";
+          setRoute(ROUTES.ERROR, { error: msg });
+          return;
+        }
+
         if (isPayIdMode) {
           // payId mode: checkout (refresh) the payment with the selected source token
           const paymentRes = await getPayment(existingPayId!);
@@ -273,15 +286,20 @@ const PayWithSolanaToken: React.FC = () => {
             checkoutRes.data,
           );
           hydratedOrder = formattedOrder;
+          rozoPaymentResponse = checkoutRes.data;
         } else if (
           (state === "payment_unpaid" || state === "payment_started") &&
           !needRozoPayment
         ) {
           hydratedOrder = currentOrder as RozoPayHydratedOrderWithOrg;
         } else if (needRozoPayment) {
+          // ponytail: backend rejects `checkout` when rotating to a native
+          // source token (SOL/ETH/XLM) — "create a new order instead". So for
+          // native sources we skip checkout and create a fresh payment.
+          const rotateToNative = isNativeToken(option.required.token);
           const existingId =
             rozoPaymentId ?? currentOrder.externalId ?? undefined;
-          if (existingId) {
+          if (existingId && !rotateToNative) {
             const paymentRes = await getPayment(existingId);
             if (!paymentRes?.data) {
               log(
@@ -313,6 +331,7 @@ const PayWithSolanaToken: React.FC = () => {
             hydratedOrder = formatPaymentResponseToHydratedOrder(
               checkoutRes.data,
             );
+            rozoPaymentResponse = checkoutRes.data;
           } else {
             const res = await createPayment(
               {
@@ -335,6 +354,7 @@ const PayWithSolanaToken: React.FC = () => {
             }
             paymentId = res.id;
             hydratedOrder = formatPaymentResponseToHydratedOrder(res);
+            rozoPaymentResponse = res;
           }
         } else {
           // Hydrate existing order
@@ -421,11 +441,6 @@ const PayWithSolanaToken: React.FC = () => {
 
         setPayState(PayState.RequestingPayment);
 
-        // Solana pay-in no longer requires a memo.
-        const paymentData = {
-          destAddress: hydratedOrder.intentAddr,
-        };
-
         const result = await payWithSolanaTokenRozo(
           {
             ...option,
@@ -437,7 +452,10 @@ const PayWithSolanaToken: React.FC = () => {
                   : option.fees.usd,
             },
           },
-          paymentData,
+          {
+            destAddress: hydratedOrder.intentAddr,
+            sourceAmount: rozoPaymentResponse?.source.amount ?? undefined,
+          },
         );
         log(
           "[PAY SOLANA] Result",

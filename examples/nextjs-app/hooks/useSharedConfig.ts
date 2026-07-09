@@ -1,5 +1,6 @@
 "use client";
 
+import { FeeType } from "@rozoai/intent-common";
 import { useCallback, useEffect, useState } from "react";
 
 export interface SharedConfig {
@@ -7,6 +8,7 @@ export interface SharedConfig {
   toToken: string;
   toAddress: string;
   toUnits: string;
+  feeType?: FeeType;
 }
 
 const STORAGE_KEY = "playground-config";
@@ -16,6 +18,7 @@ const DEFAULTS: SharedConfig = {
   toToken: "",
   toAddress: "",
   toUnits: "",
+  feeType: FeeType.ExactIn,
 };
 
 function loadFromStorage(): SharedConfig {

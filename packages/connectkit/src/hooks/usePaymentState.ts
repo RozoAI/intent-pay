@@ -13,6 +13,7 @@ import {
   ExternalPaymentOptions,
   ExternalPaymentOptionsString,
   FeeResponseData,
+  FeeType,
   formatPaymentResponseToHydratedOrder,
   generateEVMDeepLink,
   generateSolanaDeepLink,
@@ -162,7 +163,9 @@ export interface PaymentState {
     store: Store<PaymentState, PaymentEvent>,
     fees: FeeResponseData | null,
     log?: (message: string) => void,
-  ) => Promise<(DepositAddressPaymentOptionData & { externalId: string; memo: string }) | null>;
+  ) => Promise<
+    (DepositAddressPaymentOptionData & { externalId: string; memo: string }) | null | undefined
+  >;
   payWithSolanaToken: (
     walletPaymentOption: WalletPaymentOption,
   ) => Promise<{ txHash: string; success: boolean }>;
@@ -170,6 +173,7 @@ export interface PaymentState {
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
+      sourceAmount?: string;
       memo?: string;
     },
   ) => Promise<{ txHash: string; success: boolean }>;
@@ -541,8 +545,14 @@ export function usePaymentState({
     const order = pay.order;
 
     // If payment already exists (payId mode or rozoPaymentId set), checkout instead of create.
+    // ponytail: backend forbids `checkout` when rotating to a native source token
+    // (SOL/ETH/XLM) — "create a new order instead" — so route native sources to the
+    // create branch below instead of calling checkout.
     const existingPayId = order?.externalId ?? rozoPaymentId ?? undefined;
-    if (!payParams || existingPayId) {
+    const rotateToNative =
+      walletOption != null && isNativeToken(walletOption.required.token);
+    const shouldCheckout = !!existingPayId && !rotateToNative;
+    if (!payParams || shouldCheckout) {
       if (!existingPayId) {
         throw new Error("No pay params provided");
       }
@@ -924,6 +934,7 @@ export function usePaymentState({
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
+      sourceAmount?: string;
       memo?: string;
     },
   ): Promise<{ txHash: string; success: boolean }> => {
@@ -987,6 +998,9 @@ export function usePaymentState({
       const isNativeSol = walletPaymentOption.required.token.token === solanaSOL.token;
 
       if (isNativeSol) {
+        if (!rozoPayment.sourceAmount) {
+          throw new Error("Source amount is required for native SOL payment");
+        }
         // Native SOL: plain lamport transfer, no token account / mint involved.
         // Use required.amount (already computed by the backend in lamports,
         // correctly priced from USD via the live SOL/USD rate) instead of
@@ -1012,7 +1026,7 @@ export function usePaymentState({
           SystemProgram.transfer({
             fromPubkey: fromKey,
             toPubkey: toKey,
-            lamports,
+            lamports: parseUnits(rozoPayment.sourceAmount, solanaSOL.decimals),
           }),
         );
       } else {
@@ -1281,6 +1295,15 @@ export function usePaymentState({
 
         log?.(`[PAY DEPOSIT ADDRESS] payId mode — fetching payment ${existingPayId}`);
 
+        // ponytail: backend forbids `checkout` when rotating to a native source
+        // (SOL/ETH/XLM). In payId mode there are no payParams to create a new
+        // order, so surface a clear error instead of a silent hang.
+        if (isNativeToken(option.token)) {
+          throw new Error(
+            "Rotating an existing order to a native token is not supported. Please create a new payment.",
+          );
+        }
+
         const paymentRes = await getPayment(existingPayId);
         if (!paymentRes?.data) {
           throw new Error("Failed to fetch payment");
@@ -1318,17 +1341,35 @@ export function usePaymentState({
       } else {
         log?.("[PAY DEPOSIT ADDRESS] hydrating order");
 
-        const result = await pay.hydrateOrder(undefined, {
-          required: {
-            token: {
-              token: option.token.token,
-              chainId: option.token.chainId,
+        // ponytail: hydrateOrder needs required.amount so buildCreatePaymentPayload
+        // can set preferredAmountUnits; deposit-address options omitted it, causing
+        // BigInt(undefined) for native sources (SOL/ETH/XLM) where source amount != usdValue.
+        const isNativeSource = isNativeToken(option.token);
+        const sourceAmountUnits = isNativeSource
+          ? String(fees?.source?.amount ?? "")
+          : String(pay.order?.destFinalCallTokenAmount?.usd ?? "0");
+
+        if (isNativeSource && sourceAmountUnits === "") {
+          throw new Error("Fee source amount required for native token deposit");
+        }
+
+        const depositFeeType = isNativeSource
+          ? FeeType.ExactOut
+          : (payParams.feeType ?? FeeType.ExactIn);
+
+        const result = await pay.hydrateOrder(
+          undefined,
+          {
+            required: {
+              amount: sourceAmountUnits,
+              token: option.token,
             } as any,
+            fees: {
+              usd: fees?.source?.fee != null ? parseFloat(fees.source.fee) : 0,
+            },
           } as any,
-          fees: {
-            usd: fees?.source?.fee != null ? parseFloat(fees.source.fee) : 0,
-          },
-        } as any);
+          depositFeeType,
+        );
 
         order = result.order;
       }
@@ -1410,7 +1451,7 @@ export function usePaymentState({
         order: pay.order as RozoPayOrder,
         message,
       });
-      return null;
+      return undefined;
     } finally {
       // Remove from processing set when done (allow retries after completion/failure)
       depositAddressCallRef.current.delete(option.id);

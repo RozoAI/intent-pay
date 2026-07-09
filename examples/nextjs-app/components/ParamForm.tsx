@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { getSupportedChains, getTokensForChain } from "@/lib/chains"
-import { validateAddressForChain } from "@rozoai/intent-common"
+import { FeeType, validateAddressForChain } from "@rozoai/intent-common"
 import { useEffect, useMemo } from "react"
 
 export interface ParamFormValues {
@@ -18,12 +18,14 @@ export interface ParamFormValues {
   toToken: string
   toAddress: string
   toUnits: string
+  feeType?: FeeType
 }
 
 interface ParamFormProps {
   values: ParamFormValues
   onChange: (values: ParamFormValues) => void
   showAmount?: boolean
+  showFeeType?: boolean
   hydrated?: boolean
 }
 
@@ -33,6 +35,7 @@ export function ParamForm({
   values,
   onChange,
   showAmount = true,
+  showFeeType = false,
   hydrated = true,
 }: ParamFormProps) {
   const tokens = useMemo(
@@ -199,6 +202,24 @@ export function ParamForm({
           </p>
         )}
       </div>
+
+      {showFeeType && (
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Fee Type</Label>
+          <Select
+            value={values.feeType ?? FeeType.ExactIn}
+            onValueChange={(v) => onChange({ ...values, feeType: v as FeeType })}
+          >
+            <SelectTrigger className="w-full border-border bg-secondary">
+              <SelectValue placeholder="Select fee type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FeeType.ExactIn}>Exact In</SelectItem>
+              <SelectItem value={FeeType.ExactOut}>Exact Out</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {showAmount && (
         <div className="space-y-1.5">

@@ -450,7 +450,7 @@ async function runHydratePayParamsEffects(
       order,
       walletOption,
       apiVersion,
-      feeTypeOverride: payParams.feeType,
+      feeTypeOverride: event.feeType ?? payParams.feeType,
       includeOrderMetadata: true,
     });
     log?.(`[Payment Effect]: payload: ${JSON.stringify(payload, null, 2)}`);

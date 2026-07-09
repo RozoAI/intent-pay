@@ -1,5 +1,6 @@
 // hooks/useRozoPay.ts
 import {
+  FeeType,
   PaymentStatus,
   RozoPayHydratedOrderWithOrg,
   RozoPayIntentStatus,
@@ -63,6 +64,7 @@ type RozoPayFunctions = {
   hydrateOrder: (
     refundAddress?: string,
     walletPaymentOption?: WalletPaymentOption,
+    feeType?: FeeType,
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
   /**
@@ -72,6 +74,7 @@ type RozoPayFunctions = {
   hydrateOrderRozo: (
     refundAddress?: string,
     walletPaymentOption?: WalletPaymentOption,
+    feeType?: FeeType,
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
   /** Trigger search for payment on the current order. */
@@ -290,11 +293,13 @@ export function useRozoPay(): UseRozoPay {
     async (
       refundAddress?: Address,
       walletPaymentOption?: WalletPaymentOption,
+      feeType?: FeeType,
     ) => {
       dispatch({
         type: "hydrate_order",
         refundAddress,
         walletPaymentOption,
+        feeType,
       });
 
       // Wait for the order to enter the "payment_unpaid" state, which means it
@@ -313,11 +318,13 @@ export function useRozoPay(): UseRozoPay {
     async (
       refundAddress?: Address,
       walletPaymentOption?: WalletPaymentOption,
+      feeType?: FeeType,
     ) => {
       dispatch({
         type: "hydrate_order",
         refundAddress,
         walletPaymentOption,
+        feeType,
       });
 
       const hydratedOrderState = await waitForPaymentState(

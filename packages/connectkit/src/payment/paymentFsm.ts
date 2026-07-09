@@ -105,6 +105,7 @@ export type PaymentEvent =
       type: "hydrate_order";
       refundAddress?: Address;
       walletPaymentOption?: WalletPaymentOption;
+      feeType?: FeeType;
       bypass?: boolean;
     }
   | {

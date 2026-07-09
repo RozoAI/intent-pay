@@ -86,7 +86,7 @@ const FeeRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 50%;
+  width: 60%;
 `;
 const Badge = styled.span`
   display: inline-block;
