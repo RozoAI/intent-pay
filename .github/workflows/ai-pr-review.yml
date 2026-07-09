@@ -109,6 +109,7 @@ jobs:
           # never echo it. On fork PRs this secret is simply absent (see boundary
           # note above) and the script exits cleanly without reviewing.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Actions-provided token — no PAT needed for same-repo comment/label.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Separate fine-grained PAT for actual approvals. Leave unset to get
@@ -123,7 +124,7 @@ jobs:
           AI_REVIEW_MAX_TOKENS: "4000"
           AI_REVIEW_MAX_RETRIES: "3"
         run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
+          if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
             echo "No ANTHROPIC_API_KEY in this context (likely a fork PR) — skipping AI review."
             echo "AI review skipped: no API key in this context (fork PR safety boundary)." >> "$GITHUB_STEP_SUMMARY"
             exit 0
