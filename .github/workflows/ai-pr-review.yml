@@ -13,6 +13,16 @@
 
 name: AI PR Review
 
+# Trigger modes:
+#   * pull_request  — automatic review on open / new push / reopen (seconds).
+#   * issue_comment — ON-DEMAND: only when a trusted team member types the
+#     `/ai-review` slash command in a PR comment. Any other comment is ignored,
+#     so a stray "looks good" never burns a paid review. The `contains(...)`
+#     guard below is the cheap first filter; ai_pr_review.py re-parses the body
+#     (start-of-line / own-line, case-insensitive) so a mid-word "preview" or a
+#     quoted "/ai-review" inside prose does not fire.
+# There is deliberately no scheduled sweep: `synchronize` reviews each new push
+# immediately, while `/ai-review` covers explicit reruns without polling cost.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -32,9 +42,15 @@ concurrency:
 jobs:
   review:
     runs-on: ubuntu-latest
+    # Gate: PR events always pass; comment events pass ONLY when the body
+    # contains the `/ai-review` slash command (cheap substring pre-filter — the
+    # script does the strict start-of-line parse). The trusted-author gate below
+    # then restricts who may actually trigger a paid run.
     if: >
       github.event_name == 'pull_request' ||
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '/ai-review'))
     steps:
       - name: Checkout trusted review script from default branch
         uses: actions/checkout@v4
@@ -50,64 +66,134 @@ jobs:
 
       - name: Resolve PR metadata
         id: pr
+        # SECURITY: every attacker-controllable field (branch name / fork repo
+        # name / author) is passed through `env:` and referenced as a quoted
+        # shell var — NEVER interpolated as `${{ }}` inside the run: body. Branch
+        # names may contain `$()`, backticks, `;`, newlines; interpolating them
+        # into the script would be a script-injection RCE (and lets an attacker
+        # forge lines into $GITHUB_OUTPUT to poison the trusted-author gate).
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER_PR: ${{ github.event.pull_request.number }}
+          PR_AUTHOR_PR: ${{ github.event.pull_request.user.login }}
+          BASE_REF_PR: ${{ github.event.pull_request.base.ref }}
+          HEAD_REPO_PR: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_REF_PR: ${{ github.event.pull_request.head.ref }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "$EVENT_NAME" = "pull_request" ]; then
             {
-              echo "number=${{ github.event.pull_request.number }}"
-              echo "author=${{ github.event.pull_request.user.login }}"
-              echo "base_ref=${{ github.event.pull_request.base.ref }}"
-              echo "head_repo=${{ github.event.pull_request.head.repo.full_name }}"
-              echo "head_ref=${{ github.event.pull_request.head.ref }}"
+              printf 'number=%s\n' "$PR_NUMBER_PR"
+              printf 'author=%s\n'   "$PR_AUTHOR_PR"
+              printf 'base_ref=%s\n' "$BASE_REF_PR"
+              printf 'head_repo=%s\n' "$HEAD_REPO_PR"
+              printf 'head_ref=%s\n'  "$HEAD_REF_PR"
             } >> "$GITHUB_OUTPUT"
           else
-            pr_number="${{ github.event.issue.number }}"
-            pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${pr_number}")"
+            pr_json="$(gh api "repos/${REPO}/pulls/${ISSUE_NUMBER}")"
             {
-              echo "number=${pr_number}"
-              echo "author=$(printf '%s' "$pr_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["user"]["login"])')"
-              echo "base_ref=$(printf '%s' "$pr_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["base"]["ref"])')"
-              echo "head_repo=$(printf '%s' "$pr_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["head"]["repo"]["full_name"])')"
-              echo "head_ref=$(printf '%s' "$pr_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["head"]["ref"])')"
+              printf 'number=%s\n' "$ISSUE_NUMBER"
+              printf 'author=%s\n'   "$(printf '%s' "$pr_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["user"]["login"])')"
+              printf 'base_ref=%s\n' "$(printf '%s' "$pr_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["base"]["ref"])')"
+              printf 'head_repo=%s\n' "$(printf '%s' "$pr_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["head"]["repo"]["full_name"])')"
+              printf 'head_ref=%s\n'  "$(printf '%s' "$pr_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["head"]["ref"])')"
             } >> "$GITHUB_OUTPUT"
           fi
 
       - name: Trusted contributor gate
         id: trusted
+        # Emits two outputs: `ok` (author trust) and `command` (does a comment
+        # actually invoke /ai-review on its own line — same strict regex as the
+        # script). COMMENT_BODY is passed via env (attacker-controlled → never
+        # interpolated into the run: body). For pull_request events `command` is
+        # forced true (auto-review needs no command).
         env:
           TRUSTED_AUTHORS: ${{ vars.AI_REVIEW_TRUSTED_AUTHORS }}
           PR_AUTHOR: ${{ steps.pr.outputs.author }}
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
           EVENT_NAME: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
-          import os
+          import os, re
           trusted = {x.strip().lower() for x in os.environ.get("TRUSTED_AUTHORS", "").split(",") if x.strip()}
           pr_author = os.environ.get("PR_AUTHOR", "").lower()
           comment_author = os.environ.get("COMMENT_AUTHOR", "").lower()
           event_name = os.environ.get("EVENT_NAME", "")
           ok = pr_author in trusted and (event_name != "issue_comment" or comment_author in trusted)
+          # Strict command parse — mirrors ai_pr_review.comment_requests_review().
+          if event_name == "issue_comment":
+              body = os.environ.get("COMMENT_BODY", "")
+              has_cmd = bool(re.search(r"(?im)^[ \t>*_-]*/ai-review(?:\b|$)", body))
+          else:
+              has_cmd = True
           print(f"ok={'true' if ok else 'false'}")
+          print(f"command={'true' if has_cmd else 'false'}")
           PY
 
+      - name: Acknowledge the /ai-review request with a 👀 reaction
+        # Immediate feedback that the command was picked up, before the (slower)
+        # diff + model call. Fires only on a REAL /ai-review command (not a prose
+        # mention) from a trusted user — gated on both `ok` and `command`.
+        if: steps.trusted.outputs.ok == 'true' && steps.trusted.outputs.command == 'true' && github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # comment.id is a GitHub integer (not injectable) but routed via env
+          # anyway, so "every github.event.* goes through env" has zero exceptions
+          # — nobody copies an inline `${{ }}`-in-run: pattern from here later.
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}/reactions" \
+            -f content='eyes' >/dev/null 2>&1 || \
+            echo "reaction post failed (non-fatal) — continuing to review."
+
       - name: Compute PR diff
-        if: steps.trusted.outputs.ok == 'true'
+        if: steps.trusted.outputs.ok == 'true' && steps.trusted.outputs.command == 'true'
+        # SECURITY: head_repo / head_ref / base_ref come from the PR and are
+        # attacker-controllable — pass via env (not `${{ }}` in the body) and
+        # validate/format-guard before they reach git. A branch named
+        # `--upload-pack=...` would otherwise be argument-injection into fetch;
+        # `--` separates options from refspecs, and the repo name is regex-checked.
+        env:
+          HEAD_REPO: ${{ steps.pr.outputs.head_repo }}
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
         run: |
           cd trusted
-          git remote add pr "https://github.com/${{ steps.pr.outputs.head_repo }}.git" 2>/dev/null || \
-            git remote set-url pr "https://github.com/${{ steps.pr.outputs.head_repo }}.git"
-          git fetch --no-tags origin "${{ steps.pr.outputs.base_ref }}" >/dev/null 2>&1
-          git fetch --no-tags pr "${{ steps.pr.outputs.head_ref }}" >/dev/null 2>&1
-          git diff "origin/${{ steps.pr.outputs.base_ref }}...FETCH_HEAD" > /tmp/pr.diff
+          if ! printf '%s' "$HEAD_REPO" | grep -qE '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$'; then
+            echo "Refusing suspicious head_repo: $HEAD_REPO" >&2
+            exit 1
+          fi
+          # Defense-in-depth: refs are already `--`-separated below (no arg
+          # injection) and double-quoted (no shell injection), but validate the
+          # ref shape too so a weird value fails loud instead of resolving an
+          # unexpected git revision in the `git diff` line.
+          for ref in "$BASE_REF" "$HEAD_REF"; do
+            if ! printf '%s' "$ref" | grep -qE '^[A-Za-z0-9._/-]+$'; then
+              echo "Refusing suspicious ref: $ref" >&2
+              exit 1
+            fi
+          done
+          git remote add pr "https://github.com/${HEAD_REPO}.git" 2>/dev/null || \
+            git remote set-url pr "https://github.com/${HEAD_REPO}.git"
+          git fetch --no-tags origin -- "$BASE_REF" >/dev/null 2>&1
+          git fetch --no-tags pr -- "$HEAD_REF" >/dev/null 2>&1
+          git diff "origin/${BASE_REF}...FETCH_HEAD" > /tmp/pr.diff
           echo "diff bytes: $(wc -c < /tmp/pr.diff)"
 
       - name: AI review
-        if: steps.trusted.outputs.ok == 'true'
+        if: steps.trusted.outputs.ok == 'true' && steps.trusted.outputs.command == 'true'
         env:
-          # Anthropic key comes from ORG/repo secrets. Never hardcode it here and
-          # never echo it. On fork PRs this secret is simply absent (see boundary
-          # note above) and the script exits cleanly without reviewing.
+          # Credentials come from ORG/repo secrets. Never hardcode or echo them.
+          # The script accepts EITHER: ANTHROPIC_API_KEY (plain API key) OR
+          # CLAUDE_CODE_OAUTH_TOKEN (the Claude Code / subscription OAuth token that
+          # the Anthropic claude-code-action already uses). API key wins if both are
+          # set. On fork PRs both are absent — the script exits cleanly (no review).
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Actions-provided token — no PAT needed for same-repo comment/label.
@@ -119,14 +205,19 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           PR_AUTHOR: ${{ steps.pr.outputs.author }}
+          # Comment-trigger context: the script re-parses the body for the
+          # `/ai-review` command (strict, so a mid-word "preview" won't fire) and
+          # exits cleanly if this is a comment without the real command.
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
           # Budget guardrails (override per repo if needed).
           AI_REVIEW_DAILY_USD_CAP: "10.00"
           AI_REVIEW_MAX_TOKENS: "4000"
           AI_REVIEW_MAX_RETRIES: "3"
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
-            echo "No ANTHROPIC_API_KEY in this context (likely a fork PR) — skipping AI review."
-            echo "AI review skipped: no API key in this context (fork PR safety boundary)." >> "$GITHUB_STEP_SUMMARY"
+            echo "No Anthropic credential in this context (likely a fork PR) — skipping AI review."
+            echo "AI review skipped: no credential in this context (fork PR safety boundary)." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           python3 "${GITHUB_WORKSPACE}/trusted/.github/ai_pr_review.py" --diff-file /tmp/pr.diff
