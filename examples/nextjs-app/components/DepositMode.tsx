@@ -1,9 +1,10 @@
 "use client"
 
+import { APP_ID } from "@/app/const"
 import { Button } from "@/components/ui/button"
 import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateDepositSnippet } from "@/lib/snippets"
-import { getKnownToken, FeeType, TokenSymbol } from "@rozoai/intent-common"
+import { getKnownToken, TokenSymbol } from "@rozoai/intent-common"
 import { RozoPayButton, useRozoPayUI } from "@rozoai/intent-pay"
 import { useCallback, useEffect, useId, useMemo, useState } from "react"
 import { CodeSnippet } from "./CodeSnippet"
@@ -11,8 +12,6 @@ import { EventLog, type LogEntry } from "./EventLog"
 import { ModeDescription } from "./ModeDescription"
 import { ParamForm, type ParamFormValues } from "./ParamForm"
 import { PreviewPane } from "./PreviewPane"
-
-const APP_ID = "rozoDemo"
 
 export function DepositMode() {
   const [config, setConfig, hydrated] = useSharedConfig()

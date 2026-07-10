@@ -1,11 +1,12 @@
 "use client"
 
+import { APP_ID } from "@/app/const"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateCheckoutSnippet } from "@/lib/snippets"
-import { createPayment, FeeType } from "@rozoai/intent-common"
+import { createPayment } from "@rozoai/intent-common"
 import { RozoPayButton } from "@rozoai/intent-pay"
 import { useCallback, useEffect, useId, useMemo, useState } from "react"
 import { CodeSnippet } from "./CodeSnippet"
@@ -13,8 +14,6 @@ import { EventLog, type LogEntry } from "./EventLog"
 import { ModeDescription } from "./ModeDescription"
 import { ParamForm } from "./ParamForm"
 import { PreviewPane } from "./PreviewPane"
-
-const APP_ID = "rozoDemo"
 
 export function CheckoutMode() {
   const [config, setConfig, hydrated] = useSharedConfig()

@@ -246,11 +246,41 @@ export default defineConfig({
       timeout: 10 * 60_000,
     },
 
+    // ── Merchant: EVM ETH → merchant ───────────────────────────────────────────
+    {
+      name: "merchant-evm-native",
+      testMatch: "**/payment-flows/merchant/evm-native.spec.ts",
+      dependencies: ["merchant-stellar"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Merchant: Solana SOL → merchant ────────────────────────────────────────
+    {
+      name: "merchant-solana-native",
+      testMatch: "**/payment-flows/merchant/solana-native.spec.ts",
+      dependencies: ["merchant-evm-native"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Merchant: Stellar XLM → merchant ───────────────────────────────────────
+    {
+      name: "merchant-stellar-native",
+      testMatch: "**/payment-flows/merchant/stellar-native.spec.ts",
+      dependencies: ["merchant-solana-native"],
+      use: { ...realFundsUse, headless: true },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
     // ── Deposit: Stellar → EVM ─────────────────────────────────────────────────
     {
       name: "deposit-stellar-to-evm",
       testMatch: "**/payment-flows/deposit/stellar-to-evm.spec.ts",
-      dependencies: ["merchant-stellar"],
+      dependencies: ["merchant-stellar-native"],
       use: { ...realFundsUse, headless: false },
       retries: 0,
       timeout: 10 * 60_000,
