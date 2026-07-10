@@ -348,6 +348,15 @@ def submit_approval(repo: str, pr: int, token: str, body: str) -> None:
     )
 
 
+def authenticated_login(token: str) -> str:
+    """Return the GitHub login represented by a PAT without exposing it."""
+    user = gh_request("GET", "https://api.github.com/user", token)
+    login = str(user.get("login", "")).strip()
+    if not login:
+        raise RuntimeError("Approver token did not resolve to a GitHub user")
+    return login
+
+
 # ── budget alerting: Feishu (dry-run) + local agent_runs (best-effort) ───────
 
 def _project_root_for_brain() -> Path | None:
@@ -557,16 +566,25 @@ def main() -> int:
             if pr_author.lower() in trusted_authors:
                 approver_token = os.environ.get("AI_REVIEW_APPROVER_TOKEN", "")
                 if approver_token:
-                    submit_approval(
-                        repo,
-                        pr,
-                        approver_token,
-                        "AI review found no P0 blockers for a trusted Rozo contributor.",
-                    )
-                    set_output("trusted_auto_approve", "approved")
-                    write_step_summary(
-                        "Trusted-author auto-approve submitted."
-                    )
+                    approver_login = authenticated_login(approver_token)
+                    if approver_login.lower() == pr_author.lower():
+                        set_output("trusted_auto_approve", "skipped-self-approval")
+                        write_step_summary(
+                            "Trusted-author auto-approve skipped: the approver "
+                            "token belongs to the PR author, and GitHub forbids "
+                            "self-approval."
+                        )
+                    else:
+                        submit_approval(
+                            repo,
+                            pr,
+                            approver_token,
+                            "AI review found no P0 blockers for a trusted Rozo contributor.",
+                        )
+                        set_output("trusted_auto_approve", "approved")
+                        write_step_summary(
+                            f"Trusted-author auto-approve submitted as {approver_login}."
+                        )
                 else:
                     set_output("trusted_auto_approve", "skipped-no-token")
                     write_step_summary(
