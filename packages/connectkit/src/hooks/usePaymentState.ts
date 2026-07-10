@@ -549,8 +549,7 @@ export function usePaymentState({
     // (SOL/ETH/XLM) — "create a new order instead" — so route native sources to the
     // create branch below instead of calling checkout.
     const existingPayId = order?.externalId ?? rozoPaymentId ?? undefined;
-    const rotateToNative =
-      walletOption != null && isNativeToken(walletOption.required.token);
+    const rotateToNative = walletOption != null && isNativeToken(walletOption.required.token);
     const shouldCheckout = !!existingPayId && !rotateToNative;
     if (!payParams || shouldCheckout) {
       if (!existingPayId) {
@@ -1342,20 +1341,25 @@ export function usePaymentState({
         log?.("[PAY DEPOSIT ADDRESS] hydrating order");
 
         // ponytail: hydrateOrder needs required.amount so buildCreatePaymentPayload
-        // can set preferredAmountUnits; deposit-address options omitted it, causing
-        // BigInt(undefined) for native sources (SOL/ETH/XLM) where source amount != usdValue.
+        // can set preferredAmountUnits. For BOTH native (SOL/ETH/XLM) and
+        // 1:1-USD-pegged sources, the amount must come from the fee response
+        // (BE-computed source amount in source units, fee-inclusive) — NOT the
+        // destination USD value. Otherwise tokenBaseAmountToDecimalString
+        // formats the toUnits through the source decimals and the BE rejects
+        // the underflowing pay-in (e.g. "10" with 6 decimals → "0.00001").
         const isNativeSource = isNativeToken(option.token);
-        const sourceAmountUnits = isNativeSource
-          ? String(fees?.source?.amount ?? "")
-          : String(pay.order?.destFinalCallTokenAmount?.usd ?? "0");
+        const sourceAmountUnits = String(
+          fees?.source?.amount ??
+            (isNativeSource
+              ? ""
+              : (pay.order?.destFinalCallTokenAmount?.usd ?? "0")),
+        );
 
         if (isNativeSource && sourceAmountUnits === "") {
           throw new Error("Fee source amount required for native token deposit");
         }
 
-        const depositFeeType = isNativeSource
-          ? FeeType.ExactOut
-          : (payParams.feeType ?? FeeType.ExactIn);
+        const actualFeeType = payParams?.feeType ?? FeeType.ExactIn;
 
         const result = await pay.hydrateOrder(
           undefined,
@@ -1368,7 +1372,7 @@ export function usePaymentState({
               usd: fees?.source?.fee != null ? parseFloat(fees.source.fee) : 0,
             },
           } as any,
-          depositFeeType,
+          actualFeeType,
         );
 
         order = result.order;

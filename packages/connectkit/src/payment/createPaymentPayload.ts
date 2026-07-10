@@ -157,12 +157,12 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
   // --------------------------------------------------
   // Fee handling
   // --------------------------------------------------
-  const feeUsd = walletOption?.fees.usd ?? 0;
-  const calculatedToUnits =
-    feeType === FeeType.ExactIn ? rawAmountNumber : rawAmountNumber - Number(feeUsd);
-
-  // Clamp to zero to avoid negative amounts when fees exceed amount
-  const safeToUnits = Math.max(calculatedToUnits, 0);
+  // Destination amount is always `rawAmountNumber` — the fee is on the source
+  // side, not the destination. Previously the ExactOut branch subtracted the
+  // fee from toUnits, which produced a wrong destination (e.g. $10 - $0.01
+  // fee = $9.99 destination when the user asked for $10). The source amount
+  // is the one that grows to cover the fee, regardless of feeType.
+  const safeToUnits = Math.max(rawAmountNumber, 0);
 
   // --------------------------------------------------
   // Address & metadata
@@ -199,7 +199,7 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     toAddress,
     preferredChain,
     preferredTokenAddress,
-    toUnits: safeToUnits.toFixed(2),
+    toUnits: String(safeToUnits),
     ...(sourceAmountUnitsStr ? { preferredAmountUnits: sourceAmountUnitsStr } : {}),
     ...(isAbleToIncludeReceiverMemo && payParams.receiverMemo
       ? { receiverMemo: payParams.receiverMemo }

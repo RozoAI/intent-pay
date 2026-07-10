@@ -7,6 +7,7 @@ import {
   getCanonicalDestination,
   getChainName,
   getKnownToken,
+  getTokenPrices,
   isHydrated,
   rozoSolana,
   rozoStellar,
@@ -15,7 +16,6 @@ import {
   type FeeErrorData,
   type FeeResponseData,
   type RozoPayToken,
-  type Token,
 } from "@rozoai/intent-common";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { keyframes } from "styled-components";
@@ -119,6 +119,13 @@ export default function WaitingDepositAddress() {
   const pusherUnsubscribeRef = useRef<(() => void) | null>(null);
   const payinDetectedRef = useRef(false);
   const prevActivePaymentIdRef = useRef<string | undefined>(undefined);
+
+  const isNativeSource = useMemo(() => {
+    return (
+      selectedDepositAddressOption != null &&
+      isNativeToken(selectedDepositAddressOption.token)
+    );
+  }, [selectedDepositAddressOption]);
 
   // The active deposit payment id (same expression the Pusher block uses).
   const activePaymentId = rozoPaymentId || depAddr?.externalId;
@@ -380,12 +387,11 @@ export default function WaitingDepositAddress() {
       // SOL" for a $1 payout). Leave it unset so the row shows its skeleton until
       // payWithDepositAddress resolves the real source.amount. Stablecoin sources
       // (USDC/USDT) coincide with usdValue, so we still seed those for a snappy render.
-      const isNativeSource = isNativeToken(selectedDepositAddressOption.token);
 
       setDepAddr({
         displayToken: (displayToken as RozoPayToken | undefined) ?? null,
         logoURI,
-        amount: isNativeSource ? undefined : (amount?.toString() ?? undefined),
+        amount: undefined,
       });
 
       try {
@@ -403,20 +409,49 @@ export default function WaitingDepositAddress() {
           try {
             // @TODO: Handle fee calculation for other currencies
             const destToken = currentOrder?.destFinalCallTokenAmount?.token;
-            // Native source: force exactOut so `amount` is the destination USDC
-            // payout and the backend computes (and returns) the exact source.amount
-            // in native units. exactIn would instead treat `amount` (=usdValue) as
-            // the source amount — i.e. "1 SOL" — which is wrong for a native source.
-            const feeType = isNativeSource
-              ? FeeType.ExactOut
-              : (payParams?.feeType ?? FeeType.ExactIn);
+
+            const feeQuoteType = payParams?.feeType ?? FeeType.ExactIn;
+            let feeAmount = amount.toString();
+
+            // Native source: convert USD → source-token units via the live price
+            // feed, then call getFee with the actual feeType (no ExactOut
+            // override). Without the conversion the BE would interpret the USD
+            // value as a native amount (e.g. "1 SOL" for a $1 payout).
+            if (isNativeSource) {
+              const { data: priceData } = await getTokenPrices({
+                symbols: [selectedDepositAddressOption.token.symbol],
+              });
+              const usdPrice = Number(priceData?.data?.[0]?.prices?.[0]?.value);
+              if (!usdPrice || usdPrice <= 0) {
+                setFeeError({
+                  error: {
+                    code: "PRICE_FETCH_FAILED",
+                    message: `Unable to fetch price for ${selectedDepositAddressOption.token.symbol}`,
+                  },
+                });
+                setFeeData(null);
+                setIsLoading(false);
+                setHasExecutedDepositCall(false);
+                return;
+              }
+              const decimals = selectedDepositAddressOption.token.decimals;
+              // BE expects a human-readable decimal string (e.g. "0.126919660"
+              // for 0.1269 SOL), not base units. PayWithToken does the same via
+              // tokenBaseAmountToDecimalString for the same reason.
+              feeAmount = (amount / usdPrice).toFixed(decimals);
+            }
+
             const feeResponse = await getCachedFee({
-              type: feeType,
+              type: feeQuoteType,
               appId: resolvedAppId,
               sourceChainId:
                 selectedDepositAddressOption.token.chainId.toString(),
               sourceTokenSymbol: selectedDepositAddressOption.token.symbol,
-              amount: amount.toString(),
+              amount: isNativeSource
+                ? feeQuoteType === FeeType.ExactIn
+                  ? feeAmount
+                  : String(amount)
+                : feeAmount,
               destChainId: (
                 destToken?.chainId ?? selectedDepositAddressOption.token.chainId
               ).toString(),
@@ -636,6 +671,7 @@ export default function WaitingDepositAddress() {
           <DepositAddressInfo
             depAddr={depAddr}
             feeData={feeData}
+            isNativeSource={isNativeSource}
             refresh={generateDepositAddress}
             triggerResize={triggerResize}
           />
@@ -726,11 +762,13 @@ function FeeErrorContent({
 function DepositAddressInfo({
   depAddr,
   feeData,
+  isNativeSource,
   refresh,
   triggerResize,
 }: {
   depAddr: DepositAddr;
   feeData: FeeResponseData | null;
+  isNativeSource: boolean;
   refresh: () => void;
   triggerResize: () => void;
 }) {
@@ -748,6 +786,7 @@ function DepositAddressInfo({
       token={depAddr.displayToken}
       size={64}
       offset={logoOffset}
+      nativeAsChainIcon
     />
   ) : (
     <img src={depAddr.logoURI} width="64px" height="64px" />
@@ -772,6 +811,7 @@ function DepositAddressInfo({
         </QRWrap>
       )}
       <CopyableInfo
+        isNativeSource={isNativeSource}
         depAddr={depAddr}
         feeData={feeData}
         remainingS={remainingS}
@@ -803,12 +843,14 @@ const QRWrap = styled.div`
 
 function CopyableInfo({
   depAddr,
+  isNativeSource,
   feeData,
   remainingS,
   totalS,
 }: {
   depAddr?: DepositAddr;
   feeData: FeeResponseData | null;
+  isNativeSource: boolean;
   remainingS: number;
   totalS: number;
 }) {

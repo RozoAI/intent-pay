@@ -14,6 +14,7 @@ import { useRozoPay } from "../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import { getCachedFee, resolveOrderAppId } from "../../../utils/feeCache";
+import { isNativeToken } from "../../../utils/token";
 import { tokenBaseAmountToDecimalString } from "../../../utils/format";
 import Button from "../../Common/Button";
 import {
@@ -177,17 +178,23 @@ const PayWithToken: React.FC = () => {
           option.required.token.decimals,
         );
 
-        const feeType = paymentState.payParams?.feeType ?? FeeType.ExactIn;
+        // Fee-quote type: native source forces ExactOut so the backend computes
+        // the exact source.amount in native units. Scoped to getCachedFee only —
+        // createPayment keeps payParams.feeType as-is.
+        const isNativeSource = isNativeToken(option.required.token);
+        const feeQuoteType = isNativeSource
+          ? FeeType.ExactOut
+          : (paymentState.payParams?.feeType ?? FeeType.ExactIn);
         // getFee maps `amount` to source.amount for exactIn and to
         // destination.amount for exactOut. For exactIn send the source-token
         // amount (e.g. ETH), NOT the USD/destination value.
         const feeData = await getCachedFee({
           appId: resolveOrderAppId(currentOrder, paymentState.payParams?.appId),
-          type: feeType,
+          type: feeQuoteType,
           sourceChainId: option.required.token.chainId.toString(),
           sourceTokenSymbol: option.required.token.symbol,
           amount:
-            feeType === FeeType.ExactOut
+            feeQuoteType === FeeType.ExactOut
               ? option.required.usd.toString()
               : sourceAmount,
           destChainId: destToken.chainId.toString(),

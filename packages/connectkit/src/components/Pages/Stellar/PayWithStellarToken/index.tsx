@@ -223,17 +223,23 @@ const PayWithStellarToken: React.FC = () => {
         option.required.token.decimals,
       );
 
-      const feeType = paymentState.payParams?.feeType ?? FeeType.ExactIn;
+      // Fee-quote type: native source forces ExactOut so the backend computes
+      // the exact source.amount in native units. Scoped to getCachedFee only —
+      // createPayment keeps payParams.feeType as-is.
+      const isNativeSource = isNativeToken(option.required.token);
+      const feeQuoteType = isNativeSource
+        ? FeeType.ExactOut
+        : (paymentState.payParams?.feeType ?? FeeType.ExactIn);
       // getFee maps `amount` to source.amount for exactIn and to
       // destination.amount for exactOut. For exactIn we must send the
       // source-token amount (e.g. XLM), NOT the USD/destination value.
       const feeData = await getCachedFee({
         appId: resolveOrderAppId(currentOrder, paymentState.payParams?.appId),
-        type: feeType,
+        type: feeQuoteType,
         sourceChainId: option.required.token.chainId.toString(),
         sourceTokenSymbol: option.required.token.symbol,
         amount:
-          feeType === FeeType.ExactOut
+          feeQuoteType === FeeType.ExactOut
             ? option.required.usd.toString()
             : sourceAmount,
         destChainId: destToken.chainId.toString(),
