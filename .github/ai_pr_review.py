@@ -339,22 +339,25 @@ def add_label(repo: str, pr: int, token: str, label: str) -> None:
             raise
 
 
-def submit_approval(repo: str, pr: int, token: str, body: str) -> None:
-    gh_request(
-        "POST",
-        f"https://api.github.com/repos/{repo}/pulls/{pr}/reviews",
-        token,
-        {"event": "APPROVE", "body": body},
-    )
-
-
-def authenticated_login(token: str) -> str:
-    """Return the GitHub login represented by a PAT without exposing it."""
-    user = gh_request("GET", "https://api.github.com/user", token)
-    login = str(user.get("login", "")).strip()
-    if not login:
-        raise RuntimeError("Approver token did not resolve to a GitHub user")
-    return login
+def submit_approval(repo: str, pr: int, token: str, body: str) -> bool:
+    """Submit approval; return False only for GitHub's self-approval rejection."""
+    try:
+        gh_request(
+            "POST",
+            f"https://api.github.com/repos/{repo}/pulls/{pr}/reviews",
+            token,
+            {"event": "APPROVE", "body": body},
+        )
+    except urllib.error.HTTPError as e:
+        if e.code == 422:
+            try:
+                message = str(json.loads(e.read().decode("utf-8")).get("message", ""))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                message = ""
+            if "approve your own pull request" in message.lower():
+                return False
+        raise
+    return True
 
 
 # ── budget alerting: Feishu (dry-run) + local agent_runs (best-effort) ───────
@@ -566,8 +569,13 @@ def main() -> int:
             if pr_author.lower() in trusted_authors:
                 approver_token = os.environ.get("AI_REVIEW_APPROVER_TOKEN", "")
                 if approver_token:
-                    approver_login = authenticated_login(approver_token)
-                    if approver_login.lower() == pr_author.lower():
+                    approved = submit_approval(
+                        repo,
+                        pr,
+                        approver_token,
+                        "AI review found no P0 blockers for a trusted Rozo contributor.",
+                    )
+                    if not approved:
                         set_output("trusted_auto_approve", "skipped-self-approval")
                         write_step_summary(
                             "Trusted-author auto-approve skipped: the approver "
@@ -575,15 +583,9 @@ def main() -> int:
                             "self-approval."
                         )
                     else:
-                        submit_approval(
-                            repo,
-                            pr,
-                            approver_token,
-                            "AI review found no P0 blockers for a trusted Rozo contributor.",
-                        )
                         set_output("trusted_auto_approve", "approved")
                         write_step_summary(
-                            f"Trusted-author auto-approve submitted as {approver_login}."
+                            "Trusted-author auto-approve submitted."
                         )
                 else:
                     set_output("trusted_auto_approve", "skipped-no-token")
