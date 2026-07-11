@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { keyframes } from "styled-components";
 import RozoTextLogo from "../../../assets/rozo-text";
 import { useContactSupport } from "../../../hooks/useContactSupport";
+import { usePayContext } from "../../../hooks/usePayContext";
 import styled from "../../../styles/styled";
 
 const PoweredByFooter = ({
@@ -9,17 +10,28 @@ const PoweredByFooter = ({
   showSupport = true,
 }: { preFilledMessage?: string; showSupport?: boolean } = {}) => {
   const handleContactClick = useContactSupport(preFilledMessage);
+  const context = usePayContext();
+  const poweredBy = context.options?.poweredBy ?? "rozo";
 
   return (
     <>
       <Container>
         <TextButton
           onClick={() => {
-            window.open("http://rozo.ai/", "_blank");
+            window.open(
+              poweredBy === "Mugglepay"
+                ? "https://mugglepay.com/"
+                : "https://rozo.ai/",
+              "_blank",
+            );
           }}
         >
           <span>Powered by</span>
-          <RozoTextLogo height={16} style={{ position: "relative", top: 2 }} />
+          {poweredBy === "Mugglepay" ? (
+            <BrandName>MugglePay</BrandName>
+          ) : (
+            <RozoTextLogo height={16} style={{ position: "relative", top: 2 }} />
+          )}
         </TextButton>
         {showSupport && (
           <TextButton onClick={handleContactClick}>Get help</TextButton>
@@ -86,6 +98,10 @@ const TextButton = styled(motion.button)`
   &.support span {
     animation: ${fadeIn} 300ms ease both;
   }
+`;
+
+const BrandName = styled.span`
+  font-weight: 700;
 `;
 
 const Underline = styled(motion.span)`

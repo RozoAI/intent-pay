@@ -26,6 +26,8 @@ export type { CustomAvatarProps };
 
 /** Global options, across all pay buttons and payments. */
 export type RozoPayContextOptions = {
+  /** Brand shown in the modal footer. Defaults to "rozo". */
+  poweredBy?: "rozo" | "Mugglepay";
   language?: Languages;
   hideBalance?: boolean;
   hideTooltips?: boolean;
