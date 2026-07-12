@@ -14,15 +14,9 @@ import { useRozoPay } from "../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import { getCachedFee, resolveOrderAppId } from "../../../utils/feeCache";
-import { isNativeToken } from "../../../utils/token";
 import { tokenBaseAmountToDecimalString } from "../../../utils/format";
 import Button from "../../Common/Button";
-import {
-  Link,
-  ModalContent,
-  ModalH1,
-  PageContent,
-} from "../../Common/Modal/styles";
+import { Link, ModalContent, ModalH1, PageContent } from "../../Common/Modal/styles";
 import PaymentBreakdown from "../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../Spinners/TokenLogoSpinner";
 
@@ -37,12 +31,8 @@ enum PayState {
 const PayWithToken: React.FC = () => {
   const walletChainId = useChainId();
   const { triggerResize, paymentState, setRoute, log } = usePayContext();
-  const {
-    payWithToken,
-    setSenderAddress,
-    selectedTokenOption,
-    walletPaymentOptions,
-  } = paymentState;
+  const { payWithToken, setSenderAddress, selectedTokenOption, walletPaymentOptions } =
+    paymentState;
   const { switchChainAsync } = useSwitchChain();
   const { address } = useAccount();
   const {
@@ -55,9 +45,7 @@ const PayWithToken: React.FC = () => {
   const handleContactClick = useContactSupport();
 
   const { capture } = useAnalytics();
-  const [payState, setPayStateInner] = useState<PayState>(
-    PayState.RequestingPayment,
-  );
+  const [payState, setPayStateInner] = useState<PayState>(PayState.RequestingPayment);
   const [txURL, setTxURL] = useState<string | undefined>();
   const [feeData, setFeeData] = useState<FeeResponseData | null>(null);
   const [feeLoading, setFeeLoading] = useState(true);
@@ -119,8 +107,7 @@ const PayWithToken: React.FC = () => {
       // loaded by runSetPayIdEffects, so getFee below runs against the latest
       // payment response (correct appId, amount, destination, etc.).
       const currentState = store.getState();
-      const currentOrder =
-        currentState.type !== "idle" ? currentState.order : undefined;
+      const currentOrder = currentState.type !== "idle" ? currentState.order : undefined;
       if (!currentOrder) {
         throw new Error("Order not initialized");
       }
@@ -151,8 +138,7 @@ const PayWithToken: React.FC = () => {
 
       try {
         setPayState(PayState.RequestingPayment);
-        const currentRozoPaymentId =
-          rozoPaymentId ?? currentOrder.externalId ?? undefined;
+        const currentRozoPaymentId = rozoPaymentId ?? currentOrder.externalId ?? undefined;
         // Only set unpaid if state is payment_started (for retry scenarios and cross-chain switches)
         if (currentRozoPaymentId && rozoPaymentState === "payment_started") {
           try {
@@ -178,25 +164,14 @@ const PayWithToken: React.FC = () => {
           option.required.token.decimals,
         );
 
-        // Fee-quote type: native source forces ExactOut so the backend computes
-        // the exact source.amount in native units. Scoped to getCachedFee only —
-        // createPayment keeps payParams.feeType as-is.
-        const isNativeSource = isNativeToken(option.required.token);
-        const feeQuoteType = isNativeSource
-          ? FeeType.ExactOut
-          : (paymentState.payParams?.feeType ?? FeeType.ExactIn);
-        // getFee maps `amount` to source.amount for exactIn and to
-        // destination.amount for exactOut. For exactIn send the source-token
-        // amount (e.g. ETH), NOT the USD/destination value.
+        const feeQuoteType = paymentState.payParams?.feeType ?? FeeType.ExactIn;
+        // getFee maps `amount` to source.amount for exactIn.
         const feeData = await getCachedFee({
           appId: resolveOrderAppId(currentOrder, paymentState.payParams?.appId),
           type: feeQuoteType,
           sourceChainId: option.required.token.chainId.toString(),
           sourceTokenSymbol: option.required.token.symbol,
-          amount:
-            feeQuoteType === FeeType.ExactOut
-              ? option.required.usd.toString()
-              : sourceAmount,
+          amount: sourceAmount,
           destChainId: destToken.chainId.toString(),
           destReceiverAddress:
             getCanonicalDestination(currentOrder).finalDestinationAddress ??
@@ -235,9 +210,7 @@ const PayWithToken: React.FC = () => {
           },
           store as any,
         );
-        setTxURL(
-          getChainExplorerTxUrl(option.required.token.chainId, result.txHash),
-        );
+        setTxURL(getChainExplorerTxUrl(option.required.token.chainId, result.txHash));
         if (result.success) {
           capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
             payment_id: rozoPaymentId ?? order?.externalId,
@@ -277,12 +250,7 @@ const PayWithToken: React.FC = () => {
           if (switchSuccessful) {
             try {
               const retryResult = await payWithToken(option, store as any);
-              setTxURL(
-                getChainExplorerTxUrl(
-                  option.required.token.chainId,
-                  retryResult.txHash,
-                ),
-              );
+              setTxURL(getChainExplorerTxUrl(option.required.token.chainId, retryResult.txHash));
               if (retryResult.success) {
                 capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
                   payment_id: rozoPaymentId ?? order?.externalId,
@@ -317,10 +285,7 @@ const PayWithToken: React.FC = () => {
               }
               return; // Payment handled after switching chain
             } catch (retryError) {
-              console.error(
-                "Failed to pay with token after switching chain",
-                retryError,
-              );
+              console.error("Failed to pay with token after switching chain", retryError);
               throw retryError;
             }
           }
@@ -387,9 +352,7 @@ const PayWithToken: React.FC = () => {
           feeLoading={feeLoading}
         />
         {payState === PayState.RequestCancelled && (
-          <Button onClick={() => handleTransfer(selectedTokenOption)}>
-            Retry Payment
-          </Button>
+          <Button onClick={() => handleTransfer(selectedTokenOption)}>Retry Payment</Button>
         )}
         {payState === PayState.RequestFailed && (
           <Button onClick={handleContactClick}>Contact Support</Button>

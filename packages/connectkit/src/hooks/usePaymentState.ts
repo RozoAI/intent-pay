@@ -479,7 +479,6 @@ export function usePaymentState({
     trpc,
     usdRequired,
     mode: pay.order?.mode,
-    appId: stableAppId,
     payParams: stablePayParams,
   });
 
@@ -1350,9 +1349,7 @@ export function usePaymentState({
         const isNativeSource = isNativeToken(option.token);
         const sourceAmountUnits = String(
           fees?.source?.amount ??
-            (isNativeSource
-              ? ""
-              : (pay.order?.destFinalCallTokenAmount?.usd ?? "0")),
+            (isNativeSource ? "" : (pay.order?.destFinalCallTokenAmount?.usd ?? "0")),
         );
 
         if (isNativeSource && sourceAmountUnits === "") {
