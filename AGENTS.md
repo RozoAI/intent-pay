@@ -82,8 +82,8 @@ Example app uses local packages via workspace symlinks.
 
 ## Git hooks & CI
 
-- **Husky** `pre-commit` runs `pnpm lint-staged` (lints only changed files under the
-  three package globs).
+- **Husky** `pre-commit` runs `pnpm lint-staged` (runs oxlint on changed files
+  only; does not run format).
 - **CI** (`.github/workflows/`):
   - `ai-pr-review.yml` — runs `.github/ai_pr_review.py` on PRs (comments P0/P1/P2, labels `ai-review-passed`).
   - `release.yml` — on `v*` tag: build + `pnpm publish` to npm.
