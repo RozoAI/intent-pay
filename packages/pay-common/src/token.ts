@@ -18,6 +18,7 @@ import {
   solana,
   stellar,
   worldchain,
+  getChainById,
 } from "./chain";
 
 export type Token = {
@@ -978,11 +979,33 @@ export const knownChains: number[] = Array.from(supportedTokens.keys());
 // createPaymentBridgeConfig for native ETH/BNB/POL). Solana/Stellar addresses
 // are lower-cased on both sides consistently, so they still resolve uniquely.
 const tokensByChainAddr = new Map<string, Token>(
-  knownTokens.map((t) => [`${t.chainId}-${t.token.toLowerCase()}`, t]),
+  knownTokens.map((t) => [`${t.chainId}-${normalizeTokenAddress(t.chainId, t.token) ?? t.token}`, t]),
 );
 
+/**
+ * Chain-aware address normalizer. EVM addresses are case-insensitive (EIP-55),
+ * so they're lowercased for lookups; Solana (base58) and Stellar (StrKey) are
+ * case-sensitive, so lowercasing would corrupt them. Pass `chainId` so the
+ * right rule applies. Null-safe: returns undefined for a missing address.
+ */
+export function normalizeTokenAddress(
+  chainId: number | undefined,
+  address: string | null | undefined,
+): string | undefined {
+  if (address == null) return undefined;
+  // ponytail: getChainById throws on unknown chain; never crash a comparison
+  let type: "evm" | "solana" | "stellar" | undefined;
+  try {
+    type = getChainById(chainId as number).type;
+  } catch {
+    type = undefined;
+  }
+  return type === "evm" ? address.toLowerCase() : address;
+}
+
 export function getKnownToken(chainId: number, tokenAddress: string): Token | undefined {
-  return tokensByChainAddr.get(`${chainId}-${tokenAddress.toLowerCase()}`);
+  if (tokenAddress == null) return undefined;
+  return tokensByChainAddr.get(`${chainId}-${normalizeTokenAddress(chainId, tokenAddress) ?? ""}`);
 }
 
 /* --------------------- Tokens By Type --------------------- */

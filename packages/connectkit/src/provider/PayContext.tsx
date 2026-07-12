@@ -54,16 +54,17 @@ export type PayContextValue = {
   /** EVM pending connector */
   pendingConnectorId: string | undefined;
   setPendingConnectorId: (id: string) => void;
+  /** True when the current connect was a dual-chain (EVM + Solana) connect,
+   * e.g. Phantom in a mobile in-app browser. Consumed on connect-complete to
+   * route back to SELECT_METHOD instead of jumping straight to SELECT_TOKEN. */
+  dualChainConnect: boolean;
+  setDualChainConnect: (v: boolean) => void;
   /** Chosen Solana wallet, eg Phantom.*/
   solanaConnector: SolanaWalletName | undefined;
-  setSolanaConnector: React.Dispatch<
-    React.SetStateAction<SolanaWalletName | undefined>
-  >;
+  setSolanaConnector: React.Dispatch<React.SetStateAction<SolanaWalletName | undefined>>;
   /** Chosen Stellar wallet, eg Lobstr.*/
   stellarConnector: StellarWalletName | undefined;
-  setStellarConnector: React.Dispatch<
-    React.SetStateAction<StellarWalletName | undefined>
-  >;
+  setStellarConnector: React.Dispatch<React.SetStateAction<StellarWalletName | undefined>>;
   /** Global options, across all pay buttons and payments. */
   options?: RozoPayContextOptions;
   /** Loads a payment, then shows the modal to complete payment. */
@@ -76,12 +77,8 @@ export type PayContextValue = {
   onSuccess: () => void;
   /** Custom message to display on confirmation page. */
   confirmationMessage?: string;
-  setConfirmationMessage: React.Dispatch<
-    React.SetStateAction<string | undefined>
-  >;
+  setConfirmationMessage: React.Dispatch<React.SetStateAction<string | undefined>>;
   /** Redirect URL to return to the app. E.g. after Coinbase, Binance, RampNetwork. */
   redirectReturnUrl?: string;
-  setRedirectReturnUrl: React.Dispatch<
-    React.SetStateAction<string | undefined>
-  >;
+  setRedirectReturnUrl: React.Dispatch<React.SetStateAction<string | undefined>>;
 } & useConnectCallbackProps;

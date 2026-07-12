@@ -7,11 +7,13 @@ import {
   ethereum,
   ethereumUSDC,
   ethereumUSDT,
+  normalizeTokenAddress,
   RozoPayOrderMode,
   rozoSolanaUSDC,
   rozoSolanaUSDT,
 } from "@rozoai/intent-common";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
 
@@ -19,7 +21,6 @@ export interface UseDepositAddressOptionsParams {
   trpc: TrpcClient;
   usdRequired: number | undefined;
   mode: RozoPayOrderMode | undefined;
-  appId?: string;
   payParams: PayParams | undefined;
 }
 
@@ -93,78 +94,59 @@ export function useDepositAddressOptions({
   trpc,
   usdRequired,
   mode,
-  appId,
   payParams,
 }: UseDepositAddressOptionsParams): UseDepositAddressOptionsReturn {
-  const [options, setOptions] = useState<DepositAddressPaymentOptionMetadata[]>(
-    [],
-  );
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, error } = useQuery<DepositAddressPaymentOptionMetadata[]>({
+    enabled: usdRequired != null && mode != null,
+    queryKey: ["depositAddressOptions", usdRequired, mode],
+    queryFn: async () => {
+      try {
+        return await trpc.getDepositAddressOptions.query({
+          usdRequired,
+          mode,
+        });
+      } catch (err) {
+        // Fallback to static options on error so the UI never goes blank.
+        console.error("Error loading deposit address options:", err);
+        return fallbackOptions;
+      }
+    },
+    staleTime: 30_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
 
   // Memoized configuration for deposit address options
   const filteredOptions = useMemo(() => {
+    const options = data ?? [];
     if (payParams?.preferredTokens && payParams?.preferredTokens.length > 0) {
-      // Case-insensitive address match: token addresses can differ in casing
-      // between the SDK token registry (EVM natives are stored lowercase) and
-      // the API response (EIP-55 checksummed), so a strict `===` would drop
-      // native ETH/POL/BNB deposit options. Normalize both sides.
-      const normalize = (addr: string) => addr.toLowerCase();
+      // Address match: token addresses can differ in casing between the SDK
+      // token registry (EVM natives stored lowercase) and the API response
+      // (EIP-55 checksummed), so a strict `===` drops native ETH/POL/BNB
+      // deposit options. Normalize per-chain: EVM lowercase, Solana/Stellar
+      // case-sensitive.
+      const normalize = (chainId: number, addr: string) =>
+        normalizeTokenAddress(chainId, addr) ?? addr;
       const preferred = new Set(
-        payParams.preferredTokens.map((pt) => normalize(pt.token)),
+        payParams.preferredTokens.map((pt) => `${pt.chainId}:${normalize(pt.chainId, pt.token)}`),
       );
-      return options.filter((option) => preferred.has(normalize(option.token.token)));
+      return options.filter((option) =>
+        preferred.has(
+          `${option.token.chainId}:${normalize(option.token.chainId, option.token.token)}`,
+        ),
+      );
     }
 
     return options;
-  }, [options, payParams?.preferredTokens]);
-
-  // Memoized refresh function to prevent unnecessary re-renders
-  const refreshDepositAddressOptions = useCallback(
-    async (usd: number, mode: RozoPayOrderMode) => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const apiOptions = await trpc.getDepositAddressOptions.query({
-          usdRequired: usd,
-          mode,
-        });
-
-        // For now, use static configuration
-        // Filter options based on minimum USD requirements
-        // const filteredOptions = depositAddressConfig.filter(
-        //   (option) => usd >= option.minimumUsd
-        // );
-
-        setOptions(apiOptions);
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error
-            ? err.message
-            : "Failed to load deposit address options";
-        setError(errorMessage);
-        console.error("Error loading deposit address options:", err);
-
-        // Fallback to static options on error
-        setOptions(fallbackOptions);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [],
-  );
-
-  // Effect to refresh options when dependencies change
-  useEffect(() => {
-    if (usdRequired != null && mode != null) {
-      refreshDepositAddressOptions(usdRequired, mode);
-    }
-  }, [usdRequired, mode, refreshDepositAddressOptions]);
+  }, [data, payParams?.preferredTokens]);
 
   return {
     options: filteredOptions,
-    loading,
-    error,
+    loading: isLoading,
+    error: error
+      ? error instanceof Error
+        ? error.message
+        : "Failed to load deposit address options"
+      : null,
   };
 }

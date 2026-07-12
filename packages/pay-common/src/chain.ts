@@ -178,7 +178,12 @@ export function getChainById(chainId: number): Chain {
 
 /** Returns the chain name for the given chainId. */
 export function getChainName(chainId: number): string {
-  return getChainById(chainId).name;
+  // ponytail: display helper — never throw on unknown/missing chainId
+  try {
+    return getChainById(chainId).name;
+  } catch {
+    return `Chain ${chainId}`;
+  }
 }
 
 /** Returns the CCTP domain for the given chainId. */

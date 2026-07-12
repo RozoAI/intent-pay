@@ -1,14 +1,12 @@
-import { getKnownToken, WalletPaymentOption } from "@rozoai/intent-common";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getKnownToken, normalizeTokenAddress, WalletPaymentOption } from "@rozoai/intent-common";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
+import { roundTokenAmount } from "../utils/format";
 import { TrpcClient } from "../utils/trpc";
-import {
-  createRefreshFunction,
-  setupRefreshState,
-  shouldSkipRefresh,
-} from "./refreshUtils";
 import { useSupportedChains } from "./useSupportedChains";
+import { isNativeToken } from "../utils/token";
 
 /**
  * Wallet payment options. User picks one.
@@ -51,24 +49,12 @@ export function useWalletPaymentOptions({
   payParams: PayParams | undefined;
   log: (msg: string) => void;
 }) {
-  const [options, setOptions] = useState<WalletPaymentOption[] | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Track the last executed parameters to prevent duplicate API calls
-  const lastExecutedParams = useRef<string | null>(null);
-
-  // Track if we're currently making an API call to prevent concurrent requests
-  const isApiCallInProgress = useRef<boolean>(false);
-
   // Extract appId to avoid payParams object recreation causing re-runs
   const stableAppId = useMemo(() => {
     return payParams?.appId ?? DEFAULT_ROZO_APP_ID;
   }, [payParams?.appId]);
 
-  // Memoize array dependencies to prevent unnecessary re-fetches
-  // TODO: this is an ugly way to handle polling/refresh
-  // Notice the load-bearing JSON.stringify() to prevent a visible infinite
-  // refresh glitch on the SelectMethod screen. Replace this useEffect().
+  // Memoize array dependencies to keep a stable query key
   const memoizedPreferredChains = useMemo(
     () => payParams?.preferredChains,
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -84,15 +70,54 @@ export function useWalletPaymentOptions({
 
   // Get EVM chain IDs from supported chains
   const evmChainIds = useMemo(() => {
-    return new Set(
-      chains.filter((c) => c.type === "evm").map((c) => c.chainId),
-    );
+    return new Set(chains.filter((c) => c.type === "evm").map((c) => c.chainId));
   }, [chains]);
 
-  const filteredOptions = useMemo(() => {
-    if (!options) return [];
+  const { data, isLoading, refetch } = useQuery<WalletPaymentOption[] | null>({
+    enabled:
+      address != null &&
+      usdRequired != null &&
+      destChainId != null &&
+      payParams?.appId != null &&
+      payParams.appId !== DEFAULT_ROZO_APP_ID,
+    queryKey: [
+      "walletPaymentOptions",
+      address,
+      usdRequired,
+      destChainId,
+      isDepositFlow,
+      stableAppId,
+      memoizedPreferredChains,
+      memoizedPreferredTokens,
+    ],
+    queryFn: () => {
+      // Source of truth for Intent API calls: chain + token pairing.
+      const evmPreferredTokens = (memoizedPreferredTokens ?? [])
+        .filter((t) => evmChainIds.has(t.chainId))
+        .map((t) => ({
+          chain: t.chainId,
+          address: t.token,
+        }));
+      // Backward-compat for local proxy implementations that still read this field.
+      const evmPreferredTokenAddresses = evmPreferredTokens.map((t) => t.address);
 
-    const normalizeAddress = (addr: string) => addr.toLowerCase();
+      return trpc.getWalletPaymentOptions.query({
+        payerAddress: address,
+        usdRequired: isDepositFlow ? undefined : usdRequired,
+        destChainId,
+        preferredChains: memoizedPreferredChains,
+        preferredTokens: evmPreferredTokens,
+        preferredTokenAddress: evmPreferredTokenAddresses,
+        appId: stableAppId,
+      });
+    },
+    staleTime: 30_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+
+  const filteredOptions = useMemo(() => {
+    if (!data) return [];
 
     // Filter out chains/tokens we don't support yet in wallet payment options.
     // Compare token addresses case-insensitively: the supported-tokens registry
@@ -104,8 +129,8 @@ export function useWalletPaymentOptions({
           c.chainId === o.balance.token.chainId &&
           tokens.some(
             (t) =>
-              normalizeAddress(t.token) ===
-              normalizeAddress(o.balance.token.token),
+              normalizeTokenAddress(c.chainId, t.token) ===
+              normalizeTokenAddress(c.chainId, o.balance.token.token),
           ),
       );
 
@@ -117,12 +142,12 @@ export function useWalletPaymentOptions({
       return memoizedPreferredTokens.some(
         (pt) =>
           pt.chainId === o.balance.token.chainId &&
-          normalizeAddress(pt.token) ===
-            normalizeAddress(o.balance.token.token),
+          normalizeTokenAddress(o.balance.token.chainId, pt.token) ===
+            normalizeTokenAddress(o.balance.token.chainId, o.balance.token.token),
       );
     };
 
-    return options
+    return data
       .filter(isSupported)
       .filter(matchesPreferredTokens)
       .map((item) => {
@@ -137,165 +162,33 @@ export function useWalletPaymentOptions({
         };
 
         // Set `disabledReason` manually (based on current usdRequired state, not API Request)
-        const destinationFiatISO = getKnownToken(
-          item.balance.token.chainId,
-          item.balance.token.token,
-        )?.fiatISO;
+        const knownToken = getKnownToken(item.balance.token.chainId, item.balance.token.token);
+        const fiatISO = knownToken?.fiatISO ?? item.balance.token.fiatISO;
+        const isNative = isNativeToken(item.balance.token);
+
         if (item.balance.usd < usd) {
-          value.disabledReason = `Balance too low: ${item.balance.usd.toFixed(
-            2,
-          )} ${destinationFiatISO}`;
+          if (isNative) {
+            value.disabledReason = `Balance too low: ${roundTokenAmount(
+              item.balance.amount,
+              item.balance.token,
+            )} ${item.balance.token.symbol}`;
+          } else if (fiatISO) {
+            value.disabledReason = `Balance too low: ${item.balance.usd.toFixed(2)} ${fiatISO}`;
+          } else {
+            value.disabledReason = `Balance too low: ${roundTokenAmount(
+              item.balance.amount,
+              item.balance.token,
+            )} ${item.balance.token.symbol}`;
+          }
         }
 
         return value;
       }) as WalletPaymentOption[];
-  }, [
-    options,
-    chains,
-    tokens,
-    isDepositFlow,
-    usdRequired,
-    memoizedPreferredTokens,
-  ]);
-
-  // Smart clearing: only clear if we don't have data for this address
-  useEffect(() => {
-    if (address && !options) {
-      // Only set loading if we don't have options yet
-      setIsLoading(true);
-    }
-  }, [address, options]);
-
-  // Shared fetch function for wallet payment options
-  const fetchBalances = useCallback(async () => {
-    if (
-      address == null ||
-      usdRequired == null ||
-      destChainId == null ||
-      stableAppId == null
-    )
-      return;
-
-    setOptions(null);
-    setIsLoading(true);
-
-    try {
-      // Source of truth for Intent API calls: chain + token pairing.
-      const evmPreferredTokens = (memoizedPreferredTokens ?? [])
-        .filter((t) => evmChainIds.has(t.chainId))
-        .map((t) => ({
-          chain: t.chainId,
-          address: t.token,
-        }));
-      // Backward-compat for local proxy implementations that still read this field.
-      const evmPreferredTokenAddresses = evmPreferredTokens.map(
-        (t) => t.address,
-      );
-
-      const newOptions = await trpc.getWalletPaymentOptions.query({
-        payerAddress: address,
-        usdRequired: isDepositFlow ? undefined : usdRequired,
-        destChainId,
-        preferredChains: memoizedPreferredChains,
-        preferredTokens: evmPreferredTokens,
-        preferredTokenAddress: evmPreferredTokenAddresses,
-        appId: stableAppId,
-      });
-
-      setOptions(newOptions);
-    } catch (error) {
-      console.error(error);
-      setOptions([]);
-    } finally {
-      isApiCallInProgress.current = false;
-      setIsLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    trpc,
-    address,
-    usdRequired,
-    destChainId,
-    isDepositFlow,
-    memoizedPreferredChains,
-    memoizedPreferredTokens,
-    stableAppId,
-    // evmChainIds is derived from chains and is stable, so we don't need it in deps
-  ]);
-
-  // Create refresh function using shared utility
-  const refreshOptions = createRefreshFunction(fetchBalances, {
-    lastExecutedParams,
-    isApiCallInProgress,
-  });
-
-  useEffect(() => {
-    if (
-      address == null ||
-      usdRequired == null ||
-      destChainId == null ||
-      stableAppId == null
-    )
-      return;
-
-    const fullParamsKey = JSON.stringify({
-      address,
-      usdRequired,
-      destChainId,
-      isDepositFlow,
-      stableAppId,
-      memoizedPreferredChains,
-      memoizedPreferredTokens,
-    });
-
-    // Skip if we've already executed with these exact parameters
-    if (
-      shouldSkipRefresh(fullParamsKey, {
-        lastExecutedParams,
-        isApiCallInProgress,
-      })
-    ) {
-      return;
-    }
-
-    // Set up refresh state
-    setupRefreshState(fullParamsKey, {
-      lastExecutedParams,
-      isApiCallInProgress,
-    });
-  }, [
-    address,
-    usdRequired,
-    destChainId,
-    isDepositFlow,
-    stableAppId,
-    memoizedPreferredChains,
-    memoizedPreferredTokens,
-  ]);
-
-  // Initial fetch when hook mounts with valid parameters or when key parameters change
-  useEffect(() => {
-    if (
-      address != null &&
-      usdRequired != null &&
-      destChainId != null &&
-      stableAppId != null
-    ) {
-      refreshOptions();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    address,
-    usdRequired,
-    destChainId,
-    stableAppId,
-    memoizedPreferredChains,
-    memoizedPreferredTokens,
-  ]);
+  }, [data, chains, tokens, isDepositFlow, usdRequired, memoizedPreferredTokens]);
 
   return {
     options: filteredOptions,
     isLoading,
-    refreshOptions,
+    refreshOptions: () => refetch().then(() => {}),
   };
 }

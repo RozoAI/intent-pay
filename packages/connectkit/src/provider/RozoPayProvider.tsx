@@ -10,11 +10,13 @@ import { Buffer } from "buffer";
 import React, {
   createElement,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { QueryClient, QueryClientContext, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "styled-components";
 import { useChainId, WagmiContext } from "wagmi";
 
@@ -23,10 +25,7 @@ import { RozoPayModal } from "../components/RozoPayModal";
 import { ROUTES } from "../constants/routes";
 import { REQUIRED_CHAINS } from "../defaultConfig";
 import { useChains } from "../hooks/useChains";
-import {
-  useConnectCallback,
-  useConnectCallbackProps,
-} from "../hooks/useConnectCallback";
+import { useConnectCallback, useConnectCallbackProps } from "../hooks/useConnectCallback";
 import { usePaymentState } from "../hooks/usePaymentState";
 import { useRozoPay } from "../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../lib/analytics/events";
@@ -47,24 +46,15 @@ import { setInWalletPaymentUrlFromApiUrl } from "../wallets/walletConfigs";
 import { AnalyticsProvider, useAnalytics } from "./AnalyticsProvider";
 import { PayContext, PayContextValue } from "./PayContext";
 import { PaymentContext, PaymentProvider } from "./PaymentProvider";
-import {
-  SolanaContextProvider,
-  SolanaWalletName,
-} from "./SolanaContextProvider";
-import {
-  StellarContextProvider,
-  StellarWalletName,
-} from "./StellarContextProvider";
+import { SolanaContextProvider, SolanaWalletName } from "./SolanaContextProvider";
+import { StellarContextProvider, StellarWalletName } from "./StellarContextProvider";
 import { Web3ContextProvider } from "./Web3ContextProvider";
 /** Minimal PostHog interface — only capture() is needed. Any posthog-js version works. */
 type PostHogCapture = {
   capture: (event: string, properties?: Record<string, unknown>) => void;
 };
 
-const WagmiDependentEffects = ({
-  onConnect,
-  onDisconnect,
-}: useConnectCallbackProps) => {
+const WagmiDependentEffects = ({ onConnect, onDisconnect }: useConnectCallbackProps) => {
   useConnectCallback({ onConnect, onDisconnect });
 
   const chains = useChains();
@@ -141,11 +131,7 @@ const RozoPayUIProvider = ({
     overlayBlur: undefined,
     disableMobileInjector: false,
   };
-  const opts: RozoPayContextOptions = Object.assign(
-    {},
-    defaultOptions,
-    options,
-  );
+  const opts: RozoPayContextOptions = Object.assign({}, defaultOptions, options);
 
   if (typeof window !== "undefined") {
     if (opts.bufferPolyfill) window.Buffer = window.Buffer ?? Buffer;
@@ -159,9 +145,7 @@ const RozoPayUIProvider = ({
 
   const [ckTheme, setTheme] = useState<Theme>(theme);
   const [ckMode, setMode] = useState<Mode>(mode);
-  const [ckCustomTheme, setCustomTheme] = useState<CustomTheme | undefined>(
-    customTheme ?? {},
-  );
+  const [ckCustomTheme, setCustomTheme] = useState<CustomTheme | undefined>(customTheme ?? {});
   const [ckLang, setLang] = useState<Languages>("en-US");
   const [disableMobileInjector, setDisableMobileInjector] = useState<boolean>(
     opts.disableMobileInjector ?? false,
@@ -179,35 +163,22 @@ const RozoPayUIProvider = ({
   const [lockPayParams, setLockPayParams] = useState<boolean>(false);
   const [paymentCompleted, setPaymentCompleted] = useState<boolean>(false);
   const [route, setRouteState] = useState<ROUTES>(ROUTES.SELECT_METHOD);
-  const [routeMeta, setRouteMeta] = useState<Record<string, any> | undefined>(
-    undefined,
-  );
+  const [routeMeta, setRouteMeta] = useState<Record<string, any> | undefined>(undefined);
   const [modalOptions, setModalOptions] = useState<RozoPayModalOptions>();
 
   // Rozo Pay context
-  const [pendingConnectorId, setPendingConnectorId] = useState<
-    string | undefined
-  >(undefined);
+  const [pendingConnectorId, setPendingConnectorId] = useState<string | undefined>(undefined);
+  const [dualChainConnect, setDualChainConnect] = useState<boolean>(false);
   // Track sessions. Each generates separate intent IDs unless using externalId.
   const [sessionId] = useState(() => crypto.randomUUID().replaceAll("-", ""));
-  const [solanaConnector, setSolanaConnector] = useState<
-    SolanaWalletName | undefined
-  >();
+  const [solanaConnector, setSolanaConnector] = useState<SolanaWalletName | undefined>();
 
-  const [stellarConnector, setStellarConnector] = useState<
-    StellarWalletName | undefined
-  >();
+  const [stellarConnector, setStellarConnector] = useState<StellarWalletName | undefined>();
 
   // Other configuration
-  const [errorMessage, setErrorMessage] = useState<
-    string | React.ReactNode | null
-  >("");
-  const [confirmationMessage, setConfirmationMessage] = useState<
-    string | undefined
-  >(undefined);
-  const [redirectReturnUrl, setRedirectReturnUrl] = useState<
-    string | undefined
-  >(undefined);
+  const [errorMessage, setErrorMessage] = useState<string | React.ReactNode | null>("");
+  const [confirmationMessage, setConfirmationMessage] = useState<string | undefined>(undefined);
+  const [redirectReturnUrl, setRedirectReturnUrl] = useState<string | undefined>(undefined);
   // Connect to the Rozo Pay TRPC API
   const trpc = useMemo(() => {
     return createTrpcClient(payApiUrl, sessionId);
@@ -251,11 +222,9 @@ const RozoPayUIProvider = ({
                 ? String(order.destFinalCallTokenAmount.usd)
                 : undefined,
           destination_chain:
-            paymentState.payParams?.toChain ??
-            (order ? getOrderDestChainId(order) : undefined),
+            paymentState.payParams?.toChain ?? (order ? getOrderDestChainId(order) : undefined),
           token_symbol:
-            paymentState.payParams?.toToken ??
-            order?.destFinalCallTokenAmount?.token.symbol,
+            paymentState.payParams?.toToken ?? order?.destFinalCallTokenAmount?.token.symbol,
           source_chain: connectedChainId || undefined,
         });
       } else {
@@ -325,10 +294,7 @@ const RozoPayUIProvider = ({
     pay.order.sourceTokenAmount != null;
 
   useEffect(() => {
-    if (
-      pay.paymentState === "payment_completed" ||
-      pay.paymentState === "payment_bounced"
-    ) {
+    if (pay.paymentState === "payment_completed" || pay.paymentState === "payment_bounced") {
       setRoute(ROUTES.CONFIRMATION, { event: "payment-completed" });
     }
 
@@ -358,10 +324,7 @@ const RozoPayUIProvider = ({
         );
 
         if (validationError) {
-          log(
-            "[PAY] Validation error detected, showing error page",
-            validationError,
-          );
+          log("[PAY] Validation error detected, showing error page", validationError);
           setOpen(true);
 
           capture(ROZO_EVENTS.PAYMENT_VALIDATION_ERROR, {
@@ -376,26 +339,15 @@ const RozoPayUIProvider = ({
       }
 
       setModalOptions(modalOptions);
-      paymentState.setConnectedWalletOnly(
-        modalOptions.connectedWalletOnly ?? false,
-      );
+      paymentState.setConnectedWalletOnly(modalOptions.connectedWalletOnly ?? false);
       setOpen(true);
 
       // Set tokenMode based on paymentOptions, regardless of connectedWalletOnly
       // This ensures token filtering respects the paymentOptions constraint
-      if (
-        paymentState.paymentOptions &&
-        paymentState.paymentOptions.length > 0
-      ) {
-        const hasEthereum = paymentState.paymentOptions.includes(
-          ExternalPaymentOptions.Ethereum,
-        );
-        const hasSolana = paymentState.paymentOptions.includes(
-          ExternalPaymentOptions.Solana,
-        );
-        const hasStellar = paymentState.paymentOptions.includes(
-          ExternalPaymentOptions.Stellar,
-        );
+      if (paymentState.paymentOptions && paymentState.paymentOptions.length > 0) {
+        const hasEthereum = paymentState.paymentOptions.includes(ExternalPaymentOptions.Ethereum);
+        const hasSolana = paymentState.paymentOptions.includes(ExternalPaymentOptions.Solana);
+        const hasStellar = paymentState.paymentOptions.includes(ExternalPaymentOptions.Stellar);
 
         // Determine tokenMode based on which wallet payment options are included
         if (hasEthereum && !hasSolana && !hasStellar) {
@@ -429,15 +381,7 @@ const RozoPayUIProvider = ({
         setRoute(ROUTES.SELECT_METHOD);
       }
     },
-    [
-      pay.order?.id,
-      pay.paymentState,
-      log,
-      paymentState,
-      setOpen,
-      setRoute,
-      setModalOptions,
-    ],
+    [pay.order?.id, pay.paymentState, log, paymentState, setOpen, setRoute, setModalOptions],
   );
 
   if (!paymentContext) {
@@ -452,9 +396,7 @@ const RozoPayUIProvider = ({
   // Only allow for mounting RozoPayProvider once, so we avoid weird global
   // state collisions.
   if (existingPayContext) {
-    throw new Error(
-      "Multiple, nested usages of RozoPayProvider detected. Please use only one.",
-    );
+    throw new Error("Multiple, nested usages of RozoPayProvider detected. Please use only one.");
   }
 
   const value: PayContextValue = {
@@ -478,6 +420,8 @@ const RozoPayUIProvider = ({
     // Rozo Pay context
     pendingConnectorId,
     setPendingConnectorId,
+    dualChainConnect,
+    setDualChainConnect,
     sessionId,
     apiVersion,
     solanaConnector,
@@ -516,10 +460,7 @@ const RozoPayUIProvider = ({
     PayContext.Provider,
     { value },
     <Web3ContextProvider>
-      <WagmiDependentEffects
-        onConnect={onConnect}
-        onDisconnect={onDisconnect}
-      />
+      <WagmiDependentEffects onConnect={onConnect} onDisconnect={onDisconnect} />
       <ThemeProvider theme={defaultTheme}>
         {children}
         <RozoPayModal
@@ -575,32 +516,46 @@ export const RozoPayProvider = (props: RozoPayProviderProps) => {
   const payApiUrl = props.payApiUrl ?? "https://intentapi.rozo.ai";
   const apiVersion = props.apiVersion ?? "v2";
   const log = useMemo(
-    () =>
-      props.debugMode ? (...args: any[]) => console.log(...args) : () => {},
+    () => (props.debugMode ? (...args: any[]) => console.log(...args) : () => {}),
     [props.debugMode],
   );
 
+  // ponytail: don't force consumers to wire QueryClientProvider — reuse theirs if present.
+  const parentClient = useContext(QueryClientContext);
+  const ownClient = useMemo(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: { retry: 1, staleTime: 30_000, refetchOnWindowFocus: false },
+        },
+      }),
+    [],
+  );
+  const queryClient = parentClient ?? ownClient;
+
   return (
     <AnalyticsProvider posthog={props.posthog} telemetry={props.telemetry}>
-      <PaymentProvider payApiUrl={payApiUrl} apiVersion={apiVersion} log={log}>
-        <PaymentEventProvider>
-          <SolanaContextProvider rpcUrl={props.solanaRpcUrl}>
-            <StellarContextProvider
-              rpcUrl={props.stellarRpcUrl}
-              kit={props.stellarKit}
-              stellarWalletPersistence={props.stellarWalletPersistence}
-              log={log}
-            >
-              <RozoPayUIProvider
-                {...props}
-                apiVersion={apiVersion}
-                payApiUrl={payApiUrl}
+      <QueryClientProvider client={queryClient}>
+        <PaymentProvider payApiUrl={payApiUrl} apiVersion={apiVersion} log={log}>
+          <PaymentEventProvider>
+            <SolanaContextProvider rpcUrl={props.solanaRpcUrl}>
+              <StellarContextProvider
+                rpcUrl={props.stellarRpcUrl}
+                kit={props.stellarKit}
+                stellarWalletPersistence={props.stellarWalletPersistence}
                 log={log}
-              />
-            </StellarContextProvider>
-          </SolanaContextProvider>
-        </PaymentEventProvider>
-      </PaymentProvider>
+              >
+                <RozoPayUIProvider
+                  {...props}
+                  apiVersion={apiVersion}
+                  payApiUrl={payApiUrl}
+                  log={log}
+                />
+              </StellarContextProvider>
+            </SolanaContextProvider>
+          </PaymentEventProvider>
+        </PaymentProvider>
+      </QueryClientProvider>
     </AnalyticsProvider>
   );
 };

@@ -89,9 +89,11 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
   let toTokenAddress: string;
   let rawAmountUnitsStr: string;
   let sourceAmountUnitsStr: string | undefined;
-  if (order && walletOption) {
-    toChain = getOrderDestChainId(order);
-    toTokenAddress = order.destFinalCallTokenAmount.token.token;
+  if (order) {
+    // Use the order as the authoritative destination. Preview/hydrated orders
+    // sometimes omit token.chainId/token.token, so fall back to PayParams.
+    toChain = getOrderDestChainId(order) ?? payParams.toChain;
+    toTokenAddress = order.destFinalCallTokenAmount.token.token ?? payParams.toToken;
 
     const token = getKnownToken(toChain, toTokenAddress);
     if (!token) {

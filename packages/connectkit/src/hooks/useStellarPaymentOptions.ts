@@ -1,17 +1,17 @@
 import {
   getKnownToken,
+  normalizeTokenAddress,
   rozoStellar,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
+import { roundTokenAmount } from "../utils/format";
 import { TrpcClient } from "../utils/trpc";
-import {
-  createRefreshFunction,
-  setupRefreshState,
-  shouldSkipRefresh,
-} from "./refreshUtils";
 import { useSupportedChains } from "./useSupportedChains";
+import { isNativeToken } from "../utils/token";
 
 /** Wallet payment options. User picks one. */
 export function useStellarPaymentOptions({
@@ -31,19 +31,8 @@ export function useStellarPaymentOptions({
 
   // Get Stellar chain IDs from supported chains
   const stellarChainIds = useMemo(() => {
-    return new Set(
-      chains.filter((c) => c.type === "stellar").map((c) => c.chainId),
-    );
+    return new Set(chains.filter((c) => c.type === "stellar").map((c) => c.chainId));
   }, [chains]);
-
-  const [options, setOptions] = useState<WalletPaymentOption[] | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Track the last executed parameters to prevent duplicate API calls
-  const lastExecutedParams = useRef<string | null>(null);
-
-  // Track if we're currently making an API call to prevent concurrent requests
-  const isApiCallInProgress = useRef<boolean>(false);
 
   const stableAppId = useMemo(() => {
     return payParams?.appId;
@@ -55,14 +44,45 @@ export function useStellarPaymentOptions({
     [JSON.stringify(payParams?.preferredTokens)],
   );
 
+  const { data, isLoading, refetch } = useQuery<WalletPaymentOption[] | null>({
+    enabled:
+      address != null &&
+      usdRequired != null &&
+      stableAppId != null &&
+      stableAppId !== DEFAULT_ROZO_APP_ID,
+    queryKey: [
+      "stellarPaymentOptions",
+      address,
+      usdRequired,
+      isDepositFlow,
+      stableAppId,
+      memoizedPreferredTokens,
+    ],
+    queryFn: () => {
+      // Filter preferredTokenAddress to only include Stellar chain tokens
+      const stellarPreferredTokenAddresses = (memoizedPreferredTokens ?? [])
+        .filter((t) => stellarChainIds.has(t.chainId))
+        .map((t) => t.token);
+
+      return trpc.getStellarPaymentOptions.query({
+        stellarAddress: address,
+        // API expects undefined for deposit flow.
+        usdRequired: isDepositFlow ? undefined : usdRequired,
+        appId: stableAppId,
+        preferredTokenAddress: stellarPreferredTokenAddresses,
+      });
+    },
+    staleTime: 30_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+
   const filteredOptions = useMemo(() => {
-    if (!options) return [];
+    if (!data) return [];
 
     const preferredTokens = payParams?.preferredTokens;
-    // Helper to normalize token addresses for comparison
-    const normalizeAddress = (addr: string) => addr.toLowerCase();
 
-    return options
+    return data
       .filter((option) => {
         const tokenChainId = option.balance.token.chainId;
         const tokenAddress = option.balance.token.token;
@@ -72,14 +92,16 @@ export function useStellarPaymentOptions({
           return preferredTokens.some(
             (pt) =>
               pt.chainId === tokenChainId &&
-              normalizeAddress(pt.token) === normalizeAddress(tokenAddress),
+              normalizeTokenAddress(tokenChainId, pt.token) ===
+                normalizeTokenAddress(tokenChainId, tokenAddress),
           );
         }
 
         // Otherwise, check against supported tokens
         return tokens.some(
           (t) =>
-            normalizeAddress(t.token) === normalizeAddress(tokenAddress) &&
+            normalizeTokenAddress(t.chainId, t.token) ===
+              normalizeTokenAddress(tokenChainId, tokenAddress) &&
             t.chainId === rozoStellar.chainId,
         );
       })
@@ -95,118 +117,33 @@ export function useStellarPaymentOptions({
         };
 
         // Set `disabledReason` manually (based on current usdRequired state, not API Request)
-        const destinationFiatISO = getKnownToken(
-          item.balance.token.chainId,
-          item.balance.token.token,
-        )?.fiatISO;
+        const knownToken = getKnownToken(item.balance.token.chainId, item.balance.token.token);
+        const fiatISO = knownToken?.fiatISO ?? item.balance.token.fiatISO;
+        const isNative = isNativeToken(item.balance.token);
+
         if (item.balance.usd < usd) {
-          value.disabledReason = `Balance too low: ${item.balance.usd.toFixed(
-            2,
-          )} ${destinationFiatISO}`;
+          if (isNative) {
+            value.disabledReason = `Balance too low: ${roundTokenAmount(
+              item.balance.amount,
+              item.balance.token,
+            )} ${item.balance.token.symbol}`;
+          } else if (fiatISO) {
+            value.disabledReason = `Balance too low: ${item.balance.usd.toFixed(2)} ${fiatISO}`;
+          } else {
+            value.disabledReason = `Balance too low: ${roundTokenAmount(
+              item.balance.amount,
+              item.balance.token,
+            )} ${item.balance.token.symbol}`;
+          }
         }
 
         return value;
       }) as WalletPaymentOption[];
-  }, [options, isDepositFlow, usdRequired, tokens, payParams?.preferredTokens]);
-
-  // Shared fetch function for Stellar payment options
-  const fetchBalances = useCallback(async () => {
-    if (address == null || usdRequired == null || stableAppId == null) return;
-
-    setOptions(null);
-    setIsLoading(true);
-
-    try {
-      // Filter preferredTokenAddress to only include Stellar chain tokens
-      const stellarPreferredTokenAddresses = (memoizedPreferredTokens ?? [])
-        .filter((t) => stellarChainIds.has(t.chainId))
-        .map((t) => t.token);
-
-      const newOptions = await trpc.getStellarPaymentOptions.query({
-        stellarAddress: address,
-        // API expects undefined for deposit flow.
-        usdRequired: isDepositFlow ? undefined : usdRequired,
-        appId: stableAppId,
-        preferredTokenAddress: stellarPreferredTokenAddresses,
-      });
-      setOptions(newOptions);
-    } catch (error) {
-      console.error(error);
-      setOptions([]);
-    } finally {
-      isApiCallInProgress.current = false;
-      setIsLoading(false);
-    }
-  }, [
-    address,
-    usdRequired,
-    isDepositFlow,
-    trpc,
-    stableAppId,
-    memoizedPreferredTokens,
-    // stellarChainIds is derived from chains and is stable, so we don't need it in deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  ]);
-
-  // Create refresh function using shared utility
-  const refreshOptions = createRefreshFunction(fetchBalances, {
-    lastExecutedParams,
-    isApiCallInProgress,
-  });
-
-  // Smart clearing: only clear if we don't have data for this address
-  useEffect(() => {
-    if (address && !options) {
-      // Only set loading if we don't have options yet
-      setIsLoading(true);
-    }
-  }, [address, options]);
-
-  useEffect(() => {
-    if (address == null || usdRequired == null || stableAppId == null) return;
-
-    const fullParamsKey = JSON.stringify({
-      address,
-      usdRequired,
-      isDepositFlow,
-      stableAppId,
-      memoizedPreferredTokens,
-    });
-
-    // Skip if we've already executed with these exact parameters
-    if (
-      shouldSkipRefresh(fullParamsKey, {
-        lastExecutedParams,
-        isApiCallInProgress,
-      })
-    ) {
-      return;
-    }
-
-    // Set up refresh state
-    setupRefreshState(fullParamsKey, {
-      lastExecutedParams,
-      isApiCallInProgress,
-    });
-  }, [
-    address,
-    usdRequired,
-    isDepositFlow,
-    stableAppId,
-    memoizedPreferredTokens,
-  ]);
-
-  // Initial fetch when hook mounts with valid parameters or when key parameters change
-  useEffect(() => {
-    if (address != null && usdRequired != null && stableAppId != null) {
-      refreshOptions();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address, usdRequired, stableAppId, memoizedPreferredTokens]);
+  }, [data, isDepositFlow, usdRequired, tokens, payParams?.preferredTokens]);
 
   return {
     options: filteredOptions,
     isLoading,
-    refreshOptions,
+    refreshOptions: () => refetch().then(() => {}),
   };
 }
