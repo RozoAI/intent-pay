@@ -10,8 +10,9 @@ import { ScrollArea } from "../../Common/ScrollArea";
 import { Container, WalletIcon, WalletItem, WalletLabel, WalletList } from "./styles";
 import { useConnect } from "../../../hooks/useConnect";
 import { useWallet as useSolanaWalletAdapter } from "@solana/wallet-adapter-react";
-import { RozoPayOrderMode } from "@rozoai/intent-common";
+import { RozoPayOrderMode, writeRozoPayOrderID } from "@rozoai/intent-common";
 import useIsMobile from "../../../hooks/useIsMobile";
+import { DEFAULT_ROZO_APP_ID } from "../../../constants/rozoConfig";
 
 const MobileConnectors: React.FC = () => {
   const context = usePayContext();
@@ -19,7 +20,7 @@ const MobileConnectors: React.FC = () => {
   const { order, hydrateOrder, paymentState: payState } = useRozoPay();
   const { connect } = useConnect();
   const solanaWallets = useSolanaWalletAdapter();
-  const { isMobile } = useIsMobile();
+  const { isMobile, isIOS } = useIsMobile();
 
   // Mirror Connectors/index.tsx: hydrate order on mount so deeplinks have a payId
   const hasHydratedRef = useRef(false);
@@ -108,12 +109,39 @@ const MobileConnectors: React.FC = () => {
     if (paymentState.isDepositFlow) {
       paymentState.setSelectedWallet(wallet);
       context.setRoute(ROUTES.SELECT_WALLET_AMOUNT);
-    } else {
-      paymentState.openInWalletBrowser({
-        wallet,
-        customDeeplink: order?.metadata?.customDeeplinkUrl,
-      });
+      return;
     }
+
+    // Build deeplink directly — replicate openInWalletBrowser logic
+    const payId =
+      order?.externalId ??
+      (order?.id != null ? writeRozoPayOrderID(order.id) : "");
+    const appId =
+      paymentState.payParams?.appId ??
+      ((order?.metadata as any)?.appId as string | undefined) ??
+      DEFAULT_ROZO_APP_ID;
+    let ref: string | undefined;
+    if (wallet.name === "Phantom") {
+      ref = isIOS ? "1598432977" : "app.phantom";
+    }
+    const deeplink = wallet.getRozoPayDeeplink({
+      payId,
+      ref,
+      appId,
+      customDeeplink: order?.metadata?.customDeeplinkUrl,
+    });
+
+    // Open via <a> tag click — works inside direct user gesture on iOS Safari
+    const link = document.createElement("a");
+    link.href = deeplink;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Close modal so user goes straight to wallet app
+    // context.setOpen(false);
   };
 
   return (
