@@ -465,8 +465,11 @@ export default function SelectMethod() {
       });
     }
 
-    // Order disabled to bottom
-    options.sort((a, b) => (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0));
+    // Order disabled to bottom, but keep depositAddress in place (shows loading state)
+    options.sort((a, b) => {
+      if (a.id === "depositAddress" || b.id === "depositAddress") return 0;
+      return (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0);
+    });
 
     return options;
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -67,12 +67,14 @@ const MobileConnectors: React.FC = () => {
           if (!wallet.showInMobileConnectors) return false;
           if (wallet.isSolanaOnly && !paymentState.showSolanaPaymentMethod) return false;
           if (wallet.isStellarOnly && !paymentState.showStellarPaymentMethod) return false;
-          // Skip if already shown as injected (match by name)
-          const nameMatch = injectedWallets.some(
-            (iw) =>
-              iw.name?.toLowerCase() === wallet.name?.toLowerCase() ||
-              iw.shortName?.toLowerCase() === wallet.shortName?.toLowerCase(),
-          );
+          // Skip if already shown as injected — cross-match name/shortName
+          const cfgName = (wallet.name ?? wallet.shortName ?? "").toLowerCase();
+          const nameMatch =
+            cfgName &&
+            injectedWallets.some((iw) => {
+              const iwName = (iw.name ?? iw.shortName ?? "").toLowerCase();
+              return iwName && iwName === cfgName;
+            });
           if (nameMatch) return false;
           return true;
         })
