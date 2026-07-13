@@ -353,10 +353,7 @@ export function usePaymentState({
   // payment (needs an order); auto-navigating to the token screen does not.
   const solanaPaymentEligible = useMemo(() => {
     const paymentOptions = currPayParams?.paymentOptions;
-    return (
-      paymentOptions == null ||
-      paymentOptions.includes(ExternalPaymentOptions.Solana)
-    );
+    return paymentOptions == null || paymentOptions.includes(ExternalPaymentOptions.Solana);
   }, [currPayParams?.paymentOptions]);
 
   const stellarPaymentEligible = useMemo(() => {
@@ -368,10 +365,7 @@ export function usePaymentState({
         .some((t) => t.chainId === rozoStellar.chainId);
       if (!hasStellarToken) return false;
     }
-    return (
-      paymentOptions == null ||
-      paymentOptions.includes(ExternalPaymentOptions.Stellar)
-    );
+    return paymentOptions == null || paymentOptions.includes(ExternalPaymentOptions.Stellar);
   }, [currPayParams?.paymentOptions, currPayParams?.preferredTokens]);
 
   // Memoize usdRequired and destChainId to prevent unnecessary refetches when order object reference changes
@@ -463,8 +457,6 @@ export function usePaymentState({
   const depositAddressOptions = useDepositAddressOptions({
     trpc,
     usdRequired,
-    mode: pay.order?.mode,
-    appId: stableAppId,
     payParams: stablePayParams,
   });
 

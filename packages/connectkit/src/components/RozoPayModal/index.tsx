@@ -65,13 +65,7 @@ export const RozoPayModal: React.FC<{
   disableMobileInjector: boolean;
 }) => {
   const context = usePayContext();
-  const {
-    setMode,
-    setTheme,
-    setCustomTheme,
-    setLang,
-    setDisableMobileInjector,
-  } = context;
+  const { setMode, setTheme, setCustomTheme, setLang, setDisableMobileInjector } = context;
   const paymentState = context.paymentState;
   const {
     generatePreviewOrder,
@@ -90,12 +84,7 @@ export const RozoPayModal: React.FC<{
   const autoConnectGate = useAutoConnectGate();
 
   // EVM
-  const {
-    isConnected: isEthConnected,
-    connector,
-    chain,
-    address,
-  } = useAccount();
+  const { isConnected: isEthConnected, connector, chain, address } = useAccount();
 
   // Solana
   const { connected: isSolanaConnected } = useWallet();
@@ -260,8 +249,7 @@ export const RozoPayModal: React.FC<{
 
     // Only auto-navigate on initial open, not when the user explicitly
     // navigated back to SELECT_METHOD from SELECT_TOKEN.
-    const isExplicitBackNavigation =
-      context.routeMeta?.event === "click-select-another-method";
+    const isExplicitBackNavigation = context.routeMeta?.event === "click-select-another-method";
     if (isExplicitBackNavigation) return;
 
     // Readiness gate (wallet settled + order resolved, from FSM).
@@ -279,6 +267,14 @@ export const RozoPayModal: React.FC<{
     }
 
     // gateState === "ready": pick the token screen for the connected wallet.
+    // Dual-chain connect (Phantom mobile) just linked EVM + Solana: don't
+    // auto-jump to a single-chain SELECT_TOKEN. Clear the flag and stay on
+    // SELECT_METHOD so both connected wallet tiles are shown.
+    if (context.dualChainConnect) {
+      context.setDualChainConnect(false);
+      return;
+    }
+
     if (
       isEthConnected &&
       !isSolanaConnected &&
@@ -340,6 +336,15 @@ export const RozoPayModal: React.FC<{
       context.route === ROUTES.MOBILECONNECTORS
     ) {
       if (isEthConnected) {
+        // Dual-chain connect (e.g. Phantom mobile) just linked both EVM and
+        // Solana. Return to SELECT_METHOD so the user picks which connected
+        // wallet to pay with, instead of auto-jumping into EVM SELECT_TOKEN.
+        if (context.dualChainConnect) {
+          context.setRoute(ROUTES.SELECT_METHOD, {
+            event: "dual_chain_connected",
+          });
+          return;
+        }
         paymentState.setTokenMode("evm");
         context.setRoute(ROUTES.SELECT_TOKEN, {
           event: "connected",
@@ -349,7 +354,7 @@ export const RozoPayModal: React.FC<{
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEthConnected, context.route, connector?.id, chain?.id, address]);
+  }, [isEthConnected, context.route, connector?.id, chain?.id, address, context.dualChainConnect]);
 
   useEffect(() => setMode(mode), [mode, setMode]);
   useEffect(() => setTheme(theme), [theme, setTheme]);
@@ -357,7 +362,7 @@ export const RozoPayModal: React.FC<{
   useEffect(() => setLang(lang), [lang, setLang]);
   useEffect(
     () => setDisableMobileInjector(disableMobileInjector),
-    [disableMobileInjector, setDisableMobileInjector]
+    [disableMobileInjector, setDisableMobileInjector],
   );
 
   useEffect(() => {

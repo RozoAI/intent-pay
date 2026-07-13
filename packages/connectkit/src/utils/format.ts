@@ -14,7 +14,7 @@ export const USD_DECIMALS = 2;
 export function roundDecimals(
   value: number,
   decimals: number,
-  round: "up" | "down" | "nearest"
+  round: "up" | "down" | "nearest",
 ): string {
   const factor = 10 ** decimals;
   const multiplied = value * factor;
@@ -41,7 +41,7 @@ export function roundDecimals(
 export function formatUsd(
   usd: number,
   round: "up" | "down" | "nearest" = "down",
-  fiatISO = "USD"
+  fiatISO = "USD",
 ): string {
   const currency = fiatISO.toUpperCase();
   const value = Number(roundUsd(usd, round));
@@ -62,10 +62,7 @@ export function formatUsd(
 /**
  * Round a USD amount to `USD_DECIMALS` precision
  */
-export function roundUsd(
-  usd: number,
-  round: "up" | "down" | "nearest" = "down"
-): string {
+export function roundUsd(usd: number, round: "up" | "down" | "nearest" = "down"): string {
   return roundDecimals(usd, USD_DECIMALS, round);
 }
 
@@ -75,7 +72,7 @@ export function roundUsd(
 export function roundTokenAmount(
   amount: bigint | BigIntStr,
   token: RozoPayToken,
-  round: "up" | "down" | "nearest" = "down"
+  round: "up" | "down" | "nearest" = "down",
 ): string {
   // Convert to BigInt, handling various input types
   let amountBigInt: bigint;
@@ -102,8 +99,13 @@ export function roundTokenAmount(
     Number(formattedAmount),
     // token.displayDecimals,
     USD_DECIMALS, // @NOTE: Force 2 decimal places
-    round
+    round,
   );
+}
+
+/** Strip trailing zeros from a decimal token amount string. e.g. "0.01600" → "0.016" */
+export function trimTokenAmount(amount: string): string {
+  return String(parseFloat(amount));
 }
 
 /**
@@ -112,7 +114,7 @@ export function roundTokenAmount(
 export function roundTokenAmountUnits(
   amountUnits: number,
   token: RozoPayToken,
-  round: "up" | "down" | "nearest" = "down"
+  round: "up" | "down" | "nearest" = "down",
 ): string {
   // return roundDecimals(amountUnits, token.displayDecimals, round);
   // @NOTE: Force 2 decimal places
@@ -130,7 +132,7 @@ export function roundTokenAmountUnits(
 export function usdToRoundedTokenAmount(
   usd: number,
   token: RozoPayToken,
-  round: "up" | "down" | "nearest" = "down"
+  round: "up" | "down" | "nearest" = "down",
 ): string {
   return roundTokenAmountUnits(usd / token.usd, token, round);
 }
@@ -146,7 +148,7 @@ export function usdToRoundedTokenAmount(
 export function tokenAmountToRoundedUsd(
   amount: bigint | BigIntStr,
   token: RozoPayToken,
-  round: "up" | "down" | "nearest" = "nearest"
+  round: "up" | "down" | "nearest" = "nearest",
 ): string {
   const amountUnits = formatUnits(BigInt(amount), token.decimals);
   return roundUsd(Number(amountUnits) * token.usd, round);

@@ -1,5 +1,6 @@
 import {
   getChainName,
+  normalizeTokenAddress,
   RozoPayToken,
   Token,
   WalletPaymentOption,
@@ -45,9 +46,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
       // If paymentOptions exists and has wallet constraints, check if Ethereum is allowed
       if (paymentOptions && paymentOptions.length > 0) {
         const walletOptions = ["Ethereum", "Solana", "Stellar"];
-        const hasWalletConstraints = paymentOptions.some((opt) =>
-          walletOptions.includes(opt)
-        );
+        const hasWalletConstraints = paymentOptions.some((opt) => walletOptions.includes(opt));
         if (hasWalletConstraints) {
           return paymentOptions.includes("Ethereum");
         }
@@ -61,9 +60,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     if (["solana", "all"].includes(mode)) {
       if (paymentOptions && paymentOptions.length > 0) {
         const walletOptions = ["Ethereum", "Solana", "Stellar"];
-        const hasWalletConstraints = paymentOptions.some((opt) =>
-          walletOptions.includes(opt)
-        );
+        const hasWalletConstraints = paymentOptions.some((opt) => walletOptions.includes(opt));
         if (hasWalletConstraints) {
           return paymentOptions.includes("Solana");
         }
@@ -77,9 +74,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     if (["stellar", "all"].includes(mode)) {
       if (paymentOptions && paymentOptions.length > 0) {
         const walletOptions = ["Ethereum", "Solana", "Stellar"];
-        const hasWalletConstraints = paymentOptions.some((opt) =>
-          walletOptions.includes(opt)
-        );
+        const hasWalletConstraints = paymentOptions.some((opt) => walletOptions.includes(opt));
         if (hasWalletConstraints) {
           return paymentOptions.includes("Stellar");
         }
@@ -99,7 +94,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
           isDepositFlow,
           setSelectedTokenOption,
           setRoute,
-          preferredTokens
+          preferredTokens,
         );
     optionsList.push(...evmOptions);
     isLoading = walletPaymentOptions.isLoading;
@@ -115,7 +110,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
       isDepositFlow,
       setSelectedSolanaTokenOption,
       setRoute,
-      preferredTokens
+      preferredTokens,
     );
     optionsList.push(...solanaOptions);
     isLoading = solanaPaymentOptions.isLoading;
@@ -132,7 +127,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
           isDepositFlow,
           setSelectedStellarTokenOption,
           setRoute,
-          preferredTokens
+          preferredTokens,
         );
     optionsList.push(...stellarOptions);
     isLoading = stellarPaymentOptions.isLoading;
@@ -154,12 +149,10 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
 
     if (isNaN(chainId)) return false;
 
-    const normalizeAddress = (addr: string) => addr.toLowerCase();
-
     return preferredTokens.some(
       (pt) =>
         pt.chainId === chainId &&
-        normalizeAddress(pt.token) === normalizeAddress(tokenAddress)
+        normalizeTokenAddress(chainId, pt.token) === normalizeTokenAddress(chainId, tokenAddress),
     );
   };
 
@@ -186,14 +179,11 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   // Smart refresh function that only refreshes hooks that need it
   const refreshOptions = useCallback(async () => {
     const { ethWalletAddress, solanaPubKey, stellarPubKey } = paymentState;
-    const refreshPromises: Promise<void>[] = [];
-
-    // Only refresh EVM options if we have EVM address and need EVM data
+    const refreshPromises: Promise<unknown>[] = [];
     if (
       ["evm", "all"].includes(mode) &&
       ethWalletAddress &&
-      (!walletPaymentOptions.options ||
-        walletPaymentOptions.options.length === 0)
+      (!walletPaymentOptions.options || walletPaymentOptions.options.length === 0)
     ) {
       refreshPromises.push(walletPaymentOptions.refreshOptions());
     }
@@ -202,8 +192,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     if (
       ["solana", "all"].includes(mode) &&
       solanaPubKey &&
-      (!solanaPaymentOptions.options ||
-        solanaPaymentOptions.options.length === 0)
+      (!solanaPaymentOptions.options || solanaPaymentOptions.options.length === 0)
     ) {
       refreshPromises.push(solanaPaymentOptions.refreshOptions());
     }
@@ -212,20 +201,13 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     if (
       ["stellar", "all"].includes(mode) &&
       stellarPubKey &&
-      (!stellarPaymentOptions.options ||
-        stellarPaymentOptions.options.length === 0)
+      (!stellarPaymentOptions.options || stellarPaymentOptions.options.length === 0)
     ) {
       refreshPromises.push(stellarPaymentOptions.refreshOptions());
     }
 
     await Promise.all(refreshPromises);
-  }, [
-    mode,
-    paymentState,
-    walletPaymentOptions,
-    solanaPaymentOptions,
-    stellarPaymentOptions,
-  ]);
+  }, [mode, paymentState, walletPaymentOptions, solanaPaymentOptions, stellarPaymentOptions]);
 
   // Smart refresh that only fetches when necessary
   const debouncedRefreshRef = useRef<NodeJS.Timeout | null>(null);
@@ -235,8 +217,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   const isRefreshingRef = useRef<boolean>(false);
 
   const smartRefresh = useCallback(() => {
-    const { ethWalletAddress, solanaPubKey, stellarPubKey, orderUsdAmount } =
-      paymentState;
+    const { ethWalletAddress, solanaPubKey, stellarPubKey, orderUsdAmount } = paymentState;
     const currentAddresses = `${ethWalletAddress || ""}-${solanaPubKey || ""}-${
       stellarPubKey || ""
     }`;
@@ -246,20 +227,11 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
       if (mode === "all") {
         return sortedOptionsList.length > 0;
       } else if (mode === "evm") {
-        return Boolean(
-          walletPaymentOptions.options &&
-          walletPaymentOptions.options.length > 0
-        );
+        return Boolean(walletPaymentOptions.options && walletPaymentOptions.options.length > 0);
       } else if (mode === "solana") {
-        return Boolean(
-          solanaPaymentOptions.options &&
-          solanaPaymentOptions.options.length > 0
-        );
+        return Boolean(solanaPaymentOptions.options && solanaPaymentOptions.options.length > 0);
       } else if (mode === "stellar") {
-        return Boolean(
-          stellarPaymentOptions.options &&
-          stellarPaymentOptions.options.length > 0
-        );
+        return Boolean(stellarPaymentOptions.options && stellarPaymentOptions.options.length > 0);
       }
       return false;
     })();
@@ -329,23 +301,17 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   // Manual refresh function for user-triggered refreshes (like clicking refresh button)
   const manualRefresh = useCallback(async () => {
     // Force refresh all relevant payment options regardless of current state
-    const refreshPromises: Promise<void>[] = [];
+    const refreshPromises: Promise<unknown>[] = [];
 
     if (["evm", "all"].includes(mode) && walletPaymentOptions.refreshOptions) {
       refreshPromises.push(walletPaymentOptions.refreshOptions());
     }
 
-    if (
-      ["solana", "all"].includes(mode) &&
-      solanaPaymentOptions.refreshOptions
-    ) {
+    if (["solana", "all"].includes(mode) && solanaPaymentOptions.refreshOptions) {
       refreshPromises.push(solanaPaymentOptions.refreshOptions());
     }
 
-    if (
-      ["stellar", "all"].includes(mode) &&
-      stellarPaymentOptions.refreshOptions
-    ) {
+    if (["stellar", "all"].includes(mode) && stellarPaymentOptions.refreshOptions) {
       refreshPromises.push(stellarPaymentOptions.refreshOptions());
     }
 
@@ -363,15 +329,10 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
       // If we should include EVM but don't have required params, hook can't fetch
       // In deposit flow, orderUsdAmount is undefined, which is valid
       const hasValidParams =
-        ethWalletAddress &&
-        destChainId != null &&
-        (isDepositFlow || orderUsdAmount != null);
+        ethWalletAddress && destChainId != null && (isDepositFlow || orderUsdAmount != null);
       if (!hasValidParams) {
         // If hook hasn't fetched yet (options === null), it means it can't fetch
-        if (
-          walletPaymentOptions.options === null &&
-          walletPaymentOptions.isLoading
-        ) {
+        if (walletPaymentOptions.options === null && walletPaymentOptions.isLoading) {
           return false; // Hook is stuck loading because it can't fetch
         }
       }
@@ -380,13 +341,9 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     if (shouldIncludeSolana) {
       const { solanaPubKey, orderUsdAmount } = paymentState;
       // In deposit flow, orderUsdAmount is undefined, which is valid
-      const hasValidParams =
-        solanaPubKey && (isDepositFlow || orderUsdAmount != null);
+      const hasValidParams = solanaPubKey && (isDepositFlow || orderUsdAmount != null);
       if (!hasValidParams) {
-        if (
-          solanaPaymentOptions.options === null &&
-          solanaPaymentOptions.isLoading
-        ) {
+        if (solanaPaymentOptions.options === null && solanaPaymentOptions.isLoading) {
           return false;
         }
       }
@@ -395,13 +352,9 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     if (shouldIncludeStellar) {
       const { stellarPubKey, orderUsdAmount } = paymentState;
       // In deposit flow, orderUsdAmount is undefined, which is valid
-      const hasValidParams =
-        stellarPubKey && (isDepositFlow || orderUsdAmount != null);
+      const hasValidParams = stellarPubKey && (isDepositFlow || orderUsdAmount != null);
       if (!hasValidParams) {
-        if (
-          stellarPaymentOptions.options === null &&
-          stellarPaymentOptions.isLoading
-        ) {
+        if (stellarPaymentOptions.options === null && stellarPaymentOptions.isLoading) {
           return false;
         }
       }
@@ -427,9 +380,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
       // e.g. EVM+Solana are done but Stellar is still loading in mode "all")
       sortedOptionsList.length > 0
         ? false
-        : connectedWalletOnly &&
-            sortedOptionsList.length === 0 &&
-            !hasRelevantHooksWithValidParams
+        : connectedWalletOnly && sortedOptionsList.length === 0 && !hasRelevantHooksWithValidParams
           ? false
           : isLoading && (!hasAnyData || sortedOptionsList.length === 0),
     [
@@ -438,7 +389,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
       hasRelevantHooksWithValidParams,
       isLoading,
       hasAnyData,
-    ]
+    ],
   );
 
   return {
@@ -453,26 +404,20 @@ function getEvmTokenOptions(
   isDepositFlow: boolean,
   setSelectedTokenOption: (option: WalletPaymentOption) => void,
   setRoute: (route: ROUTES, meta?: any) => void,
-  _preferredTokens?: Token[]
+  _preferredTokens?: Token[],
 ) {
   return options.map((option) => {
     const chainName = getChainName(option.balance.token.chainId);
     const titlePrice = isDepositFlow
       ? formatUsd(option.balance.usd, "down", option.balance.token.fiatISO)
-      : roundTokenAmount(
-          option.required.amount,
-          option.required.token,
-          "nearest"
-        );
+      : roundTokenAmount(option.required.amount, option.required.token, "nearest");
     const title = `${titlePrice} ${option.balance.token.symbol} on ${chainName}`;
 
     const balanceStr = `${roundTokenAmount(
       option.balance.amount,
-      option.balance.token
+      option.balance.token,
     )} ${option.balance.token.symbol}`;
-    const subtitle =
-      option.disabledReason ??
-      `${isDepositFlow ? "" : "Balance: "}${balanceStr}`;
+    const subtitle = option.disabledReason ?? `${isDepositFlow ? "" : "Balance: "}${balanceStr}`;
     const disabled = option.disabledReason != null;
 
     return {
@@ -481,10 +426,7 @@ function getEvmTokenOptions(
       title,
       subtitle,
       icons: [
-        <TokenChainLogo
-          key={getRozoTokenKey(option.balance.token)}
-          token={option.balance.token}
-        />,
+        <TokenChainLogo key={getRozoTokenKey(option.balance.token)} token={option.balance.token} />,
       ],
       onClick: () => {
         setSelectedTokenOption(option);
@@ -509,24 +451,18 @@ function getSolanaTokenOptions(
   isDepositFlow: boolean,
   setSelectedSolanaTokenOption: (option: WalletPaymentOption) => void,
   setRoute: (route: ROUTES, meta?: any) => void,
-  _preferredTokens?: Token[]
+  _preferredTokens?: Token[],
 ) {
   return options.map((option) => {
     const titlePrice = isDepositFlow
       ? formatUsd(option.balance.usd, "down", option.balance.token.fiatISO)
-      : roundTokenAmount(
-          option.required.amount,
-          option.required.token,
-          "nearest"
-        );
+      : roundTokenAmount(option.required.amount, option.required.token, "nearest");
     const title = `${titlePrice} ${option.balance.token.symbol} on Solana`;
     const balanceStr = `${roundTokenAmount(
       option.balance.amount,
-      option.balance.token
+      option.balance.token,
     )} ${option.balance.token.symbol}`;
-    const subtitle =
-      option.disabledReason ??
-      `${isDepositFlow ? "" : "Balance: "}${balanceStr}`;
+    const subtitle = option.disabledReason ?? `${isDepositFlow ? "" : "Balance: "}${balanceStr}`;
     const disabled = option.disabledReason != null;
 
     return {
@@ -535,10 +471,7 @@ function getSolanaTokenOptions(
       title,
       subtitle,
       icons: [
-        <TokenChainLogo
-          key={getRozoTokenKey(option.balance.token)}
-          token={option.balance.token}
-        />,
+        <TokenChainLogo key={getRozoTokenKey(option.balance.token)} token={option.balance.token} />,
       ],
       onClick: () => {
         setSelectedSolanaTokenOption(option);
@@ -563,24 +496,18 @@ function getStellarTokenOptions(
   isDepositFlow: boolean,
   setSelectedStellarTokenOption: (option: WalletPaymentOption) => void,
   setRoute: (route: ROUTES, meta?: any) => void,
-  _preferredTokens?: Token[]
+  _preferredTokens?: Token[],
 ) {
   return options.map((option) => {
     const titlePrice = isDepositFlow
       ? formatUsd(option.balance.usd, "down", option.balance.token.fiatISO)
-      : roundTokenAmount(
-          option.required.amount,
-          option.required.token,
-          "nearest"
-        );
+      : roundTokenAmount(option.required.amount, option.required.token, "nearest");
     const title = `${titlePrice} ${option.balance.token.symbol} on Stellar`;
     const balanceStr = `${roundTokenAmount(
       option.balance.amount,
-      option.balance.token
+      option.balance.token,
     )} ${option.balance.token.symbol}`;
-    const subtitle =
-      option.disabledReason ??
-      `${isDepositFlow ? "" : "Balance: "}${balanceStr}`;
+    const subtitle = option.disabledReason ?? `${isDepositFlow ? "" : "Balance: "}${balanceStr}`;
     const disabled = option.disabledReason != null;
 
     return {
@@ -589,10 +516,7 @@ function getStellarTokenOptions(
       title,
       subtitle,
       icons: [
-        <TokenChainLogo
-          key={getRozoTokenKey(option.balance.token)}
-          token={option.balance.token}
-        />,
+        <TokenChainLogo key={getRozoTokenKey(option.balance.token)} token={option.balance.token} />,
       ],
       onClick: () => {
         setSelectedStellarTokenOption(option);

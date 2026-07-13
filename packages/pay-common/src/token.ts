@@ -18,6 +18,7 @@ import {
   solana,
   stellar,
   worldchain,
+  getChainById,
 } from "./chain";
 
 export type Token = {
@@ -356,13 +357,7 @@ export const celoCUSD: Token = token({
   logoURI: TokenLogo.cUSD,
 });
 
-const celoTokens: Token[] = [
-  celoCelo,
-  celoAxlUSDC,
-  celoUSDC,
-  celoUSDT,
-  celoCUSD,
-];
+const celoTokens: Token[] = [celoCelo, celoAxlUSDC, celoUSDC, celoUSDT, celoCUSD];
 
 //
 // Ethereum
@@ -473,13 +468,7 @@ export const lineaDAI: Token = token({
   logoURI: TokenLogo.DAI,
 });
 
-const lineaTokens: Token[] = [
-  lineaETH,
-  lineaWETH,
-  lineaUSDC,
-  lineaAxlUSDC,
-  lineaDAI,
-];
+const lineaTokens: Token[] = [lineaETH, lineaWETH, lineaUSDC, lineaAxlUSDC, lineaDAI];
 
 //
 // Mantle
@@ -531,13 +520,7 @@ export const mantleAxlUSDC: Token = token({
   logoURI: TokenLogo.USDC,
 });
 
-const mantleTokens: Token[] = [
-  mantleMNT,
-  mantleWMNT,
-  mantleBridgedUSDC,
-  mantleUSDT,
-  mantleAxlUSDC,
-];
+const mantleTokens: Token[] = [mantleMNT, mantleWMNT, mantleBridgedUSDC, mantleUSDT, mantleAxlUSDC];
 
 //
 // Optimism
@@ -818,12 +801,7 @@ export const rozoStellarEURC: Token = token({
   logoURI: TokenLogo.EURC,
 });
 
-const stellarTokens: Token[] = [
-  stellarXLM,
-  stellarUSDC,
-  rozoStellarUSDC,
-  rozoStellarEURC,
-];
+const stellarTokens: Token[] = [stellarXLM, stellarUSDC, rozoStellarUSDC, rozoStellarEURC];
 
 //
 // Worldchain
@@ -993,15 +971,39 @@ export const knownTokens: Token[] = Array.from(supportedTokens.values()).flat();
 export const knownChains: number[] = Array.from(supportedTokens.keys());
 /* --------------------- Tokens By Address --------------------- */
 
+/**
+ * Chain-aware address normalizer. EVM addresses are case-insensitive (EIP-55),
+ * so they're lowercased for lookups; Solana (base58) and Stellar (StrKey) are
+ * case-sensitive, so lowercasing would corrupt them. Pass `chainId` so the
+ * right rule applies. Null-safe: returns undefined for a missing address.
+ */
+export function normalizeTokenAddress(
+  chainId: number | undefined,
+  address: string | null | undefined,
+): string | undefined {
+  if (address == null) return undefined;
+  // ponytail: getChainById throws on unknown chain; never crash a comparison
+  let type: "evm" | "solana" | "stellar" | undefined;
+  try {
+    type = getChainById(chainId as number).type;
+  } catch {
+    type = undefined;
+  }
+  return type === "evm" ? address.toLowerCase() : address;
+}
+
 const tokensByChainAddr = new Map<string, Token>(
-  knownTokens.map((t) => [`${t.chainId}-${t.token}`, t]),
+  knownTokens.map((t) => [
+    `${t.chainId}-${normalizeTokenAddress(t.chainId, t.token) ?? t.token}`,
+    t,
+  ]),
 );
 
-export function getKnownToken(
-  chainId: number,
-  tokenAddress: string,
-): Token | undefined {
-  return tokensByChainAddr.get(`${chainId}-${tokenAddress}`);
+export function getKnownToken(chainId: number, tokenAddress: string): Token | undefined {
+  if (tokenAddress == null) return undefined;
+  return tokensByChainAddr.get(
+    `${chainId}-${normalizeTokenAddress(chainId, tokenAddress) ?? tokenAddress}`,
+  );
 }
 
 /* --------------------- Tokens By Type --------------------- */
@@ -1016,10 +1018,7 @@ enum TokenType {
   DAI = "DAI",
 }
 
-const tokensByChainAndType: Map<
-  number,
-  Partial<Record<TokenType, Token>>
-> = new Map([
+const tokensByChainAndType: Map<number, Partial<Record<TokenType, Token>>> = new Map([
   [
     arbitrum.chainId,
     {
