@@ -29,7 +29,7 @@ import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import styled from "../../../styles/styled";
 import { getCachedFee, resolveOrderAppId } from "../../../utils/feeCache";
-import { formatUsd, generateStellarDeepLink } from "../../../utils/format";
+import { formatUsd, generateStellarDeepLink, trimTokenAmount } from "../../../utils/format";
 import { isNativeToken } from "../../../utils/token";
 import Button from "../../Common/Button";
 import CircleTimer from "../../Common/CircleTimer";
@@ -101,7 +101,6 @@ export default function WaitingDepositAddress() {
   const [depAddr, setDepAddr] = useState<DepositAddr>();
   const [failed, setFailed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [depoChain, setDepoChain] = useState<string>();
   const [hasExecutedDepositCall, setHasExecutedDepositCall] = useState(false);
   const [feeData, setFeeData] = useState<FeeResponseData | null>(null);
   const [feeError, setFeeError] = useState<FeeErrorData | null>(null);
@@ -117,7 +116,7 @@ export default function WaitingDepositAddress() {
 
   const isNativeSource = useMemo(() => {
     return (
-      selectedDepositAddressOption != null && isNativeToken(selectedDepositAddressOption.token)
+      selectedDepositAddressOption != null && isNativeToken(selectedDepositAddressOption.token.token)
     );
   }, [selectedDepositAddressOption]);
 
@@ -520,7 +519,6 @@ export default function WaitingDepositAddress() {
             memo,
           });
           setRozoPaymentId(details.externalId);
-          setDepoChain(selectedDepositAddressOption.id);
         } else if (details === null) {
           // Duplicate call was prevented - reset loading states
           setIsLoading(false);
@@ -635,7 +633,6 @@ export default function WaitingDepositAddress() {
           <DepositAddressInfo
             depAddr={depAddr}
             feeData={feeData}
-            isNativeSource={isNativeSource}
             refresh={generateDepositAddress}
             triggerResize={triggerResize}
           />
@@ -717,13 +714,11 @@ function FeeErrorContent({ feeError, fiatISO }: { feeError: FeeErrorData; fiatIS
 function DepositAddressInfo({
   depAddr,
   feeData,
-  isNativeSource,
   refresh,
   triggerResize,
 }: {
   depAddr: DepositAddr;
   feeData: FeeResponseData | null;
-  isNativeSource: boolean;
   refresh: () => void;
   triggerResize: () => void;
 }) {
@@ -755,22 +750,10 @@ function DepositAddressInfo({
           <CustomQRCode value={depAddr?.uri} contentPadding={24} size={200} image={logoElement} />
         </QRWrap>
       )}
-      <CopyableInfo
-        isNativeSource={isNativeSource}
-        depAddr={depAddr}
-        feeData={feeData}
-        remainingS={remainingS}
-        totalS={totalS}
-      />
+      <CopyableInfo depAddr={depAddr} feeData={feeData} remainingS={remainingS} totalS={totalS} />
     </ModalContent>
   );
 }
-
-const LogoWrap = styled.div`
-  position: relative;
-  width: 64px;
-  height: 64px;
-`;
 
 const LogoRow = styled.div`
   padding: 32px 0;
@@ -788,14 +771,12 @@ const QRWrap = styled.div`
 
 function CopyableInfo({
   depAddr,
-  isNativeSource,
   feeData,
   remainingS,
   totalS,
 }: {
   depAddr?: DepositAddr;
   feeData: FeeResponseData | null;
-  isNativeSource: boolean;
   remainingS: number;
   totalS: number;
 }) {
@@ -812,20 +793,24 @@ function CopyableInfo({
           value={
             parseFloat(feeData.source.fee) === 0
               ? "Free"
-              : `${feeData.source.fee} ${feeData.source.tokenSymbol} (${feeData.feeInfo.feePercentage})`
+              : `${trimTokenAmount(feeData.source.fee)} ${feeData.source.tokenSymbol} (${feeData.feeInfo.feePercentage})`
           }
         />
       )}
       <CopyRowOrThrobber
+        dataTestId="rozopay-send-exactly"
         title="Send Exactly"
         value={depAddr?.amount}
         valueText={
-          depAddr?.amount ? `${depAddr.amount} ${sourceTokenSymbol ?? ""}`.trim() : undefined
+          depAddr?.amount
+            ? `${trimTokenAmount(depAddr.amount)} ${sourceTokenSymbol ?? ""}`.trim()
+            : undefined
         }
         smallText={depAddr?.coins}
         disabled={isExpired}
       />
       <CopyRowOrThrobber
+        dataTestId="rozopay-receiving-address"
         title="Receiving Address"
         value={depAddr?.address}
         valueText={depAddr?.address && getAddressContraction(depAddr.address)}
@@ -833,6 +818,7 @@ function CopyableInfo({
       />
       {depAddr?.memo && (
         <CopyRowOrThrobber
+          dataTestId="rozopay-memo"
           title="Memo"
           value={depAddr.memo}
           valueText={depAddr.memo}
@@ -1045,12 +1031,14 @@ const Skeleton = styled.div`
 `;
 
 function CopyRowOrThrobber({
+  dataTestId,
   title,
   value,
   valueText,
   smallText,
   disabled,
 }: {
+  dataTestId?: string;
   title: string;
   value?: string;
   valueText?: string;
@@ -1072,7 +1060,7 @@ function CopyRowOrThrobber({
 
   if (!value) {
     return (
-      <CopyRow>
+      <CopyRow data-testid={dataTestId}>
         <LabelRow>
           <LabelText>{title}</LabelText>
         </LabelRow>
@@ -1086,7 +1074,13 @@ function CopyRowOrThrobber({
   const displayValue = valueText || value;
 
   return (
-    <CopyRow as="button" onClick={handleCopy} disabled={disabled}>
+    <CopyRow
+      as="button"
+      onClick={handleCopy}
+      disabled={disabled}
+      data-testid={dataTestId}
+      data-value={value}
+    >
       <div>
         <LabelRow>
           <LabelText>{title}</LabelText>

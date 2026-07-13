@@ -20,7 +20,7 @@ const TokenLogoSpinner = ({
   nativeAsChainIcon?: boolean;
 }) => {
   const chainLogo = chainToLogo[token.chainId];
-  const showChainAsMain = nativeAsChainIcon && isNativeToken(token) && chainLogo != null;
+  const showChainAsMain = nativeAsChainIcon && isNativeToken(token.token) && chainLogo != null;
 
   return (
     <LoadingContainer>

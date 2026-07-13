@@ -15,15 +15,12 @@
 import { test } from "@playwright/test"
 import { E2E } from "../../env"
 import {
+  payInWithStellarHeadless,
   reportPayment,
   startMerchantCheckout,
   useStellarSigner,
   waitForPayoutCompleted,
 } from "../../helpers"
-
-// ponytail: XLM literal + rozoStellar chainId 1500 from
-// pay-common/src/chain.ts and token.ts.
-const XLM_SOURCE_OPTION_ID = "1500-XLM"
 
 test.describe("Merchant (payId): Stellar XLM → merchant (mainnet, real funds)", () => {
   test.skip(
@@ -48,22 +45,17 @@ test.describe("Merchant (payId): Stellar XLM → merchant (mainnet, real funds)"
   }) => {
     await useStellarSigner(page, E2E.stellar.secret!)
 
+    // ponytail: native XLM requires ~$0.10 USD minimum. Merchant amount is in
+    // local currency (RM); 0.50 RM ≈ $0.11-$0.13 USD, safely above threshold.
     payId = await startMerchantCheckout(page, {
       apiUrl: E2E.merchant.apiUrl,
       appId: E2E.merchant.appId!,
-      amountLocal: E2E.merchant.amountLocal,
+      amountLocal: "0.50",
       currencyLocal: E2E.merchant.currencyLocal,
-      source: { chainId: "8453", tokenSymbol: "XLM" },
+      source: { chainId: "1500", tokenSymbol: "XLM" },
     })
 
-    // ponytail: payInWithStellarHeadless hardcodes a USDC text filter, so the
-    // XLM option click is inlined here rather than mutating the shared helper.
-    await page.getByTestId(`rozopay-option-${XLM_SOURCE_OPTION_ID}`).click()
-    await page.getByRole("button", { name: /confirm/i }).click()
-    await page.waitForSelector("[data-testid='rozopay-status-completed']", {
-      timeout: 120_000,
-    })
-
+    await payInWithStellarHeadless(page, /XLM/i)
     await waitForPayoutCompleted(page)
   })
 })

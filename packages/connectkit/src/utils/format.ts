@@ -224,6 +224,15 @@ export function tokenBaseAmountToDecimalString(
  * human-readable) and converts it up to base units via `parseUnits`;
  * otherwise assumes the string is already an integer base-units amount.
  */
+/**
+ * Strip trailing zeros from a non-native token amount string for display.
+ * "0.0200" → "0.02", "1.5000" → "1.5", "1.0" → "1"
+ * Only for display — never use for calculations or on-chain amounts.
+ */
+export function trimTokenAmount(amount: string): string {
+  return String(parseFloat(amount));
+}
+
 export function tokenAmountToBaseUnits(amount: bigint | BigIntStr, decimals: number): bigint {
   if (typeof amount === "string" && amount.includes(".")) {
     return parseUnits(amount, decimals);

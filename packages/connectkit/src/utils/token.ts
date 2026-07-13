@@ -1,26 +1,6 @@
-import { supportedTokens, Token, TokenSymbol } from "@rozoai/intent-common";
-import { ethAddress } from "viem";
+import { isNativeToken, supportedTokens, Token, TokenSymbol } from "@rozoai/intent-common";
 
-/**
- * Native-token address markers across supported ecosystems:
- * - EVM natives (ETH/BNB/POL/MNT) all use the conventional `ethAddress`
- *   placeholder (0xEeee…eEeE).
- * - Solana native SOL uses the system program address.
- * - Stellar native XLM uses the "XLM" sentinel.
- *
- * A token is "native" when its address matches one of these (case-insensitive).
- */
-const NATIVE_TOKEN_ADDRESSES = new Set(
-  [ethAddress, "11111111111111111111111111111112", "XLM"].map((a) =>
-    a.toLowerCase(),
-  ),
-);
-
-/** Returns true if the given token is a chain-native token (ETH/BNB/POL/SOL/XLM, etc.). */
-export function isNativeToken(token: { token: string } | null | undefined): boolean {
-  if (!token?.token) return false;
-  return NATIVE_TOKEN_ADDRESSES.has(token.token.toLowerCase());
-}
+export { isNativeToken };
 
 /**
  * Converts preferredSymbol array to preferredTokens array.

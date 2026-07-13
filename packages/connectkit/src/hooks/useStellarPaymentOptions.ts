@@ -59,17 +59,26 @@ export function useStellarPaymentOptions({
       memoizedPreferredTokens,
     ],
     queryFn: () => {
-      // Filter preferredTokenAddress to only include Stellar chain tokens
       const stellarPreferredTokenAddresses = (memoizedPreferredTokens ?? [])
         .filter((t) => stellarChainIds.has(t.chainId))
         .map((t) => t.token);
+
+      // Only send preferredTokenAddress when the filter actively restricts
+      // tokens (i.e. XLM is absent from the list — e.g. EURC-only or
+      // consumer-provided USDC-only list). When XLM is present (default wide
+      // list or consumer explicitly including it), omit the filter so the
+      // backend returns all available Stellar tokens. This prevents the
+      // default stablecoin-derived preference from hiding native XLM options.
+      const isRestrictive =
+        stellarPreferredTokenAddresses.length > 0 &&
+        !stellarPreferredTokenAddresses.includes("XLM");
 
       return trpc.getStellarPaymentOptions.query({
         stellarAddress: address,
         // API expects undefined for deposit flow.
         usdRequired: isDepositFlow ? undefined : usdRequired,
         appId: stableAppId,
-        preferredTokenAddress: stellarPreferredTokenAddresses,
+        preferredTokenAddress: isRestrictive ? stellarPreferredTokenAddresses : undefined,
       });
     },
     staleTime: 30_000,
@@ -119,7 +128,7 @@ export function useStellarPaymentOptions({
         // Set `disabledReason` manually (based on current usdRequired state, not API Request)
         const knownToken = getKnownToken(item.balance.token.chainId, item.balance.token.token);
         const fiatISO = knownToken?.fiatISO ?? item.balance.token.fiatISO;
-        const isNative = isNativeToken(item.balance.token);
+        const isNative = isNativeToken(item.balance.token.token);
 
         if (item.balance.usd < usd) {
           if (isNative) {

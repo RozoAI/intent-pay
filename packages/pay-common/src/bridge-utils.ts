@@ -3,6 +3,7 @@ import {
   getChainById,
   getKnownToken,
   isChainSupported,
+  isNativeToken,
   isTokenSupported,
   PaymentResponse,
   RozoPayHydratedOrderWithOrg,
@@ -308,14 +309,17 @@ export function formatPaymentResponseToHydratedOrder(
   order: PaymentResponse,
 ): RozoPayHydratedOrderWithOrg {
   // Amount the recipient ultimately receives, in destination-token units.
-  // This is what `destFinalCallTokenAmount` and `usdValue` must reflect — NOT
-  // `source.amount`, which is denominated in the *source* token. For 1:1-USD
-  // sources (USDC/USDT) the two coincide, but for native sources (SOL/ETH/XLM)
-  // the source amount is a completely different figure (e.g. 0.016885 SOL for a
-  // 1.30 USDC payout). Using source.amount here corrupts usdValue/usdRequired
-  // (e.g. showing "$0.02" and re-querying token options with the SOL amount).
-  const destinationAmountUnits =
-    order.destination?.amount ?? order.destination?.amountUnits ?? order.source?.amount ?? "0";
+  // This is what `destFinalCallTokenAmount` and `usdValue` must reflect.
+  //
+  // Rule: if the SOURCE token is native (ETH/SOL/XLM), its `source.amount`
+  // is denominated in native units (e.g. 0.00007449 ETH) — not USD.
+  // Use `destination.amount` (stablecoin payout, USD-denominated) instead.
+  // If source is a stablecoin, source.amount is already USD and is preferred
+  // (it includes fees).
+  const sourceIsNative = isNativeToken(order.source?.tokenAddress);
+  const destinationAmountUnits = sourceIsNative
+    ? (order.destination?.amount ?? order.destination?.amountUnits ?? "0")
+    : (order.source?.amount ?? order.destination?.amount ?? order.destination?.amountUnits ?? "0");
 
   // Deposit (pay-in) address – where the user actually sends funds.
   const depositAddress = order.source?.receiverAddress ?? "";
@@ -394,7 +398,7 @@ export function formatPaymentResponseToHydratedOrder(
     lastUpdatedAt: Math.floor(new Date(order.updatedAt).getTime() / 1000),
     orgId: order.orgId ?? "",
     metadata: {
-      ...(order?.metadata ?? {}),
+      ...order?.metadata,
       // Preserve the top-level appId from the payment API response so
       // payId/checkout mode (which has no payParams.appId) can still resolve
       // it via order.metadata.appId (see resolveOrderAppId in connectkit).

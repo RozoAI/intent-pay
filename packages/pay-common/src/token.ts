@@ -1,4 +1,4 @@
-import { ethAddress, getAddress } from "viem";
+import { ethAddress, getAddress, zeroAddress } from "viem";
 import { assertNotNull } from "./assert";
 import {
   arbitrum,
@@ -979,7 +979,10 @@ export const knownChains: number[] = Array.from(supportedTokens.keys());
 // createPaymentBridgeConfig for native ETH/BNB/POL). Solana/Stellar addresses
 // are lower-cased on both sides consistently, so they still resolve uniquely.
 const tokensByChainAddr = new Map<string, Token>(
-  knownTokens.map((t) => [`${t.chainId}-${normalizeTokenAddress(t.chainId, t.token) ?? t.token}`, t]),
+  knownTokens.map((t) => [
+    `${t.chainId}-${normalizeTokenAddress(t.chainId, t.token) ?? t.token}`,
+    t,
+  ]),
 );
 
 /**
@@ -1266,4 +1269,20 @@ export function token({
     logoURI,
     logoSourceURI: logoURI,
   };
+}
+
+/**
+ * Native-token address sentinels across supported ecosystems:
+ * - EVM natives (ETH/BNB/POL/MNT/etc) use ethAddress (EIP-7528) or zeroAddress.
+ * - Solana native SOL uses the system program address.
+ * - Stellar native XLM uses the "XLM" sentinel.
+ */
+export const NATIVE_TOKEN_ADDRESSES = new Set(
+  [ethAddress, zeroAddress, "11111111111111111111111111111112", "XLM"].map((a) => a.toLowerCase()),
+);
+
+/** Returns true if the given token address is a chain-native token (ETH/BNB/POL/SOL/XLM, etc.). */
+export function isNativeToken(tokenAddress: string | null | undefined): boolean {
+  if (!tokenAddress) return false;
+  return NATIVE_TOKEN_ADDRESSES.has(tokenAddress.toLowerCase());
 }

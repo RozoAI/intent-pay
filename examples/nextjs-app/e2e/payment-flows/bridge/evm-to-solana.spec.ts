@@ -16,6 +16,8 @@ import {
   payInWithMetaMask,
   startBridgePayment,
   waitForPayoutCompleted,
+  setupPaymentIdCapture,
+  reportPayment,
 } from "../../helpers"
 
 const test = testWithChainwright(metamaskFixture())
@@ -26,10 +28,21 @@ test.describe("Bridge: EVM USDC → Solana (mainnet, real funds)", () => {
     "Set E2E_EVM_SEED_PHRASE and E2E_SOLANA_ADDRESS in .env.e2e"
   )
 
+  let getPayId: (() => string | undefined) | undefined
+
+  test.afterEach(async ({}, testInfo) => {
+    await reportPayment(testInfo, {
+      payId: getPayId?.(),
+      route: "EVM USDC → Solana",
+      status: testInfo.status,
+    })
+  })
+
   test("send USDC from EVM to Solana destination", async ({
     page,
     metamask,
   }) => {
+    getPayId = setupPaymentIdCapture(page)
     await metamask.unlock()
 
     await startBridgePayment(page, {

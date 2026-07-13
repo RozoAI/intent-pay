@@ -14,6 +14,8 @@ import {
   startCheckoutPayment,
   useStellarSigner,
   waitForPayoutCompleted,
+  setupPaymentIdCapture,
+  reportPayment,
 } from "../../helpers"
 
 test.describe("Checkout (payId): Stellar USDC → Solana (mainnet, real funds)", () => {
@@ -22,9 +24,20 @@ test.describe("Checkout (payId): Stellar USDC → Solana (mainnet, real funds)",
     "Set E2E_STELLAR_SECRET and E2E_SOLANA_ADDRESS in .env.e2e"
   )
 
+  let getPayId: (() => string | undefined) | undefined
+
+  test.afterEach(async ({}, testInfo) => {
+    await reportPayment(testInfo, {
+      payId: getPayId?.(),
+      route: "Stellar USDC → Solana (checkout)",
+      status: testInfo.status,
+    })
+  })
+
   test("create a payId then pay it with USDC from Stellar to Solana", async ({
     page,
   }) => {
+    getPayId = setupPaymentIdCapture(page)
     await useStellarSigner(page, E2E.stellar.secret)
     await startCheckoutPayment(page, {
       destChain: "Solana",

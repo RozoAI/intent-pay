@@ -164,7 +164,7 @@ export function useWalletPaymentOptions({
         // Set `disabledReason` manually (based on current usdRequired state, not API Request)
         const knownToken = getKnownToken(item.balance.token.chainId, item.balance.token.token);
         const fiatISO = knownToken?.fiatISO ?? item.balance.token.fiatISO;
-        const isNative = isNativeToken(item.balance.token);
+        const isNative = isNativeToken(item.balance.token.token);
 
         if (item.balance.usd < usd) {
           if (isNative) {

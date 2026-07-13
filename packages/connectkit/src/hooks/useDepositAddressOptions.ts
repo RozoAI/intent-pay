@@ -97,7 +97,7 @@ export function useDepositAddressOptions({
   payParams,
 }: UseDepositAddressOptionsParams): UseDepositAddressOptionsReturn {
   const { data, isLoading, error } = useQuery<DepositAddressPaymentOptionMetadata[]>({
-    enabled: usdRequired != null && mode != null,
+    enabled: usdRequired != null && usdRequired > 0 && mode != null,
     queryKey: ["depositAddressOptions", usdRequired, mode],
     queryFn: async () => {
       try {

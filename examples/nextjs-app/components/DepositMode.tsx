@@ -49,7 +49,7 @@ export function DepositMode() {
     () =>
       isDestinationEURC
         ? [TokenSymbol.EURC]
-        : [TokenSymbol.USDC, TokenSymbol.USDT],
+        : undefined,
     [isDestinationEURC]
   )
 

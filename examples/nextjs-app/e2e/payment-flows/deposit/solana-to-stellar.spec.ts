@@ -18,6 +18,8 @@ import {
   startDepositPayment,
   unlockPhantomIfNeeded,
   waitForPayoutCompleted,
+  setupPaymentIdCapture,
+  reportPayment,
 } from "../../helpers"
 
 const test = testWithChainwright(phantomFixture())
@@ -28,11 +30,22 @@ test.describe("Deposit: Solana USDC → Stellar (mainnet, real funds)", () => {
     "Set E2E_SOLANA_SEED_PHRASE and E2E_STELLAR_ADDRESS in .env.e2e"
   )
 
+  let getPayId: (() => string | undefined) | undefined
+
+  test.afterEach(async ({}, testInfo) => {
+    await reportPayment(testInfo, {
+      payId: getPayId?.(),
+      route: "Solana USDC → Stellar (deposit)",
+      status: testInfo.status,
+    })
+  })
+
   test("deposit USDC from Solana to a Stellar destination", async ({
     page,
     phantom,
     phantomPage,
   }) => {
+    getPayId = setupPaymentIdCapture(page)
     await unlockPhantomIfNeeded(phantom, phantomPage)
 
     await startDepositPayment(page, {

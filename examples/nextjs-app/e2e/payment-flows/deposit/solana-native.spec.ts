@@ -1,21 +1,23 @@
 /**
- * Payment flow E2E — Solana USDC → EVM (Base) (mainnet, real funds).
+ * Payment flow E2E — Deposit: Solana SOL → EVM (Base) (mainnet, real funds).
  *
- * Source: Solana wallet via the Phantom extension (chainwright).
- * Destination: our EVM wallet address (E2E.evm.address).
+ * Deposit mode sets no upfront amount; the SOL amount is entered inside the
+ * SDK modal after selecting the source token. Source: Solana wallet via the
+ * Phantom extension (chainwright). Destination: our EVM wallet address
+ * (E2E.evm.address).
  *
  * THIS TEST MOVES REAL MONEY. Skipped unless E2E_SOLANA_SEED_PHRASE is set.
  *
  * Setup:  set E2E_SOLANA_SEED_PHRASE (Phantom recovery phrase) in .env.e2e, then
  *         build the cached Phantom profile:  pnpm setup-wallets
- * Run:    pnpm dev &  →  pnpm test:e2e:solana-to-evm
+ * Run:    pnpm dev &  →  pnpm test:e2e:deposit-solana-native
  */
 import { testWithChainwright } from "chainwright/core"
 import { phantomFixture } from "chainwright/phantom"
 import { E2E } from "../../env"
 import {
   payInWithPhantom,
-  startBridgePayment,
+  startDepositPayment,
   unlockPhantomIfNeeded,
   waitForPayoutCompleted,
   setupPaymentIdCapture,
@@ -24,7 +26,10 @@ import {
 
 const test = testWithChainwright(phantomFixture())
 
-test.describe("Bridge: Solana USDC → Base (mainnet, real funds)", () => {
+// ponytail: WSOL mint from pay-common/src/token.ts solanaSOL.
+const SOL_SOURCE_OPTION_ID = "501-So11111111111111111111111111111111111111112"
+
+test.describe("Deposit: Solana SOL → EVM (Base) (mainnet, real funds)", () => {
   test.skip(
     !E2E.solana.seedPhrase || !E2E.evm.address,
     "Set E2E_SOLANA_SEED_PHRASE and E2E_EVM_ADDRESS in .env.e2e"
@@ -35,28 +40,29 @@ test.describe("Bridge: Solana USDC → Base (mainnet, real funds)", () => {
   test.afterEach(async ({}, testInfo) => {
     await reportPayment(testInfo, {
       payId: getPayId?.(),
-      route: "Solana USDC → EVM (Base)",
+      route: "Solana SOL → EVM (Base) (deposit)",
       status: testInfo.status,
     })
   })
 
-  test("send USDC from Solana to EVM destination", async ({
+  test("deposit SOL from Solana to EVM destination", async ({
     page,
     phantom,
     phantomPage,
   }) => {
     getPayId = setupPaymentIdCapture(page)
-    // Cached Phantom profile usually starts unlocked — only unlock if locked.
     await unlockPhantomIfNeeded(phantom, phantomPage)
 
-    await startBridgePayment(page, {
+    await startDepositPayment(page, {
       destChain: "Base",
       destToken: "USDC",
-      address: E2E.evm.address,
-      amount: E2E.amount,
+      address: E2E.evm.address!,
     })
+    // ponytail: native SOL requires ~$1.00 USD minimum. depositAmount
+    // respects E2E_AMOUNT but enforces the SDK minimum.
     await payInWithPhantom(page, phantom, {
-      sourceOptionId: E2E.solana.sourceOptionId,
+      sourceOptionId: SOL_SOURCE_OPTION_ID,
+      amount: E2E.depositAmount,
     })
     await waitForPayoutCompleted(page)
   })

@@ -222,12 +222,12 @@ const PayWithSolanaToken: React.FC = () => {
         // ponytail: backend forbids `checkout` when rotating to a native source.
         // In payId mode there are no payParams to create a new order, so surface
         // a clear error instead of silently hanging on "Preparing Transaction".
-        if (isPayIdMode && isNativeToken(option.required.token)) {
-          const msg =
-            "Rotating an existing order to a native token is not supported. Please create a new payment.";
-          setRoute(ROUTES.ERROR, { error: msg });
-          return;
-        }
+        // if (isPayIdMode && isNativeToken(option.required.token.token)) {
+        //   const msg =
+        //     "Rotating an existing order to a native token is not supported. Please create a new payment.";
+        //   setRoute(ROUTES.ERROR, { error: msg });
+        //   return;
+        // }
 
         if (isPayIdMode) {
           // payId mode: checkout (refresh) the payment with the selected source token
@@ -277,7 +277,7 @@ const PayWithSolanaToken: React.FC = () => {
           // ponytail: backend rejects `checkout` when rotating to a native
           // source token (SOL/ETH/XLM) — "create a new order instead". So for
           // native sources we skip checkout and create a fresh payment.
-          const rotateToNative = isNativeToken(option.required.token);
+          const rotateToNative = isNativeToken(option.required.token.token);
           const existingId = rozoPaymentId ?? currentOrder.externalId ?? undefined;
           if (existingId && !rotateToNative) {
             const paymentRes = await getPayment(existingId);

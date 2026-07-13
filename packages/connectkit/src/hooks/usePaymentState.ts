@@ -548,7 +548,7 @@ export function usePaymentState({
     // (SOL/ETH/XLM) — "create a new order instead" — so route native sources to the
     // create branch below instead of calling checkout.
     const existingPayId = order?.externalId ?? rozoPaymentId ?? undefined;
-    const rotateToNative = walletOption != null && isNativeToken(walletOption.required.token);
+    const rotateToNative = walletOption != null && isNativeToken(walletOption.required.token.token);
     const shouldCheckout = !!existingPayId && !rotateToNative;
     if (!payParams || shouldCheckout) {
       if (!existingPayId) {
@@ -692,7 +692,7 @@ export function usePaymentState({
     // Case-insensitive native detection: `required.token.token` is checksummed
     // (from the API) while viem's `ethAddress` is lowercase, so a direct `===`
     // would misclassify native ETH as an ERC20 and take the wrong transfer path.
-    const isNative = isNativeToken(required.token);
+    const isNative = isNativeToken(required.token.token);
     const tokenAddress = isNative ? null : getAddress(required.token.token);
 
     // Get hydrated order efficiently with parallel preparation
@@ -1296,11 +1296,11 @@ export function usePaymentState({
         // ponytail: backend forbids `checkout` when rotating to a native source
         // (SOL/ETH/XLM). In payId mode there are no payParams to create a new
         // order, so surface a clear error instead of a silent hang.
-        if (isNativeToken(option.token)) {
-          throw new Error(
-            "Rotating an existing order to a native token is not supported. Please create a new payment.",
-          );
-        }
+        // if (isNativeToken(option.token.token)) {
+        //   throw new Error(
+        //     "Rotating an existing order to a native token is not supported. Please create a new payment.",
+        //   );
+        // }
 
         const paymentRes = await getPayment(existingPayId);
         if (!paymentRes?.data) {
@@ -1346,7 +1346,7 @@ export function usePaymentState({
         // destination USD value. Otherwise tokenBaseAmountToDecimalString
         // formats the toUnits through the source decimals and the BE rejects
         // the underflowing pay-in (e.g. "10" with 6 decimals → "0.00001").
-        const isNativeSource = isNativeToken(option.token);
+        const isNativeSource = isNativeToken(option.token.token);
         const sourceAmountUnits = String(
           fees?.source?.amount ??
             (isNativeSource ? "" : (pay.order?.destFinalCallTokenAmount?.usd ?? "0")),

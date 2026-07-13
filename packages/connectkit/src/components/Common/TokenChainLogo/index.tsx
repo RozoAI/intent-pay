@@ -22,7 +22,7 @@ const TokenChainLogo = ({
 }) => {
   const chainLogoSize = Math.round((size * 30) / 64);
   const chainLogo = chainToLogo[token.chainId];
-  const showChainAsMain = nativeAsChainIcon && isNativeToken(token) && chainLogo != null;
+  const showChainAsMain = nativeAsChainIcon && isNativeToken(token.token) && chainLogo != null;
 
   // Native token: show the chain icon as the single main logo (no badge).
   if (showChainAsMain) {

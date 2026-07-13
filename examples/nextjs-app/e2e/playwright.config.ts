@@ -1,6 +1,6 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test"
 // Importing env loads .env.e2e + .env.local as a side effect (see e2e/env.ts).
-import "./env";
+import "./env"
 
 // Shared `use` defaults for the real-funds payment-flow projects.
 // Artifact policy (trace/screenshot/video) is set once at the top-level `use`
@@ -10,7 +10,7 @@ const realFundsUse = {
   baseURL: process.env.BASE_URL || "http://localhost:3000",
   actionTimeout: 30_000,
   navigationTimeout: 30_000,
-};
+}
 
 export default defineConfig({
   globalSetup: "./global-setup.ts",
@@ -152,11 +152,41 @@ export default defineConfig({
       timeout: 10 * 60_000,
     },
 
+    // ── Bridge: EVM ETH → Stellar (real funds, native source) ───────────────────
+    {
+      name: "bridge-evm-native",
+      testMatch: "**/payment-flows/bridge/evm-native.spec.ts",
+      dependencies: ["evm-to-solana"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Bridge: Solana SOL → EVM (real funds, native source) ────────────────────
+    {
+      name: "bridge-solana-native",
+      testMatch: "**/payment-flows/bridge/solana-native.spec.ts",
+      dependencies: ["bridge-evm-native"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Bridge: Stellar XLM → EVM (real funds, native source) ───────────────────
+    {
+      name: "bridge-stellar-native",
+      testMatch: "**/payment-flows/bridge/stellar-native.spec.ts",
+      dependencies: ["bridge-solana-native"],
+      use: { ...realFundsUse, headless: true },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
     // ── Checkout: EVM → Stellar ────────────────────────────────────────────────
     {
       name: "checkout-evm-to-stellar",
       testMatch: "**/payment-flows/checkout/evm-to-stellar.spec.ts",
-      dependencies: ["evm-to-solana"],
+      dependencies: ["bridge-stellar-native"],
       use: { ...realFundsUse, headless: false },
       retries: 0,
       timeout: 10 * 60_000,
@@ -212,6 +242,37 @@ export default defineConfig({
       timeout: 10 * 60_000,
     },
 
+    // ── Checkout (payId): EVM ETH → Stellar (real funds, native source) ─────────
+    {
+      name: "checkout-evm-native",
+      testMatch: "**/payment-flows/checkout/evm-native.spec.ts",
+      dependencies: ["checkout-solana-to-evm"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Checkout (payId): Solana SOL → EVM (real funds, native source) ──────────
+    {
+      name: "checkout-solana-native",
+      testMatch: "**/payment-flows/checkout/solana-native.spec.ts",
+      dependencies: ["checkout-evm-native"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Checkout (payId): Stellar XLM → EVM (real funds, native source) ─────────
+    // Currently fixme — SDK blocks native sources in payId mode.
+    {
+      name: "checkout-stellar-native",
+      testMatch: "**/payment-flows/checkout/stellar-native.spec.ts",
+      dependencies: ["checkout-solana-native"],
+      use: { ...realFundsUse, headless: true },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
     // ── Merchant: EVM → merchant ───────────────────────────────────────────────
     // payId created via the merchant endpoint; destination fixed server-side, so
     // only the source (Base USDC via MetaMask) varies. Headed — MetaMask can't
@@ -219,7 +280,7 @@ export default defineConfig({
     {
       name: "merchant-evm",
       testMatch: "**/payment-flows/merchant/evm.spec.ts",
-      dependencies: ["checkout-solana-to-evm"],
+      dependencies: ["checkout-stellar-native"],
       use: { ...realFundsUse, headless: false },
       retries: 0,
       timeout: 10 * 60_000,
@@ -276,11 +337,51 @@ export default defineConfig({
       timeout: 10 * 60_000,
     },
 
+    // ── Merchant: Polygon POL → merchant (real funds, native source) ────────────
+    {
+      name: "merchant-polygon-native",
+      testMatch: "**/payment-flows/merchant/polygon-native.spec.ts",
+      dependencies: ["merchant-stellar-native"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Pay-to-address: USDC on Base → merchant ────────────────────────────────
+    {
+      name: "merchant-evm-pay-to-address",
+      testMatch: "**/payment-flows/pay-to-address/merchant-evm.spec.ts",
+      dependencies: ["merchant-polygon-native"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Pay-to-address: ETH on Ethereum → merchant ────────────────────────────
+    {
+      name: "merchant-evm-native-pay-to-address",
+      testMatch: "**/payment-flows/pay-to-address/merchant-evm-native.spec.ts",
+      dependencies: ["merchant-evm-pay-to-address"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Pay-to-address: XLM on Stellar → merchant ─────────────────────────────
+    {
+      name: "merchant-solana-pay-to-address",
+      testMatch: "**/payment-flows/pay-to-address/merchant-solana.spec.ts",
+      dependencies: ["merchant-evm-native-pay-to-address"],
+      use: { ...realFundsUse, headless: true },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
     // ── Deposit: Stellar → EVM ─────────────────────────────────────────────────
     {
       name: "deposit-stellar-to-evm",
       testMatch: "**/payment-flows/deposit/stellar-to-evm.spec.ts",
-      dependencies: ["merchant-stellar-native"],
+      dependencies: ["merchant-solana-pay-to-address"],
       use: { ...realFundsUse, headless: false },
       retries: 0,
       timeout: 10 * 60_000,
@@ -335,5 +436,35 @@ export default defineConfig({
       retries: 0,
       timeout: 10 * 60_000,
     },
+
+    // ── Deposit: EVM ETH → Stellar (real funds, native source) ────────────────────
+    {
+      name: "deposit-evm-native",
+      testMatch: "**/payment-flows/deposit/evm-native.spec.ts",
+      dependencies: ["deposit-solana-to-evm"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Deposit: Solana SOL → EVM (real funds, native source) ───────────────────
+    {
+      name: "deposit-solana-native",
+      testMatch: "**/payment-flows/deposit/solana-native.spec.ts",
+      dependencies: ["deposit-evm-native"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Deposit: Stellar XLM → EVM (real funds, native source) ──────────────────
+    {
+      name: "deposit-stellar-native",
+      testMatch: "**/payment-flows/deposit/stellar-native.spec.ts",
+      dependencies: ["deposit-solana-native"],
+      use: { ...realFundsUse, headless: true },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
   ],
-});
+})

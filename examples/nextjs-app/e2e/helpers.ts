@@ -1,8 +1,56 @@
-import { type Locator, type Page, type TestInfo, expect } from "@playwright/test"
+import {
+  type Locator,
+  type Page,
+  type TestInfo,
+  expect,
+} from "@playwright/test"
 import type { Metamask } from "chainwright/metamask"
 import type { Phantom } from "chainwright/phantom"
 import { E2E_STELLAR_WALLET_NAME } from "../lib/e2e-stellar-constants"
 
+// UUID v4 pattern
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+
+/**
+ * Intercept intentapiv4.rozo.ai API responses to capture the Rozo payment ID
+ * created during any pay-in flow (bridge, deposit, checkout). Returns a getter
+ * that can be called at any later point in the test or afterEach to read the
+ * captured ID.
+ *
+ * Call this at the very start of a test body, before navigation or modal open,
+ * so the listener is active when the SDK calls createPayment / checkoutPayment.
+ */
+export function setupPaymentIdCapture(page: Page): () => string | undefined {
+  let captured: string | undefined
+
+  page.on("response", (response) => {
+    if (!response.url().includes("intentapiv4.rozo.ai")) return
+    if (response.status() < 200 || response.status() >= 300) return
+
+    response
+      .json()
+      .then((body) => {
+        // Direct REST response: { id: "uuid", status: "...", ... }
+        if (typeof body?.id === "string" && UUID_RE.test(body.id)) {
+          captured = body.id
+          return
+        }
+        // tRPC batch response: [{ result: { data: { id: "uuid" } } }, ...]
+        if (Array.isArray(body)) {
+          for (const item of body) {
+            const id = item?.result?.data?.id
+            if (typeof id === "string" && UUID_RE.test(id)) {
+              captured = id
+              return
+            }
+          }
+        }
+      })
+      .catch(() => {})
+  })
+
+  return () => captured
+}
 /**
  * Attach a per-test payment summary to the Playwright report — rendered for
  * every outcome (passed / failed / skipped / timed out). Call once per spec,
@@ -215,29 +263,19 @@ export async function startCheckoutPayment(
   await openModal(page)
 }
 
-/**
- * Create a merchant payId via the merchant endpoint, then open the SDK modal in
- * Checkout mode against it.
- *
- * Unlike Checkout mode, the destination (chain/token/receiver) is fixed by the
- * merchant's server-side config — the request only supplies the local amount and
- * a source hint. We POST to `/payment-api/payments/merchant`, take `response.id`
- * as the payId, and drive it through the checkout page's "Enter Payment ID
- * manually" input. The in-modal pay-in steps are then identical to Bridge.
- *
- * Returns the created payId so callers can assert/log it.
- */
-export async function startMerchantCheckout(
+type MerchantCreateOpts = {
+  apiUrl: string
+  appId: string
+  amountLocal: string
+  currencyLocal: string
+  /** Source chainId + token symbol hint for the merchant order (e.g. Base USDC). */
+  source: { chainId: string; tokenSymbol: string }
+}
+
+async function createMerchantPayId(
   page: Page,
-  opts: {
-    apiUrl: string
-    appId: string
-    amountLocal: string
-    currencyLocal: string
-    /** Source chainId + token symbol hint for the merchant order (e.g. Base USDC). */
-    source: { chainId: string; tokenSymbol: string }
-  }
-) {
+  opts: MerchantCreateOpts
+): Promise<string> {
   const res = await page.request.post(
     `${opts.apiUrl}/payment-api/payments/merchant`,
     {
@@ -260,18 +298,38 @@ export async function startMerchantCheckout(
   }
   const body = (await res.json()) as { id?: string }
   const payId = body.id
-  if (!payId) throw new Error(`Merchant response missing id: ${JSON.stringify(body)}`)
+  if (!payId)
+    throw new Error(`Merchant response missing id: ${JSON.stringify(body)}`)
+  return payId
+}
 
+async function openMerchantModal(page: Page, payId: string) {
   // Reuse the checkout page's manual payId path — no config form to fill, since
   // the merchant order already locks destination + amount server-side.
   await gotoMode(page, "checkout")
-  await page
-    .getByPlaceholder(/xxxxxxxx-xxxx|payment id/i)
-    .fill(payId)
+  await page.getByPlaceholder(/xxxxxxxx-xxxx|payment id/i).fill(payId)
   await page.getByRole("button", { name: /^use$/i }).click()
 
   await expect(page.getByText(/payment id:/i)).toBeVisible({ timeout: 10_000 })
   await openModal(page)
+}
+
+/**
+ * Create a merchant payId via the merchant endpoint, then open the SDK modal in
+ * Checkout mode against it.
+ *
+ * Unlike Checkout mode, the destination (chain/token/receiver) is fixed by the
+ * merchant's server-side config — the request only supplies the local amount and
+ * a source hint. The in-modal pay-in steps are then identical to Bridge.
+ *
+ * Returns the created payId so callers can assert/log it.
+ */
+export async function startMerchantCheckout(
+  page: Page,
+  opts: MerchantCreateOpts
+) {
+  const payId = await createMerchantPayId(page, opts)
+  await openMerchantModal(page, payId)
 
   // The modal's SELECT_METHOD wires each wallet's chain options (e.g. Phantom's
   // Solana adapter) only AFTER the payId's order loads — `showSolanaPaymentMethod`
@@ -285,6 +343,58 @@ export async function startMerchantCheckout(
   ).toBeVisible({ timeout: 30_000 })
 
   return payId
+}
+
+/**
+ * Create a merchant payId via the merchant endpoint, then open the SDK modal in
+ * Checkout mode against it for the deposit-address flow.
+ *
+ * Returns the created payId. The caller can then click "Pay to address" and
+ * select a deposit chain.
+ */
+export async function startMerchantDepositAddressCheckout(
+  page: Page,
+  opts: MerchantCreateOpts
+) {
+  const payId = await createMerchantPayId(page, opts)
+  await openMerchantModal(page, payId)
+  // Wait for the order to load before returning — getDepositAddressOptions uses
+  // usdRequired from the loaded order. If we click "Pay to address" before the
+  // order resolves, usdRequired=0 and the API returns a wrong/broader option set.
+  // "Pay with Stellar" visibility is the same sentinel used by startMerchantCheckout.
+  await expect(
+    page.getByRole("button", { name: /pay with stellar/i })
+  ).toBeVisible({ timeout: 30_000 })
+  return payId
+}
+
+/**
+ * Read the deposit address details shown on the WAITING_DEPOSIT_ADDRESS screen.
+ * Requires the data-testids added to WaitingDepositAddress.
+ */
+export async function getDepositAddressInfo(page: Page) {
+  const sendExactly = page.getByTestId("rozopay-send-exactly")
+  const receivingAddress = page.getByTestId("rozopay-receiving-address")
+
+  await expect(sendExactly).toBeVisible({ timeout: 60_000 })
+  await expect(receivingAddress).toBeVisible({ timeout: 60_000 })
+
+  // Wait for data-value to be populated — the API call to generate the deposit
+  // address is async; the elements render before the value arrives.
+  await expect(sendExactly).toHaveAttribute("data-value", /.+/, {
+    timeout: 30_000,
+  })
+  await expect(receivingAddress).toHaveAttribute("data-value", /.+/, {
+    timeout: 30_000,
+  })
+
+  const amount = await sendExactly.getAttribute("data-value")
+  const address = await receivingAddress.getAttribute("data-value")
+
+  return {
+    amount: amount?.trim() ?? "",
+    address: address?.trim() ?? "",
+  }
 }
 
 /**
@@ -460,25 +570,58 @@ export async function useStellarSigner(page: Page, secret: string) {
 
 /**
  * Pay in via the headless Stellar signer: pick "Pay with Stellar", select the
- * injected headless wallet, then the source USDC token. Signing + submission
- * happen automatically in-page (no popup).
+ * injected headless wallet, then the source token matching `tokenFilter`.
+ * Signing + submission happen automatically in-page (no popup).
  */
-export async function payInWithStellarHeadless(page: Page) {
+export async function payInWithStellarHeadless(
+  page: Page,
+  tokenFilter: RegExp = /USDC/i
+) {
+  // The SDK sometimes opens SELECT_METHOD with a single preferred option and a
+  // "Pay with another method" button. Expand the method list before choosing
+  // the Stellar path.
+  const anotherMethod = page.getByRole("button", {
+    name: /pay with another method/i,
+  })
+  try {
+    await anotherMethod.click({ timeout: 5_000 })
+  } catch {
+    // Method list already visible.
+  }
+
   await page.getByRole("button", { name: /pay with stellar/i }).click()
   await page
     .getByText(E2E_STELLAR_WALLET_NAME, { exact: false })
     .first()
     .click()
 
-  await expect(page.getByTestId("rozopay-options-list").first()).toBeVisible({
-    timeout: 60_000,
-  })
-  const usdcOption = page
-    .locator("[data-testid^='rozopay-option-']")
-    .filter({ hasText: /USDC/i })
+  // After selecting the Stellar wallet, the SDK routes through a
+  // connector/"Connected" screen before showing the source token list. Wait
+  // for the actual token option inside the options list instead of the wallet
+  // list, which uses the same testid.
+  const option = page
+    .getByTestId("rozopay-options-list")
     .first()
-  await expect(usdcOption).toBeVisible({ timeout: 60_000 })
-  await usdcOption.click()
+    .locator("[data-testid^='rozopay-option-']")
+    .filter({ hasText: tokenFilter })
+    .first()
+
+  try {
+    await expect(option).toBeVisible({ timeout: 60_000 })
+  } catch {
+    const allOptions = await page
+      .getByTestId("rozopay-options-list")
+      .first()
+      .locator("[data-testid^='rozopay-option-']")
+      .allTextContents()
+      .catch(() => [])
+    throw new Error(
+      `No token option matching ${tokenFilter.source}. Visible options: [${allOptions
+        .map((t) => t.replace(/\s+/g, " ").trim())
+        .join(" | ")}]`
+    )
+  }
+  await option.click()
 }
 
 /**
@@ -489,23 +632,10 @@ export async function payInWithStellarHeadless(page: Page) {
  */
 export async function payInWithStellarHeadlessDeposit(
   page: Page,
-  amount: string
+  amount: string,
+  tokenFilter: RegExp = /USDC/i
 ) {
-  await page.getByRole("button", { name: /pay with stellar/i }).click()
-  await page
-    .getByText(E2E_STELLAR_WALLET_NAME, { exact: false })
-    .first()
-    .click()
-
-  await expect(page.getByTestId("rozopay-options-list").first()).toBeVisible({
-    timeout: 60_000,
-  })
-  const usdcOption = page
-    .locator("[data-testid^='rozopay-option-']")
-    .filter({ hasText: /USDC/i })
-    .first()
-  await expect(usdcOption).toBeVisible({ timeout: 60_000 })
-  await usdcOption.click()
+  await payInWithStellarHeadless(page, tokenFilter)
 
   // Deposit flow: SELECT_TOKEN → STELLAR_SELECT_AMOUNT. Enter how much to send.
   await enterDepositAmount(page, amount)
