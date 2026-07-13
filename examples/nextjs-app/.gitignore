@@ -51,4 +51,4 @@ playwright-report/
 
 # chainwright wallet cache
 .wallet-cache/
-
+.wallet-context/
