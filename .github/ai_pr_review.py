@@ -35,18 +35,38 @@ import urllib.request
 from pathlib import Path
 
 # ── Model + pricing ──────────────────────────────────────────────────────────
-# PR review is a bounded, high-volume task -> Sonnet 4.6 is the cost/quality pick
-# (claude-api skill: balanced speed/intelligence for production workloads).
-MODEL = "claude-sonnet-4-6"
+# PR review is a bounded task -> Sonnet 5 (near-Opus quality on code review at
+# Sonnet cost). claude-api skill: exact id "claude-sonnet-5" (no date suffix).
+MODEL = "claude-sonnet-5"
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
-# $/1M tokens (claude-api skill cached table, 2026-05-26).
+# $/1M tokens (claude-api skill cached table). Sonnet 5 standard rate = $3 / $15
+# (intro $2 / $10 through 2026-08-31 — we bill the standard rate to stay safe).
 PRICE_IN_PER_MTOK = 3.00
 PRICE_OUT_PER_MTOK = 15.00
 
 AGENT_NAME = "github-pr-review"
 PASS_LABEL = "ai-review-passed"
 DEFAULT_TRUSTED_AUTHORS = ""
+
+# On-demand slash command. A comment fires a (paid) review only when this token
+# appears at the start of the comment or on its own line — not mid-word (so
+# "preview" never matches) and not when quoted inside prose. Case-insensitive.
+REVIEW_COMMAND = "/ai-review"
+_COMMAND_RE = re.compile(
+    r"(?im)^[ \t>*_-]*" + re.escape(REVIEW_COMMAND) + r"(?:\b|$)"
+)
+
+
+def comment_requests_review(body: str) -> bool:
+    """True iff a PR comment body explicitly invokes the /ai-review command.
+
+    The GHA `contains()` pre-filter is a loose substring match; this is the
+    strict second gate: the command must head a line (optionally behind quote /
+    list markers like `>` `-` `*`), so `preview this` or a sentence merely
+    mentioning `/ai-review` inside a paragraph does not trigger a paid run.
+    """
+    return bool(_COMMAND_RE.search(body or ""))
 
 # ── Budget guardrails (overridable via env in the workflow) ──────────────────
 DEFAULT_DAILY_USD_CAP = 10.00     # cumulative spend ceiling for this agent
@@ -109,10 +129,52 @@ class BudgetExceeded(Exception):
     """Raised when a hard budget cap is hit before/after the model call."""
 
 
-def call_claude(api_key: str, diff: str, *, max_tokens: int, max_retries: int) -> dict:
+def resolve_credentials() -> tuple[str, str] | None:
+    """Pick a credential from the environment. Returns (kind, secret) or None.
+
+    Preference order:
+      1. ANTHROPIC_API_KEY  → ("api_key", ...)      — plain API key, own billing.
+      2. CLAUDE_CODE_OAUTH_TOKEN → ("oauth_token", ...) — Claude Code / subscription
+         OAuth token (the same secret the Anthropic claude-code-action uses).
+    API key wins when both are present: it has independent billing and rate limits,
+    so it won't draw down the subscription. Either one is enough — you do NOT need
+    to create a new API key if the OAuth token is already an org secret.
+    """
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if api_key:
+        return ("api_key", api_key)
+    oauth = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "").strip()
+    if oauth:
+        return ("oauth_token", oauth)
+    return None
+
+
+def _auth_headers(creds: tuple[str, str]) -> dict[str, str]:
+    """Build the auth + version headers for either credential kind.
+
+    creds = (kind, secret). Two kinds, per the claude-api skill:
+      * "api_key"     → `x-api-key: <sk-ant-...>` (a plain API key).
+      * "oauth_token" → `Authorization: Bearer <token>` PLUS the beta header
+        `anthropic-beta: oauth-2025-04-20` (a Claude Code / subscription OAuth
+        token, e.g. CLAUDE_CODE_OAUTH_TOKEN). OAuth tokens are NOT accepted on
+        `x-api-key` — converting is a header change, not a key swap.
+    The secret is only ever placed in a header and is NEVER logged.
+    """
+    kind, secret = creds
+    base = {"content-type": "application/json", "anthropic-version": ANTHROPIC_VERSION}
+    if kind == "oauth_token":
+        base["authorization"] = f"Bearer {secret}"   # header only — never printed
+        base["anthropic-beta"] = "oauth-2025-04-20"
+    else:  # api_key
+        base["x-api-key"] = secret                    # header only — never printed
+    return base
+
+
+def call_claude(creds: tuple[str, str], diff: str, *, max_tokens: int, max_retries: int) -> dict:
     """Return {"text": str, "usage": dict}. Retries on 429/5xx with backoff.
 
-    The api_key is only ever placed in the request header. It is NEVER logged.
+    creds = (kind, secret) — see _auth_headers(). The secret is only ever placed
+    in the request header. It is NEVER logged.
     """
     if len(diff) > DIFF_CHAR_BUDGET:
         diff = diff[:DIFF_CHAR_BUDGET] + "\n\n[... diff truncated for length ...]"
@@ -120,20 +182,21 @@ def call_claude(api_key: str, diff: str, *, max_tokens: int, max_retries: int) -
     body = json.dumps({
         "model": MODEL,
         "max_tokens": max_tokens,
+        # Sonnet 5 defaults to adaptive thinking; a PR review is a simple bounded
+        # task that doesn't need it. Disable it explicitly to save tokens and
+        # avoid the response getting truncated by thinking eating max_tokens.
+        "thinking": {"type": "disabled"},
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": f"Review this diff:\n\n{diff}"}],
     }).encode("utf-8")
 
+    headers = _auth_headers(creds)
     last_err: Exception | None = None
     for attempt in range(1, max_retries + 1):
         req = urllib.request.Request(
             ANTHROPIC_URL,
             data=body,
-            headers={
-                "content-type": "application/json",
-                "x-api-key": api_key,               # header only — never printed
-                "anthropic-version": ANTHROPIC_VERSION,
-            },
+            headers=headers,
             method="POST",
         )
         try:
@@ -276,13 +339,25 @@ def add_label(repo: str, pr: int, token: str, label: str) -> None:
             raise
 
 
-def submit_approval(repo: str, pr: int, token: str, body: str) -> None:
-    gh_request(
-        "POST",
-        f"https://api.github.com/repos/{repo}/pulls/{pr}/reviews",
-        token,
-        {"event": "APPROVE", "body": body},
-    )
+def submit_approval(repo: str, pr: int, token: str, body: str) -> bool:
+    """Submit approval; return False only for GitHub's self-approval rejection."""
+    try:
+        gh_request(
+            "POST",
+            f"https://api.github.com/repos/{repo}/pulls/{pr}/reviews",
+            token,
+            {"event": "APPROVE", "body": body},
+        )
+    except urllib.error.HTTPError as e:
+        if e.code == 422:
+            try:
+                message = str(json.loads(e.read().decode("utf-8")).get("message", ""))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                message = ""
+            if "approve your own pull request" in message.lower():
+                return False
+        raise
+    return True
 
 
 # ── budget alerting: Feishu (dry-run) + local agent_runs (best-effort) ───────
@@ -304,9 +379,9 @@ def _project_root_for_brain() -> Path | None:
 
 def raise_budget_alert(cost: float, cap: float, *, send: bool) -> None:
     """Feishu alert (dry-run by default) that the daily cap was breached."""
-    title = f"agent {AGENT_NAME} 成本超限"
-    text = (f"{AGENT_NAME} 累计成本估算 ${cost:.2f} 超过日上限 ${cap:.2f}，"
-            f"PR review 已停跑，请检查是否失控。")
+    title = f"agent {AGENT_NAME} over budget"
+    text = (f"{AGENT_NAME} cumulative cost estimate ${cost:.2f} exceeds the daily "
+            f"cap ${cap:.2f}. PR review has stopped — check for a runaway.")
     root = _project_root_for_brain()
     if root is not None:
         notify = root / "scripts" / "notify_feishu.py"
@@ -411,6 +486,21 @@ def main() -> int:
     max_tokens = int(os.environ.get("AI_REVIEW_MAX_TOKENS", DEFAULT_MAX_TOKENS))
     max_retries = int(os.environ.get("AI_REVIEW_MAX_RETRIES", DEFAULT_MAX_RETRIES))
 
+    # ── on-demand gate: comment triggers require the real /ai-review command ──
+    # The GHA `contains()` guard already dropped comments without the substring;
+    # this is the strict second parse (start-of-line, not mid-word). A comment
+    # event that slipped through without the real command exits cleanly — no
+    # diff read, no budget check, no model call.
+    event_name = os.environ.get("EVENT_NAME", "")
+    if event_name == "issue_comment":
+        if not comment_requests_review(os.environ.get("COMMENT_BODY", "")):
+            msg = (f"Comment does not invoke `{REVIEW_COMMAND}` on its own line — "
+                   f"skipping (no review).")
+            print(msg)
+            write_step_summary(msg)
+            set_output("verdict", "skipped-no-command")
+            return 0
+
     diff = Path(args.diff_file).read_text(encoding="utf-8", errors="replace")
     if not diff.strip():
         print("Empty diff — nothing to review.")
@@ -440,12 +530,13 @@ def main() -> int:
                          "- Example P2 nit for dry-run.")
         usage = {"input_tokens": 1200, "output_tokens": 300}
     else:
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not api_key:
-            eprint("ANTHROPIC_API_KEY not set — cannot run review.")
+        creds = resolve_credentials()
+        if creds is None:
+            eprint("Neither ANTHROPIC_API_KEY nor CLAUDE_CODE_OAUTH_TOKEN set — "
+                   "cannot run review.")
             return 1
         try:
-            result = call_claude(api_key, diff, max_tokens=max_tokens, max_retries=max_retries)
+            result = call_claude(creds, diff, max_tokens=max_tokens, max_retries=max_retries)
         except Exception as e:  # network / API failure -> record + fail soft
             err = f"{type(e).__name__}: {e}"
             eprint(f"Review call failed: {err}")
@@ -478,16 +569,24 @@ def main() -> int:
             if pr_author.lower() in trusted_authors:
                 approver_token = os.environ.get("AI_REVIEW_APPROVER_TOKEN", "")
                 if approver_token:
-                    submit_approval(
+                    approved = submit_approval(
                         repo,
                         pr,
                         approver_token,
                         "AI review found no P0 blockers for a trusted Rozo contributor.",
                     )
-                    set_output("trusted_auto_approve", "approved")
-                    write_step_summary(
-                        "Trusted-author auto-approve submitted."
-                    )
+                    if not approved:
+                        set_output("trusted_auto_approve", "skipped-self-approval")
+                        write_step_summary(
+                            "Trusted-author auto-approve skipped: the approver "
+                            "token belongs to the PR author, and GitHub forbids "
+                            "self-approval."
+                        )
+                    else:
+                        set_output("trusted_auto_approve", "approved")
+                        write_step_summary(
+                            "Trusted-author auto-approve submitted."
+                        )
                 else:
                     set_output("trusted_auto_approve", "skipped-no-token")
                     write_step_summary(

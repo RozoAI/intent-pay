@@ -27,6 +27,7 @@ The SDK sends anonymous payment funnel events to RozoAI's PostHog project. This 
 | `payment_completed`        | On-chain confirmed         | `destination_chain`, `app_name`                      |
 | `payment_failed`           | Terminal failure           | `error_type`, `destination_chain`, `app_name`        |
 | `payment_cancelled`        | Modal closed mid-flow      | `last_state`, `reason`, `app_name`                   |
+| `payment_no_tokens_available` | SelectToken empty state renders (wallet connected, no eligible balances) | `token_mode`, `connected_chains`, `preferred_token_symbols`, `preferred_token_count`, `app_name` |
 | `error_occurred`           | Error page shown           | `error_type`, `error_title`, `can_retry`, `app_name` |
 | `payment_validation_error` | Invalid chain/token config | `error_type`, `app_name`                             |
 

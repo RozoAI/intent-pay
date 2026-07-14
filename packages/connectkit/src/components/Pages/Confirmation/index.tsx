@@ -1,30 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePayContext } from "../../../hooks/usePayContext";
 
-import {
-  Link,
-  ModalBody,
-  ModalContent,
-  ModalH1,
-  PageContent,
-} from "../../Common/Modal/styles";
+import { Link, ModalBody, ModalContent, ModalH1, PageContent } from "../../Common/Modal/styles";
 
 import {
   assert,
   getAddressContraction,
   getChainExplorerTxUrl,
   getOrderDestChainId,
+  normalizeTokenAddress,
   rozoSolana,
   rozoStellar,
   updatePaymentPayInTxHash,
 } from "@rozoai/intent-common";
 import { motion } from "framer-motion";
-import {
-  BadgeCheckIcon,
-  ExternalLinkIcon,
-  LoadingCircleIcon,
-  Ring,
-} from "../../../assets/icons";
+import { BadgeCheckIcon, ExternalLinkIcon, LoadingCircleIcon, Ring } from "../../../assets/icons";
 import defaultTheme from "../../../constants/defaultTheme";
 import { ROZO_INVOICE_URL } from "../../../constants/rozoConfig";
 import { usePayoutPolling } from "../../../hooks/usePayoutPolling";
@@ -46,12 +36,7 @@ const Confirmation: React.FC = () => {
     triggerResize,
     ...context
   } = usePayContext();
-  const {
-    order,
-    paymentState,
-    setPaymentCompleted,
-    setPaymentPayoutCompleted,
-  } = useRozoPay();
+  const { order, paymentState, setPaymentCompleted, setPaymentPayoutCompleted } = useRozoPay();
 
   const { capture } = useAnalytics();
   const [isConfirming, setIsConfirming] = useState<boolean>(true);
@@ -61,9 +46,7 @@ const Confirmation: React.FC = () => {
   const payoutCompletedSent = useRef<string | null>(null);
 
   // Local state for Pusher payout transaction hash
-  const [pusherPayoutTxHash, setPusherPayoutTxHash] = useState<
-    string | undefined
-  >(undefined);
+  const [pusherPayoutTxHash, setPusherPayoutTxHash] = useState<string | undefined>(undefined);
 
   // Track Pusher initialization and data activity for timeout logic
   const [pusherEnabled, setPusherEnabled] = useState<boolean>(true);
@@ -93,10 +76,7 @@ const Confirmation: React.FC = () => {
       }
     }
 
-    if (
-      payParams &&
-      (tokenMode === "stellar" || tokenMode === "solana" || tokenMode === "evm")
-    ) {
+    if (payParams && (tokenMode === "stellar" || tokenMode === "solana" || tokenMode === "evm")) {
       return payParams.showProcessingPayout;
     }
 
@@ -142,16 +122,15 @@ const Confirmation: React.FC = () => {
         order &&
         supportedTokens.some(
           (token) =>
-            token.token.toLowerCase() ===
-            order.destFinalCallTokenAmount?.token.token.toLowerCase(),
+            normalizeTokenAddress(token.chainId, token.token) ===
+            normalizeTokenAddress(
+              order.destFinalCallTokenAmount?.token.chainId,
+              order.destFinalCallTokenAmount?.token.token,
+            ),
         ));
 
     if (isRozoPayment && txHash && isConfirming) {
-      setPaymentCompleted(
-        txHash,
-        rozoPaymentId,
-        paymentStateContext.senderAddress ?? null,
-      );
+      setPaymentCompleted(txHash, rozoPaymentId, paymentStateContext.senderAddress ?? null);
       setIsConfirming(false);
     }
   }, [
@@ -174,8 +153,11 @@ const Confirmation: React.FC = () => {
         order &&
         supportedTokens.some(
           (token) =>
-            token.token.toLowerCase() ===
-            order.destFinalCallTokenAmount?.token.token.toLowerCase(),
+            normalizeTokenAddress(token.chainId, token.token) ===
+            normalizeTokenAddress(
+              order.destFinalCallTokenAmount?.token.chainId,
+              order.destFinalCallTokenAmount?.token.token,
+            ),
         ));
 
     if (isRozoPayment && txHash) {
@@ -191,24 +173,16 @@ const Confirmation: React.FC = () => {
       } else if (tokenMode === "solana") {
         chainId = rozoSolana.chainId;
       } else {
-        chainId = Number(
-          paymentStateContext.selectedTokenOption?.required.token.chainId,
-        );
+        chainId = Number(paymentStateContext.selectedTokenOption?.required.token.chainId);
       }
 
       const txURL = getChainExplorerTxUrl(chainId, txHash);
       return { done: true, txURL, rawPayInHash: txHash };
     } else {
-      if (
-        paymentState === "payment_completed" ||
-        paymentState === "payment_bounced"
-      ) {
+      if (paymentState === "payment_completed" || paymentState === "payment_bounced") {
         const txHash = order.destFastFinishTxHash ?? order.destClaimTxHash;
         const destChainId = getOrderDestChainId(order);
-        assert(
-          txHash != null,
-          `[CONFIRMATION] paymentState: ${paymentState}, but missing txHash`,
-        );
+        assert(txHash != null, `[CONFIRMATION] paymentState: ${paymentState}, but missing txHash`);
         const txURL = getChainExplorerTxUrl(destChainId, txHash);
 
         return { done: true, txURL, rawPayInHash: txHash };
@@ -229,9 +203,7 @@ const Confirmation: React.FC = () => {
 
     let duration_ms: number | undefined;
     try {
-      const submittedAt = sessionStorage.getItem(
-        `rozo_submitted_at:${rozoPaymentId}`,
-      );
+      const submittedAt = sessionStorage.getItem(`rozo_submitted_at:${rozoPaymentId}`);
       if (submittedAt) {
         duration_ms = Date.now() - Number(submittedAt);
         sessionStorage.removeItem(`rozo_submitted_at:${rozoPaymentId}`);
@@ -244,8 +216,7 @@ const Confirmation: React.FC = () => {
       payment_id: rozoPaymentId,
       tx_hash: rawPayInHash,
       destination_chain: destChainId,
-      source_chain:
-        paymentStateContext.selectedTokenOption?.required.token.chainId,
+      source_chain: paymentStateContext.selectedTokenOption?.required.token.chainId,
       amount:
         paymentStateContext.payParams?.toUnits != null
           ? String(paymentStateContext.payParams.toUnits)
@@ -331,9 +302,7 @@ const Confirmation: React.FC = () => {
 
           // Unsubscribe from Pusher since payout is completed
           if (pusherUnsubscribeRef.current) {
-            context.log(
-              "[CONFIRMATION] Payout completed via Pusher, unsubscribing",
-            );
+            context.log("[CONFIRMATION] Payout completed via Pusher, unsubscribing");
             pusherUnsubscribeRef.current();
           }
           pusherEnabledRef.current = false;
@@ -369,10 +338,7 @@ const Confirmation: React.FC = () => {
 
     // Only set timeout once per payment ID
     if (timeoutIdRef.current !== null) {
-      context.log(
-        "[CONFIRMATION] Timeout already set, skipping",
-        timeoutIdRef.current,
-      );
+      context.log("[CONFIRMATION] Timeout already set, skipping", timeoutIdRef.current);
       return;
     }
 
@@ -421,9 +387,7 @@ const Confirmation: React.FC = () => {
       timeoutIdRef.current = null;
     }, 60000); // 1 minute = 60000ms
 
-    context.log(
-      "[CONFIRMATION] Timeout set successfully, will fire in 60 seconds",
-    );
+    context.log("[CONFIRMATION] Timeout set successfully, will fire in 60 seconds");
 
     return () => {
       // Clear timeout when dependencies change or component unmounts
@@ -439,10 +403,7 @@ const Confirmation: React.FC = () => {
   // Reset tracking when rozoPaymentId changes to a DIFFERENT value (not on initial mount)
   useEffect(() => {
     // Only reset if we're switching to a different payment ID, not on initial mount
-    if (
-      prevRozoPaymentIdRef.current &&
-      prevRozoPaymentIdRef.current !== rozoPaymentId
-    ) {
+    if (prevRozoPaymentIdRef.current && prevRozoPaymentIdRef.current !== rozoPaymentId) {
       context.log("[CONFIRMATION] Resetting tracking for new payment ID");
       pusherInitializedTimeRef.current = null;
       pusherDataReceivedRef.current = false;
@@ -451,9 +412,7 @@ const Confirmation: React.FC = () => {
       setPusherEnabled(true);
       setPollingEnabled(false);
       if (timeoutIdRef.current) {
-        context.log(
-          "[CONFIRMATION] Clearing existing timeout on payment ID change",
-        );
+        context.log("[CONFIRMATION] Clearing existing timeout on payment ID change");
         clearTimeout(timeoutIdRef.current);
         timeoutIdRef.current = null;
       }
@@ -489,17 +448,10 @@ const Confirmation: React.FC = () => {
         senderAddress: paymentStateContext.senderAddress || undefined,
         apiVersion: "v2",
       }).catch((error) => {
-        context.log(
-          "[CONFIRMATION] Failed to update payment pay-in tx hash:",
-          error,
-        );
+        context.log("[CONFIRMATION] Failed to update payment pay-in tx hash:", error);
       });
 
-      setPaymentCompleted(
-        rawPayInHash,
-        rozoPaymentId,
-        paymentStateContext.senderAddress ?? null,
-      );
+      setPaymentCompleted(rawPayInHash, rozoPaymentId, paymentStateContext.senderAddress ?? null);
       onSuccess();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -528,9 +480,7 @@ const Confirmation: React.FC = () => {
 
       // Unsubscribe from Pusher since payout is completed via polling
       if (pusherUnsubscribeRef.current && pusherEnabled) {
-        context.log(
-          "[CONFIRMATION] Payout completed via polling, unsubscribing from Pusher",
-        );
+        context.log("[CONFIRMATION] Payout completed via polling, unsubscribing from Pusher");
         pusherUnsubscribeRef.current();
       }
       pusherEnabledRef.current = false;
@@ -571,9 +521,7 @@ const Confirmation: React.FC = () => {
         <AnimationContainer>
           <InsetContainer>
             {!done && <Spinner $status={false} />}
-            {done && (!showProcessingPayout || payoutResolved) && (
-              <SuccessIcon $status={true} />
-            )}
+            {done && (!showProcessingPayout || payoutResolved) && <SuccessIcon $status={true} />}
             {done && showProcessingPayout && !payoutResolved && (
               <Ring width={100} height={100} color="#0052ff" />
             )}
@@ -592,9 +540,7 @@ const Confirmation: React.FC = () => {
                 flexDirection: "column",
               }}
             >
-              {showProcessingPayout && !payoutResolved
-                ? "Payment Confirmed"
-                : "Payment Completed"}
+              {showProcessingPayout && !payoutResolved ? "Payment Confirmed" : "Payment Completed"}
             </ModalH1>
 
             {txURL && (
@@ -620,22 +566,15 @@ const Confirmation: React.FC = () => {
                     <ModalBody>
                       {payoutLoading ? (
                         <LoadingText>Processing payout...</LoadingText>
-                      ) : (computedPusherPayoutTxHashUrl &&
-                          pusherPayoutTxHash) ||
+                      ) : (computedPusherPayoutTxHashUrl && pusherPayoutTxHash) ||
                         (payoutTxHashUrl && payoutTxHash) ? (
                         <Link
-                          href={
-                            computedPusherPayoutTxHashUrl ||
-                            payoutTxHashUrl ||
-                            "#"
-                          }
+                          href={computedPusherPayoutTxHashUrl || payoutTxHashUrl || "#"}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{ fontSize: 14, fontWeight: 400 }}
                         >
-                          {getAddressContraction(
-                            pusherPayoutTxHash || payoutTxHash || "",
-                          )}
+                          {getAddressContraction(pusherPayoutTxHash || payoutTxHash || "")}
                           <ExternalIcon />
                         </Link>
                       ) : (
@@ -647,25 +586,16 @@ const Confirmation: React.FC = () => {
               </ListContainer>
             )}
 
-            {confirmationMessage && (
-              <ModalBody>{confirmationMessage}</ModalBody>
-            )}
+            {confirmationMessage && <ModalBody>{confirmationMessage}</ModalBody>}
           </>
         )}
 
         {done && generateReceiptUrl && (
-          <Button
-            iconPosition="right"
-            href={generateReceiptUrl}
-            style={{ width: "100%" }}
-          >
+          <Button iconPosition="right" href={generateReceiptUrl} style={{ width: "100%" }}>
             See Receipt
           </Button>
         )}
-        <PoweredByFooter
-          showSupport={!done}
-          preFilledMessage={`Transaction: ${txURL}`}
-        />
+        <PoweredByFooter showSupport={!done} preFilledMessage={`Transaction: ${txURL}`} />
       </ModalContent>
     </PageContent>
   );

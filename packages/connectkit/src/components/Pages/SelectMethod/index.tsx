@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { ROUTES } from "../../../constants/routes";
 import { usePayContext } from "../../../hooks/usePayContext";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
@@ -6,10 +6,9 @@ import { ROZO_EVENTS } from "../../../lib/analytics/events";
 
 import { PageContent } from "../../Common/Modal/styles";
 
-import {
-  ExternalPaymentOptions,
-  getAddressContraction,
-} from "@rozoai/intent-common";
+import { ExternalPaymentOptions, getAddressContraction } from "@rozoai/intent-common";
+import { RozoPayOrderMode } from "@rozoai/intent-common";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Connector, useAccount, useDisconnect } from "wagmi";
 import { Base, Ethereum, Solana, Stellar } from "../../../assets/chains";
@@ -36,12 +35,7 @@ export default function SelectMethod() {
   const { isMobile } = useIsMobile();
 
   // EVM
-  const {
-    address,
-    chain,
-    isConnected: isEthConnected,
-    connector,
-  } = useAccount();
+  const { address, chain, isConnected: isEthConnected, connector } = useAccount();
 
   // Solana
   const {
@@ -60,12 +54,38 @@ export default function SelectMethod() {
     isExternalKit: isStellarExternalKit,
   } = useStellar();
 
-  const { setRoute, paymentState, log, disableMobileInjector } =
-    usePayContext();
+  const { setRoute, paymentState, log, disableMobileInjector, open: modalOpen } = usePayContext();
   const { capture } = useAnalytics();
   const { showSolanaPaymentMethod } = paymentState;
   const { disconnectAsync } = useDisconnect();
   const autoConnectGate = useAutoConnectGate();
+
+  // Eagerly hydrate on mobile so deeplink wallets have a payId ready
+  // before the user taps "Pay with wallet".
+  const { hydrateOrder, order, paymentState: payState } = useRozoPay();
+  const hasHydratedRef = useRef(false);
+  const lastOrderIdRef = useRef<bigint | null>(null);
+  const hasCustomDeeplink = order?.metadata?.customDeeplinkUrl != null;
+  useEffect(() => {
+    if (order?.id !== lastOrderIdRef.current) {
+      hasHydratedRef.current = false;
+      lastOrderIdRef.current = order?.id ?? null;
+    }
+    if (
+      !hasHydratedRef.current &&
+      modalOpen &&
+      isMobile &&
+      !paymentState.isDepositFlow &&
+      !hasCustomDeeplink &&
+      order != null &&
+      order.mode !== RozoPayOrderMode.HYDRATED &&
+      payState !== "payment_unpaid"
+    ) {
+      hasHydratedRef.current = true;
+      hydrateOrder();
+    }
+    if (hasCustomDeeplink) hasHydratedRef.current = true;
+  }, [modalOpen, isMobile, paymentState.isDepositFlow, order, hasCustomDeeplink, payState]);
 
   const {
     externalPaymentOptions,
@@ -81,15 +101,15 @@ export default function SelectMethod() {
   // Mobile: Only show connected wallets when mobile injector is enabled (!disableMobileInjector)
   const showConnectedEth = useMemo(
     () => isEthConnected && (!isMobile || !disableMobileInjector),
-    [isEthConnected, isMobile, disableMobileInjector]
+    [isEthConnected, isMobile, disableMobileInjector],
   );
   const showConnectedSolana = useMemo(
     () => isSolanaConnected && (!isMobile || !disableMobileInjector),
-    [isSolanaConnected, isMobile, disableMobileInjector]
+    [isSolanaConnected, isMobile, disableMobileInjector],
   );
   const showConnectedStellar = useMemo(
     () => isStellarConnected && (!isMobile || !disableMobileInjector),
-    [isStellarConnected, isMobile, disableMobileInjector]
+    [isStellarConnected, isMobile, disableMobileInjector],
   );
 
   // Memoize connected wallet options to prevent unnecessary recalculations
@@ -168,18 +188,13 @@ export default function SelectMethod() {
       };
 
       // Include if paymentOptions is undefined (all allowed) or includes Ethereum
-      if (
-        paymentOptions == null ||
-        paymentOptions.includes(ExternalPaymentOptions.Ethereum)
-      ) {
+      if (paymentOptions == null || paymentOptions.includes(ExternalPaymentOptions.Ethereum)) {
         connectedOptions.push(connectedEthWalletOption);
       }
     }
 
     if (showConnectedSolana && showSolanaPaymentMethod) {
-      const solWalletDisplayName = getAddressContraction(
-        publicKey?.toBase58() ?? ""
-      );
+      const solWalletDisplayName = getAddressContraction(publicKey?.toBase58() ?? "");
 
       // Prefer icon from walletConfigs if available
       let solWalletIcon: React.ReactNode;
@@ -235,18 +250,13 @@ export default function SelectMethod() {
       };
 
       // Include if paymentOptions is undefined (all allowed) or includes Solana
-      if (
-        paymentOptions == null ||
-        paymentOptions.includes(ExternalPaymentOptions.Solana)
-      ) {
+      if (paymentOptions == null || paymentOptions.includes(ExternalPaymentOptions.Solana)) {
         connectedOptions.push(connectedSolWalletOption);
       }
     }
 
     if (showConnectedStellar) {
-      const stellarWalletDisplayName = getAddressContraction(
-        stellarPublicKey ?? ""
-      );
+      const stellarWalletDisplayName = getAddressContraction(stellarPublicKey ?? "");
 
       const connectedStellarWalletOption = {
         id: "connectedStellarWallet",
@@ -289,10 +299,7 @@ export default function SelectMethod() {
       };
 
       // Include if paymentOptions is undefined (all allowed) or includes Stellar
-      if (
-        paymentOptions == null ||
-        paymentOptions.includes(ExternalPaymentOptions.Stellar)
-      ) {
+      if (paymentOptions == null || paymentOptions.includes(ExternalPaymentOptions.Stellar)) {
         connectedOptions.push(connectedStellarWalletOption);
       }
     }
@@ -367,7 +374,7 @@ export default function SelectMethod() {
           await disconnectAsync();
           await disconnectSolana();
           if (!isStellarExternalKit) await disconnectStellar();
-          setRoute(ROUTES.CONNECTORS);
+          setRoute(isMobile ? ROUTES.MOBILECONNECTORS : ROUTES.CONNECTORS);
         },
       };
       options.push(unconnectedWalletOption);
@@ -380,11 +387,17 @@ export default function SelectMethod() {
         paymentOptions.length === 1 &&
         paymentOptions.includes(ExternalPaymentOptions.Stellar);
 
-      if (!isOnlyStellar && depositAddressOptions.options.length > 0) {
+      if (
+        !isOnlyStellar &&
+        (depositAddressOptions.options.length > 0 || depositAddressOptions.loading)
+      ) {
         const base = getDepositAddressOption(setRoute, payParams?.appId);
         options.push({
           ...base,
+          disabled: depositAddressOptions.loading,
+          subtitle: depositAddressOptions.loading ? "Loading..." : undefined,
           onClick: () => {
+            if (depositAddressOptions.loading) return;
             capture(ROZO_EVENTS.PAYMENT_METHOD_SELECTED, {
               field: "chain",
               value: "deposit_address",
@@ -399,8 +412,7 @@ export default function SelectMethod() {
     // connected — the shared kit instance means connecting a new wallet here would
     // silently replace their app's stellar session. The "Pay with [addr]" option above already covers this case.
     const showStellarOption =
-      showStellarPaymentMethod &&
-      !(isStellarExternalKit && isStellarConnected);
+      showStellarPaymentMethod && !(isStellarExternalKit && isStellarConnected);
 
     if (showStellarOption) {
       options.push({
@@ -453,8 +465,11 @@ export default function SelectMethod() {
       });
     }
 
-    // Order disabled to bottom
-    options.sort((a, b) => (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0));
+    // Order disabled to bottom, but keep depositAddress in place (shows loading state)
+    options.sort((a, b) => {
+      if (a.id === "depositAddress" || b.id === "depositAddress") return 0;
+      return (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0);
+    });
 
     return options;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -478,7 +493,7 @@ export default function SelectMethod() {
   log(
     `[SELECT_METHOD] loading: ${
       externalPaymentOptions.loading
-    }, options: ${JSON.stringify(externalPaymentOptions.options)}`
+    }, options: ${JSON.stringify(externalPaymentOptions.options)}`,
   );
 
   // Wallet connected but reconnect/order not settled yet: show the reused
@@ -525,10 +540,7 @@ function getStellarWalletIcons() {
 }
 
 // Get 3 icons, skipping the one that is already connected
-function getBestUnconnectedWalletIcons(
-  connector: Connector | undefined,
-  isMobile: boolean
-) {
+function getBestUnconnectedWalletIcons(connector: Connector | undefined, isMobile: boolean) {
   const icons: JSX.Element[] = [];
   const strippedId = connector?.id.toLowerCase(); // some connector ids can have weird casing and or suffixes and prefixes
   const [isPhantom, isCoinbase, isMetamask, isRainbow] = [
@@ -554,16 +566,12 @@ function getBestUnconnectedWalletIcons(
 
 function getDepositAddressOption(
   setRoute: (route: ROUTES, data?: Record<string, any>) => void,
-  appId?: string
+  appId?: string,
 ) {
   return {
     id: "depositAddress",
     title: "Pay to address",
-    icons: [
-      <Base key="base" />,
-      <Solana key="solana" />,
-      <Ethereum key="ethereum" />,
-    ],
+    icons: [<Base key="base" />, <Solana key="solana" />, <Ethereum key="ethereum" />],
     onClick: () => {
       setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_CHAIN);
     },

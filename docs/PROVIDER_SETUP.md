@@ -241,6 +241,27 @@ export function Providers({ children }) {
 
 ---
 
+### ⚠️ SSR `ReferenceError: window is not defined` from telemetry (fixed in 0.1.36+)
+
+Before 0.1.36, the SDK's `isDNTEnabled()` telemetry guard touched
+`window.doNotTrack` unconditionally. Under Next.js SSR, `window` is undefined,
+so rendering `<RozoPayProvider>` on the server threw and returned HTTP 500 for
+the entire page.
+
+**Workaround (older SDK versions):** pass `telemetry={false}` to disable the
+built-in telemetry path.
+
+```tsx
+<RozoPayProvider telemetry={false} ...>
+```
+
+**On 0.1.36+:** the guard is SSR-safe (`typeof window === "undefined"` short-
+circuits before any `window.*` access). Host apps can drop the
+`telemetry={false}` workaround unless they want to opt out of telemetry for
+privacy reasons — see [ANALYTICS.md](./ANALYTICS.md#opting-out).
+
+---
+
 ### ❌ Using SDK hooks outside the provider
 
 ```tsx
