@@ -2,8 +2,10 @@
 
 Stellar uses a different approach: the SDK accepts an injectable `stellarKit` prop,
 so instead of automating a browser extension, a secret-key signer runs inside the
-page. Playwright injects the secret at runtime — it never touches the app bundle or
-any env var the app reads — so this signer cannot activate in production.
+page. Playwright injects the secret at runtime and the app only wires the kit
+when it was built with `NEXT_PUBLIC_E2E=1` — so the headless-signer code path
+dead-code-eliminates out of production bundles at build time, and even in an
+E2E build the kit does nothing unless Playwright has already injected a secret.
 
 ---
 
@@ -73,8 +75,21 @@ export function createHeadlessStellarKit(secret: string): StellarWalletsKit {
 ## 3. Wire the kit into your provider
 
 In the component that renders `<RozoPayProvider />`, read the runtime-injected
-window variable and pass the kit as the `stellarKit` prop. Use a `useState`
-initializer so the kit is only constructed once per page load.
+window variable and pass the kit as the `stellarKit` prop. Two safety gates:
+
+1. `NEXT_PUBLIC_E2E` env flag — the Playwright `webServer` config sets this to
+   `1` when starting the dev server. In production builds it's `undefined`,
+   so Next.js's bundler tree-shakes the `require("@/lib/e2e-stellar-kit")`
+   call and the entire `@creit.tech/stellar-wallets-kit` module graph never
+   enters the client chunk.
+2. `window.__E2E_STELLAR_SECRET__` — the actual secret. Even in an E2E build,
+   the kit is only constructed when Playwright injected the secret via
+   `addInitScript`. The provider deletes the property from `window`
+   immediately after reading it, so later scripts on the same page (analytics,
+   third-party widgets) can't scrape it.
+
+Use a `useState` initializer so the kit is only constructed once per page
+load — the kit registers a custom element and throws on a second construction.
 
 ```tsx
 import { createHeadlessStellarKit } from "@/lib/e2e-stellar-kit"
@@ -83,10 +98,21 @@ import type { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit"
 // Inside your provider component:
 const [stellarKit] = useState<StellarWalletsKit | undefined>(() => {
   if (typeof window === "undefined") return undefined
-  const secret = (window as Window & { __E2E_STELLAR_SECRET__?: string })
-    .__E2E_STELLAR_SECRET__
+  // Env-flag gate — lets the bundler drop the entire import graph in prod.
+  if (!process.env.NEXT_PUBLIC_E2E) return undefined
+
+  const w = window as Window & { __E2E_STELLAR_SECRET__?: string }
+  const secret = w.__E2E_STELLAR_SECRET__
+  // Delete immediately so the key isn't readable later in the session.
+  delete w.__E2E_STELLAR_SECRET__
   if (!secret) return undefined
+
   try {
+    // require() inside the guarded branch: only resolved at build time when
+    // NEXT_PUBLIC_E2E=1, so the stellarWalletsKit bundle never enters the
+    // production chunk graph.
+    const { createHeadlessStellarKit } =
+      require("@/lib/e2e-stellar-kit") as typeof import("@/lib/e2e-stellar-kit")
     return createHeadlessStellarKit(secret)
   } catch (err) {
     console.error("[E2E] Failed to create headless Stellar kit:", err)
@@ -101,9 +127,9 @@ return (
 )
 ```
 
-Because the kit only builds when `__E2E_STELLAR_SECRET__` is on `window` — and
-Playwright is the only thing that sets it — the headless signer is impossible to
-activate in a real user session.
+Both gates must hold to activate the signer: the build must have been started
+with `NEXT_PUBLIC_E2E=1` **and** Playwright must inject the secret before the
+page loads. Neither is reachable from a real user session.
 
 ---
 
@@ -145,5 +171,9 @@ test.describe("Bridge: Stellar → EVM (mainnet, real funds)", () => {
 ## Notes
 
 - `useStellarSigner` uses `page.addInitScript` — it must be called before navigation.
+- Playwright starts the dev server with `NEXT_PUBLIC_E2E=1` (see
+  `examples/nextjs-app/e2e/playwright.config.ts` → `webServer.command:
+  "NEXT_PUBLIC_E2E=1 pnpm dev"`). Production `pnpm build` runs without the
+  flag, so the headless-kit import is dead-code-eliminated and never ships.
 - No browser extension needed; Stellar flows can run headless.
 - Source wallet needs XLM for fees and USDC to send. Destination wallet needs a USDC trustline.

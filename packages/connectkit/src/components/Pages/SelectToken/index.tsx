@@ -1,6 +1,6 @@
 import { ExternalPaymentOptions, Token } from "@rozoai/intent-common";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { injected, useAccount } from "wagmi";
 import { Ethereum, Solana } from "../../../assets/chains";
 import { RetryIcon } from "../../../assets/icons";
@@ -10,6 +10,8 @@ import { useConnect } from "../../../hooks/useConnect";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { usePayContext } from "../../../hooks/usePayContext";
 import { useTokenOptions } from "../../../hooks/useTokenOptions";
+import { ROZO_EVENTS } from "../../../lib/analytics/events";
+import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import { useStellar } from "../../../provider/StellarContextProvider";
 import Button from "../../Common/Button";
 import { OrDivider } from "../../Common/Modal";
@@ -108,6 +110,43 @@ export default function SelectToken() {
   const isEmptyOptionsList = useMemo(() => {
     return !isLoading && isConnected && optionsList.length === 0;
   }, [isLoading, isConnected, optionsList.length]);
+
+  // Fire payment_no_tokens_available once per empty-render episode.
+  // Re-arms after refresh/reconnect flips the state back to non-empty.
+  const { capture } = useAnalytics();
+  const noTokensReportedRef = useRef(false);
+  useEffect(() => {
+    const shouldShowEmpty =
+      !isLoading && isEmptyOptionsList && !noConnectedWallet;
+    if (shouldShowEmpty && !noTokensReportedRef.current) {
+      noTokensReportedRef.current = true;
+      const preferred = paymentState.payParams?.preferredTokens;
+      capture(ROZO_EVENTS.PAYMENT_NO_TOKENS_AVAILABLE, {
+        token_mode: effectiveTokenMode,
+        connected_chains: [
+          isEvmConnected && "evm",
+          isSolConnected && "solana",
+          isStellarConnected && "stellar",
+        ]
+          .filter(Boolean)
+          .join(","),
+        preferred_token_symbols: preferred?.map((t) => t.symbol) ?? [],
+        preferred_token_count: preferred?.length ?? 0,
+      });
+    } else if (!shouldShowEmpty) {
+      noTokensReportedRef.current = false;
+    }
+  }, [
+    isLoading,
+    isEmptyOptionsList,
+    noConnectedWallet,
+    effectiveTokenMode,
+    isEvmConnected,
+    isSolConnected,
+    isStellarConnected,
+    paymentState.payParams?.preferredTokens,
+    capture,
+  ]);
 
   // Redirect to connector page if paymentOptions requires a specific chain that is not connected
   useEffect(() => {

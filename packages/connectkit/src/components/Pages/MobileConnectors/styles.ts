@@ -27,11 +27,12 @@ export const WalletIcon = styled.div<{ $outline?: boolean }>`
     border-radius: inherit;
     box-shadow: inset 0 0 0 1px var(--ck-body-background-tertiary);
   }`}
-  svg {
+  svg, img {
     display: block;
     position: relative;
     width: 100%;
-    height: auto;
+    height: 100%;
+    object-fit: cover;
   }
 `;
 export const WalletLabel = styled.div`

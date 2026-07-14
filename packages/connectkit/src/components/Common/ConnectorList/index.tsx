@@ -1,7 +1,4 @@
-import {
-  ExternalPaymentOptions,
-  ExternalPaymentOptionsString,
-} from "@rozoai/intent-common";
+import { ExternalPaymentOptions, ExternalPaymentOptionsString } from "@rozoai/intent-common";
 import { useWallet as useSolanaWalletAdapter } from "@solana/wallet-adapter-react";
 import { useEffect, useMemo } from "react";
 import { ROUTES } from "../../../constants/routes";
@@ -29,11 +26,7 @@ import {
   SkeletonLabel,
 } from "./styles";
 
-const ConnectorList = ({
-  customDeeplink = null,
-}: {
-  customDeeplink?: string | null;
-}) => {
+const ConnectorList = ({ customDeeplink = null }: { customDeeplink?: string | null }) => {
   const context = usePayContext();
   const { isMobile } = useIsMobile();
 
@@ -55,15 +48,12 @@ const ConnectorList = ({
   // If customDeeplink is provided, we don't need to wait for hydration
   const shouldWaitForHydration = useMemo(
     () => !customDeeplink && isMobile && !context.paymentState.isDepositFlow,
-    [customDeeplink, isMobile, context.paymentState.isDepositFlow]
+    [customDeeplink, isMobile, context.paymentState.isDepositFlow],
   );
 
   const ready = useMemo(
-    () =>
-      customDeeplink ||
-      !shouldWaitForHydration ||
-      paymentState === "payment_unpaid",
-    [customDeeplink, shouldWaitForHydration, paymentState]
+    () => customDeeplink || !shouldWaitForHydration || paymentState === "payment_unpaid",
+    [customDeeplink, shouldWaitForHydration, paymentState],
   );
 
   useEffect(() => {
@@ -79,20 +69,14 @@ const ConnectorList = ({
         <Alert error>No connectors found in ConnectKit config.</Alert>
       )}
       {!ready && walletsToDisplay.length > 0 && (
-        <ConnectorsContainer
-          $mobile={isMobile}
-          $totalResults={walletsToDisplay.length}
-        >
+        <ConnectorsContainer $mobile={isMobile} $totalResults={walletsToDisplay.length}>
           {walletsToDisplay.map((_, idx) => (
             <SkeletonConnectorItem key={idx} />
           ))}
         </ConnectorsContainer>
       )}
       {ready && walletsToDisplay.length > 0 && (
-        <ConnectorsContainer
-          $mobile={isMobile}
-          $totalResults={walletsToDisplay.length}
-        >
+        <ConnectorsContainer $mobile={isMobile} $totalResults={walletsToDisplay.length}>
           {walletsToDisplay.map((wallet) => (
             <ConnectorItem
               key={wallet.id}
@@ -124,8 +108,7 @@ const ConnectorItem = ({
   const solanaWallets = useSolanaWalletAdapter();
 
   // The "Other" 2x2 connector, goes to the MobileConnectors page.
-  const redirectToMoreWallets =
-    isMobile && wallet.id === WALLET_ID_OTHER_WALLET;
+  const redirectToMoreWallets = isMobile && wallet.id === WALLET_ID_OTHER_WALLET;
   const redirectToMobileWallets = wallet.id === WALLET_ID_MOBILE_WALLETS;
 
   // Safari requires opening popup on user gesture, so we connect immediately here
@@ -143,10 +126,10 @@ const ConnectorItem = ({
     }
 
     const hasEthereum = paymentOptions.includes(
-      ExternalPaymentOptions.Ethereum as ExternalPaymentOptionsString
+      ExternalPaymentOptions.Ethereum as ExternalPaymentOptionsString,
     );
     const hasSolana = paymentOptions.includes(
-      ExternalPaymentOptions.Solana as ExternalPaymentOptionsString
+      ExternalPaymentOptions.Solana as ExternalPaymentOptionsString,
     );
 
     return { hasEthereum, hasSolana };
@@ -199,9 +182,11 @@ const ConnectorItem = ({
     // wallet-standard provider (e.g. Phantom): connect both chains at once
     // instead of forcing a chain choice. SELECT_METHOD already shows
     // separate "Pay with [eth]"/"Pay with [sol]" tiles once both are connected.
+    // Connect EVM directly (no intermediate injector page — we're already inside
+    // the wallet's in-app browser) and select Solana simultaneously.
     if (isMobile && wallet.connector && wallet.solanaConnectorName) {
-      context.setPendingConnectorId(wallet.id);
-      context.setRoute(ROUTES.CONNECT, meta);
+      context.setDualChainConnect(true);
+      connect({ connector: wallet.connector });
       solanaWallets.select(wallet.solanaConnectorName);
       return;
     }
@@ -216,18 +201,10 @@ const ConnectorItem = ({
         context.setPendingConnectorId(WALLET_ID_MOBILE_WALLETS);
         context.setRoute(ROUTES.CONNECT, meta);
       }
-    } else if (
-      context.paymentState.isDepositFlow &&
-      isMobile &&
-      !wallet.connector
-    ) {
+    } else if (context.paymentState.isDepositFlow && isMobile && !wallet.connector) {
       context.paymentState.setSelectedWallet(wallet);
       context.setRoute(ROUTES.SELECT_WALLET_AMOUNT, meta);
-    } else if (
-      isMobile &&
-      wallet.getRozoPayDeeplink != null &&
-      !wallet.connector
-    ) {
+    } else if (isMobile && wallet.getRozoPayDeeplink != null && !wallet.connector) {
       context.paymentState.openInWalletBrowser({
         wallet,
         customDeeplink: customDeeplink ?? undefined,
@@ -243,14 +220,11 @@ const ConnectorItem = ({
 
   return (
     <ConnectorButton type="button" onClick={onClick}>
-      <ConnectorIcon
-        data-small={wallet.iconShouldShrink}
-        data-shape={wallet.iconShape}
-      >
+      <ConnectorIcon data-small={wallet.iconShouldShrink} data-shape={wallet.iconShape}>
         {wallet.iconConnector ?? wallet.icon}
       </ConnectorIcon>
       <ConnectorLabel>
-        {isMobile ? wallet.shortName ?? wallet.name : wallet.name}
+        {isMobile ? (wallet.shortName ?? wallet.name) : wallet.name}
         {!context.options?.hideRecentBadge && isRecent && (
           <RecentlyUsedTag>
             <span>Recent</span>

@@ -1,5 +1,6 @@
 import {
   getChainName,
+  normalizeTokenAddress,
   supportedPayoutTokens,
   Token,
 } from "@rozoai/intent-common";
@@ -19,10 +20,7 @@ export type ValidationError = {
  * @param tokenAddress - The token address (or identifier for non-EVM chains)
  * @returns ValidationError if invalid, null if valid
  */
-export function validatePayoutToken(
-  chainId: number,
-  tokenAddress: string
-): ValidationError | null {
+export function validatePayoutToken(chainId: number, tokenAddress: string): ValidationError | null {
   // Check if chain is supported
   const tokensForChain = supportedPayoutTokens.get(chainId);
 
@@ -32,17 +30,17 @@ export function validatePayoutToken(
       chainId,
       tokenAddress,
       message: `Chain ID ${chainId} is not supported for payouts. Supported chains: ${Array.from(
-        supportedPayoutTokens.keys()
+        supportedPayoutTokens.keys(),
       ).join(", ")}`,
     };
   }
 
   // Normalize token addresses for comparison
-  const normalizedInput = tokenAddress.toLowerCase();
+  const normalizedInput = normalizeTokenAddress(chainId, tokenAddress) ?? tokenAddress;
 
   // Check if token is supported on this chain
   const isTokenSupported = tokensForChain.some((token: Token) => {
-    const normalizedToken = token.token.toLowerCase();
+    const normalizedToken = normalizeTokenAddress(chainId, token.token) ?? token.token;
     return normalizedToken === normalizedInput;
   });
 
@@ -71,9 +69,7 @@ export function getDetailedValidationError(error: ValidationError): {
 } {
   if (error.type === "unsupported_chain") {
     const supportedChains = Array.from(supportedPayoutTokens.keys());
-    const chainsList = supportedChains
-      .map((id) => getChainName(id) || `Chain ${id}`)
-      .join(", ");
+    const chainsList = supportedChains.map((id) => getChainName(id) || `Chain ${id}`).join(", ");
 
     return {
       title: "Unsupported Chain",
@@ -83,9 +79,7 @@ export function getDetailedValidationError(error: ValidationError): {
 
   // unsupported_token
   const tokensForChain = supportedPayoutTokens.get(error.chainId);
-  const supportedTokens = tokensForChain
-    ? tokensForChain.map((t) => t.symbol).join(", ")
-    : "None";
+  const supportedTokens = tokensForChain ? tokensForChain.map((t) => t.symbol).join(", ") : "None";
 
   return {
     title: "Unsupported Token",

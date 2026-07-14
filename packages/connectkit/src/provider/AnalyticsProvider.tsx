@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 import { POSTHOG_HOST, POSTHOG_KEY } from "../constants/rozoConfig";
 import type { RozoEventName } from "../lib/analytics/events";
+import { isDNTEnabled } from "../utils/isDNTEnabled";
 import { sanitizeProperties } from "../utils/sanitize";
 
 interface AnalyticsContextValue {
@@ -45,15 +46,6 @@ const BUILTIN_STRIP_KEYS: ReadonlySet<string> = new Set([
   "tx_hash",
   "amount",
 ]);
-
-function isDNTEnabled(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return (
-    navigator.doNotTrack === "1" ||
-    (navigator as any).msDoNotTrack === "1" ||
-    (window as any).doNotTrack === "1"
-  );
-}
 
 interface AnalyticsProviderProps {
   children: ReactNode;
