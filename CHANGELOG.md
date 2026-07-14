@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.36] - 2026-07-14
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- NormalizeTokenAddress, dualChainConnect, useQuery migration &nbsp;-&nbsp; by @akbarsaputrait [<samp>(8dfbf)</samp>](https://github.com/RozoAI/intent-pay/commit/8dfbf278)
+- **mobile**: Unified wallet chooser, eager hydration, deposit address loading state &nbsp;-&nbsp; by @akbarsaputrait [<samp>(d9117)</samp>](https://github.com/RozoAI/intent-pay/commit/d91171c3)
+- **sdk**: Emit payment_no_tokens_available on empty SelectToken &nbsp;-&nbsp; by @akbarsaputrait [<samp>(dd983)</samp>](https://github.com/RozoAI/intent-pay/commit/dd9838b2)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**:
+  - Remove memo requirement from Solana payment flows &nbsp;-&nbsp; by @akbarsaputrait [<samp>(c98b4)</samp>](https://github.com/RozoAI/intent-pay/commit/c98b46fe)
+  - Update memo requirement for Stellar payments &nbsp;-&nbsp; by @akbarsaputrait [<samp>(86934)</samp>](https://github.com/RozoAI/intent-pay/commit/869342e2)
+- **dualChainConnect**:
+  - Skip injector page on mobile dual-chain tap &nbsp;-&nbsp; by @akbarsaputrait [<samp>(66fbd)</samp>](https://github.com/RozoAI/intent-pay/commit/66fbd342)
+- **ios**:
+  - Open deeplink via <a> tag click, skip WAITING_WALLET intermediate page &nbsp;-&nbsp; by @akbarsaputrait [<samp>(0bee7)</samp>](https://github.com/RozoAI/intent-pay/commit/0bee72f3)
+- **mobile**:
+  - Dedup injected wallets, img dimensions, deposit address order &nbsp;-&nbsp; by @akbarsaputrait [<samp>(8aa6c)</samp>](https://github.com/RozoAI/intent-pay/commit/8aa6c0ec)
+- **sdk**:
+  - Guard isDNTEnabled against SSR (window undefined) &nbsp;-&nbsp; by @akbarsaputrait [<samp>(d9b65)</samp>](https://github.com/RozoAI/intent-pay/commit/d9b6566f)
+  - Allow payment options fetch for every appId, incl. default &nbsp;-&nbsp; by @akbarsaputrait [<samp>(732a5)</samp>](https://github.com/RozoAI/intent-pay/commit/732a5ac4)
+
+---
+
+
 ## [0.1.34] - 2026-07-07
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
