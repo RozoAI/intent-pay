@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.36-beta.5] - 2026-07-14
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**: Guard `isDNTEnabled()` against SSR (`typeof window === "undefined"`) so `<RozoPayProvider>` no longer throws `ReferenceError: window is not defined` under Next.js SSR. Host apps that set `telemetry={false}` as a workaround can drop it. Fixes invoice.rozo.ai checkout HTTP 500 incident (2026-07-13).
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- **analytics**: Add `payment_no_tokens_available` PostHog event. Fires once per empty-render episode of the `SelectToken` page when a wallet is connected but no eligible balances exist. Properties: `token_mode`, `connected_chains`, `preferred_token_symbols`, `preferred_token_count`. Re-arms after refresh or reconnect. See [ANALYTICS.md](./docs/ANALYTICS.md).
+
+---
+
 ## [0.1.34] - 2026-07-07
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
