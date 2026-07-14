@@ -15,6 +15,7 @@ export const PAYMENT_EVENTS = {
   PAYMENT_FAILED: "payment_failed",
   PAYMENT_VALIDATION_ERROR: "payment_validation_error",
   PAYMENT_CANCELLED: "payment_cancelled",
+  PAYMENT_NO_TOKENS_AVAILABLE: "payment_no_tokens_available",
 } as const;
 
 export const GLOBAL_EVENTS = {
