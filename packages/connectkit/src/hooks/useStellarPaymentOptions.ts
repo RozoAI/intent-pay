@@ -32,7 +32,11 @@ export function useStellarPaymentOptions({
     [chains],
   );
 
-  const stableAppId = useMemo(() => payParams?.appId, [payParams?.appId]);
+  // Fetch under caller's appId, or DEFAULT_ROZO_APP_ID when none passed.
+  const stableAppId = useMemo(
+    () => payParams?.appId ?? DEFAULT_ROZO_APP_ID,
+    [payParams?.appId],
+  );
 
   const memoizedPreferredTokens = useMemo(
     () => payParams?.preferredTokens,
@@ -43,9 +47,7 @@ export function useStellarPaymentOptions({
   const { data, isLoading, refetch } = useQuery<WalletPaymentOption[] | null>({
     enabled:
       address != null &&
-      usdRequired != null &&
-      stableAppId != null &&
-      stableAppId !== DEFAULT_ROZO_APP_ID,
+      usdRequired != null,
     queryKey: [
       "stellarPaymentOptions",
       address,
@@ -63,7 +65,7 @@ export function useStellarPaymentOptions({
         stellarAddress: address!,
         // API expects undefined for deposit flow.
         usdRequired: isDepositFlow ? undefined : usdRequired,
-        appId: stableAppId!,
+        appId: stableAppId,
         preferredTokenAddress: stellarPreferredTokenAddresses,
       });
     },

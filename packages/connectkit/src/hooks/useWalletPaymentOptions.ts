@@ -42,6 +42,9 @@ export function useWalletPaymentOptions({
   payParams: PayParams | undefined;
   log: (msg: string) => void;
 }) {
+  // Fetch under the caller's appId, or the shared DEFAULT_ROZO_APP_ID when
+  // none was passed — same fallback as paymentEffects and createPaymentPayload,
+  // so balances are visible for every integration regardless of appId config.
   const stableAppId = useMemo(() => {
     return payParams?.appId ?? DEFAULT_ROZO_APP_ID;
   }, [payParams?.appId]);
@@ -68,9 +71,7 @@ export function useWalletPaymentOptions({
     enabled:
       address != null &&
       usdRequired != null &&
-      destChainId != null &&
-      payParams?.appId != null &&
-      payParams.appId !== DEFAULT_ROZO_APP_ID,
+      destChainId != null,
     queryKey: [
       "walletPaymentOptions",
       address,

@@ -33,7 +33,11 @@ export function useSolanaPaymentOptions({
     [chains],
   );
 
-  const stableAppId = useMemo(() => payParams?.appId, [payParams?.appId]);
+  // Fetch under caller's appId, or DEFAULT_ROZO_APP_ID when none passed.
+  const stableAppId = useMemo(
+    () => payParams?.appId ?? DEFAULT_ROZO_APP_ID,
+    [payParams?.appId],
+  );
 
   const memoizedPreferredTokens = useMemo(
     () => payParams?.preferredTokens,
@@ -44,9 +48,7 @@ export function useSolanaPaymentOptions({
   const { data, isLoading, refetch } = useQuery<WalletPaymentOption[] | null>({
     enabled:
       address != null &&
-      usdRequired != null &&
-      stableAppId != null &&
-      stableAppId !== DEFAULT_ROZO_APP_ID,
+      usdRequired != null,
     queryKey: [
       "solanaPaymentOptions",
       address,
@@ -64,7 +66,7 @@ export function useSolanaPaymentOptions({
         pubKey: address!,
         // API expects undefined for deposit flow.
         usdRequired: isDepositFlow ? undefined : usdRequired,
-        appId: stableAppId!,
+        appId: stableAppId,
         preferredTokenAddress: solanaPreferredTokenAddresses,
       });
     },
