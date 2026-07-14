@@ -178,15 +178,15 @@ export function createPaymentBridgeConfig({
   const preferredChainData = getChainById(preferredChain);
   const correctedPreferredChain =
     preferredChainData.chainId === solana.chainId ? rozoSolana.chainId : preferredChain;
-  const prefferedToken = getKnownToken(correctedPreferredChain, preferredTokenAddress);
-  if (!prefferedToken) {
+  const preferredToken = getKnownToken(correctedPreferredChain, preferredTokenAddress);
+  if (!preferredToken) {
     throw new Error(
       `Unknown token ${preferredTokenAddress} for chain ${preferredChainData.name} (${preferredChain})`,
     );
   }
 
   // Validate EURC: EURC can only be sent to another EURC
-  const isPreferredEURC = prefferedToken.symbol === TokenSymbol.EURC;
+  const isPreferredEURC = preferredToken.symbol === TokenSymbol.EURC;
   const isDestinationEURC = destinationToken.symbol === TokenSymbol.EURC;
 
   if (isPreferredEURC && !isDestinationEURC) {
@@ -197,14 +197,14 @@ export function createPaymentBridgeConfig({
 
   if (isDestinationEURC && !isPreferredEURC) {
     throw new Error(
-      `EURC can only be received from another EURC. Preferred token is ${prefferedToken.symbol}, not EURC.`,
+      `EURC can only be received from another EURC. Preferred token is ${preferredToken.symbol}, not EURC.`,
     );
   }
 
   let preferred: PreferredPaymentConfig = {
-    preferredChain: String(prefferedToken.chainId),
-    preferredToken: prefferedToken.symbol,
-    preferredTokenAddress: prefferedToken.token,
+    preferredChain: String(preferredToken.chainId),
+    preferredToken: preferredToken.symbol,
+    preferredTokenAddress: preferredToken.token,
   };
 
   let destination: DestinationConfig = {
@@ -218,10 +218,10 @@ export function createPaymentBridgeConfig({
   if (isChainSupported(toChain) && isTokenSupported(toChain, toToken)) {
     preferred = {
       preferredChain: String(
-        prefferedToken.chainId === solana.chainId ? rozoSolana.chainId : prefferedToken.chainId,
+        preferredToken.chainId === solana.chainId ? rozoSolana.chainId : preferredToken.chainId,
       ),
-      preferredToken: prefferedToken.symbol,
-      preferredTokenAddress: prefferedToken.token,
+      preferredToken: preferredToken.symbol,
+      preferredTokenAddress: preferredToken.token,
     };
 
     // Determine destination based on special address types

@@ -12,12 +12,11 @@ import {
   RozoPayOrderWithOrg,
   rozoSolana,
   rozoStellar,
-  WalletPaymentOption,
 } from "@rozoai/intent-common";
 import { formatUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { tokenBaseAmountToDecimalString } from "../utils/format";
-import { PayParams } from "./paymentFsm";
+import { HydrateWalletOption, PayParams } from "./paymentFsm";
 
 type OrderLike = RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg;
 
@@ -27,7 +26,7 @@ export type CreatePaymentContext = {
   /** Existing order, if any (used to derive amount/metadata in hydrate flows). */
   order?: OrderLike;
   /** Wallet option the user selected (required for wallet payments). */
-  walletOption?: WalletPaymentOption;
+  walletOption?: HydrateWalletOption;
   /** Explicit API version (defaults to v2). */
   apiVersion?: ApiVersion;
   /** Override for fee type – falls back to payParams.feeType or ExactIn. */

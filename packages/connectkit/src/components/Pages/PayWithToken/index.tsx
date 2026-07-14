@@ -208,7 +208,7 @@ const PayWithToken: React.FC = () => {
                   : option.fees.usd,
             },
           },
-          store as any,
+          store,
         );
         setTxURL(getChainExplorerTxUrl(option.required.token.chainId, result.txHash));
         if (result.success) {
@@ -249,7 +249,7 @@ const PayWithToken: React.FC = () => {
           const switchSuccessful = await trySwitchingChain(option, true);
           if (switchSuccessful) {
             try {
-              const retryResult = await payWithToken(option, store as any);
+              const retryResult = await payWithToken(option, store);
               setTxURL(getChainExplorerTxUrl(option.required.token.chainId, retryResult.txHash));
               if (retryResult.success) {
                 capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {

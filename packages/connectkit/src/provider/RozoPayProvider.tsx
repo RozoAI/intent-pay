@@ -162,8 +162,12 @@ const RozoPayUIProvider = ({
   const [open, setOpenState] = useState<boolean>(false);
   const [lockPayParams, setLockPayParams] = useState<boolean>(false);
   const [paymentCompleted, setPaymentCompleted] = useState<boolean>(false);
-  const [route, setRouteState] = useState<ROUTES>(ROUTES.SELECT_METHOD);
-  const [routeMeta, setRouteMeta] = useState<Record<string, any> | undefined>(undefined);
+  const [routeState, setRouteStateInner] = useState<{
+    route: ROUTES;
+    meta: Record<string, any> | undefined;
+  }>({ route: ROUTES.SELECT_METHOD, meta: undefined });
+  const route = routeState.route;
+  const routeMeta = routeState.meta;
   const [modalOptions, setModalOptions] = useState<RozoPayModalOptions>();
 
   // Rozo Pay context
@@ -261,8 +265,7 @@ const RozoPayUIProvider = ({
     (route: ROUTES, data?: Record<string, any>) => {
       const action = route.replace("rozoPay", "");
       log(`[SET ROUTE] ${action} ${pay.order?.id} ${debugJson(data ?? {})}`);
-      setRouteState(route);
-      setRouteMeta(data);
+      setRouteStateInner({ route, meta: data });
     },
     [trpc, pay.order?.id, log],
   );
@@ -520,7 +523,7 @@ export const RozoPayProvider = (props: RozoPayProviderProps) => {
     [props.debugMode],
   );
 
-  // ponytail: don't force consumers to wire QueryClientProvider — reuse theirs if present.
+  // Don't force consumers to wire QueryClientProvider — reuse theirs if present.
   const parentClient = useContext(QueryClientContext);
   const ownClient = useMemo(
     () =>

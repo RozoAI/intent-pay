@@ -233,16 +233,6 @@ const PayWithStellarToken: React.FC = () => {
 
       setFeeData(feeData.data);
 
-      // ponytail: backend forbids `checkout` when rotating to a native source.
-      // In payId mode there are no payParams to create a new order, so surface
-      // a clear error instead of silently hanging on "Preparing Transaction".
-      // if (isPayIdMode && isNativeToken(option.required.token)) {
-      //   const msg =
-      //     "Rotating an existing order to a native token is not supported. Please create a new payment.";
-      //   setRoute(ROUTES.ERROR, { error: msg });
-      //   return;
-      // }
-
       if (isPayIdMode) {
         // payId mode: checkout (refresh) the payment with the selected source token.
         // Guard against duplicate calls (e.g. from the recursive payment_unpaid branch).
@@ -276,7 +266,7 @@ const PayWithStellarToken: React.FC = () => {
       } else if ((state === "payment_unpaid" || state === "payment_started") && !needRozoPayment) {
         hydratedOrder = currentOrder as RozoPayHydratedOrderWithOrg;
       } else if (needRozoPayment) {
-        // ponytail: backend rejects `checkout` when rotating to a native source
+        // Backend rejects `checkout` when rotating to a native source
         // (SOL/ETH/XLM) — "create a new order instead". So for native sources we
         // skip checkout and create a fresh payment.
         const rotateToNative = isNativeToken(option.required.token.token);
@@ -312,7 +302,7 @@ const PayWithStellarToken: React.FC = () => {
                     : option.fees.usd,
               },
             },
-            store as any,
+            store,
           );
           if (!res) {
             throw new Error("Failed to create Rozo payment");

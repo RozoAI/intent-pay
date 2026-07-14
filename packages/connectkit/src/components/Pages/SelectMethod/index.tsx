@@ -395,9 +395,8 @@ export default function SelectMethod() {
         options.push({
           ...base,
           disabled: depositAddressOptions.loading,
-          subtitle: depositAddressOptions.loading ? "Loading..." : undefined,
+          loading: depositAddressOptions.loading,
           onClick: () => {
-            if (depositAddressOptions.loading) return;
             capture(ROZO_EVENTS.PAYMENT_METHOD_SELECTED, {
               field: "chain",
               value: "deposit_address",

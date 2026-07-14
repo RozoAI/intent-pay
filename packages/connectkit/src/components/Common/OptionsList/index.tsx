@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import { useEffect } from "react";
 import { keyframes } from "styled-components";
+import { Spinner } from "../Spinner";
+import { SpinnerContainer } from "../Spinner/styles";
 import { usePayContext } from "../../../hooks/usePayContext";
 import styled from "../../../styles/styled";
 import { OrDivider } from "../Modal";
@@ -18,6 +20,7 @@ export interface Option {
   sortValue?: number;
   title: string;
   subtitle?: string;
+  loading?: boolean;
   icons: (React.ReactNode | string)[];
   rightIcons?: (React.ReactNode | string)[];
   iconsPosition?: "left" | "right";
@@ -180,7 +183,6 @@ const OptionItem = ({ option }: { option: Option }) => {
       onClick={option.onClick}
       disabled={option.disabled}
     >
-      {iconContent}
       <OptionLabel
         $hasRightIcons={hydratedRightIcons.length > 0}
         $iconsPosition={iconsPosition}
@@ -188,7 +190,18 @@ const OptionItem = ({ option }: { option: Option }) => {
         <OptionTitle>{option.title}</OptionTitle>
         {option.subtitle && <OptionSubtitle>{option.subtitle}</OptionSubtitle>}
       </OptionLabel>
-      {rightIconContent}
+      {option.loading ? (
+        <IconStackContainer $position="right">
+          <SpinnerContainer>
+            <Spinner />
+          </SpinnerContainer>
+        </IconStackContainer>
+      ) : (
+        <>
+          {iconContent}
+          {rightIconContent}
+        </>
+      )}
     </OptionButton>
   );
 };

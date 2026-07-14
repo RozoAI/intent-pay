@@ -80,7 +80,6 @@ import { buildCreatePaymentPayload } from "../payment/createPaymentPayload";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
 import { useAnalytics } from "../provider/AnalyticsProvider";
 import { useStellar } from "../provider/StellarContextProvider";
-import { Store } from "../stateStore";
 import { parseErrorMessage } from "../utils/errorParser";
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
@@ -155,12 +154,12 @@ export interface PaymentState {
   setChosenUsd: (usd: number) => void;
   payWithToken: (
     walletOption: WalletPaymentOption,
-    store: Store<PaymentState, PaymentEvent>,
+    store: { dispatch: (e: PaymentEvent) => void },
   ) => Promise<{ txHash: Hex; success: boolean }>;
   payWithExternal: (option: ExternalPaymentOptions) => Promise<string>;
   payWithDepositAddress: (
     option: DepositAddressPaymentOptionMetadata,
-    store: Store<PaymentState, PaymentEvent>,
+    store: { dispatch: (e: PaymentEvent) => void },
     fees: FeeResponseData | null,
     log?: (message: string) => void,
   ) => Promise<
@@ -211,7 +210,7 @@ export interface PaymentState {
 
   createPayment: (
     option: WalletPaymentOption,
-    store: Store<PaymentState, PaymentEvent>,
+    store: { dispatch: (e: PaymentEvent) => void },
   ) => Promise<PaymentResponse | undefined>;
 }
 
@@ -256,7 +255,7 @@ export function usePaymentState({
   const { data: walletClient } = useWalletClient();
   const { data: walletCapabilities, isPending: capabilitiesPending } = useCapabilities();
   const { writeContractsAsync } = useWriteContracts();
-  // ponytail: order.metadata.dataSuffix survives ROZO_INVOICE_URL redirects where the
+  // order.metadata.dataSuffix survives ROZO_INVOICE_URL redirects where the
   // consumer's wagmi config (globalDataSuffix) is absent. Invoice checkout fetches the
   // order first and passes metadata.dataSuffix into getDefaultConfig, but this fallback
   // covers the in-SDK path where the order is already loaded.
@@ -537,14 +536,14 @@ export function usePaymentState({
 
   const handleCreateRozoPayment = async (
     walletOption: WalletPaymentOption,
-    store: Store<PaymentState, PaymentEvent>,
+    store: { dispatch: (e: PaymentEvent) => void },
   ): Promise<PaymentResponse | undefined> => {
     // Read from ref instead of closure to get latest value and avoid stale state
     const payParams = currPayParamsRef.current;
     const order = pay.order;
 
     // If payment already exists (payId mode or rozoPaymentId set), checkout instead of create.
-    // ponytail: backend forbids `checkout` when rotating to a native source token
+    // backend forbids `checkout` when rotating to a native source token
     // (SOL/ETH/XLM) — "create a new order instead" — so route native sources to the
     // create branch below instead of calling checkout.
     const existingPayId = order?.externalId ?? rozoPaymentId ?? undefined;
@@ -641,7 +640,7 @@ export function usePaymentState({
   /** Commit to a token + amount = initiate payment. */
   const payWithToken = async (
     walletOption: WalletPaymentOption,
-    store: Store<PaymentState, PaymentEvent>,
+    store: { dispatch: (e: PaymentEvent) => void },
   ): Promise<{ txHash: Hex; success: boolean }> => {
     assert(ethWalletAddress != null, `[PAY TOKEN] null ethWalletAddress when paying on ethereum`);
     assert(
@@ -715,7 +714,7 @@ export function usePaymentState({
       // CRITICAL: Always check needRozoPayment FIRST - if switching chains, MUST create new payment
       if (needRozoPayment) {
         // Create Rozo payment and hydrate in one step (cross-chain switch)
-        const res = await handleCreateRozoPayment(walletOption, store as any);
+        const res = await handleCreateRozoPayment(walletOption, store);
 
         if (!res) {
           throw new Error("Failed to create Rozo payment");
@@ -1266,7 +1265,7 @@ export function usePaymentState({
 
   const payWithDepositAddress = async (
     option: DepositAddressPaymentOptionMetadata,
-    store: Store<PaymentState, PaymentEvent>,
+    store: { dispatch: (e: PaymentEvent) => void },
     fees: FeeResponseData | null,
     log?: (message: string) => void,
   ) => {
@@ -1292,15 +1291,6 @@ export function usePaymentState({
         }
 
         log?.(`[PAY DEPOSIT ADDRESS] payId mode — fetching payment ${existingPayId}`);
-
-        // ponytail: backend forbids `checkout` when rotating to a native source
-        // (SOL/ETH/XLM). In payId mode there are no payParams to create a new
-        // order, so surface a clear error instead of a silent hang.
-        // if (isNativeToken(option.token.token)) {
-        //   throw new Error(
-        //     "Rotating an existing order to a native token is not supported. Please create a new payment.",
-        //   );
-        // }
 
         const paymentRes = await getPayment(existingPayId);
         if (!paymentRes?.data) {
@@ -1339,7 +1329,7 @@ export function usePaymentState({
       } else {
         log?.("[PAY DEPOSIT ADDRESS] hydrating order");
 
-        // ponytail: hydrateOrder needs required.amount so buildCreatePaymentPayload
+        // hydrateOrder needs required.amount so buildCreatePaymentPayload
         // can set preferredAmountUnits. For BOTH native (SOL/ETH/XLM) and
         // 1:1-USD-pegged sources, the amount must come from the fee response
         // (BE-computed source amount in source units, fee-inclusive) — NOT the
@@ -1364,11 +1354,11 @@ export function usePaymentState({
             required: {
               amount: sourceAmountUnits,
               token: option.token,
-            } as any,
+            },
             fees: {
               usd: fees?.source?.fee != null ? parseFloat(fees.source.fee) : 0,
             },
-          } as any,
+          },
           actualFeeType,
         );
 
@@ -1406,10 +1396,15 @@ export function usePaymentState({
       // over usdValue: for native sources (SOL/ETH/XLM) the source amount differs
       // from the USD/destination value, so usdValue would show e.g. "1.3 SOL"
       // instead of the correct ~0.0169 SOL. For 1:1-USD sources they coincide.
+      const isNativeDepositSource = isNativeToken(option.token.token);
+      const metaSourceAmount = order.metadata?.sourceAmountUnits;
+      if (isNativeDepositSource && metaSourceAmount == null) {
+        throw new Error(
+          "sourceAmountUnits missing on hydrated order for native deposit source",
+        );
+      }
       const sourceAmountUnits =
-        (order.metadata as any)?.sourceAmountUnits != null
-          ? String((order.metadata as any).sourceAmountUnits)
-          : String(order.usdValue);
+        metaSourceAmount != null ? String(metaSourceAmount) : String(order.usdValue);
 
       let uriDeeplink: string | null = null;
 

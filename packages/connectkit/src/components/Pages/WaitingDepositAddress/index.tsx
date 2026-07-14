@@ -283,10 +283,18 @@ export default function WaitingDepositAddress() {
       // Amount to send, in source-token units. Prefer the backend source.amount
       // (surfaced via metadata) over usdValue so native sources (SOL/ETH/XLM)
       // show the correct token amount rather than the USD/destination value.
+      // For native sources we MUST have the backend-computed value — usdValue
+      // is the destination payout (e.g. "1" USDC) not the native amount
+      // (e.g. "0.016885" SOL), so falling back to it would show the user the
+      // wrong amount.
+      const metaSourceAmount = order.metadata?.sourceAmountUnits;
+      if (isNativeSource && metaSourceAmount == null) {
+        throw new Error(
+          "sourceAmountUnits missing on hydrated order for native deposit source",
+        );
+      }
       const sourceAmountUnits =
-        (order.metadata as any)?.sourceAmountUnits != null
-          ? String((order.metadata as any).sourceAmountUnits)
-          : String(order.usdValue);
+        metaSourceAmount != null ? String(metaSourceAmount) : String(order.usdValue);
 
       let uriDeeplink: string | null = null;
 
@@ -398,8 +406,9 @@ export default function WaitingDepositAddress() {
               const { data: priceData } = await getTokenPrices({
                 symbols: [selectedDepositAddressOption.token.symbol],
               });
-              const usdPrice = Number(priceData?.data?.[0]?.prices?.[0]?.value);
-              if (!usdPrice || usdPrice <= 0) {
+              const priceEntry = priceData?.data?.[0];
+              const usdPrice = Number(priceEntry?.prices?.[0]?.value);
+              if (!Number.isFinite(usdPrice) || usdPrice <= 0) {
                 setFeeError({
                   error: {
                     code: "PRICE_FETCH_FAILED",
@@ -410,6 +419,11 @@ export default function WaitingDepositAddress() {
                 setIsLoading(false);
                 setHasExecutedDepositCall(false);
                 return;
+              }
+              if (priceEntry?.stale) {
+                context.log(
+                  `[WAITING_DEPOSIT] token price for ${selectedDepositAddressOption.token.symbol} is stale, proceeding with caution`,
+                );
               }
               const decimals = selectedDepositAddressOption.token.decimals;
               // BE expects a human-readable decimal string (e.g. "0.126919660"
@@ -487,7 +501,7 @@ export default function WaitingDepositAddress() {
 
         const details = await payWithDepositAddress(
           selectedDepositAddressOption,
-          store as any,
+          store,
           feeData,
           context.log,
         );

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 import {
   ModalBody,
@@ -12,12 +12,14 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
 import styled from "../../../../styles/styled";
+import Button from "../../../Common/Button";
 import { walletConfigs } from "../../../../wallets/walletConfigs";
 import SquircleSpinner from "../../../Spinners/SquircleSpinner";
 
 const ConnectSolana: React.FC = () => {
   const solanaWallets = useWallet();
   const isConnected = solanaWallets.connected;
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const { solanaConnector, setRoute, paymentState, routeMeta } =
     usePayContext();
@@ -54,6 +56,20 @@ const ConnectSolana: React.FC = () => {
     );
   };
 
+  // Listen for adapter-level errors (e.g. WalletConnect proposal expired)
+  useEffect(() => {
+    const adapter = solanaWallets.wallet?.adapter;
+    if (!adapter) return;
+    const handleError = (error: unknown) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      setConnectionError(msg || "Connection failed");
+    };
+    adapter.on("error", handleError);
+    return () => {
+      adapter.off("error", handleError);
+    };
+  }, [solanaWallets.wallet]);
+
   useEffect(() => {
     if (!solanaConnector) return;
     solanaWallets.select(solanaConnector);
@@ -89,13 +105,41 @@ const ConnectSolana: React.FC = () => {
                   {getWalletIcon()}
                 </div>
               }
-              loading={true}
+              loading={!isConnected && !connectionError}
             />
           </AnimatePresence>
         </AnimationContainer>
       </LoadingContainer>
       <ModalContent style={{ paddingBottom: 0 }}>
-        {isConnected ? (
+        {connectionError ? (
+          <>
+            <ModalH1>Connection Failed</ModalH1>
+            <ModalBody>{connectionError}</ModalBody>
+            <ButtonRow>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setConnectionError(null);
+                  solanaWallets.disconnect().then(() => {
+                    solanaWallets.select(solanaConnector);
+                  });
+                }}
+              >
+                Try Again
+              </Button>
+              <Button
+                variant="tertiary"
+                onClick={() =>
+                  setRoute(ROUTES.SELECT_METHOD, {
+                    event: "click-select-another-method",
+                  })
+                }
+              >
+                Cancel
+              </Button>
+            </ButtonRow>
+          </>
+        ) : isConnected ? (
           <ModalH1>Connected</ModalH1>
         ) : (
           <>
@@ -128,6 +172,13 @@ const AnimationContainer = styled(motion.div)`
     opacity: 0;
     background: var(--ck-body-color-danger);
   }
+`;
+
+const ButtonRow = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  justify-content: center;
 `;
 
 export default ConnectSolana;

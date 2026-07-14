@@ -205,7 +205,7 @@ export function generateStellarDeepLink({
  * - Otherwise → integer base units, convert via `formatUnits`.
  */
 export function tokenBaseAmountToDecimalString(
-  amount: bigint | BigIntStr,
+  amount: bigint | string,
   decimals: number,
 ): string {
   if (typeof amount === "string" && amount.includes(".")) {

@@ -349,6 +349,7 @@ export const RozoPayModal: React.FC<{
         // Solana. Return to the pay page so the user picks which connected
         // wallet to pay with, instead of auto-jumping into EVM SELECT_TOKEN.
         if (context.dualChainConnect) {
+          context.setDualChainConnect(false);
           context.setRoute(ROUTES.SELECT_METHOD, {
             event: "dual_chain_connected",
           });
