@@ -28,7 +28,9 @@ import SelectAnotherMethodButton from "../../Common/SelectAnotherMethodButton";
 export default function SelectToken() {
   const { isMobile } = useIsMobile();
   const isMobileFormat =
-    isMobile || window?.innerWidth < defaultTheme.mobileWidth;
+    isMobile ||
+    (typeof window !== "undefined" &&
+      window.innerWidth < defaultTheme.mobileWidth);
 
   const { paymentState, setRoute } = usePayContext();
   const { tokenMode, tokenModeExplicit, connectedWalletOnly, paymentOptions } = paymentState;
