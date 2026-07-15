@@ -160,8 +160,8 @@ importers:
         specifier: ^12.1.2
         version: 12.3.0(rollup@3.30.0)(tslib@2.8.1)(typescript@5.5.2)
       '@rozoai/intent-common':
-        specifier: 0.1.23
-        version: 0.1.23(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
+        specifier: 0.1.25-beta.1
+        version: 0.1.25-beta.1(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
       '@solana/spl-memo':
         specifier: ^0.2.5
         version: 0.2.5(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6))
@@ -2586,6 +2586,9 @@ packages:
 
   '@rozoai/intent-common@0.1.23':
     resolution: {integrity: sha512-iLfkopBvZEg8QQzBpmkr6njFBhziUPxWSyxoTgDlMHbCT1r4OzGPVmmW00z6tEqKfideP7kJY6sPh/rDdo3ANg==}
+
+  '@rozoai/intent-common@0.1.25-beta.1':
+    resolution: {integrity: sha512-bsAlvVlcpXW3Vwor2keRRSfbQFSA4ywKZocCNcF2Pqg0/0MHp4iR2VSeH+2+ZUSZxrK8jhFwAW4mkDp4sovXxQ==}
 
   '@rozoai/intent-pay@0.1.36':
     resolution: {integrity: sha512-4MSNtirfawXupEuRviWQXCuyePWMS+PV694xvy8OgGgujZfPLVzNnw1u1IBtbboxAzgyx1SqXCGDsF5N9AmJSA==}
@@ -11949,6 +11952,21 @@ snapshots:
       rollup: 3.30.0
 
   '@rozoai/intent-common@0.1.23(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)':
+    dependencies:
+      '@scure/base': 1.2.6
+      '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
+      '@stellar/stellar-sdk': 14.6.1
+      viem: 2.53.1(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - encoding
+      - supports-color
+      - typescript
+      - utf-8-validate
+
+  '@rozoai/intent-common@0.1.25-beta.1(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)':
     dependencies:
       '@scure/base': 1.2.6
       '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
