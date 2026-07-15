@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { ROUTES } from "../../../constants/routes";
 import { usePayContext } from "../../../hooks/usePayContext";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
@@ -59,6 +59,15 @@ export default function SelectMethod() {
   const { showSolanaPaymentMethod } = paymentState;
   const { disconnectAsync } = useDisconnect();
   const autoConnectGate = useAutoConnectGate();
+
+  const disconnectAll = useCallback(async () => {
+    await Promise.allSettled([
+      disconnectAsync(),
+      isSolanaConnected ? disconnectSolana() : Promise.resolve(),
+      isStellarConnected && !isStellarExternalKit ? disconnectStellar() : Promise.resolve(),
+    ]);
+  }, [disconnectAsync, isSolanaConnected, disconnectSolana, isStellarConnected, isStellarExternalKit, disconnectStellar]);
+
 
   // Eagerly hydrate on mobile so deeplink wallets have a payId ready
   // before the user taps "Pay with wallet".
@@ -371,9 +380,7 @@ export default function SelectMethod() {
               chain_type: "stellar",
             });
           }
-          await disconnectAsync();
-          await disconnectSolana();
-          if (!isStellarExternalKit) await disconnectStellar();
+          await disconnectAll();
           setRoute(isMobile ? ROUTES.MOBILECONNECTORS : ROUTES.CONNECTORS);
         },
       };
@@ -423,9 +430,7 @@ export default function SelectMethod() {
             field: "chain",
             value: "stellar",
           });
-          await disconnectAsync();
-          await disconnectSolana();
-          if (!isStellarExternalKit) await disconnectStellar();
+          await disconnectAll();
           setRoute(ROUTES.STELLAR_CONNECT);
         },
       });

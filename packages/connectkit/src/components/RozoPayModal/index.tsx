@@ -1,6 +1,6 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEffect } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useConnect, useConnectors } from "wagmi";
 
 import { ROUTES } from "../../constants/routes";
 import { getAppName } from "../../defaultConfig";
@@ -8,6 +8,7 @@ import { useAutoConnectGate } from "../../hooks/useAutoConnectGate";
 import { useChainIsSupported } from "../../hooks/useChainIsSupported";
 import { useRozoPay } from "../../hooks/useRozoPay";
 import useIsMobile from "../../hooks/useIsMobile";
+import { isPhantom } from "../../utils/wallets";
 import { usePayContext } from "../../hooks/usePayContext";
 import { useStellar } from "../../provider/StellarContextProvider";
 import { CustomTheme, Languages, Mode, Theme } from "../../types";
@@ -246,6 +247,21 @@ export const RozoPayModal: React.FC<{
     context.setOpen(false, { event: "click-close" });
   }
   const { isMobile } = useIsMobile();
+  const { connect } = useConnect();
+  const connectors = useConnectors();
+
+  // Inside Phantom in-app browser opened via deeplink, only Solana auto-connects.
+  // EVM needs an explicit connect() — Phantom silently approves it inside its own browser.
+  useEffect(() => {
+    if (!isMobile) return;
+    if (!context.open) return;
+    if (isEthConnected) return;
+    if (!isSolanaConnected) return;
+    if (!isPhantom()) return;
+    const injected = connectors.find((c) => c.type === "injected");
+    if (!injected) return;
+    connect({ connector: injected });
+  }, [context.open, isEthConnected, isSolanaConnected, isMobile, connectors, connect]);
 
   // If the user has a wallet already connected upon opening the modal, go
   // straight to the select token screen.
