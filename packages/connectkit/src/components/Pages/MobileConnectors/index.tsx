@@ -88,6 +88,7 @@ const MobileConnectors: React.FC = () => {
   );
 
   const handleInjectedWallet = (wallet: WalletProps) => {
+    context.setUserDisconnected(false);
     if (wallet.connector && wallet.solanaConnectorName) {
       // Dual-chain (e.g. Phantom in-app browser)
       context.setDualChainConnect(true);
@@ -101,6 +102,7 @@ const MobileConnectors: React.FC = () => {
   };
 
   const handleDeeplinkWallet = (wallet: WalletConfigProps) => {
+    context.setUserDisconnected(false);
     if (!orderReady) return; // still hydrating — ignore tap
     if (wallet.getRozoPayDeeplink == null) {
       console.error(`wallet ${wallet.name} has no deeplink`);

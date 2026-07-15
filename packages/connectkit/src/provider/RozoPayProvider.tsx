@@ -173,6 +173,7 @@ const RozoPayUIProvider = ({
   // Rozo Pay context
   const [pendingConnectorId, setPendingConnectorId] = useState<string | undefined>(undefined);
   const [dualChainConnect, setDualChainConnect] = useState<boolean>(false);
+  const [userDisconnected, setUserDisconnected] = useState<boolean>(false);
   // Track sessions. Each generates separate intent IDs unless using externalId.
   const [sessionId] = useState(() => crypto.randomUUID().replaceAll("-", ""));
   const [solanaConnector, setSolanaConnector] = useState<SolanaWalletName | undefined>();
@@ -196,6 +197,10 @@ const RozoPayUIProvider = ({
   const setOpen = useCallback(
     (open: boolean, meta?: Record<string, any>) => {
       setOpenState(open);
+
+      // Reset user-explicit-disconnect flag on any modal state change so the
+      // next session starts fresh (auto-connect flows re-enabled).
+      setUserDisconnected(false);
 
       // Lock pay params starting from the first time the modal is opened to
       // prevent the rozopay order from changing from under the user
@@ -425,6 +430,8 @@ const RozoPayUIProvider = ({
     setPendingConnectorId,
     dualChainConnect,
     setDualChainConnect,
+    userDisconnected,
+    setUserDisconnected,
     sessionId,
     apiVersion,
     solanaConnector,
