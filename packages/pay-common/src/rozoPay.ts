@@ -151,6 +151,15 @@ export const zRozoPayOrderMetadata = z.object({
     .string()
     .optional()
     .describe("Base builder code attribution suffix (0x-prefixed hex)."),
+  // Source-side amount in source-token units (e.g. "0.016885" for 0.016885 SOL).
+  // Written by `formatPaymentResponseToHydratedOrder` for deposit-address flows
+  // where the source token can be native and its amount differs from the USD /
+  // destination payout. Consumers must NOT fall back to `usdValue` when this is
+  // missing for a native source — the value would be semantically wrong.
+  sourceAmountUnits: z.string().nullish(),
+  // Source-side token symbol (e.g. "SOL", "ETH", "USDC"). Paired with
+  // `sourceAmountUnits` above.
+  sourceTokenSymbol: z.string().nullish(),
 });
 
 export type RozoPayOrderMetadata = z.infer<typeof zRozoPayOrderMetadata>;

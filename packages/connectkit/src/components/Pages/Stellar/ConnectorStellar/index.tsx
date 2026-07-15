@@ -12,6 +12,7 @@ import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
 import { useStellar } from "../../../../provider/StellarContextProvider";
 import styled from "../../../../styles/styled";
+import Button from "../../../Common/Button";
 import SquircleSpinner from "../../../Spinners/SquircleSpinner";
 
 const ConnectorStellar: React.FC = () => {
@@ -104,6 +105,27 @@ const ConnectorStellar: React.FC = () => {
           <>
             <ModalH1>Connection Failed</ModalH1>
             <ModalBody>{connectionError}</ModalBody>
+            <ButtonRow>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setConnectionError(null);
+                  setConnectionInitiated(false);
+                }}
+              >
+                Try Again
+              </Button>
+              <Button
+                variant="tertiary"
+                onClick={() =>
+                  setRoute(ROUTES.SELECT_METHOD, {
+                    event: "click-select-another-method",
+                  })
+                }
+              >
+                Cancel
+              </Button>
+            </ButtonRow>
           </>
         ) : isConnected ? (
           <ModalH1>Connected</ModalH1>
@@ -136,6 +158,13 @@ const AnimationContainer = styled(motion.div)`
     opacity: 0;
     background: var(--ck-body-color-danger);
   }
+`;
+
+const ButtonRow = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  justify-content: center;
 `;
 
 export default ConnectorStellar;

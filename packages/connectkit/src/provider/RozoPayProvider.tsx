@@ -7,7 +7,16 @@ import {
   RozoPayOrderStatusSource,
 } from "@rozoai/intent-common";
 import { Buffer } from "buffer";
-import React, { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { QueryClient, QueryClientContext, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "styled-components";
 import { useChainId, WagmiContext } from "wagmi";
 
@@ -153,8 +162,12 @@ const RozoPayUIProvider = ({
   const [open, setOpenState] = useState<boolean>(false);
   const [lockPayParams, setLockPayParams] = useState<boolean>(false);
   const [paymentCompleted, setPaymentCompleted] = useState<boolean>(false);
-  const [route, setRouteState] = useState<ROUTES>(ROUTES.SELECT_METHOD);
-  const [routeMeta, setRouteMeta] = useState<Record<string, any> | undefined>(undefined);
+  const [routeState, setRouteStateInner] = useState<{
+    route: ROUTES;
+    meta: Record<string, any> | undefined;
+  }>({ route: ROUTES.SELECT_METHOD, meta: undefined });
+  const route = routeState.route;
+  const routeMeta = routeState.meta;
   const [modalOptions, setModalOptions] = useState<RozoPayModalOptions>();
 
   // Rozo Pay context
@@ -252,8 +265,7 @@ const RozoPayUIProvider = ({
     (route: ROUTES, data?: Record<string, any>) => {
       const action = route.replace("rozoPay", "");
       log(`[SET ROUTE] ${action} ${pay.order?.id} ${debugJson(data ?? {})}`);
-      setRouteState(route);
-      setRouteMeta(data);
+      setRouteStateInner({ route, meta: data });
     },
     [trpc, pay.order?.id, log],
   );
@@ -511,27 +523,42 @@ export const RozoPayProvider = (props: RozoPayProviderProps) => {
     [props.debugMode],
   );
 
+  // Don't force consumers to wire QueryClientProvider — reuse theirs if present.
+  const parentClient = useContext(QueryClientContext);
+  const ownClient = useMemo(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: { retry: 1, staleTime: 30_000, refetchOnWindowFocus: false },
+        },
+      }),
+    [],
+  );
+  const queryClient = parentClient ?? ownClient;
+
   return (
     <AnalyticsProvider posthog={props.posthog} telemetry={props.telemetry}>
-      <PaymentProvider payApiUrl={payApiUrl} apiVersion={apiVersion} log={log}>
-        <PaymentEventProvider>
-          <SolanaContextProvider rpcUrl={props.solanaRpcUrl}>
-            <StellarContextProvider
-              rpcUrl={props.stellarRpcUrl}
-              kit={props.stellarKit}
-              stellarWalletPersistence={props.stellarWalletPersistence}
-              log={log}
-            >
-              <RozoPayUIProvider
-                {...props}
-                apiVersion={apiVersion}
-                payApiUrl={payApiUrl}
+      <QueryClientProvider client={queryClient}>
+        <PaymentProvider payApiUrl={payApiUrl} apiVersion={apiVersion} log={log}>
+          <PaymentEventProvider>
+            <SolanaContextProvider rpcUrl={props.solanaRpcUrl}>
+              <StellarContextProvider
+                rpcUrl={props.stellarRpcUrl}
+                kit={props.stellarKit}
+                stellarWalletPersistence={props.stellarWalletPersistence}
                 log={log}
-              />
-            </StellarContextProvider>
-          </SolanaContextProvider>
-        </PaymentEventProvider>
-      </PaymentProvider>
+              >
+                <RozoPayUIProvider
+                  {...props}
+                  apiVersion={apiVersion}
+                  payApiUrl={payApiUrl}
+                  log={log}
+                />
+              </StellarContextProvider>
+            </SolanaContextProvider>
+          </PaymentEventProvider>
+        </PaymentProvider>
+      </QueryClientProvider>
     </AnalyticsProvider>
   );
 };

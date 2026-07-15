@@ -1,6 +1,6 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEffect } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useConnect, useConnectors } from "wagmi";
 
 import { ROUTES } from "../../constants/routes";
 import { getAppName } from "../../defaultConfig";
@@ -87,7 +87,7 @@ export const RozoPayModal: React.FC<{
   const { isConnected: isEthConnected, connector, chain, address } = useAccount();
 
   // Solana
-  const { connected: isSolanaConnected } = useWallet();
+  const { connected: isSolanaConnected, wallet: solanaWallet } = useWallet();
 
   // Stellar
   const { isConnected: isStellarConnected } = useStellar();
@@ -140,6 +140,9 @@ export const RozoPayModal: React.FC<{
         generatePreviewOrder();
         context.setRoute(ROUTES.SELECT_AMOUNT, meta);
       } else {
+        if (paymentState.payParams) {
+          generatePreviewOrder();
+        }
         setSelectedTokenOption(undefined);
         context.setRoute(ROUTES.SELECT_TOKEN, meta);
       }
@@ -173,6 +176,9 @@ export const RozoPayModal: React.FC<{
         generatePreviewOrder();
         context.setRoute(ROUTES.SOLANA_SELECT_AMOUNT, meta);
       } else {
+        if (paymentState.payParams) {
+          generatePreviewOrder();
+        }
         setSelectedSolanaTokenOption(undefined);
         context.setRoute(ROUTES.SELECT_TOKEN, meta);
       }
@@ -184,6 +190,9 @@ export const RozoPayModal: React.FC<{
         generatePreviewOrder();
         context.setRoute(ROUTES.STELLAR_SELECT_AMOUNT, meta);
       } else {
+        if (paymentState.payParams) {
+          generatePreviewOrder();
+        }
         setSelectedStellarTokenOption(undefined);
         context.setRoute(ROUTES.SELECT_TOKEN, meta);
       }
@@ -237,6 +246,27 @@ export const RozoPayModal: React.FC<{
     context.setOpen(false, { event: "click-close" });
   }
   const { isMobile } = useIsMobile();
+  const { connect } = useConnect();
+  const connectors = useConnectors();
+
+  // On deeplink open, only Solana auto-connects via wallet-standard.
+  // EVM needs an explicit connect() — the wallet silently approves it inside
+  // its own in-app browser (works for Phantom, Backpack, and any wallet that
+  // injects both EVM and Solana providers).
+  useEffect(() => {
+    if (!isMobile) return;
+    if (!context.open) return;
+    if (isEthConnected) return;
+    if (!isSolanaConnected) return;
+    const solanaName = solanaWallet?.adapter.name.toLowerCase();
+    if (!solanaName) return;
+    // Find the injected EVM connector whose name matches the connected Solana wallet
+    const injected = connectors.find(
+      (c) => c.type === "injected" && c.name.toLowerCase().includes(solanaName),
+    );
+    if (!injected) return;
+    connect({ connector: injected });
+  }, [context.open, isEthConnected, isSolanaConnected, isMobile, solanaWallet, connectors, connect]);
 
   // If the user has a wallet already connected upon opening the modal, go
   // straight to the select token screen.
@@ -269,7 +299,7 @@ export const RozoPayModal: React.FC<{
     // gateState === "ready": pick the token screen for the connected wallet.
     // Dual-chain connect (Phantom mobile) just linked EVM + Solana: don't
     // auto-jump to a single-chain SELECT_TOKEN. Clear the flag and stay on
-    // SELECT_METHOD so both connected wallet tiles are shown.
+    // the pay page so SELECT_METHOD shows both connected wallet tiles.
     if (context.dualChainConnect) {
       context.setDualChainConnect(false);
       return;
@@ -330,23 +360,22 @@ export const RozoPayModal: React.FC<{
   // If we're on the connect page and the user successfully connects their
   // wallet, go to the select token page
   useEffect(() => {
-    // Dual-chain connect (e.g. Phantom mobile): EVM connected directly without
-    // routing through CONNECT page. Route to SELECT_METHOD so both wallet
-    // tiles are shown.
-    if (isEthConnected && context.dualChainConnect) {
-      context.setDualChainConnect(false);
-      context.setRoute(ROUTES.SELECT_METHOD, {
-        event: "dual_chain_connected",
-      });
-      return;
-    }
-
     if (
       context.route === ROUTES.CONNECT ||
       context.route === ROUTES.CONNECTORS ||
       context.route === ROUTES.MOBILECONNECTORS
     ) {
       if (isEthConnected) {
+        // Dual-chain connect (e.g. Phantom mobile) just linked both EVM and
+        // Solana. Return to the pay page so the user picks which connected
+        // wallet to pay with, instead of auto-jumping into EVM SELECT_TOKEN.
+        if (context.dualChainConnect) {
+          context.setDualChainConnect(false);
+          context.setRoute(ROUTES.SELECT_METHOD, {
+            event: "dual_chain_connected",
+          });
+          return;
+        }
         paymentState.setTokenMode("evm");
         context.setRoute(ROUTES.SELECT_TOKEN, {
           event: "connected",
