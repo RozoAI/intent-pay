@@ -13,6 +13,7 @@ import {
   getCanonicalDestination,
   getChainExplorerTxUrl,
   getPayment,
+  normalizeTokenAddress,
   PaymentResponse,
   RozoPayHydratedOrderWithOrg,
   rozoSolana,
@@ -149,9 +150,18 @@ const PayWithSolanaToken: React.FC = () => {
 
         const { required } = option;
 
+        const previousTokenAddress = currentOrder.preferredTokenAddress;
+        const tokenChanged =
+          previousTokenAddress != null &&
+          normalizeTokenAddress(
+            currentOrder.preferredChainId ?? undefined,
+            previousTokenAddress,
+          ) !== normalizeTokenAddress(required.token.chainId, required.token.token);
+
         const needRozoPayment =
-          currentOrder.preferredChainId !== null &&
-          currentOrder.preferredChainId !== required.token.chainId;
+          (currentOrder.preferredChainId !== null &&
+            currentOrder.preferredChainId !== required.token.chainId) ||
+          tokenChanged;
 
         let hydratedOrder: RozoPayHydratedOrderWithOrg;
         let rozoPaymentResponse: PaymentResponse | undefined;
@@ -419,7 +429,8 @@ const PayWithSolanaToken: React.FC = () => {
             // carries the same value via formatPaymentResponseToHydratedOrder.
             sourceAmount:
               rozoPaymentResponse?.source.amount ??
-              (hydratedOrder.metadata?.sourceAmountUnits ?? undefined),
+              hydratedOrder.metadata?.sourceAmountUnits ??
+              undefined,
           },
         );
         log(

@@ -21,6 +21,7 @@ import {
   getKnownToken,
   getPayment,
   isValidSolanaAddress,
+  normalizeTokenAddress,
   PaymentResponse,
   PlatformType,
   RozoPayHydratedOrderWithOrg,
@@ -673,18 +674,28 @@ export function usePaymentState({
 
     // Check if we need to create a new Rozo payment (cache this check)
     const previousChainId = pay.order.preferredChainId ? Number(pay.order.preferredChainId) : null;
+    const previousTokenAddress = pay.order.preferredTokenAddress;
 
     // If we have an existing payment and chain differs, MUST create new payment
     // Also check if order has externalId (existing payment) and we're on different chain
     const hasExistingPayment = pay.order.externalId != null;
+
+    // Check both chain AND token change - if user switches token on same chain,
+    // we still need to checkout to update source token info
+    const tokenChanged =
+      previousTokenAddress != null &&
+      normalizeTokenAddress(Number(previousChainId), previousTokenAddress) !==
+        normalizeTokenAddress(required.token.chainId, required.token.token);
+
     const needRozoPayment =
       (previousChainId !== null && previousChainId !== required.token.chainId) ||
+      tokenChanged ||
       (hasExistingPayment &&
         previousChainId === null &&
         pay.order.destFinalCallTokenAmount?.token?.chainId !== required.token.chainId);
 
     log?.(
-      `[PAY TOKEN] Chain check: previous=${previousChainId}, current=${required.token.chainId}, hasExistingPayment=${hasExistingPayment}, needRozoPayment=${needRozoPayment}`,
+      `[PAY TOKEN] Chain/token check: previousChain=${previousChainId}, currentChain=${required.token.chainId}, previousToken=${previousTokenAddress}, currentToken=${required.token.token}, tokenChanged=${tokenChanged}, hasExistingPayment=${hasExistingPayment}, needRozoPayment=${needRozoPayment}`,
     );
 
     // Prepare transaction parameters early (before async operations)
@@ -1399,9 +1410,7 @@ export function usePaymentState({
       const isNativeDepositSource = isNativeToken(option.token.token);
       const metaSourceAmount = order.metadata?.sourceAmountUnits;
       if (isNativeDepositSource && metaSourceAmount == null) {
-        throw new Error(
-          "sourceAmountUnits missing on hydrated order for native deposit source",
-        );
+        throw new Error("sourceAmountUnits missing on hydrated order for native deposit source");
       }
       const sourceAmountUnits =
         metaSourceAmount != null ? String(metaSourceAmount) : String(order.usdValue);

@@ -13,6 +13,7 @@ import {
   getCanonicalDestination,
   getChainExplorerTxUrl,
   getPayment,
+  normalizeTokenAddress,
   RozoPayHydratedOrderWithOrg,
   rozoStellar,
   WalletPaymentOption,
@@ -171,9 +172,16 @@ const PayWithStellarToken: React.FC = () => {
 
       const { required } = option;
 
+      const previousTokenAddress = currentOrder.preferredTokenAddress;
+      const tokenChanged =
+        previousTokenAddress != null &&
+        normalizeTokenAddress(currentOrder.preferredChainId ?? undefined, previousTokenAddress) !==
+          normalizeTokenAddress(required.token.chainId, required.token.token);
+
       const needRozoPayment =
-        currentOrder.preferredChainId !== null &&
-        currentOrder.preferredChainId !== required.token.chainId;
+        (currentOrder.preferredChainId !== null &&
+          currentOrder.preferredChainId !== required.token.chainId) ||
+        tokenChanged;
 
       let hydratedOrder: RozoPayHydratedOrderWithOrg;
       let paymentId: string | undefined;
