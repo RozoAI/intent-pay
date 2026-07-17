@@ -41,7 +41,9 @@ export const ScrollArea = ({
   const moreRef = useRef<HTMLDivElement>(null);
 
   const isMobileFormat =
-    isMobile() || window?.innerWidth < defaultTheme.mobileWidth;
+    isMobile() ||
+    (typeof window !== "undefined" &&
+      window.innerWidth < defaultTheme.mobileWidth);
 
   useEffect(() => {
     const el = ref.current;
