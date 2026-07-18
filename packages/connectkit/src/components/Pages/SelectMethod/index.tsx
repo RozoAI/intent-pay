@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { ROUTES } from "../../../constants/routes";
 import { usePayContext } from "../../../hooks/usePayContext";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
@@ -54,11 +54,20 @@ export default function SelectMethod() {
     isExternalKit: isStellarExternalKit,
   } = useStellar();
 
-  const { setRoute, paymentState, log, disableMobileInjector, open: modalOpen } = usePayContext();
+  const { setRoute, paymentState, log, disableMobileInjector, open: modalOpen, setUserDisconnected } = usePayContext();
   const { capture } = useAnalytics();
   const { showSolanaPaymentMethod } = paymentState;
   const { disconnectAsync } = useDisconnect();
   const autoConnectGate = useAutoConnectGate();
+
+  const disconnectAll = useCallback(async () => {
+    await Promise.allSettled([
+      disconnectAsync(),
+      isSolanaConnected ? disconnectSolana() : Promise.resolve(),
+      isStellarConnected && !isStellarExternalKit ? disconnectStellar() : Promise.resolve(),
+    ]);
+  }, [disconnectAsync, isSolanaConnected, disconnectSolana, isStellarConnected, isStellarExternalKit, disconnectStellar]);
+
 
   // Eagerly hydrate on mobile so deeplink wallets have a payId ready
   // before the user taps "Pay with wallet".
@@ -371,10 +380,11 @@ export default function SelectMethod() {
               chain_type: "stellar",
             });
           }
-          await disconnectAsync();
-          await disconnectSolana();
-          if (!isStellarExternalKit) await disconnectStellar();
-          setRoute(isMobile ? ROUTES.MOBILECONNECTORS : ROUTES.CONNECTORS);
+          setUserDisconnected(true);
+          await disconnectAll();
+          setRoute(isMobile ? ROUTES.MOBILECONNECTORS : ROUTES.CONNECTORS, {
+            event: "click-select-another-method",
+          });
         },
       };
       options.push(unconnectedWalletOption);
@@ -395,9 +405,8 @@ export default function SelectMethod() {
         options.push({
           ...base,
           disabled: depositAddressOptions.loading,
-          subtitle: depositAddressOptions.loading ? "Loading..." : undefined,
+          loading: depositAddressOptions.loading,
           onClick: () => {
-            if (depositAddressOptions.loading) return;
             capture(ROZO_EVENTS.PAYMENT_METHOD_SELECTED, {
               field: "chain",
               value: "deposit_address",
@@ -424,9 +433,8 @@ export default function SelectMethod() {
             field: "chain",
             value: "stellar",
           });
-          await disconnectAsync();
-          await disconnectSolana();
-          if (!isStellarExternalKit) await disconnectStellar();
+          setUserDisconnected(true);
+          await disconnectAll();
           setRoute(ROUTES.STELLAR_CONNECT);
         },
       });

@@ -137,6 +137,7 @@ const ConnectorItem = ({
 
   const onClick = () => {
     const meta = { event: "connector-list-click", walletId: wallet.id };
+    context.setUserDisconnected(false);
 
     // Desktop multi-chain wallet flow: prompt for chain selection.
     if (!isMobile) {

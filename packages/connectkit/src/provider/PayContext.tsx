@@ -59,6 +59,8 @@ export type PayContextValue = {
    * SELECT_METHOD instead of jumping straight to SELECT_TOKEN. */
   dualChainConnect: boolean;
   setDualChainConnect: (v: boolean) => void;
+  userDisconnected: boolean;
+  setUserDisconnected: (v: boolean) => void;
   /** Chosen Solana wallet, eg Phantom.*/
   solanaConnector: SolanaWalletName | undefined;
   setSolanaConnector: React.Dispatch<React.SetStateAction<SolanaWalletName | undefined>>;
