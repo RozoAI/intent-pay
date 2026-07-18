@@ -223,7 +223,7 @@ export const walletConfigs: {
         "https://chrome.google.com/webstore/detail/metamask/nkbihfbeogaeaoehlefnkodbefgpgknn",
       edge: "https://microsoftedge.microsoft.com/addons/detail/metamask/ejbalbakoplchlghecdalmeeeajnimhm",
     },
-    showInMobileConnectors: false,
+    showInMobileConnectors: true,
     deeplinkScheme: "metamask://",
     getRozoPayDeeplink: ({
       payId,

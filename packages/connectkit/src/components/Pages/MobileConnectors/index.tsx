@@ -69,12 +69,16 @@ const MobileConnectors: React.FC = () => {
           if (wallet.isSolanaOnly && !paymentState.showSolanaPaymentMethod) return false;
           if (wallet.isStellarOnly && !paymentState.showStellarPaymentMethod) return false;
           // Skip if already shown as injected — cross-match name/shortName
-          const cfgName = (wallet.name ?? wallet.shortName ?? "").toLowerCase();
+          const cfgNames = [wallet.name, wallet.shortName]
+            .filter(Boolean)
+            .map((n) => n!.toLowerCase());
           const nameMatch =
-            cfgName &&
+            cfgNames.length > 0 &&
             injectedWallets.some((iw) => {
-              const iwName = (iw.name ?? iw.shortName ?? "").toLowerCase();
-              return iwName && iwName === cfgName;
+              const iwNames = [iw.name, iw.shortName]
+                .filter(Boolean)
+                .map((n) => n!.toLowerCase());
+              return iwNames.some((iwn) => cfgNames.includes(iwn));
             });
           if (nameMatch) return false;
           return true;
@@ -88,6 +92,7 @@ const MobileConnectors: React.FC = () => {
   );
 
   const handleInjectedWallet = (wallet: WalletProps) => {
+    context.setUserDisconnected(false);
     if (wallet.connector && wallet.solanaConnectorName) {
       // Dual-chain (e.g. Phantom in-app browser)
       context.setDualChainConnect(true);
@@ -101,6 +106,7 @@ const MobileConnectors: React.FC = () => {
   };
 
   const handleDeeplinkWallet = (wallet: WalletConfigProps) => {
+    context.setUserDisconnected(false);
     if (!orderReady) return; // still hydrating — ignore tap
     if (wallet.getRozoPayDeeplink == null) {
       console.error(`wallet ${wallet.name} has no deeplink`);

@@ -54,7 +54,7 @@ export default function SelectMethod() {
     isExternalKit: isStellarExternalKit,
   } = useStellar();
 
-  const { setRoute, paymentState, log, disableMobileInjector, open: modalOpen } = usePayContext();
+  const { setRoute, paymentState, log, disableMobileInjector, open: modalOpen, setUserDisconnected } = usePayContext();
   const { capture } = useAnalytics();
   const { showSolanaPaymentMethod } = paymentState;
   const { disconnectAsync } = useDisconnect();
@@ -380,9 +380,11 @@ export default function SelectMethod() {
               chain_type: "stellar",
             });
           }
+          setUserDisconnected(true);
           await disconnectAll();
-          setRoute(isMobile ? ROUTES.MOBILECONNECTORS : ROUTES.CONNECTORS);
-        },
+          setRoute(isMobile ? ROUTES.MOBILECONNECTORS : ROUTES.CONNECTORS, {
+            event: "click-select-another-method",
+          });        },
       };
       options.push(unconnectedWalletOption);
 
@@ -430,6 +432,7 @@ export default function SelectMethod() {
             field: "chain",
             value: "stellar",
           });
+          setUserDisconnected(true);
           await disconnectAll();
           setRoute(ROUTES.STELLAR_CONNECT);
         },

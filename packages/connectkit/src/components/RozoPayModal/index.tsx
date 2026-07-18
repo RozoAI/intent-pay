@@ -1,6 +1,5 @@
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useEffect } from "react";
-import { useAccount, useConnect, useConnectors } from "wagmi";
+import { useEffect, useRef } from "react";import { useAccount, useConnect, useConnectors } from "wagmi";
 
 import { ROUTES } from "../../constants/routes";
 import { getAppName } from "../../defaultConfig";
@@ -88,7 +87,7 @@ export const RozoPayModal: React.FC<{
   const { isConnected: isEthConnected, connector, chain, address } = useAccount();
 
   // Solana
-  const { connected: isSolanaConnected } = useWallet();
+  const { connected: isSolanaConnected, wallet: solanaWallet } = useWallet();
 
   // Stellar
   const { isConnected: isStellarConnected } = useStellar();
@@ -249,20 +248,35 @@ export const RozoPayModal: React.FC<{
   const { isMobile } = useIsMobile();
   const { connect } = useConnect();
   const connectors = useConnectors();
+  const didForceEvmConnectRef = useRef(false);
 
-  // Inside Phantom in-app browser opened via deeplink, only Solana auto-connects.
-  // EVM needs an explicit connect() — Phantom silently approves it inside its own browser.
+  // On deeplink open, only Solana auto-connects via wallet-standard.
+  // EVM needs an explicit connect() — the wallet silently approves it inside
+  // its own in-app browser (works for Phantom, Backpack, and any wallet that
+  // injects both EVM and Solana providers).
+  // Guard: only fire once per modal open, only on SELECT_METHOD (not after
+  // user explicitly disconnected and navigated away).
   useEffect(() => {
+    if (!context.open) {
+      // Reset when modal closes so next open can trigger again
+      didForceEvmConnectRef.current = false;
+      return;
+    }
     if (!isMobile) return;
-    if (!context.open) return;
+    if (context.userDisconnected) return;
+    if (context.route !== ROUTES.SELECT_METHOD) return;
     if (isEthConnected) return;
     if (!isSolanaConnected) return;
-    if (!isPhantom()) return;
-    const injected = connectors.find((c) => c.type === "injected");
+    if (didForceEvmConnectRef.current) return;
+    const solanaName = solanaWallet?.adapter.name.toLowerCase();
+    if (!solanaName) return;
+    const injected = connectors.find(
+      (c) => c.type === "injected" && c.name.toLowerCase().includes(solanaName),
+    );
     if (!injected) return;
+    didForceEvmConnectRef.current = true;
     connect({ connector: injected });
-  }, [context.open, isEthConnected, isSolanaConnected, isMobile, connectors, connect]);
-
+  }, [context.open, context.route, context.userDisconnected, isEthConnected, isSolanaConnected, isMobile, solanaWallet, connectors, connect]);
   // If the user has a wallet already connected upon opening the modal, go
   // straight to the select token screen.
   // Gated on wagmi reconnect and Solana autoConnect completing first —
@@ -271,6 +285,10 @@ export const RozoPayModal: React.FC<{
   useEffect(() => {
     if (!context.open) return;
     if (context.route !== ROUTES.SELECT_METHOD) return;
+
+    // User explicitly clicked 'Pay with another wallet' — don't auto-route
+    // even if a wallet silently reconnects.
+    if (context.userDisconnected) return;
 
     // Only auto-navigate on initial open, not when the user explicitly
     // navigated back to SELECT_METHOD from SELECT_TOKEN.
@@ -355,6 +373,10 @@ export const RozoPayModal: React.FC<{
   // If we're on the connect page and the user successfully connects their
   // wallet, go to the select token page
   useEffect(() => {
+    // User explicitly disconnected — don't auto-route even if wallet
+    // silently reconnects (Phantom/Backpack in-app browser).
+    if (context.userDisconnected) return;
+
     if (
       context.route === ROUTES.CONNECT ||
       context.route === ROUTES.CONNECTORS ||
