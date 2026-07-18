@@ -1024,17 +1024,16 @@ export function usePaymentState({
 
         // Keep as bigint — SystemProgram.transfer accepts number | bigint.
         // Converting to Number would lose precision for amounts > 2^53 base units.
-        const lamports = tokenAmountToBaseUnits(
-          walletPaymentOption.required.amount,
-          solanaSOL.decimals,
-        );
+        // Always follow Rozo Payment Source.Amount as the source of truth for SOL amounts.
+        const lamports = parseUnits(rozoPayment.sourceAmount, solanaSOL.decimals);
         log("[PAY SOLANA] Transfer amount (lamports):", lamports.toString());
 
+        // Use the parsed lamports value from parseUnits to ensure precision.
         instructions.push(
           SystemProgram.transfer({
             fromPubkey: fromKey,
             toPubkey: toKey,
-            lamports: parseUnits(rozoPayment.sourceAmount, solanaSOL.decimals),
+            lamports: lamports,
           }),
         );
       } else {
