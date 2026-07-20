@@ -239,7 +239,7 @@ export function CheckoutMode() {
                       {
                         name: "MetaMask",
                         icon: <WalletMetamask size={40} variant="branded" />,
-                        href: `https://metamask.app.link/dapp/${encoded}`,
+                        href: `https://link.metamask.io/dapp/${encoded}`,
                       },
                       {
                         name: "Phantom",

@@ -248,7 +248,7 @@ export const RozoPayModal: React.FC<{
   const { isMobile } = useIsMobile();
   const { connect } = useConnect();
   const connectors = useConnectors();
-  const didForceEvmConnectRef = useRef(false);
+  const [didForceEvmConnect, setDidForceEvmConnect] = useState(false);
 
   // On deeplink open, only Solana auto-connects via wallet-standard.
   // EVM needs an explicit connect() — the wallet silently approves it inside
@@ -259,7 +259,7 @@ export const RozoPayModal: React.FC<{
   useEffect(() => {
     if (!context.open) {
       // Reset when modal closes so next open can trigger again
-      didForceEvmConnectRef.current = false;
+      setDidForceEvmConnect(false);
       return;
     }
     if (!isMobile) return;
@@ -267,21 +267,21 @@ export const RozoPayModal: React.FC<{
     if (context.route !== ROUTES.SELECT_METHOD) return;
     if (isEthConnected) return;
     if (!isSolanaConnected) return;
-    if (didForceEvmConnectRef.current) return;
+    if (didForceEvmConnect) return;
     const solanaName = solanaWallet?.adapter.name.toLowerCase();
     if (!solanaName) return;
     const injected = connectors.find(
       (c) => c.type === "injected" && c.name.toLowerCase().includes(solanaName),
     );
     if (!injected) return;
-    didForceEvmConnectRef.current = true;
+    setDidForceEvmConnect(true);
     connect({ connector: injected });
 
     // Safety: if EVM doesn't connect within 10s (e.g. user rejected the
     // prompt), clear the flag so the auto-navigate guard unblocks and the
     // user isn't stuck on SELECT_METHOD.
     const timer = setTimeout(() => {
-      didForceEvmConnectRef.current = false;
+      setDidForceEvmConnect(false);
     }, 10_000);
     return () => clearTimeout(timer);
   }, [context.open, context.route, context.userDisconnected, isEthConnected, isSolanaConnected, isMobile, solanaWallet, connectors, connect]);
@@ -315,7 +315,7 @@ export const RozoPayModal: React.FC<{
     // is async). Without this guard, auto-navigate sees Solana-only and jumps
     // to SELECT_TOKEN before EVM finishes connecting. Wait for it to settle;
     // if it fails, the user can manually select their wallet on SELECT_METHOD.
-    if (didForceEvmConnectRef.current && !isEthConnected) return;
+    if (didForceEvmConnect && !isEthConnected) return;
 
     // Readiness gate (wallet settled + order resolved, from FSM).
     // "pass"    → no wallet connected: leave SELECT_METHOD showing tiles.
@@ -394,6 +394,7 @@ export const RozoPayModal: React.FC<{
     isSolanaConnecting,
     isMobile,
     disableMobileInjector,
+    didForceEvmConnect,
   ]);
 
   // If we're on the connect page and the user successfully connects their
