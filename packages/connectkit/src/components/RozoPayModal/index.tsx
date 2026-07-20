@@ -84,10 +84,10 @@ export const RozoPayModal: React.FC<{
   const autoConnectGate = useAutoConnectGate();
 
   // EVM
-  const { isConnected: isEthConnected, connector, chain, address } = useAccount();
+  const { isConnected: isEthConnected, connector, chain, address, status: ethStatus } = useAccount();
 
   // Solana
-  const { connected: isSolanaConnected, wallet: solanaWallet } = useWallet();
+  const { connected: isSolanaConnected, wallet: solanaWallet, connecting: isSolanaConnecting } = useWallet();
 
   // Stellar
   const { isConnected: isStellarConnected } = useStellar();
@@ -276,6 +276,14 @@ export const RozoPayModal: React.FC<{
     if (!injected) return;
     didForceEvmConnectRef.current = true;
     connect({ connector: injected });
+
+    // Safety: if EVM doesn't connect within 10s (e.g. user rejected the
+    // prompt), clear the flag so the auto-navigate guard unblocks and the
+    // user isn't stuck on SELECT_METHOD.
+    const timer = setTimeout(() => {
+      didForceEvmConnectRef.current = false;
+    }, 10_000);
+    return () => clearTimeout(timer);
   }, [context.open, context.route, context.userDisconnected, isEthConnected, isSolanaConnected, isMobile, solanaWallet, connectors, connect]);
 
   // If the user has a wallet already connected upon opening the modal, go
@@ -295,6 +303,19 @@ export const RozoPayModal: React.FC<{
     // navigated back to SELECT_METHOD from SELECT_TOKEN.
     const isExplicitBackNavigation = context.routeMeta?.event === "click-select-another-method";
     if (isExplicitBackNavigation) return;
+
+    // Direct wallet settling checks — guard against race where isConnected
+    // updates before gateState recomputes
+    if (ethStatus === "reconnecting" || ethStatus === "connecting") return;
+    if (isSolanaConnecting) return;
+    // Note: Stellar doesn't expose a connecting state yet
+
+    // Phantom in-app browser: force EVM connect fires on the same commit as
+    // Solana auto-connect, but wagmi status is still "disconnected" (connect()
+    // is async). Without this guard, auto-navigate sees Solana-only and jumps
+    // to SELECT_TOKEN before EVM finishes connecting. Wait for it to settle;
+    // if it fails, the user can manually select their wallet on SELECT_METHOD.
+    if (didForceEvmConnectRef.current && !isEthConnected) return;
 
     // Readiness gate (wallet settled + order resolved, from FSM).
     // "pass"    → no wallet connected: leave SELECT_METHOD showing tiles.
@@ -369,6 +390,10 @@ export const RozoPayModal: React.FC<{
     address,
     chain?.id,
     connector?.id,
+    ethStatus,
+    isSolanaConnecting,
+    isMobile,
+    disableMobileInjector,
   ]);
 
   // If we're on the connect page and the user successfully connects their
@@ -383,6 +408,9 @@ export const RozoPayModal: React.FC<{
       context.route === ROUTES.CONNECTORS ||
       context.route === ROUTES.MOBILECONNECTORS
     ) {
+      // Wait for connection to fully settle, not just isConnected flag
+      if (ethStatus === "connecting" || ethStatus === "reconnecting") return;
+      
       if (isEthConnected) {
         // Dual-chain connect (e.g. Phantom mobile) just linked both EVM and
         // Solana. Return to the pay page so the user picks which connected
@@ -403,7 +431,7 @@ export const RozoPayModal: React.FC<{
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEthConnected, context.route, connector?.id, chain?.id, address, context.dualChainConnect]);
+  }, [isEthConnected, context.route, connector?.id, chain?.id, address, context.dualChainConnect, ethStatus]);
 
   useEffect(() => setMode(mode), [mode, setMode]);
   useEffect(() => setTheme(theme), [theme, setTheme]);
