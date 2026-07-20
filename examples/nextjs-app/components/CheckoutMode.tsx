@@ -7,7 +7,8 @@ import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateCheckoutSnippet } from "@/lib/snippets"
 import { createPayment } from "@rozoai/intent-common"
 import { RozoPayButton } from "@rozoai/intent-pay"
-import { useCallback, useEffect, useId, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { CodeSnippet } from "./CodeSnippet"
 import { EventLog, type LogEntry } from "./EventLog"
 import { ModeDescription } from "./ModeDescription"
@@ -17,6 +18,7 @@ import { PreviewPane } from "./PreviewPane"
 const APP_ID = "rozoDemo"
 
 export function CheckoutMode() {
+  const searchParams = useSearchParams()
   const [config, setConfig, hydrated] = useSharedConfig()
   const [pending, setPending] = useState(config)
   const [paymentId, setPaymentId] = useState<string | null>(null)
@@ -24,7 +26,34 @@ export function CheckoutMode() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
+  const showRef = useRef<(() => void) | null>(null)
+  const hasAutoOpened = useRef(false)
   const uid = useId()
+
+  // Read paymentId from URL and set it, then clean up URL
+  useEffect(() => {
+    const urlPaymentId = searchParams.get("paymentId")
+    if (urlPaymentId && !paymentId) {
+      setPaymentId(urlPaymentId)
+      // Clean up URL to prevent re-triggering on refresh
+      const url = new URL(window.location.href)
+      url.searchParams.delete("paymentId")
+      window.history.replaceState({}, "", url.toString())
+    }
+  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-open modal when paymentId is set from URL
+  useEffect(() => {
+    if (paymentId && !hasAutoOpened.current) {
+      hasAutoOpened.current = true
+      // Small delay to ensure RozoPayButton.Custom is mounted
+      const timer = setTimeout(() => {
+        showRef.current?.()
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [paymentId])
+
   // sync pending when storage hydrates
   useEffect(() => {
     if (hydrated) setPending(config)
@@ -172,11 +201,14 @@ export function CheckoutMode() {
             onPaymentCompleted={(e) => addLog("completed", e)}
             onPayoutCompleted={(e) => addLog("payout", e)}
           >
-            {({ show }) => (
-              <Button onClick={show} size="lg" className="min-w-40">
-                Pay Now
-              </Button>
-            )}
+            {({ show }) => {
+              showRef.current = show
+              return (
+                <Button onClick={show} size="lg" className="min-w-40">
+                  Pay Now
+                </Button>
+              )
+            }}
           </RozoPayButton.Custom>
           <div className="flex flex-col items-center gap-1.5">
             <p className="max-w-md text-center font-mono text-xs break-all text-muted-foreground">
