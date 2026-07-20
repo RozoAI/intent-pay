@@ -232,7 +232,7 @@ export function CheckoutMode() {
                 {isMounted &&
                   (() => {
                     // ponytail: computed once, reused by all wallet hrefs
-                    const payUrl = `${window.location.origin}?paymentId=${paymentId}`
+                    const payUrl = `${window.location.origin}/checkout?paymentId=${paymentId}`
                     const encoded = encodeURIComponent(payUrl)
                     const origin = encodeURIComponent(window.location.origin)
                     const wallets = [
