@@ -3,6 +3,12 @@ import { formatUnits } from "viem";
 
 export const USD_DECIMALS = 2;
 
+export function formatTokenAmount(amount: number, decimals: number): string {
+  return parseFloat(amount.toFixed(decimals)).toString();
+}
+
+/**
+
 /**
  * Round a number to a given number of decimal places
  *
@@ -42,19 +48,22 @@ export function formatUsd(
   usd: number,
   round: "up" | "down" | "nearest" = "down",
   fiatISO = "USD",
+  decimals: number = USD_DECIMALS,
 ): string {
   const currency = fiatISO.toUpperCase();
-  const value = Number(roundUsd(usd, round));
+  const value = Number(roundDecimals(usd, decimals, round));
 
   try {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency,
+      maximumFractionDigits: decimals,
     }).format(value);
   } catch {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
+      maximumFractionDigits: decimals,
     }).format(value);
   }
 }
@@ -95,12 +104,11 @@ export function roundTokenAmount(
 
   const formattedAmount = formatUnits(amountBigInt, token.decimals);
 
-  return roundDecimals(
+  return String(parseFloat(roundDecimals(
     Number(formattedAmount),
-    // token.displayDecimals,
-    USD_DECIMALS, // @NOTE: Force 2 decimal places
+    token.displayDecimals,
     round,
-  );
+  )));
 }
 
 /** Strip trailing zeros from a decimal token amount string. e.g. "0.01600" → "0.016" */
@@ -116,9 +124,8 @@ export function roundTokenAmountUnits(
   token: RozoPayToken,
   round: "up" | "down" | "nearest" = "down",
 ): string {
-  // return roundDecimals(amountUnits, token.displayDecimals, round);
-  // @NOTE: Force 2 decimal places
-  return roundDecimals(amountUnits, USD_DECIMALS, round);
+  // Use token.displayDecimals for full precision, strip trailing zeros
+  return String(parseFloat(roundDecimals(amountUnits, token.displayDecimals, round)));
 }
 
 /**

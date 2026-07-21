@@ -32,6 +32,8 @@ export type Token = {
   symbol: string;
   /** Token decimals, eg 8 for WBTC */
   decimals: number;
+  /** Display decimals for UI, eg 6 for USDC, 2 for USD */
+  displayDecimals: number;
   /** Fiat ISO code for stablecoins, eg "USD" or "EUR" */
   fiatISO?: string;
   /** Logo preview data URI. Generally SVG or 64x64 PNG. */
@@ -1231,6 +1233,7 @@ function nativeToken({
     token,
     name,
     decimals,
+    displayDecimals: decimals === 18 ? 5 : decimals === 9 ? 4 : 6,
     symbol,
     logoURI,
     logoSourceURI: logoURI,
@@ -1243,6 +1246,7 @@ export function token({
   name,
   symbol,
   decimals,
+  displayDecimals,
   fiatISO,
   logoURI,
 }: {
@@ -1251,6 +1255,7 @@ export function token({
   name: string;
   symbol: string;
   decimals: number;
+  displayDecimals?: number;
   fiatISO?: string;
   logoURI: string;
 }): Token {
@@ -1260,6 +1265,7 @@ export function token({
     name,
     symbol,
     decimals,
+    displayDecimals: displayDecimals ?? (decimals === 18 ? 5 : decimals === 9 ? 4 : 6),
     fiatISO,
     logoURI,
     logoSourceURI: logoURI,

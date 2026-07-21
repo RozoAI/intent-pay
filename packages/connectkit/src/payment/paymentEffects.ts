@@ -266,30 +266,6 @@ async function runSetPayParamsEffects(
   );
 
   try {
-    // const orderPreview = await trpc.previewOrder.query({
-    //   // appId: payParams.appId,
-    //   appId: DEFAULT_ROZO_APP_ID,
-    //   toChain: payParams.toChain,
-    //   toToken: payParams.toToken,
-    //   toUnits,
-    //   toAddress: payParams.toAddress,
-    //   toCallData: payParams.toCallData,
-    //   isAmountEditable: payParams.toUnits == null,
-    //   metadata: {
-    //     intent: payParams.intent ?? "Pay",
-    //     items: [],
-    //     payer: {
-    //       paymentOptions: payParams.paymentOptions,
-    //       preferredChains: payParams.preferredChains,
-    //       preferredTokens: payParams.preferredTokens,
-    //       evmChains: payParams.evmChains,
-    //     },
-    //   },
-    //   externalId: payParams.externalId,
-    //   userMetadata: payParams.metadata,
-    //   refundAddress: payParams.refundAddress,
-    // });
-
     const token = getKnownToken(payParams.toChain, payParams.toToken);
     const orgId = () => {
       const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -323,7 +299,7 @@ async function runSetPayParamsEffects(
           usd: 1,
           priceFromUsd: 1,
           decimals: token?.decimals ?? 18,
-          displayDecimals: 2,
+          displayDecimals: token?.displayDecimals ?? 6,
           logoSourceURI: token?.logoSourceURI ?? TokenLogo.USDC,
           logoURI: token?.logoURI ?? TokenLogo.USDC,
           maxAcceptUsd: 100000,
@@ -348,7 +324,7 @@ async function runSetPayParamsEffects(
       intentStatus: "payment_unpaid",
       metadata: {
         intent: payParams.intent ?? "Pay",
-        ...(payParams.metadata ?? {}),
+        ...payParams.metadata,
       },
       externalId: payParams.externalId,
       userMetadata: payParams.metadata,
@@ -538,111 +514,12 @@ async function runHydratePayIdEffects(
   const order = prev.order;
 
   try {
-    // const { hydratedOrder } = await trpc.hydrateOrder.query({
-    //   id: order.id.toString(),
-    //   refundAddress: event.refundAddress,
-    // });
-
     const orderData = await getPayment(order.id.toString(), apiVersion);
     if (!orderData?.data) {
       throw new Error("Order not found");
     }
 
-    const token = getKnownToken(
-      order.destFinalCallTokenAmount.token.chainId,
-      order.destFinalCallTokenAmount.token.token,
-    );
-
-    const hydratedOrder: RozoPayHydratedOrderWithOrg = {
-      id: order.id ?? BigInt(orderData.data.id),
-      mode: RozoPayOrderMode.HYDRATED,
-      intentAddr: orderData.data.source.receiverAddress as Address,
-      preferredChainId: order.preferredChainId ?? null,
-      preferredTokenAddress: order.preferredTokenAddress ?? null,
-      // handoffAddr: orderData.data.metadata.receivingAddress as Address,
-      // escrowContractAddress: orderData.data.metadata
-      //   .receivingAddress as `0x${string}`,
-      // bridgerContractAddress: orderData.data.metadata
-      //   .receivingAddress as `0x${string}`,
-      // bridgeTokenOutOptions: [
-      //   {
-      //     token: {
-      //       chainId: order.destFinalCallTokenAmount.token.chainId,
-      //       token: order.destFinalCallTokenAmount.token.token,
-      //       symbol: order.destFinalCallTokenAmount.token.symbol,
-      //       usd: 1,
-      //       priceFromUsd: 1,
-      //       decimals: token?.decimals ?? 18,
-      //       displayDecimals: 2,
-      //       logoSourceURI: order.destFinalCallTokenAmount.token.logoSourceURI,
-      //       logoURI: order.destFinalCallTokenAmount.token.logoURI,
-      //       maxAcceptUsd: 100000,
-      //       maxSendUsd: 0,
-      //     },
-      //     amount: order.destFinalCallTokenAmount
-      //       .amount as unknown as `${bigint}`,
-      //     usd: Number(order.destFinalCallTokenAmount.usd),
-      //   },
-      // ],
-      // selectedBridgeTokenOutAddr: null,
-      // selectedBridgeTokenOutAmount: null,
-      destFinalCallTokenAmount: {
-        token: {
-          chainId: order.destFinalCallTokenAmount.token.chainId,
-          token: order.destFinalCallTokenAmount.token.token,
-          symbol: order.destFinalCallTokenAmount.token.symbol,
-          usd: 1,
-          priceFromUsd: 1,
-          decimals: token?.decimals ?? 18,
-          displayDecimals: 2,
-          logoSourceURI: order.destFinalCallTokenAmount.token.logoSourceURI,
-          logoURI: order.destFinalCallTokenAmount.token.logoURI,
-          maxAcceptUsd: 100000,
-          maxSendUsd: 0,
-        },
-        amount: parseUnits(
-          order.destFinalCallTokenAmount.amount as unknown as `${bigint}`,
-          token?.decimals ?? 18,
-        ).toString() as `${bigint}`,
-        usd: Number(order.destFinalCallTokenAmount.usd),
-      },
-      usdValue: Number(order.destFinalCallTokenAmount.usd),
-      destFinalCall: {
-        to: orderData.data.destination.receiverAddress as string,
-        value: BigInt("0"),
-        data: "0x",
-      },
-      refundAddr: order.refundAddr || null,
-      nonce: orderData.data.nonce as unknown as bigint,
-      sourceTokenAmount: null,
-      sourceFulfillerAddr: null,
-      sourceInitiateTxHash: null,
-      sourceStartTxHash: null,
-      sourceStatus: RozoPayOrderStatusSource.WAITING_PAYMENT,
-      destStatus: RozoPayOrderStatusDest.PENDING,
-      intentStatus: RozoPayIntentStatus.UNPAID,
-      destFastFinishTxHash: null,
-      destClaimTxHash: null,
-      // passedToAddress: null,
-      redirectUri: null,
-      // sourceInitiateUpdatedAt: null,
-      createdAt: order.createdAt,
-      lastUpdatedAt: Math.floor(Date.now() / 1000),
-      orgId: orderData.data.id,
-      metadata: mergedMetadata({
-        ...(orderData?.data.metadata ?? {}),
-        ...(order?.metadata ?? {}),
-        ...(order.userMetadata ?? {}),
-      }) as any,
-      externalId:
-        orderData.data.externalId?.toString() ?? orderData.data.id ?? null,
-      userMetadata: null,
-      expirationTs: orderData.data.expirationTs as unknown as bigint,
-      org: {
-        orgId: orderData.data.id,
-        name: "",
-      },
-    };
+    const hydratedOrder = formatPaymentResponseToHydratedOrder(orderData.data);
 
     store.dispatch({
       type: "order_hydrated",
@@ -662,13 +539,17 @@ async function runPaySourceEffects(
   trpc: TrpcClient,
   prev: Extract<PaymentState, { type: "payment_unpaid" }>,
 ) {
-  const orderId = prev.order.id;
+  const order = prev.order;
 
   try {
-    const order = await trpc.findOrderPayments.query({
-      orderId: orderId.toString(),
-    });
-    store.dispatch({ type: "order_refreshed", order });
+    const orderData = await getPayment(order.id.toString());
+    if (!orderData?.data) {
+      throw new Error("Order not found");
+    }
+
+    const hydratedOrder = formatPaymentResponseToHydratedOrder(orderData.data);
+
+    store.dispatch({ type: "order_refreshed", order: hydratedOrder });
   } catch (e: any) {
     store.dispatch({
       type: "error",
@@ -694,30 +575,6 @@ async function runPayEthereumSourceEffects(
       sourceFulfillerAddr: event.payerAddress,
       sourceToken: event.sourceToken,
       sourceAmount: event.sourceAmount.toString(),
-    });
-    store.dispatch({ type: "payment_verified", order });
-  } catch (e: any) {
-    store.dispatch({
-      type: "error",
-      order: prev.order,
-      message: parseErrorMessage(e),
-    });
-  }
-}
-
-async function runPaySolanaSourceEffects(
-  store: PaymentStore,
-  trpc: TrpcClient,
-  prev: Extract<PaymentState, { type: "payment_unpaid" }>,
-  event: Extract<PaymentEvent, { type: "pay_solana_source" }>,
-) {
-  const orderId = prev.order.id;
-
-  try {
-    const order = await trpc.processSolanaSourcePayment.mutate({
-      orderId: orderId.toString(),
-      startIntentTxHash: event.paymentTxHash,
-      token: event.sourceToken,
     });
     store.dispatch({ type: "payment_verified", order });
   } catch (e: any) {

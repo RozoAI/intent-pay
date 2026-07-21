@@ -173,7 +173,7 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     toAddress,
     preferredChain,
     preferredTokenAddress,
-    toUnits: safeToUnits.toFixed(2),
+    toUnits: String(safeToUnits),
     ...(isAbleToIncludeReceiverMemo && payParams.receiverMemo
       ? { receiverMemo: payParams.receiverMemo }
       : {}),
