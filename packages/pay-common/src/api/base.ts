@@ -171,7 +171,24 @@ export const fetchApi = async <T = any>(
     }
 
     if (!response.ok) {
-      throw new Error(data ? JSON.stringify(data) : response.statusText);
+      // BE returns { error: { code, message }, requestId } on 4xx/5xx —
+      // surface the structured message instead of the raw JSON envelope.
+      const body = data as
+        | { error?: { message?: string; code?: string } }
+        | string
+        | null;
+      const structured =
+        typeof body === "object" && body !== null
+          ? (body.error?.message ?? body.error?.code)
+          : undefined;
+      const message =
+        structured ??
+        (data == null
+          ? response.statusText
+          : typeof data === "string"
+            ? data
+            : JSON.stringify(data));
+      throw new Error(message);
     }
 
     return { data, error: null, status };

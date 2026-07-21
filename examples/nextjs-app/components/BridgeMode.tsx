@@ -1,5 +1,6 @@
 "use client"
 
+import { APP_ID } from "@/app/const"
 import { Button } from "@/components/ui/button"
 import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateBridgeSnippet } from "@/lib/snippets"
@@ -12,11 +13,10 @@ import { ModeDescription } from "./ModeDescription"
 import { ParamForm, type ParamFormValues } from "./ParamForm"
 import { PreviewPane } from "./PreviewPane"
 
-const APP_ID = "rozoDemo"
-
 export function BridgeMode() {
-  const [config, setConfig, hydrated] = useSharedConfig()
   const { resetPayment } = useRozoPayUI()
+
+  const [config, setConfig, hydrated] = useSharedConfig()
   const [pending, setPending] = useState(config)
   const [ready, setReady] = useState(false)
   const [resetting, setResetting] = useState(false)
@@ -53,10 +53,7 @@ export function BridgeMode() {
     : false
 
   const preferredSymbol = useMemo(
-    () =>
-      isDestinationEURC
-        ? [TokenSymbol.EURC]
-        : [TokenSymbol.USDC, TokenSymbol.USDT],
+    () => (isDestinationEURC ? [TokenSymbol.EURC] : undefined),
     [isDestinationEURC]
   )
 
@@ -85,6 +82,7 @@ export function BridgeMode() {
           toUnits: c.toUnits,
           intent: "Bridge",
           preferredSymbol,
+          feeType: c.feeType,
         })
         setReady(true)
       } catch (err) {
@@ -123,6 +121,7 @@ export function BridgeMode() {
             toAddress={config.toAddress}
             toUnits={config.toUnits}
             preferredSymbol={preferredSymbol}
+            feeType={config.feeType}
             resetOnSuccess
             showProcessingPayout
             intent="Bridge"
@@ -188,6 +187,7 @@ export function BridgeMode() {
             values={pending}
             onChange={setPending}
             showAmount
+            showFeeType
             hydrated={hydrated}
           />
           <Button

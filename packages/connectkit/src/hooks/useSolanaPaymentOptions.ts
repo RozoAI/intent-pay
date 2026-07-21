@@ -9,8 +9,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
+import { roundTokenAmount } from "../utils/format";
 import { TrpcClient } from "../utils/trpc";
 import { useSupportedChains } from "./useSupportedChains";
+import { isNativeToken } from "../utils/token";
 
 /** Wallet payment options. User picks one. */
 export function useSolanaPaymentOptions({
@@ -28,16 +30,14 @@ export function useSolanaPaymentOptions({
 }) {
   const { chains } = useSupportedChains();
 
-  const solanaChainIds = useMemo(
-    () => new Set(chains.filter((c) => c.type === "solana").map((c) => c.chainId)),
-    [chains],
-  );
+  // Get Solana chain IDs from supported chains
+  const solanaChainIds = useMemo(() => {
+    return new Set(chains.filter((c) => c.type === "solana").map((c) => c.chainId));
+  }, [chains]);
 
-  // Fetch under caller's appId, or DEFAULT_ROZO_APP_ID when none passed.
-  const stableAppId = useMemo(
-    () => payParams?.appId ?? DEFAULT_ROZO_APP_ID,
-    [payParams?.appId],
-  );
+  const stableAppId = useMemo(() => {
+    return payParams?.appId;
+  }, [payParams]);
 
   const memoizedPreferredTokens = useMemo(
     () => payParams?.preferredTokens,
@@ -48,7 +48,9 @@ export function useSolanaPaymentOptions({
   const { data, isLoading, refetch } = useQuery<WalletPaymentOption[] | null>({
     enabled:
       address != null &&
-      usdRequired != null,
+      usdRequired != null &&
+      stableAppId != null &&
+      stableAppId !== DEFAULT_ROZO_APP_ID,
     queryKey: [
       "solanaPaymentOptions",
       address,
@@ -58,12 +60,13 @@ export function useSolanaPaymentOptions({
       memoizedPreferredTokens,
     ],
     queryFn: () => {
+      // Filter preferredTokenAddress to only include Solana chain tokens
       const solanaPreferredTokenAddresses = (memoizedPreferredTokens ?? [])
         .filter((t) => solanaChainIds.has(t.chainId))
         .map((t) => t.token);
 
       return trpc.getSolanaPaymentOptions.query({
-        pubKey: address!,
+        pubKey: address,
         // API expects undefined for deposit flow.
         usdRequired: isDepositFlow ? undefined : usdRequired,
         appId: stableAppId,
@@ -82,32 +85,61 @@ export function useSolanaPaymentOptions({
 
     return data
       .filter((option) => {
-        if (!preferredTokens || preferredTokens.length === 0) return true;
+        // If preferredTokens is not provided or empty, show all options
+        if (!preferredTokens || preferredTokens.length === 0) {
+          return true;
+        }
 
-        const filteredPreferredTokens = preferredTokens.map((pt) =>
-          pt.chainId === rozoSolana.chainId ? { ...pt, chainId: solana.chainId } : pt,
-        );
+        const filteredPreferredTokens = preferredTokens.map((pt) => {
+          if (pt.chainId === rozoSolana.chainId) {
+            return {
+              ...pt,
+              chainId: solana.chainId,
+            };
+          }
+          return pt;
+        });
 
+        // Filter by matching chainId and token address
         return filteredPreferredTokens.some(
           (pt) =>
             pt.chainId === option.balance.token.chainId &&
-            normalizeTokenAddress(pt.chainId, pt.token) ===
+            normalizeTokenAddress(option.balance.token.chainId, pt.token) ===
               normalizeTokenAddress(option.balance.token.chainId, option.balance.token.token),
         );
       })
       .map((item) => {
         const usd = isDepositFlow ? 0 : usdRequired || 0;
+
         const value: WalletPaymentOption = {
           ...item,
-          required: { ...item.required, usd },
+          required: {
+            ...item.required,
+            usd,
+          },
         };
-        const destinationFiatISO = getKnownToken(
-          item.balance.token.chainId,
-          item.balance.token.token,
-        )?.fiatISO;
+
+        // Set `disabledReason` manually (based on current usdRequired state, not API Request)
+        const knownToken = getKnownToken(item.balance.token.chainId, item.balance.token.token);
+        const fiatISO = knownToken?.fiatISO ?? item.balance.token.fiatISO;
+        const isNative = isNativeToken(item.balance.token.token);
+
         if (item.balance.usd < usd) {
-          value.disabledReason = `Balance too low: ${item.balance.usd.toFixed(2)} ${destinationFiatISO}`;
+          if (isNative) {
+            value.disabledReason = `Balance too low: ${roundTokenAmount(
+              item.balance.amount,
+              item.balance.token,
+            )} ${item.balance.token.symbol}`;
+          } else if (fiatISO) {
+            value.disabledReason = `Balance too low: ${item.balance.usd.toFixed(2)} ${fiatISO}`;
+          } else {
+            value.disabledReason = `Balance too low: ${roundTokenAmount(
+              item.balance.amount,
+              item.balance.token,
+            )} ${item.balance.token.symbol}`;
+          }
         }
+
         return value;
       }) as WalletPaymentOption[];
   }, [data, isDepositFlow, usdRequired, payParams?.preferredTokens]);
@@ -115,6 +147,6 @@ export function useSolanaPaymentOptions({
   return {
     options: filteredOptions,
     isLoading,
-    refreshOptions: refetch,
+    refreshOptions: () => refetch().then(() => {}),
   };
 }

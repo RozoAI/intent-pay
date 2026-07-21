@@ -286,6 +286,16 @@ export interface CreateNewPaymentParams {
   // Payment details
   /** Amount in human-readable units (e.g., "1" for 1 USDC, "0.5" for half a USDC) */
   toUnits?: string;
+  /**
+   * Source token amount the user will actually pay, in human-readable units of
+   * the *source* token (e.g. "0.016885" for 0.016885 SOL).
+   *
+   * For 1:1-USD-pegged sources (USDC/USDT) this equals `toUnits`, but for
+   * native tokens (SOL/ETH/BNB/POL/XLM) the source amount differs from the
+   * destination payout. When omitted, the source amount falls back to the
+   * destination amount for backwards compatibility.
+   */
+  preferredAmountUnits?: string;
 
   // Optional fields
   /** Additional metadata to include */

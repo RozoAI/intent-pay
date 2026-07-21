@@ -183,11 +183,10 @@ const ConnectorItem = ({
     // wallet-standard provider (e.g. Phantom): connect both chains at once
     // instead of forcing a chain choice. SELECT_METHOD already shows
     // separate "Pay with [eth]"/"Pay with [sol]" tiles once both are connected.
-    // Connect EVM directly (no intermediate injector page — we're already inside
-    // the wallet's in-app browser) and select Solana simultaneously.
     if (isMobile && wallet.connector && wallet.solanaConnectorName) {
+      context.setPendingConnectorId(wallet.id);
       context.setDualChainConnect(true);
-      connect({ connector: wallet.connector });
+      context.setRoute(ROUTES.CONNECT, meta);
       solanaWallets.select(wallet.solanaConnectorName);
       return;
     }

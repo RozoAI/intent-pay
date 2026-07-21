@@ -2,12 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
 
-import {
-  Link,
-  ModalContent,
-  ModalH1,
-  PageContent,
-} from "../../../Common/Modal/styles";
+import { Link, ModalContent, ModalH1, PageContent } from "../../../Common/Modal/styles";
 
 import {
   buildCheckoutPayload,
@@ -18,16 +13,20 @@ import {
   getCanonicalDestination,
   getChainExplorerTxUrl,
   getPayment,
+  normalizeTokenAddress,
+  PaymentResponse,
   RozoPayHydratedOrderWithOrg,
   rozoSolana,
   solana,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
+import { isNativeToken } from "../../../../utils/token";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../../lib/analytics/events";
 import { useAnalytics } from "../../../../provider/AnalyticsProvider";
 import { getCachedFee, resolveOrderAppId } from "../../../../utils/feeCache";
+import { tokenBaseAmountToDecimalString } from "../../../../utils/format";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
@@ -67,9 +66,7 @@ const PayWithSolanaToken: React.FC = () => {
   const handleContactClick = useContactSupport();
 
   const { capture } = useAnalytics();
-  const [payState, setPayStateInner] = useState<PayState>(
-    PayState.PreparingTransaction,
-  );
+  const [payState, setPayStateInner] = useState<PayState>(PayState.PreparingTransaction);
   const [txURL, setTxURL] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
   const [feeData, setFeeData] = useState<FeeResponseData | null>(null);
@@ -132,8 +129,7 @@ const PayWithSolanaToken: React.FC = () => {
         payment_id: rozoPaymentId ?? order?.externalId,
         source_chain: option.required.token.chainId,
         token_symbol: option.required.token.symbol,
-        amount:
-          option.required.usd != null ? String(option.required.usd) : undefined,
+        amount: option.required.usd != null ? String(option.required.usd) : undefined,
       });
       if (isRetry) {
         setPayState(PayState.PreparingTransaction);
@@ -147,19 +143,28 @@ const PayWithSolanaToken: React.FC = () => {
         // loaded by runSetPayIdEffects, so getFee/checkout below run against the
         // latest payment response (correct appId, amount, destination, etc.).
         const currentState = store.getState();
-        const currentOrder =
-          currentState.type !== "idle" ? currentState.order : undefined;
+        const currentOrder = currentState.type !== "idle" ? currentState.order : undefined;
         if (!currentOrder) {
           throw new Error("Order not initialized");
         }
 
         const { required } = option;
 
+        const previousTokenAddress = currentOrder.preferredTokenAddress;
+        const tokenChanged =
+          previousTokenAddress != null &&
+          normalizeTokenAddress(
+            currentOrder.preferredChainId ?? undefined,
+            previousTokenAddress,
+          ) !== normalizeTokenAddress(required.token.chainId, required.token.token);
+
         const needRozoPayment =
-          currentOrder.preferredChainId !== null &&
-          currentOrder.preferredChainId !== required.token.chainId;
+          (currentOrder.preferredChainId !== null &&
+            currentOrder.preferredChainId !== required.token.chainId) ||
+          tokenChanged;
 
         let hydratedOrder: RozoPayHydratedOrderWithOrg;
+        let rozoPaymentResponse: PaymentResponse | undefined;
         let paymentId: string | undefined;
 
         // When payId is used (no payParams), fetch the existing payment instead
@@ -167,15 +172,34 @@ const PayWithSolanaToken: React.FC = () => {
         const existingPayId = currentOrder.externalId ?? undefined;
         const isPayIdMode = !payParams && !!existingPayId;
 
+        // Use required.amount (base units, already priced by the backend)
+        // converted to a human-readable token amount — NOT required.usd,
+        // which is only equal to the token amount for 1:1-USD-pegged
+        // tokens (USDC/USDT). For SOL/ETH/etc this would send the wrong
+        // amount (e.g. "1.00" SOL instead of "0.013" SOL for a $1 payment).
+        //
+        // Some endpoints (e.g. Solana tRPC payment options) return
+        // required.amount as an already-human-readable decimal string
+        // instead of integer base units, so detect the shape first —
+        // BigInt() throws on decimal strings.
+        const sourceAmount = tokenBaseAmountToDecimalString(
+          option.required.amount,
+          option.required.token.decimals,
+        );
+
         // @NOTE: Fee calculation
         const destToken = currentOrder.destFinalCallTokenAmount?.token;
         setFeeLoading(true);
+        const feeQuoteType = paymentState.payParams?.feeType ?? FeeType.ExactIn;
+        // getFee maps `amount` to source.amount for exactIn. We must send the
+        // source-token amount (e.g. SOL), NOT the USD/destination value —
+        // otherwise the backend reads "1.3" as 1.3 SOL.
         const feeData = await getCachedFee({
           appId: resolveOrderAppId(currentOrder, paymentState.payParams?.appId),
-          type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
+          type: feeQuoteType,
           sourceChainId: option.required.token.chainId.toString(),
           sourceTokenSymbol: option.required.token.symbol,
-          amount: option.required.usd.toString(),
+          amount: sourceAmount,
           destChainId: destToken.chainId.toString(),
           destReceiverAddress:
             getCanonicalDestination(currentOrder).finalDestinationAddress ??
@@ -194,7 +218,11 @@ const PayWithSolanaToken: React.FC = () => {
             dest_chain: destToken.chainId,
             dest_token: destToken.symbol,
           });
-          console.error("Fee calculation failed", feeData.error);
+          console.error(
+            "Fee calculation failed",
+            feeData.error,
+            JSON.stringify(feeData.error.message),
+          );
           setRoute(ROUTES.ERROR, { error: feeData.error.message });
           return;
         }
@@ -205,7 +233,12 @@ const PayWithSolanaToken: React.FC = () => {
           // payId mode: checkout (refresh) the payment with the selected source token
           const paymentRes = await getPayment(existingPayId!);
           if (!paymentRes?.data) {
-            throw new Error("Failed to fetch payment");
+            log(
+              `[PayWithSolanaToken] getPayment failed for ${existingPayId}: status=${paymentRes?.status} error=${paymentRes?.error?.message}`,
+            );
+            throw new Error(
+              `Failed to fetch payment: ${paymentRes?.error?.message ?? `HTTP ${paymentRes?.status}`}`,
+            );
           }
 
           let sourceChainId = Number(option.required.token.chainId);
@@ -214,53 +247,66 @@ const PayWithSolanaToken: React.FC = () => {
             sourceChainId = rozoSolana.chainId;
           }
 
-          const checkoutRes = await checkoutPayment(
-            existingPayId!,
-            buildCheckoutPayload(paymentRes.data, {
-              chainId: option.required.token.chainId,
-              tokenSymbol: option.required.token.symbol,
-              tokenAddress: option.required.token.token,
-              amount: String(option.required.usd),
-            }),
-          );
+          const checkoutPayload = buildCheckoutPayload(paymentRes.data, {
+            chainId: option.required.token.chainId,
+            tokenSymbol: option.required.token.symbol,
+            tokenAddress: option.required.token.token,
+            amount: sourceAmount,
+          });
+
+          const checkoutRes = await checkoutPayment(existingPayId!, checkoutPayload);
           if (!checkoutRes?.data) {
-            throw new Error("Failed to checkout payment");
+            log(
+              `[PayWithSolanaToken] checkoutPayment failed for ${existingPayId}: status=${checkoutRes?.status} error=${checkoutRes?.error?.message} payload=${JSON.stringify(checkoutPayload)}`,
+            );
+            throw new Error(
+              `Failed to checkout payment: ${checkoutRes?.error?.message ?? `HTTP ${checkoutRes?.status}`}`,
+            );
           }
           paymentId = checkoutRes.data.id;
 
-          const formattedOrder = formatPaymentResponseToHydratedOrder(
-            checkoutRes.data,
-          );
+          const formattedOrder = formatPaymentResponseToHydratedOrder(checkoutRes.data);
           hydratedOrder = formattedOrder;
+          rozoPaymentResponse = checkoutRes.data;
         } else if (
           (state === "payment_unpaid" || state === "payment_started") &&
           !needRozoPayment
         ) {
           hydratedOrder = currentOrder as RozoPayHydratedOrderWithOrg;
         } else if (needRozoPayment) {
-          const existingId =
-            rozoPaymentId ?? currentOrder.externalId ?? undefined;
-          if (existingId) {
+          // Backend rejects `checkout` when rotating to a native
+          // source token (SOL/ETH/XLM) — "create a new order instead". So for
+          // native sources we skip checkout and create a fresh payment.
+          const rotateToNative = isNativeToken(option.required.token.token);
+          const existingId = rozoPaymentId ?? currentOrder.externalId ?? undefined;
+          if (existingId && !rotateToNative) {
             const paymentRes = await getPayment(existingId);
             if (!paymentRes?.data) {
-              throw new Error("Failed to fetch payment");
+              log(
+                `[PayWithSolanaToken] getPayment failed for ${existingId}: status=${paymentRes?.status} error=${paymentRes?.error?.message}`,
+              );
+              throw new Error(
+                `Failed to fetch payment: ${paymentRes?.error?.message ?? `HTTP ${paymentRes?.status}`}`,
+              );
             }
-            const checkoutRes = await checkoutPayment(
-              existingId,
-              buildCheckoutPayload(paymentRes.data, {
-                chainId: option.required.token.chainId,
-                tokenSymbol: option.required.token.symbol,
-                tokenAddress: option.required.token.token,
-                amount: String(option.required.usd),
-              }),
-            );
+            const checkoutPayload = buildCheckoutPayload(paymentRes.data, {
+              chainId: option.required.token.chainId,
+              tokenSymbol: option.required.token.symbol,
+              tokenAddress: option.required.token.token,
+              amount: sourceAmount,
+            });
+            const checkoutRes = await checkoutPayment(existingId, checkoutPayload);
             if (!checkoutRes?.data) {
-              throw new Error("Failed to checkout payment");
+              log(
+                `[PayWithSolanaToken] checkoutPayment failed for ${existingId}: status=${checkoutRes?.status} error=${checkoutRes?.error?.message} payload=${JSON.stringify(checkoutPayload)}`,
+              );
+              throw new Error(
+                `Failed to checkout payment: ${checkoutRes?.error?.message ?? `HTTP ${checkoutRes?.status}`}`,
+              );
             }
             paymentId = checkoutRes.data.id;
-            hydratedOrder = formatPaymentResponseToHydratedOrder(
-              checkoutRes.data,
-            );
+            hydratedOrder = formatPaymentResponseToHydratedOrder(checkoutRes.data);
+            rozoPaymentResponse = checkoutRes.data;
           } else {
             const res = await createPayment(
               {
@@ -273,13 +319,17 @@ const PayWithSolanaToken: React.FC = () => {
                       : option.fees.usd,
                 },
               },
-              store as any,
+              store,
             );
             if (!res) {
+              log(
+                `[PayWithSolanaToken] createPayment returned no result for source ${option.required.token.symbol} on chain ${option.required.token.chainId}`,
+              );
               throw new Error("Failed to create Rozo payment");
             }
             paymentId = res.id;
             hydratedOrder = formatPaymentResponseToHydratedOrder(res);
+            rozoPaymentResponse = res;
           }
         } else {
           // Hydrate existing order
@@ -328,10 +378,7 @@ const PayWithSolanaToken: React.FC = () => {
                 try {
                   await setPaymentStarted(String(newId), hydratedOrder);
                 } catch (e2) {
-                  console.error(
-                    "[PayWithSolanaToken] Could not start payment:",
-                    e2,
-                  );
+                  console.error("[PayWithSolanaToken] Could not start payment:", e2);
                   throw e2;
                 }
               }
@@ -346,10 +393,7 @@ const PayWithSolanaToken: React.FC = () => {
               try {
                 await setPaymentStarted(String(newId), hydratedOrder);
               } catch (e) {
-                console.error(
-                  "[PayWithSolanaToken] Could not start payment:",
-                  e,
-                );
+                console.error("[PayWithSolanaToken] Could not start payment:", e);
                 throw e;
               }
             } else if (stateBeforeTransition === "preview") {
@@ -366,11 +410,6 @@ const PayWithSolanaToken: React.FC = () => {
 
         setPayState(PayState.RequestingPayment);
 
-        // Solana pay-in no longer requires a memo.
-        const paymentData = {
-          destAddress: hydratedOrder.intentAddr,
-        };
-
         const result = await payWithSolanaTokenRozo(
           {
             ...option,
@@ -382,7 +421,17 @@ const PayWithSolanaToken: React.FC = () => {
                   : option.fees.usd,
             },
           },
-          paymentData,
+          {
+            destAddress: hydratedOrder.intentAddr,
+            // Prefer backend-computed source amount from the payment response.
+            // Fall back to metadata.sourceAmountUnits for the hydrate-existing-order
+            // path where rozoPaymentResponse is unavailable but the hydrated order
+            // carries the same value via formatPaymentResponseToHydratedOrder.
+            sourceAmount:
+              rozoPaymentResponse?.source.amount ??
+              hydratedOrder.metadata?.sourceAmountUnits ??
+              undefined,
+          },
         );
         log(
           "[PAY SOLANA] Result",
@@ -410,11 +459,7 @@ const PayWithSolanaToken: React.FC = () => {
           // `rozoPaymentId` React state captured in the useCallback closure.
           const completedPaymentId = newId ?? undefined;
           setTimeout(() => {
-            setPaymentCompleted(
-              result.txHash,
-              completedPaymentId,
-              solanaPubKey ?? null,
-            );
+            setPaymentCompleted(result.txHash, completedPaymentId, solanaPubKey ?? null);
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-solana" });
           }, 200);
           setTimeout(() => {
@@ -440,14 +485,11 @@ const PayWithSolanaToken: React.FC = () => {
             console.error("Failed to set payment unpaid:", e);
           }
         }
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         const isRejected = errorMessage.includes("rejected");
         capture(ROZO_EVENTS.PAYMENT_FAILED, {
           payment_id: resolvedPaymentId ?? rozoPaymentId,
-          error_message: isRejected
-            ? "user_rejected"
-            : (errorMessage ?? "unknown_error"),
+          error_message: isRejected ? "user_rejected" : (errorMessage ?? "unknown_error"),
           source_chain: rozoSolana.chainId,
         });
         if (isRejected) {
@@ -489,10 +531,7 @@ const PayWithSolanaToken: React.FC = () => {
   useEffect(() => {
     if (!selectedSolanaTokenOption) return;
 
-    const transferTimeout = setTimeout(
-      () => handleTransfer(selectedSolanaTokenOption),
-      100,
-    );
+    const transferTimeout = setTimeout(() => handleTransfer(selectedSolanaTokenOption), 100);
     return () => clearTimeout(transferTimeout);
   }, [selectedSolanaTokenOption]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -510,6 +549,7 @@ const PayWithSolanaToken: React.FC = () => {
         <TokenLogoSpinner
           token={selectedSolanaTokenOption.required.token}
           loading={isLoading}
+          nativeAsChainIcon
         />
       )}
       <ModalContent style={{ paddingBottom: 0 }}>
@@ -537,13 +577,11 @@ const PayWithSolanaToken: React.FC = () => {
           feeLoading={feeLoading}
         />
         {payState === PayState.RequestCancelled && !isLoading && (
-          <Button
-            onClick={() => handleTransfer(selectedSolanaTokenOption, true)}
-          >
+          <Button onClick={() => handleTransfer(selectedSolanaTokenOption, true)}>
             Retry Payment
           </Button>
         )}
-        {/* ponytail: RequestFailed is no longer set on Solana (hard failures
+        {/* RequestFailed is no longer set on Solana (hard failures
             route to ROUTES.ERROR); kept as a defensive fallback. */}
         {payState === PayState.RequestFailed && (
           <Button onClick={handleContactClick}>Contact Support</Button>

@@ -1,6 +1,5 @@
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useEffect, useRef } from "react";
-import { useAccount, useConnect, useConnectors } from "wagmi";
+import { useEffect, useRef } from "react";import { useAccount, useConnect, useConnectors } from "wagmi";
 
 import { ROUTES } from "../../constants/routes";
 import { getAppName } from "../../defaultConfig";
@@ -8,6 +7,7 @@ import { useAutoConnectGate } from "../../hooks/useAutoConnectGate";
 import { useChainIsSupported } from "../../hooks/useChainIsSupported";
 import { useRozoPay } from "../../hooks/useRozoPay";
 import useIsMobile from "../../hooks/useIsMobile";
+import { isPhantom } from "../../utils/wallets";
 import { usePayContext } from "../../hooks/usePayContext";
 import { useStellar } from "../../provider/StellarContextProvider";
 import { CustomTheme, Languages, Mode, Theme } from "../../types";
@@ -277,7 +277,6 @@ export const RozoPayModal: React.FC<{
     didForceEvmConnectRef.current = true;
     connect({ connector: injected });
   }, [context.open, context.route, context.userDisconnected, isEthConnected, isSolanaConnected, isMobile, solanaWallet, connectors, connect]);
-
   // If the user has a wallet already connected upon opening the modal, go
   // straight to the select token screen.
   // Gated on wagmi reconnect and Solana autoConnect completing first —

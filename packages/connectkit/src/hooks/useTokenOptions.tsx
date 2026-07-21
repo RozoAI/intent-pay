@@ -179,7 +179,9 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   // Smart refresh function that only refreshes hooks that need it
   const refreshOptions = useCallback(async () => {
     const { ethWalletAddress, solanaPubKey, stellarPubKey } = paymentState;
-    const refreshPromises: Promise<unknown>[] = [];
+    const refreshPromises: Promise<void>[] = [];
+
+    // Only refresh EVM options if we have EVM address and need EVM data
     if (
       ["evm", "all"].includes(mode) &&
       ethWalletAddress &&
@@ -301,7 +303,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   // Manual refresh function for user-triggered refreshes (like clicking refresh button)
   const manualRefresh = useCallback(async () => {
     // Force refresh all relevant payment options regardless of current state
-    const refreshPromises: Promise<unknown>[] = [];
+    const refreshPromises: Promise<void>[] = [];
 
     if (["evm", "all"].includes(mode) && walletPaymentOptions.refreshOptions) {
       refreshPromises.push(walletPaymentOptions.refreshOptions());
@@ -426,7 +428,11 @@ function getEvmTokenOptions(
       title,
       subtitle,
       icons: [
-        <TokenChainLogo key={getRozoTokenKey(option.balance.token)} token={option.balance.token} />,
+        <TokenChainLogo
+          key={getRozoTokenKey(option.balance.token)}
+          token={option.balance.token}
+          nativeAsChainIcon
+        />,
       ],
       onClick: () => {
         setSelectedTokenOption(option);
@@ -471,7 +477,11 @@ function getSolanaTokenOptions(
       title,
       subtitle,
       icons: [
-        <TokenChainLogo key={getRozoTokenKey(option.balance.token)} token={option.balance.token} />,
+        <TokenChainLogo
+          key={getRozoTokenKey(option.balance.token)}
+          token={option.balance.token}
+          nativeAsChainIcon
+        />,
       ],
       onClick: () => {
         setSelectedSolanaTokenOption(option);
@@ -516,7 +526,11 @@ function getStellarTokenOptions(
       title,
       subtitle,
       icons: [
-        <TokenChainLogo key={getRozoTokenKey(option.balance.token)} token={option.balance.token} />,
+        <TokenChainLogo
+          key={getRozoTokenKey(option.balance.token)}
+          token={option.balance.token}
+          nativeAsChainIcon
+        />,
       ],
       onClick: () => {
         setSelectedStellarTokenOption(option);

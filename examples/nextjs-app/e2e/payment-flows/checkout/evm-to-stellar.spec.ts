@@ -18,6 +18,8 @@ import {
   payInWithMetaMask,
   startCheckoutPayment,
   waitForPayoutCompleted,
+  setupPaymentIdCapture,
+  reportPayment,
 } from "../../helpers"
 
 const test = testWithChainwright(metamaskFixture())
@@ -28,10 +30,21 @@ test.describe("Checkout (payId): EVM USDC → Stellar (mainnet, real funds)", ()
     "Set E2E_EVM_SEED_PHRASE and E2E_STELLAR_ADDRESS in .env.e2e"
   )
 
+  let getPayId: (() => string | undefined) | undefined
+
+  test.afterEach(async ({}, testInfo) => {
+    await reportPayment(testInfo, {
+      payId: getPayId?.(),
+      route: "EVM USDC → Stellar (checkout)",
+      status: testInfo.status,
+    })
+  })
+
   test("create a payId then pay it with USDC from EVM to Stellar", async ({
     page,
     metamask,
   }) => {
+    getPayId = setupPaymentIdCapture(page)
     // Cached MetaMask profile starts locked — unlock before any popup can appear.
     await metamask.unlock()
 

@@ -1,5 +1,6 @@
 "use client"
 
+import { APP_ID } from "@/app/const"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,8 +14,6 @@ import { EventLog, type LogEntry } from "./EventLog"
 import { ModeDescription } from "./ModeDescription"
 import { ParamForm } from "./ParamForm"
 import { PreviewPane } from "./PreviewPane"
-
-const APP_ID = "rozoDemo"
 
 export function CheckoutMode() {
   const [config, setConfig, hydrated] = useSharedConfig()
@@ -89,6 +88,7 @@ export function CheckoutMode() {
         toUnits: config.toUnits,
         preferredChain: config.toChain,
         preferredTokenAddress: config.toToken,
+        feeType: config.feeType,
       })
       setPaymentId(result.id)
     } catch (err) {
@@ -168,6 +168,7 @@ export function CheckoutMode() {
           <RozoPayButton.Custom
             payId={paymentId}
             intent="Checkout"
+            feeType={config.feeType}
             onPaymentStarted={(e) => addLog("started", e)}
             onPaymentCompleted={(e) => addLog("completed", e)}
             onPayoutCompleted={(e) => addLog("payout", e)}
@@ -226,6 +227,7 @@ export function CheckoutMode() {
             values={pending}
             onChange={setPending}
             showAmount
+            showFeeType
             hydrated={hydrated}
           />
           <Button

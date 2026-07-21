@@ -18,6 +18,8 @@ import {
   startBridgePayment,
   useStellarSigner,
   waitForPayoutCompleted,
+  setupPaymentIdCapture,
+  reportPayment,
 } from "../../helpers"
 
 test.describe("Bridge: Stellar USDC → Base (mainnet, real funds)", () => {
@@ -26,7 +28,18 @@ test.describe("Bridge: Stellar USDC → Base (mainnet, real funds)", () => {
     "Set E2E_STELLAR_SECRET and E2E_EVM_ADDRESS in .env.e2e"
   )
 
+  let getPayId: (() => string | undefined) | undefined
+
+  test.afterEach(async ({}, testInfo) => {
+    await reportPayment(testInfo, {
+      payId: getPayId?.(),
+      route: "Stellar USDC → EVM (Base)",
+      status: testInfo.status,
+    })
+  })
+
   test("send USDC from Stellar to EVM destination", async ({ page }) => {
+    getPayId = setupPaymentIdCapture(page)
     // Drive the in-page headless signer with our Stellar secret — must run
     // before navigation.
     await useStellarSigner(page, E2E.stellar.secret)

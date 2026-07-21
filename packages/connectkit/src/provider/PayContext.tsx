@@ -54,9 +54,9 @@ export type PayContextValue = {
   /** EVM pending connector */
   pendingConnectorId: string | undefined;
   setPendingConnectorId: (id: string) => void;
-  /** Flag set when a dual-chain wallet (e.g. Phantom mobile) connects both EVM
-   * and Solana simultaneously. Consumed on connect-complete to route back to
-   * SELECT_METHOD instead of jumping straight to SELECT_TOKEN. */
+  /** True when the current connect was a dual-chain (EVM + Solana) connect,
+   * e.g. Phantom in a mobile in-app browser. Consumed on connect-complete to
+   * route back to SELECT_METHOD instead of jumping straight to SELECT_TOKEN. */
   dualChainConnect: boolean;
   setDualChainConnect: (v: boolean) => void;
   userDisconnected: boolean;

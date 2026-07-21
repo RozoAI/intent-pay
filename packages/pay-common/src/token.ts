@@ -1,4 +1,4 @@
-import { getAddress, zeroAddress } from "viem";
+import { ethAddress, getAddress, zeroAddress } from "viem";
 import { assertNotNull } from "./assert";
 import {
   arbitrum,
@@ -69,6 +69,7 @@ export enum TokenSymbol {
   CELO = "CELO",
   cUSD = "cUSD",
   DAI = "DAI",
+  ETH = "ETH",
   EURC = "EURC",
   MNT = "MNT",
   POL = "POL",
@@ -692,11 +693,11 @@ const polygonTokens: Token[] = [
 //
 
 export const solanaSOL = nativeToken({
-  chainId: solana.chainId,
+  chainId: rozoSolana.chainId,
   name: "Solana",
   symbol: TokenSymbol.SOL,
   logoURI: TokenLogo.SOL,
-  token: "11111111111111111111111111111111",
+  token: "11111111111111111111111111111112",
   decimals: 9,
 });
 
@@ -763,12 +764,12 @@ const solanaTokens: Token[] = [
 //
 
 export const stellarXLM = nativeToken({
-  chainId: stellar.chainId,
+  chainId: rozoStellar.chainId,
   name: "Stellar",
   symbol: TokenSymbol.XLM,
   logoURI: TokenLogo.XLM,
-  token: "11111111111111111111111111111111",
-  decimals: 9,
+  token: "XLM",
+  decimals: 7,
 });
 
 export const stellarUSDC: Token = token({
@@ -938,16 +939,16 @@ const avalancheTokens: Token[] = [avalancheAVAX, avalancheUSDC, avalancheUSDT];
 
 /** Support tokens for Rozo Pay */
 export const supportedTokens: Map<number, Token[]> = new Map([
-  [arbitrum.chainId, [arbitrumUSDC, arbitrumUSDT]],
-  [base.chainId, [baseUSDC, baseEURC]],
-  [bsc.chainId, [bscUSDC, bscUSDT]],
-  [ethereum.chainId, [ethereumUSDC, ethereumUSDT]],
-  [polygon.chainId, [polygonUSDC, polygonUSDT]],
+  [arbitrum.chainId, [arbitrumETH, arbitrumUSDC, arbitrumUSDT]],
+  [base.chainId, [baseETH, baseUSDC, baseEURC]],
+  [bsc.chainId, [bscBNB, bscUSDC, bscUSDT]],
+  [ethereum.chainId, [ethereumETH, ethereumUSDC, ethereumUSDT]],
+  [polygon.chainId, [polygonPOL, polygonUSDC, polygonUSDT]],
   [hyperEVM.chainId, [hyperEVMUSDC]],
 
-  [solana.chainId, [solanaUSDC, solanaUSDT]],
-  [rozoSolana.chainId, [rozoSolanaUSDC, rozoSolanaUSDT]],
-  [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC]],
+  [solana.chainId, [solanaSOL, solanaUSDC, solanaUSDT]],
+  [rozoSolana.chainId, [solanaSOL, rozoSolanaUSDC, rozoSolanaUSDT]],
+  [rozoStellar.chainId, [stellarXLM, rozoStellarUSDC, rozoStellarEURC]],
 ]);
 
 export const supportedPayoutTokens: Map<number, Token[]> = new Map([
@@ -971,6 +972,19 @@ export const knownTokens: Token[] = Array.from(supportedTokens.values()).flat();
 export const knownChains: number[] = Array.from(supportedTokens.keys());
 /* --------------------- Tokens By Address --------------------- */
 
+// Token lookup index. Addresses are lower-cased in the key so lookups are
+// case-insensitive: EVM natives are stored with the lowercase `ethAddress`
+// placeholder while the API returns them EIP-55 checksummed, and a
+// case-sensitive key would miss (breaking getKnownToken / isTokenSupported /
+// createPaymentBridgeConfig for native ETH/BNB/POL). Solana/Stellar addresses
+// are lower-cased on both sides consistently, so they still resolve uniquely.
+const tokensByChainAddr = new Map<string, Token>(
+  knownTokens.map((t) => [
+    `${t.chainId}-${normalizeTokenAddress(t.chainId, t.token) ?? t.token}`,
+    t,
+  ]),
+);
+
 /**
  * Chain-aware address normalizer. EVM addresses are case-insensitive (EIP-55),
  * so they're lowercased for lookups; Solana (base58) and Stellar (StrKey) are
@@ -992,18 +1006,9 @@ export function normalizeTokenAddress(
   return type === "evm" ? address.toLowerCase() : address;
 }
 
-const tokensByChainAddr = new Map<string, Token>(
-  knownTokens.map((t) => [
-    `${t.chainId}-${normalizeTokenAddress(t.chainId, t.token) ?? t.token}`,
-    t,
-  ]),
-);
-
 export function getKnownToken(chainId: number, tokenAddress: string): Token | undefined {
   if (tokenAddress == null) return undefined;
-  return tokensByChainAddr.get(
-    `${chainId}-${normalizeTokenAddress(chainId, tokenAddress) ?? tokenAddress}`,
-  );
+  return tokensByChainAddr.get(`${chainId}-${normalizeTokenAddress(chainId, tokenAddress) ?? ""}`);
 }
 
 /* --------------------- Tokens By Type --------------------- */
@@ -1206,7 +1211,7 @@ function nativeETH(chainId: number): Token {
   return nativeToken({
     chainId,
     name: "Ether",
-    symbol: "ETH",
+    symbol: TokenSymbol.ETH,
     logoURI: TokenLogo.ETH,
   });
 }
@@ -1216,7 +1221,7 @@ function nativeToken({
   name,
   symbol,
   logoURI,
-  token = zeroAddress,
+  token = ethAddress,
   decimals = 18,
 }: {
   chainId: number;
@@ -1264,4 +1269,20 @@ export function token({
     logoURI,
     logoSourceURI: logoURI,
   };
+}
+
+/**
+ * Native-token address sentinels across supported ecosystems:
+ * - EVM natives (ETH/BNB/POL/MNT/etc) use ethAddress (EIP-7528) or zeroAddress.
+ * - Solana native SOL uses the system program address.
+ * - Stellar native XLM uses the "XLM" sentinel.
+ */
+export const NATIVE_TOKEN_ADDRESSES = new Set(
+  [ethAddress, zeroAddress, "11111111111111111111111111111112", "XLM"].map((a) => a.toLowerCase()),
+);
+
+/** Returns true if the given token address is a chain-native token (ETH/BNB/POL/SOL/XLM, etc.). */
+export function isNativeToken(tokenAddress: string | null | undefined): boolean {
+  if (!tokenAddress) return false;
+  return NATIVE_TOKEN_ADDRESSES.has(tokenAddress.toLowerCase());
 }

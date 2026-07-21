@@ -93,6 +93,29 @@ export type PaymentState =
 
 export type PaymentStateType = PaymentState["type"];
 
+/**
+ * Minimal shape needed to hydrate an order.
+ *
+ * Real callers pass a full {@link WalletPaymentOption}; the deposit-address
+ * flow constructs a minimal literal from the fee response instead. We only
+ * read `required.token.*`, `required.amount`, and `fees.usd` downstream in
+ * {@link buildCreatePaymentPayload}, so this narrow shape avoids `as any`
+ * casts while staying structurally compatible with `WalletPaymentOption`.
+ *
+ * `required.amount` is relaxed to `string` (not `BigIntStr`) because the
+ * runtime tolerates decimal-formatted amounts (e.g. `"0.016885"` SOL) via
+ * `tokenBaseAmountToDecimalString`, and native-source flows produce them.
+ */
+export type HydrateWalletOption = {
+  required: {
+    token: Token;
+    amount: string;
+  };
+  fees: {
+    usd: number;
+  };
+};
+
 export const initialPaymentState: PaymentState = { type: "idle" };
 
 export type PaymentEvent =
@@ -104,7 +127,8 @@ export type PaymentEvent =
   | {
       type: "hydrate_order";
       refundAddress?: Address;
-      walletPaymentOption?: WalletPaymentOption;
+      walletPaymentOption?: HydrateWalletOption;
+      feeType?: FeeType;
       bypass?: boolean;
     }
   | {

@@ -13,6 +13,7 @@ import {
   ExternalPaymentOptions,
   ExternalPaymentOptionsString,
   FeeResponseData,
+  FeeType,
   formatPaymentResponseToHydratedOrder,
   generateEVMDeepLink,
   generateSolanaDeepLink,
@@ -20,18 +21,20 @@ import {
   getKnownToken,
   getPayment,
   isValidSolanaAddress,
+  normalizeTokenAddress,
   PaymentResponse,
   PlatformType,
   RozoPayHydratedOrderWithOrg,
   RozoPayOrder,
   RozoPayOrderWithOrg,
   rozoSolana,
-  rozoSolanaUSDC,
   rozoStellar,
   rozoStellarEURC,
   rozoStellarUSDC,
   solana,
+  solanaSOL,
   stellar,
+  stellarXLM,
   TokenSymbol,
   WalletPaymentOption,
   writeRozoPayOrderID,
@@ -39,12 +42,13 @@ import {
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
   PublicKey,
+  SystemProgram,
   Transaction,
   TransactionInstruction,
   VersionedTransaction,
 } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { erc20Abi, getAddress, Hex, hexToBytes, parseUnits, zeroAddress } from "viem";
+import { erc20Abi, getAddress, Hex, hexToBytes, parseUnits } from "viem";
 import {
   useAccount,
   useCapabilities,
@@ -54,7 +58,8 @@ import {
   useWriteContract,
 } from "wagmi";
 import { useWriteContracts } from "wagmi/experimental";
-import { convertPreferredSymbolsToTokens } from "../utils/token";
+import { tokenAmountToBaseUnits, tokenBaseAmountToDecimalString } from "../utils/format";
+import { convertPreferredSymbolsToTokens, isNativeToken } from "../utils/token";
 
 import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
 import { createMemoInstruction } from "@solana/spl-memo";
@@ -76,7 +81,6 @@ import { buildCreatePaymentPayload } from "../payment/createPaymentPayload";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
 import { useAnalytics } from "../provider/AnalyticsProvider";
 import { useStellar } from "../provider/StellarContextProvider";
-import { Store } from "../stateStore";
 import { parseErrorMessage } from "../utils/errorParser";
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
@@ -151,15 +155,17 @@ export interface PaymentState {
   setChosenUsd: (usd: number) => void;
   payWithToken: (
     walletOption: WalletPaymentOption,
-    store: Store<PaymentState, PaymentEvent>,
+    store: { dispatch: (e: PaymentEvent) => void },
   ) => Promise<{ txHash: Hex; success: boolean }>;
   payWithExternal: (option: ExternalPaymentOptions) => Promise<string>;
   payWithDepositAddress: (
     option: DepositAddressPaymentOptionMetadata,
-    store: Store<PaymentState, PaymentEvent>,
+    store: { dispatch: (e: PaymentEvent) => void },
     fees: FeeResponseData | null,
     log?: (message: string) => void,
-  ) => Promise<(DepositAddressPaymentOptionData & { externalId: string; memo: string }) | null>;
+  ) => Promise<
+    (DepositAddressPaymentOptionData & { externalId: string; memo: string }) | null | undefined
+  >;
   payWithSolanaToken: (
     walletPaymentOption: WalletPaymentOption,
   ) => Promise<{ txHash: string; success: boolean }>;
@@ -167,6 +173,7 @@ export interface PaymentState {
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
+      sourceAmount?: string;
       memo?: string;
     },
   ) => Promise<{ txHash: string; success: boolean }>;
@@ -204,7 +211,7 @@ export interface PaymentState {
 
   createPayment: (
     option: WalletPaymentOption,
-    store: Store<PaymentState, PaymentEvent>,
+    store: { dispatch: (e: PaymentEvent) => void },
   ) => Promise<PaymentResponse | undefined>;
 }
 
@@ -249,7 +256,7 @@ export function usePaymentState({
   const { data: walletClient } = useWalletClient();
   const { data: walletCapabilities, isPending: capabilitiesPending } = useCapabilities();
   const { writeContractsAsync } = useWriteContracts();
-  // ponytail: order.metadata.dataSuffix survives ROZO_INVOICE_URL redirects where the
+  // order.metadata.dataSuffix survives ROZO_INVOICE_URL redirects where the
   // consumer's wagmi config (globalDataSuffix) is absent. Invoice checkout fetches the
   // order first and passes metadata.dataSuffix into getDefaultConfig, but this fallback
   // covers the in-SDK path where the order is already loaded.
@@ -399,13 +406,27 @@ export function usePaymentState({
 
     // payId mode: derive filtering params from the loaded order so that
     // payment option hooks apply the same token filtering as appId mode.
-    // e.g. if destination is USDC, only show USDC/USDT sources (not EURC).
+    // e.g. if destination is USDC, allow paying with USDC/USDT/native tokens
+    // (we don't support payout to native tokens yet, but paying *with* native
+    // source balances is fine). EURC destinations are payable only with EURC.
     if (pay.order && pay.order.destFinalCallTokenAmount) {
       const destSymbol = pay.order.destFinalCallTokenAmount.token.symbol;
-      // Derive preferredSymbol from destination: EURC destinations show EURC,
-      // everything else defaults to USDC + USDT.
+      // Derive preferredSymbol from destination: EURC destinations must be
+      // paid with EURC only. Everything else defaults to USDC + USDT plus
+      // native tokens as payable sources (payout is still fixed to
+      // toChain/toToken and never native).
       const preferredSymbol: TokenSymbol[] =
-        destSymbol === TokenSymbol.EURC ? [TokenSymbol.EURC] : [TokenSymbol.USDC, TokenSymbol.USDT];
+        destSymbol === TokenSymbol.EURC
+          ? [TokenSymbol.EURC]
+          : [
+              TokenSymbol.USDC,
+              TokenSymbol.USDT,
+              TokenSymbol.ETH,
+              TokenSymbol.BNB,
+              TokenSymbol.POL,
+              TokenSymbol.SOL,
+              TokenSymbol.XLM,
+            ];
 
       const preferredTokens = convertPreferredSymbolsToTokens(preferredSymbol, undefined);
 
@@ -457,6 +478,7 @@ export function usePaymentState({
   const depositAddressOptions = useDepositAddressOptions({
     trpc,
     usdRequired,
+    mode: pay.order?.mode,
     payParams: stablePayParams,
   });
 
@@ -515,23 +537,20 @@ export function usePaymentState({
 
   const handleCreateRozoPayment = async (
     walletOption: WalletPaymentOption,
-    store: Store<PaymentState, PaymentEvent>,
+    store: { dispatch: (e: PaymentEvent) => void },
   ): Promise<PaymentResponse | undefined> => {
     // Read from ref instead of closure to get latest value and avoid stale state
     const payParams = currPayParamsRef.current;
     const order = pay.order;
 
-    // Narrow order to the specific shapes supported by buildCreatePaymentPayload.
-    // In error/idle states `pay.order` can be a plain RozoPayOrder or null,
-    // which is not assignable to the expected OrderLike type.
-    const orderForPayload =
-      order && "org" in order
-        ? (order as RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg)
-        : undefined;
-
     // If payment already exists (payId mode or rozoPaymentId set), checkout instead of create.
+    // backend forbids `checkout` when rotating to a native source token
+    // (SOL/ETH/XLM) — "create a new order instead" — so route native sources to the
+    // create branch below instead of calling checkout.
     const existingPayId = order?.externalId ?? rozoPaymentId ?? undefined;
-    if (!payParams || existingPayId) {
+    const rotateToNative = walletOption != null && isNativeToken(walletOption.required.token.token);
+    const shouldCheckout = !!existingPayId && !rotateToNative;
+    if (!payParams || shouldCheckout) {
       if (!existingPayId) {
         throw new Error("No pay params provided");
       }
@@ -540,13 +559,25 @@ export function usePaymentState({
         if (!paymentRes?.data) {
           throw new Error("Failed to fetch payment");
         }
+        // Use required.amount (base units, already priced by the backend)
+        // converted to a human-readable token amount — NOT required.usd,
+        // which only equals the token amount for 1:1-USD-pegged tokens
+        // (USDC/USDT). For native ETH/BNB/POL/SOL/XLM this would send the
+        // wrong amount to the backend (e.g. "1.00" instead of "0.0005").
+        // Some endpoints return required.amount as an already-human-readable
+        // decimal string instead of integer base units, so detect the shape
+        // first — BigInt() throws on decimal strings.
+        const sourceAmount = tokenBaseAmountToDecimalString(
+          walletOption.required.amount,
+          walletOption.required.token.decimals,
+        );
         const checkoutRes = await checkoutPayment(
           existingPayId,
           buildCheckoutPayload(paymentRes.data, {
             chainId: walletOption.required.token.chainId,
             tokenSymbol: walletOption.required.token.symbol,
             tokenAddress: walletOption.required.token.token,
-            amount: String(walletOption.required.usd),
+            amount: sourceAmount,
           }),
         );
         if (!checkoutRes?.data) {
@@ -566,6 +597,16 @@ export function usePaymentState({
     }
 
     try {
+      // Narrow order to the specific shapes supported by buildCreatePaymentPayload.
+      // In error/idle states `pay.order` can be a plain RozoPayOrder or null,
+      // which lacks `destFinalCallTokenAmount`; passing it through would throw
+      // when we derive the destination amount. Fall back to the payParams-only
+      // branch (order undefined) in that case.
+      const orderForPayload =
+        order && "org" in order
+          ? (order as RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg)
+          : undefined;
+
       const payload = buildCreatePaymentPayload({
         payParams,
         order: orderForPayload,
@@ -600,7 +641,7 @@ export function usePaymentState({
   /** Commit to a token + amount = initiate payment. */
   const payWithToken = async (
     walletOption: WalletPaymentOption,
-    store: Store<PaymentState, PaymentEvent>,
+    store: { dispatch: (e: PaymentEvent) => void },
   ): Promise<{ txHash: Hex; success: boolean }> => {
     assert(ethWalletAddress != null, `[PAY TOKEN] null ethWalletAddress when paying on ethereum`);
     assert(
@@ -625,29 +666,44 @@ export function usePaymentState({
       );
     }
 
-    // @NOTE: Fee handled by Rozo API
-    // const paymentAmount = BigInt(required.amount) + BigInt(fees.amount);
-    const paymentAmount = parseUnits(required.usd.toString(), required.token.decimals);
+    // Use required.amount (base units, already priced by the backend) —
+    // NOT required.usd, which only equals the token amount for 1:1-USD-pegged
+    // tokens (USDC/USDT). For native ETH/BNB/POL this would send the wrong
+    // amount (e.g. 1.00 ETH instead of ~0.0006 ETH for a $1 payment).
+    const paymentAmount = tokenAmountToBaseUnits(required.amount, required.token.decimals);
 
     // Check if we need to create a new Rozo payment (cache this check)
     const previousChainId = pay.order.preferredChainId ? Number(pay.order.preferredChainId) : null;
+    const previousTokenAddress = pay.order.preferredTokenAddress;
 
     // If we have an existing payment and chain differs, MUST create new payment
     // Also check if order has externalId (existing payment) and we're on different chain
     const hasExistingPayment = pay.order.externalId != null;
+
+    // Check both chain AND token change - if user switches token on same chain,
+    // we still need to checkout to update source token info
+    const tokenChanged =
+      previousTokenAddress != null &&
+      normalizeTokenAddress(Number(previousChainId), previousTokenAddress) !==
+        normalizeTokenAddress(required.token.chainId, required.token.token);
+
     const needRozoPayment =
       (previousChainId !== null && previousChainId !== required.token.chainId) ||
+      tokenChanged ||
       (hasExistingPayment &&
         previousChainId === null &&
         pay.order.destFinalCallTokenAmount?.token?.chainId !== required.token.chainId);
 
     log?.(
-      `[PAY TOKEN] Chain check: previous=${previousChainId}, current=${required.token.chainId}, hasExistingPayment=${hasExistingPayment}, needRozoPayment=${needRozoPayment}`,
+      `[PAY TOKEN] Chain/token check: previousChain=${previousChainId}, currentChain=${required.token.chainId}, previousToken=${previousTokenAddress}, currentToken=${required.token.token}, tokenChanged=${tokenChanged}, hasExistingPayment=${hasExistingPayment}, needRozoPayment=${needRozoPayment}`,
     );
 
     // Prepare transaction parameters early (before async operations)
-    const isNativeToken = required.token.token === zeroAddress;
-    const tokenAddress = isNativeToken ? null : getAddress(required.token.token);
+    // Case-insensitive native detection: `required.token.token` is checksummed
+    // (from the API) while viem's `ethAddress` is lowercase, so a direct `===`
+    // would misclassify native ETH as an ERC20 and take the wrong transfer path.
+    const isNative = isNativeToken(required.token.token);
+    const tokenAddress = isNative ? null : getAddress(required.token.token);
 
     // Get hydrated order efficiently with parallel preparation
     let hydratedOrder: RozoPayHydratedOrderWithOrg;
@@ -669,7 +725,7 @@ export function usePaymentState({
       // CRITICAL: Always check needRozoPayment FIRST - if switching chains, MUST create new payment
       if (needRozoPayment) {
         // Create Rozo payment and hydrate in one step (cross-chain switch)
-        const res = await handleCreateRozoPayment(walletOption, store as any);
+        const res = await handleCreateRozoPayment(walletOption, store);
 
         if (!res) {
           throw new Error("Failed to create Rozo payment");
@@ -748,7 +804,18 @@ export function usePaymentState({
     // Execute transaction with optimized error handling
     const paymentTxHash = await (async () => {
       try {
-        if (isNativeToken) {
+        if (required.token.chainId !== bscUSDT.chainId) {
+          await switchChainAsync({ chainId: required.token.chainId });
+        }
+
+        log?.(`[PAY ERC20] dataSuffix: ${resolvedDataSuffix ?? "(none)"}`);
+
+        // EIP-5792 path: only when wallet advertises dataSuffix capability (Base App / Coinbase Wallet).
+        const chainCapabilities = walletCapabilities?.[required.token.chainId];
+        const supportsDataSuffix =
+          !capabilitiesPending && resolvedDataSuffix != null && !!chainCapabilities?.dataSuffix;
+
+        if (isNative) {
           // dataSuffix intentionally omitted — appending data to bare ETH transfers
           // changes wallet UI display; builder-code attribution targets contract calls.
           return await sendTransactionAsync({
@@ -756,16 +823,6 @@ export function usePaymentState({
             value: paymentAmount,
           });
         } else {
-          if (required.token.chainId !== bscUSDT.chainId) {
-            await switchChainAsync({ chainId: required.token.chainId });
-          }
-          log?.(`[PAY ERC20] dataSuffix: ${resolvedDataSuffix ?? "(none)"}`);
-
-          // EIP-5792 path: only when wallet advertises dataSuffix capability (Base App / Coinbase Wallet).
-          const chainCapabilities = walletCapabilities?.[required.token.chainId];
-          const supportsDataSuffix =
-            !capabilitiesPending && resolvedDataSuffix != null && !!chainCapabilities?.dataSuffix;
-
           if (supportsDataSuffix) {
             if (!walletClient) throw new Error("No walletClient available");
             const { id } = await writeContractsAsync({
@@ -885,6 +942,7 @@ export function usePaymentState({
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
+      sourceAmount?: string;
       memo?: string;
     },
   ): Promise<{ txHash: string; success: boolean }> => {
@@ -932,12 +990,10 @@ export function usePaymentState({
       }
 
       // Set up token addresses
-      let mintAddress: PublicKey;
       let fromKey: PublicKey;
       let toKey: PublicKey;
 
       try {
-        mintAddress = new PublicKey(walletPaymentOption.required.token.token);
         fromKey = new PublicKey(payerPublicKey);
         toKey = new PublicKey(rozoPayment.destAddress);
       } catch (error: any) {
@@ -947,54 +1003,110 @@ export function usePaymentState({
         );
       }
 
-      log("[PAY SOLANA] Transaction details:", {
-        tokenMint: mintAddress.toString(),
-        fromKey: fromKey.toString(),
-        toKey: toKey.toString(),
-        amount: walletPaymentOption.required.usd,
-        memo: rozoPayment.memo,
-      });
+      const isNativeSol = walletPaymentOption.required.token.token === solanaSOL.token;
 
-      // Get token accounts for sender and recipient
-      log("[PAY SOLANA] Deriving associated token accounts...");
-      const senderTokenAccount = await getAssociatedTokenAddress(mintAddress, fromKey);
-      const recipientTokenAccount = await getAssociatedTokenAddress(mintAddress, toKey);
-      log("[PAY SOLANA] Sender token account:", senderTokenAccount.toString());
-      log("[PAY SOLANA] Recipient token account:", recipientTokenAccount.toString());
+      if (isNativeSol) {
+        if (!rozoPayment.sourceAmount) {
+          throw new Error("Source amount is required for native SOL payment");
+        }
+        // Native SOL: plain lamport transfer, no token account / mint involved.
+        // Use required.amount (already computed by the backend in lamports,
+        // correctly priced from USD via the live SOL/USD rate) instead of
+        // re-deriving from required.usd, which would incorrectly treat SOL
+        // as pegged 1:1 to USD.
+        log("[PAY SOLANA] Transaction details (native SOL):", {
+          fromKey: fromKey.toString(),
+          toKey: toKey.toString(),
+          amount: walletPaymentOption.required.amount,
+          usd: walletPaymentOption.required.usd,
+          memo: rozoPayment.memo,
+        });
 
-      // Check if recipient token account exists
-      log("[PAY SOLANA] Checking if recipient token account exists...");
-      const recipientTokenInfo = await connection.getAccountInfo(recipientTokenAccount);
+        // Keep as bigint — SystemProgram.transfer accepts number | bigint.
+        // Converting to Number would lose precision for amounts > 2^53 base units.
+        // Always follow Rozo Payment Source.Amount as the source of truth for SOL amounts.
+        const lamports = parseUnits(rozoPayment.sourceAmount, solanaSOL.decimals);
+        log("[PAY SOLANA] Transfer amount (lamports):", lamports.toString());
 
-      // Create recipient token account if it doesn't exist
-      if (!recipientTokenInfo) {
-        log("[PAY SOLANA] Creating recipient token account...");
+        // Use the parsed lamports value from parseUnits to ensure precision.
         instructions.push(
-          createAssociatedTokenAccountInstruction(
-            payerPublicKey,
-            recipientTokenAccount,
-            toKey,
+          SystemProgram.transfer({
+            fromPubkey: fromKey,
+            toPubkey: toKey,
+            lamports: lamports,
+          }),
+        );
+      } else {
+        let mintAddress: PublicKey;
+        try {
+          mintAddress = new PublicKey(walletPaymentOption.required.token.token);
+        } catch (error: any) {
+          throw new Error(
+            `Invalid Solana address format: ${error.message}. ` +
+              `Destination address: ${rozoPayment.destAddress}`,
+          );
+        }
+
+        log("[PAY SOLANA] Transaction details:", {
+          tokenMint: mintAddress.toString(),
+          fromKey: fromKey.toString(),
+          toKey: toKey.toString(),
+          amount: walletPaymentOption.required.amount,
+          usd: walletPaymentOption.required.usd,
+          memo: rozoPayment.memo,
+        });
+
+        // Get token accounts for sender and recipient
+        log("[PAY SOLANA] Deriving associated token accounts...");
+        const senderTokenAccount = await getAssociatedTokenAddress(mintAddress, fromKey);
+        const recipientTokenAccount = await getAssociatedTokenAddress(mintAddress, toKey);
+        log("[PAY SOLANA] Sender token account:", senderTokenAccount.toString());
+        log("[PAY SOLANA] Recipient token account:", recipientTokenAccount.toString());
+
+        // Check if recipient token account exists
+        log("[PAY SOLANA] Checking if recipient token account exists...");
+        const recipientTokenInfo = await connection.getAccountInfo(recipientTokenAccount);
+
+        // Create recipient token account if it doesn't exist
+        if (!recipientTokenInfo) {
+          log("[PAY SOLANA] Creating recipient token account...");
+          instructions.push(
+            createAssociatedTokenAccountInstruction(
+              payerPublicKey,
+              recipientTokenAccount,
+              toKey,
+              mintAddress,
+              TOKEN_PROGRAM_ID,
+            ),
+          );
+        }
+
+        // Add transfer instruction
+        // Use required.amount (already computed by the backend in the
+        // token's base units, correctly priced from USD) instead of
+        // re-deriving from required.usd with a hardcoded 6-decimal
+        // assumption, which silently breaks for non-1:1-USD or
+        // differently-decimaled SPL tokens.
+        log("[PAY SOLANA] Adding transfer instruction...");
+        // Keep as bigint — createTransferCheckedInstruction accepts number | bigint.
+        // Converting to Number would lose precision for amounts > 2^53 base units.
+        const transferAmount = tokenAmountToBaseUnits(
+          walletPaymentOption.required.amount,
+          walletPaymentOption.required.token.decimals,
+        );
+        log("[PAY SOLANA] Transfer amount (base units):", transferAmount.toString());
+
+        instructions.push(
+          createTransferCheckedInstruction(
+            senderTokenAccount,
             mintAddress,
-            TOKEN_PROGRAM_ID,
+            recipientTokenAccount,
+            fromKey,
+            transferAmount,
+            walletPaymentOption.required.token.decimals,
           ),
         );
       }
-
-      // Add transfer instruction
-      log("[PAY SOLANA] Adding transfer instruction...");
-      const transferAmount = parseFloat(walletPaymentOption.required.usd.toString()) * 1_000_000;
-      log("[PAY SOLANA] Transfer amount (with decimals):", transferAmount);
-
-      instructions.push(
-        createTransferCheckedInstruction(
-          senderTokenAccount,
-          mintAddress,
-          recipientTokenAccount,
-          fromKey,
-          transferAmount,
-          rozoSolanaUSDC.decimals,
-        ),
-      );
 
       // Add memo if provided
       if (rozoPayment.memo) {
@@ -1078,17 +1190,36 @@ export function usePaymentState({
       }
       const sourceAccount = await stellarServer.loadAccount(stellarPublicKey);
 
-      let issuer = "";
-      if (walletPaymentOption.required.token.token === rozoStellarUSDC.token) {
-        issuer = rozoStellarUSDC.token.split(":")[1];
+      let destAsset: Asset;
+      if (walletPaymentOption.required.token.token === stellarXLM.token) {
+        destAsset = Asset.native();
+      } else if (walletPaymentOption.required.token.token === rozoStellarUSDC.token) {
+        destAsset = new Asset(
+          walletPaymentOption.required.token.symbol,
+          rozoStellarUSDC.token.split(":")[1],
+        );
       } else if (walletPaymentOption.required.token.token === rozoStellarEURC.token) {
-        issuer = rozoStellarEURC.token.split(":")[1];
+        destAsset = new Asset(
+          walletPaymentOption.required.token.symbol,
+          rozoStellarEURC.token.split(":")[1],
+        );
       } else {
         throw new Error("Unsupported token");
       }
-
-      const destAsset = new Asset(walletPaymentOption.required.token.symbol, issuer);
       const fee = String(await stellarServer.fetchBaseFee());
+
+      // Use required.amount (base units, already priced by the backend)
+      // converted to a human-readable token amount — NOT required.usd,
+      // which only equals the token amount for 1:1-USD-pegged tokens
+      // (USDC/EURC). For native XLM this would send the wrong amount
+      // (e.g. "1.00" XLM instead of the correct ~2.7 XLM for a $1 payment).
+      // Some endpoints return required.amount as an already-human-readable
+      // decimal string instead of integer base units, so detect the shape
+      // first — BigInt() throws on decimal strings.
+      const paymentAmount = tokenBaseAmountToDecimalString(
+        walletPaymentOption.required.amount,
+        walletPaymentOption.required.token.decimals,
+      );
 
       // Build transaction
       const transaction = new TransactionBuilder(sourceAccount, {
@@ -1099,7 +1230,7 @@ export function usePaymentState({
           Operation.payment({
             destination: destinationAddress,
             asset: destAsset,
-            amount: String(walletPaymentOption.required.usd),
+            amount: paymentAmount,
           }),
         )
         .setTimeout(180);
@@ -1144,7 +1275,7 @@ export function usePaymentState({
 
   const payWithDepositAddress = async (
     option: DepositAddressPaymentOptionMetadata,
-    store: Store<PaymentState, PaymentEvent>,
+    store: { dispatch: (e: PaymentEvent) => void },
     fees: FeeResponseData | null,
     log?: (message: string) => void,
   ) => {
@@ -1208,17 +1339,38 @@ export function usePaymentState({
       } else {
         log?.("[PAY DEPOSIT ADDRESS] hydrating order");
 
-        const result = await pay.hydrateOrder(undefined, {
-          required: {
-            token: {
-              token: option.token.token,
-              chainId: option.token.chainId,
-            } as any,
-          } as any,
-          fees: {
-            usd: fees?.source?.fee != null ? parseFloat(fees.source.fee) : 0,
+        // hydrateOrder needs required.amount so buildCreatePaymentPayload
+        // can set preferredAmountUnits. For BOTH native (SOL/ETH/XLM) and
+        // 1:1-USD-pegged sources, the amount must come from the fee response
+        // (BE-computed source amount in source units, fee-inclusive) — NOT the
+        // destination USD value. Otherwise tokenBaseAmountToDecimalString
+        // formats the toUnits through the source decimals and the BE rejects
+        // the underflowing pay-in (e.g. "10" with 6 decimals → "0.00001").
+        const isNativeSource = isNativeToken(option.token.token);
+        const sourceAmountUnits = String(
+          fees?.source?.amount ??
+            (isNativeSource ? "" : (pay.order?.destFinalCallTokenAmount?.usd ?? "0")),
+        );
+
+        if (isNativeSource && sourceAmountUnits === "") {
+          throw new Error("Fee source amount required for native token deposit");
+        }
+
+        const actualFeeType = payParams?.feeType ?? FeeType.ExactIn;
+
+        const result = await pay.hydrateOrder(
+          undefined,
+          {
+            required: {
+              amount: sourceAmountUnits,
+              token: option.token,
+            },
+            fees: {
+              usd: fees?.source?.fee != null ? parseFloat(fees.source.fee) : 0,
+            },
           },
-        } as any);
+          actualFeeType,
+        );
 
         order = result.order;
       }
@@ -1249,13 +1401,26 @@ export function usePaymentState({
         throw new Error("Preferred token not found");
       }
 
+      // Amount the user must send, in source-token units. Prefer the backend's
+      // source.amount (surfaced via metadata by formatPaymentResponseToHydratedOrder)
+      // over usdValue: for native sources (SOL/ETH/XLM) the source amount differs
+      // from the USD/destination value, so usdValue would show e.g. "1.3 SOL"
+      // instead of the correct ~0.0169 SOL. For 1:1-USD sources they coincide.
+      const isNativeDepositSource = isNativeToken(option.token.token);
+      const metaSourceAmount = order.metadata?.sourceAmountUnits;
+      if (isNativeDepositSource && metaSourceAmount == null) {
+        throw new Error("sourceAmountUnits missing on hydrated order for native deposit source");
+      }
+      const sourceAmountUnits =
+        metaSourceAmount != null ? String(metaSourceAmount) : String(order.usdValue);
+
       let uriDeeplink: string | null = null;
 
       // Use Solana deep link if it's a Solana chain.
       // Solana pay-in no longer requires a memo.
       if ([solana.chainId, rozoSolana.chainId].includes(preferredToken.chainId)) {
         uriDeeplink = generateSolanaDeepLink({
-          amountUnits: order.destFinalCallTokenAmount.usd.toString(),
+          amountUnits: sourceAmountUnits,
           recipientAddress: order.intentAddr,
           tokenAddress: preferredToken.token,
         });
@@ -1267,10 +1432,7 @@ export function usePaymentState({
       // Otherwise use EVM deep link
       else {
         uriDeeplink = generateEVMDeepLink({
-          amountUnits: parseUnits(
-            order.destFinalCallTokenAmount.usd.toString(),
-            preferredToken.decimals,
-          ).toString(),
+          amountUnits: parseUnits(sourceAmountUnits, preferredToken.decimals).toString(),
           chainId: preferredToken.chainId,
           recipientAddress: order.intentAddr,
           tokenAddress: preferredToken.token,
@@ -1279,7 +1441,7 @@ export function usePaymentState({
 
       return {
         address: order.intentAddr,
-        amount: String(order.usdValue),
+        amount: sourceAmountUnits,
         suffix: `${option.token.symbol} ${chain.name}`,
         uri: uriDeeplink ?? "",
         expirationS: Math.floor(Date.now() / 1000) + 300,
@@ -1293,7 +1455,7 @@ export function usePaymentState({
         order: pay.order as RozoPayOrder,
         message,
       });
-      return null;
+      return undefined;
     } finally {
       // Remove from processing set when done (allow retries after completion/failure)
       depositAddressCallRef.current.delete(option.id);

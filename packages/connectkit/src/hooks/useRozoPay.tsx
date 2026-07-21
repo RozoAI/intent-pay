@@ -1,5 +1,6 @@
 // hooks/useRozoPay.ts
 import {
+  FeeType,
   PaymentStatus,
   RozoPayHydratedOrderWithOrg,
   RozoPayIntentStatus,
@@ -20,7 +21,12 @@ import {
 } from "react";
 import { Address, Hex } from "viem";
 import { usePaymentEvents } from "../payment/paymentEventContext";
-import { PaymentEvent, PaymentState, PayParams } from "../payment/paymentFsm";
+import {
+  HydrateWalletOption,
+  PaymentEvent,
+  PaymentState,
+  PayParams,
+} from "../payment/paymentFsm";
 import { waitForPaymentState } from "../payment/paymentStore";
 import { PaymentContext } from "../provider/PaymentProvider";
 import { Store } from "../stateStore";
@@ -62,7 +68,8 @@ type RozoPayFunctions = {
    */
   hydrateOrder: (
     refundAddress?: string,
-    walletPaymentOption?: WalletPaymentOption,
+    walletPaymentOption?: WalletPaymentOption | HydrateWalletOption,
+    feeType?: FeeType,
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
   /**
@@ -71,7 +78,8 @@ type RozoPayFunctions = {
    */
   hydrateOrderRozo: (
     refundAddress?: string,
-    walletPaymentOption?: WalletPaymentOption,
+    walletPaymentOption?: WalletPaymentOption | HydrateWalletOption,
+    feeType?: FeeType,
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
   /** Trigger search for payment on the current order. */
@@ -289,12 +297,14 @@ export function useRozoPay(): UseRozoPay {
   const hydrateOrder = useCallback(
     async (
       refundAddress?: Address,
-      walletPaymentOption?: WalletPaymentOption,
+      walletPaymentOption?: WalletPaymentOption | HydrateWalletOption,
+      feeType?: FeeType,
     ) => {
       dispatch({
         type: "hydrate_order",
         refundAddress,
         walletPaymentOption,
+        feeType,
       });
 
       // Wait for the order to enter the "payment_unpaid" state, which means it
@@ -312,12 +322,14 @@ export function useRozoPay(): UseRozoPay {
   const hydrateOrderRozo = useCallback(
     async (
       refundAddress?: Address,
-      walletPaymentOption?: WalletPaymentOption,
+      walletPaymentOption?: WalletPaymentOption | HydrateWalletOption,
+      feeType?: FeeType,
     ) => {
       dispatch({
         type: "hydrate_order",
         refundAddress,
         walletPaymentOption,
+        feeType,
       });
 
       const hydratedOrderState = await waitForPaymentState(

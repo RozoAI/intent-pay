@@ -384,8 +384,7 @@ export default function SelectMethod() {
           await disconnectAll();
           setRoute(isMobile ? ROUTES.MOBILECONNECTORS : ROUTES.CONNECTORS, {
             event: "click-select-another-method",
-          });
-        },
+          });        },
       };
       options.push(unconnectedWalletOption);
 

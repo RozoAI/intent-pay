@@ -20,6 +20,7 @@ import { TrpcClient } from "../utils/trpc";
 export interface UseDepositAddressOptionsParams {
   trpc: TrpcClient;
   usdRequired: number | undefined;
+  mode: RozoPayOrderMode | undefined;
   payParams: PayParams | undefined;
 }
 
@@ -92,15 +93,17 @@ const fallbackOptions = [
 export function useDepositAddressOptions({
   trpc,
   usdRequired,
+  mode,
   payParams,
 }: UseDepositAddressOptionsParams): UseDepositAddressOptionsReturn {
   const { data, isLoading, error } = useQuery<DepositAddressPaymentOptionMetadata[]>({
-    enabled: usdRequired != null && usdRequired > 0,
-    queryKey: ["depositAddressOptions", usdRequired],
+    enabled: usdRequired != null && usdRequired > 0 && mode != null,
+    queryKey: ["depositAddressOptions", usdRequired, mode],
     queryFn: async () => {
       try {
         return await trpc.getDepositAddressOptions.query({
-          usdRequired: usdRequired!,
+          usdRequired,
+          mode,
         });
       } catch (err) {
         // Fallback to static options on error so the UI never goes blank.
@@ -116,22 +119,34 @@ export function useDepositAddressOptions({
   // Memoized configuration for deposit address options
   const filteredOptions = useMemo(() => {
     const options = data ?? [];
-    if (payParams?.preferredTokens && payParams.preferredTokens.length > 0) {
+    if (payParams?.preferredTokens && payParams?.preferredTokens.length > 0) {
+      // Address match: token addresses can differ in casing between the SDK
+      // token registry (EVM natives stored lowercase) and the API response
+      // (EIP-55 checksummed), so a strict `===` drops native ETH/POL/BNB
+      // deposit options. Normalize per-chain: EVM lowercase, Solana/Stellar
+      // case-sensitive.
+      const normalize = (chainId: number, addr: string) =>
+        normalizeTokenAddress(chainId, addr) ?? addr;
+      const preferred = new Set(
+        payParams.preferredTokens.map((pt) => `${pt.chainId}:${normalize(pt.chainId, pt.token)}`),
+      );
       return options.filter((option) =>
-        payParams.preferredTokens?.some(
-          (pt) =>
-            pt.token != null &&
-            normalizeTokenAddress(option.token.chainId, pt.token) ===
-              normalizeTokenAddress(option.token.chainId, option.token.token),
+        preferred.has(
+          `${option.token.chainId}:${normalize(option.token.chainId, option.token.token)}`,
         ),
       );
     }
+
     return options;
   }, [data, payParams?.preferredTokens]);
 
   return {
     options: filteredOptions,
     loading: isLoading,
-    error: error ? String(error) : null,
+    error: error
+      ? error instanceof Error
+        ? error.message
+        : "Failed to load deposit address options"
+      : null,
   };
 }
