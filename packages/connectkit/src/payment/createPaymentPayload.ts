@@ -16,6 +16,7 @@ import {
 } from "@rozoai/intent-common";
 import { formatUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
+import { roundDecimals } from "../utils/format";
 import { PayParams } from "./paymentFsm";
 
 type OrderLike = RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg;
@@ -173,7 +174,7 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     toAddress,
     preferredChain,
     preferredTokenAddress,
-    toUnits: String(safeToUnits),
+    toUnits: String(parseFloat(roundDecimals(safeToUnits, tokenDecimals, "nearest"))),
     ...(isAbleToIncludeReceiverMemo && payParams.receiverMemo
       ? { receiverMemo: payParams.receiverMemo }
       : {}),
