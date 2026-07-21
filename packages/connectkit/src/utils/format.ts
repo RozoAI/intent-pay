@@ -7,7 +7,6 @@ export function formatTokenAmount(amount: number, decimals: number): string {
   return parseFloat(amount.toFixed(decimals)).toString();
 }
 
-/**
 
 /**
  * Round a number to a given number of decimal places
