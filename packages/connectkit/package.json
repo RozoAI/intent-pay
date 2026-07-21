@@ -1,6 +1,6 @@
 {
   "name": "@rozoai/intent-pay",
-  "version": "0.1.37",
+  "version": "0.1.38-beta.5",
   "private": false,
   "description": "Seamless crypto payments. Onboard users from any chain, any coin into your app with one click.",
   "keywords": [
@@ -48,7 +48,7 @@
     "@reown/appkit": "^1.7.0",
     "@rollup/plugin-image": "^3.0.3",
     "@rollup/plugin-typescript": "^12.1.2",
-    "@rozoai/intent-common": "0.1.25",
+    "@rozoai/intent-common": "0.1.26-beta.1",
     "@solana/spl-memo": "^0.2.5",
     "@solana/spl-token": "^0.4.14",
     "@solana/wallet-adapter-base": "^0.9.27",
