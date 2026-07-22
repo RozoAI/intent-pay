@@ -12,6 +12,8 @@ import {
   RozoPayOrderWithOrg,
   rozoSolana,
   rozoStellar,
+  rozoStellarEURC,
+  rozoStellarUSDC,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import { formatUnits } from "viem";
@@ -145,9 +147,10 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
 
   const isAbleToIncludeReceiverMemo = [rozoSolana.chainId, rozoStellar.chainId].includes(toChain);
 
+  // Title is for display only — use metadata.intent if set, otherwise generate.
+  // payParams.intent is reserved for the top-level API field (e.g. "stellar_direct").
   const title =
     payParams.metadata?.intent ??
-    payParams.intent ??
     generateIntentTitle({
       toChainId: toChain,
       toTokenAddress: toTokenAddress,
@@ -162,6 +165,25 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
           ...order.userMetadata,
         }
       : {};
+
+  // --------------------------------------------------
+  // Stellar Direct Settlement: auto-detect same-chain USDC→USDC
+  // --------------------------------------------------
+  // When both source and destination are Stellar USDC, the backend can settle
+  // directly (one on-chain transfer, 0 fee, no hub hop). We opt-in by sending
+  // intent: "stellar_direct". Consumer can also override via payParams.intent.
+  // Both destination and source must be Stellar with the SAME token (USDC or EURC)
+  const isStellarSameToken =
+    toChain === rozoStellar.chainId &&
+    preferredChain === rozoStellar.chainId &&
+    toTokenAddress.toLowerCase() === preferredTokenAddress.toLowerCase();
+  const isSupportedStellarToken =
+    toTokenAddress.toLowerCase() === rozoStellarUSDC.token.toLowerCase() ||
+    toTokenAddress.toLowerCase() === rozoStellarEURC.token.toLowerCase();
+  const isStellarDirect = isStellarSameToken && isSupportedStellarToken;
+
+  // When isStellarDirect, always force intent to "stellar_direct" regardless of consumer override
+  const intent = isStellarDirect ? "stellar_direct" : payParams.intent;
 
   const payload: CreateNewPaymentParams = {
     apiVersion,
@@ -182,6 +204,7 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
       ...orderMetadata,
       ...payParams.metadata,
     }),
+    ...(intent ? { intent } : {}),
   };
 
   return payload;

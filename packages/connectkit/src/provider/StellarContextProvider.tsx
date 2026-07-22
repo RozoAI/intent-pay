@@ -9,6 +9,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { DEFAULT_STELLAR_RPC_URL } from "../constants/rozoConfig";
 import * as LocalStorage from "../utils/localstorage";
 import { getStellarKitInstance } from "../utils/stellar/singleton-import";
+import { WALLET_CONNECT_ID } from "../utils/stellar/walletconnect.module";
 
 type StellarContextProvider = {
   children: ReactNode;
@@ -34,6 +35,14 @@ type StellarContextProviderValue = {
   setWallet: (option: ISupportedWallet) => Promise<void>;
   disconnect: () => Promise<void>;
   convertXlmToUsdc: (amount: string) => Promise<string>;
+  /** Pre-fetched supported wallets from the kit. */
+  supportedWallets: any[];
+  /** True once getSupportedWallets() has resolved (even if result is []). */
+  walletsLoaded: boolean;
+  /** Re-fetch supported wallets (e.g. after kit init). */
+  refreshSupportedWallets: () => Promise<void>;
+  /** True if the kit includes a WalletConnectModule. */
+  hasWalletConnect: boolean;
 };
 
 export type StellarWalletName = ISupportedWallet;
@@ -56,6 +65,10 @@ const initialContext: StellarContextProviderValue = {
   setWallet: () => Promise.resolve(),
   disconnect: () => Promise.resolve(),
   convertXlmToUsdc: () => Promise.resolve(""),
+  supportedWallets: [],
+  walletsLoaded: false,
+  refreshSupportedWallets: () => Promise.resolve(),
+  hasWalletConnect: false,
 };
 
 export const StellarContext =
@@ -80,8 +93,19 @@ export const StellarContextProvider = ({
     undefined,
   );
   const [isAccountExists, setIsAccountExists] = useState(false);
+  const [supportedWallets, setSupportedWallets] = useState<any[]>([]);
+  const [walletsLoaded, setWalletsLoaded] = useState(false);
+  const [hasWalletConnect, setHasWalletConnect] = useState(false);
+
+  // Check the global singleton synchronously to avoid a loading flash.
+  // The async getStellarKitInstance() in useEffect below may take time even
+  // when the instance is already cached, because it returns a Promise.
+  const cachedKit =
+    typeof window !== "undefined"
+      ? (globalThis as any).__ROZO_STELLAR_KIT_INSTANCE__
+      : undefined;
   const [internalKit, setInternalKit] = useState<StellarWalletsKit | undefined>(
-    undefined,
+    cachedKit,
   );
   const [kitError, setKitError] = useState<string | undefined>(undefined);
 
@@ -233,6 +257,27 @@ export const StellarContextProvider = ({
     };
   }, []);
 
+  const refreshSupportedWallets = async () => {
+    if (!kit) return;
+    try {
+      const wallets = await kit.getSupportedWallets();
+      setSupportedWallets(wallets);
+      setHasWalletConnect(
+        wallets.some((w: any) => w.id === WALLET_CONNECT_ID),
+      );
+    } catch (e) {
+      log?.(`[Rozo] Failed to fetch supported wallets: ${e}`);
+    } finally {
+      setWalletsLoaded(true);
+    }
+  };
+
+  // Pre-fetch supported wallets as soon as the kit is ready
+  useEffect(() => {
+    if (!kit) return;
+    refreshSupportedWallets();
+  }, [kit]);
+
   // Show error if kit initialization failed
   useEffect(() => {
     if (kitError) {
@@ -297,6 +342,10 @@ export const StellarContextProvider = ({
       setWallet,
       disconnect,
       convertXlmToUsdc,
+      supportedWallets,
+      walletsLoaded,
+      refreshSupportedWallets,
+      hasWalletConnect,
     };
     return context;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -308,6 +357,9 @@ export const StellarContextProvider = ({
     accountInfo,
     isAccountExists,
     connector,
+    supportedWallets,
+    walletsLoaded,
+    hasWalletConnect,
   ]);
 
   return (

@@ -1,5 +1,5 @@
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount, useConnect, useConnectors } from "wagmi";
 
 import { ROUTES } from "../../constants/routes";
@@ -411,7 +411,7 @@ export const RozoPayModal: React.FC<{
     ) {
       // Wait for connection to fully settle, not just isConnected flag
       if (ethStatus === "connecting" || ethStatus === "reconnecting") return;
-      
+
       if (isEthConnected) {
         // Dual-chain connect (e.g. Phantom mobile) just linked both EVM and
         // Solana. Return to the pay page so the user picks which connected

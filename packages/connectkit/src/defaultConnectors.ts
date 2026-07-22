@@ -3,8 +3,9 @@ import {
   coinbaseWallet,
   CoinbaseWalletParameters,
   safe,
-  walletConnect,
 } from "wagmi/connectors";
+// ponytail: lazy import walletConnect to avoid pulling pino → pino-pretty into webpack bundle.
+// Only imported when walletConnectProjectId is provided.
 import type { Hex } from "viem";
 
 // ponytail: module singleton — last-write-wins, never reset, not SSR-safe.
@@ -79,8 +80,11 @@ const defaultConnectors = ({
   );
 
   if (walletConnectProjectId) {
+    // ponytail: lazy require avoids pino → pino-pretty resolution error in Next.js builds.
+    // webpack evaluates the full wagmi/connectors barrel when walletConnect is a top-level import.
+    const wc = require("wagmi/connectors");
     connectors.push(
-      walletConnect({
+      wc.walletConnect({
         projectId: walletConnectProjectId,
       })
     );
