@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 
 import {
   ModalContent,
@@ -11,6 +11,7 @@ import { SquircleIcon } from "../../../../assets/logos";
 import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
 import { useStellar } from "../../../../provider/StellarContextProvider";
+import { WALLET_CONNECT_ID } from "../../../../utils/stellar";
 import { OptionsList } from "../../../Common/OptionsList";
 import { OrderHeader } from "../../../Common/OrderHeader";
 import SelectAnotherMethodButton from "../../../Common/SelectAnotherMethodButton";
@@ -18,67 +19,144 @@ import WalletPaymentSpinner from "../../../Spinners/WalletPaymentSpinner";
 
 const ConnectStellar: React.FC = () => {
   const { setStellarConnector, setRoute, log } = usePayContext();
-  const { kit } = useStellar();
+  const { kit, supportedWallets } = useStellar();
 
-  // State to store the fetched Stellar wallets
-  const [stellarWallets, setStellarWallets] = useState<Array<any>>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Detect if we're inside a wallet's in-app browser (e.g. Freighter Mobile).
+  // FreighterModule doesn't expose isPlatformWrapper, so we check directly.
+  const isFreighterMobilePlatform =
+    typeof window !== "undefined" &&
+    (window as any).stellar?.provider === "freighter" &&
+    (window as any).stellar?.platform === "mobile";
 
-  // Fetch Stellar wallets when the kit is available
-  useEffect(() => {
-    const fetchStellarWallets = async () => {
-      if (!kit || typeof window === "undefined") return;
-      setIsLoading(true);
-      try {
-        const wallets = await kit.getSupportedWallets();
-        setStellarWallets(wallets);
-      } catch (error) {
-        console.error("Error fetching Stellar wallets:", error);
-        setStellarWallets([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchStellarWallets();
-  }, [kit]);
+  // Use pre-fetched wallets from context (already loaded by StellarContextProvider)
+  const stellarWallets = supportedWallets;
 
   // Create options list from the fetched wallets
   // Following Solana pattern: only set connector and navigate, let ConnectorStellar handle connection
   const stellarOptions = useMemo(() => {
-    return stellarWallets
-      .filter((wallet) => wallet.isAvailable)
-      .map((wallet) => ({
+    const options: Array<{
+      id: string;
+      title: string;
+      icons: JSX.Element[];
+      onClick: () => void;
+    }> = [];
+
+    // Wallets that should always appear, even if their browser extension is not
+    // installed.  When the extension is missing, clicking routes through
+    // WalletConnect so the QR modal appears directly — no intermediate wallet
+    // picker step.
+    const ALWAYS_SHOW = ["freighter", "lobstr"];
+
+    for (const walletId of ALWAYS_SHOW) {
+      const wallet = stellarWallets.find((w: any) => w.id === walletId);
+      if (!wallet) continue;
+
+      options.push({
         id: wallet.id,
         title: wallet.name
           .toLowerCase()
           .split(" ")
-          .map(
-            (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          .map((word: string) =>
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
           )
           .join(" "),
         icons: [
-          <SquircleIcon key={wallet.id} icon={wallet.icon} alt={wallet.name} />,
+          <SquircleIcon
+            key={wallet.id}
+            icon={wallet.icon}
+            alt={wallet.name}
+          />,
         ],
         onClick: () => {
-          log(`[ConnectStellar] Wallet selected: ${wallet.id}`);
+          log(
+            `[ConnectStellar] ${wallet.name} selected (extension: ${wallet.isAvailable}, platformWrapper: ${wallet.isPlatformWrapper})`,
+          );
 
-          // Set the selected wallet in context (like Solana pattern)
-          // The full wallet object is stored so ConnectorStellar can use it
-          setStellarConnector(wallet);
+          // Platform wrapper: inside Freighter/Lobstr mobile webview.
+          // FreighterModule.isPlatformWrapper is undefined, so we detect via
+          // window.stellar (same check WalletConnectModule uses).
+          const isPlatformWrapper =
+            (wallet.id === "freighter" && isFreighterMobilePlatform) ||
+            wallet.isPlatformWrapper === true;
 
-          // Navigate to connector page - actual connection happens there
-          setRoute(ROUTES.STELLAR_CONNECTOR, {
-            event: "click-stellar-wallet",
-            walletName: wallet.name,
-          });
+          if (wallet.isAvailable) {
+            // Extension installed → use native module directly
+            setStellarConnector(wallet);
+            setRoute(ROUTES.STELLAR_CONNECTOR, {
+              event: "click-stellar-wallet",
+              walletName: wallet.name,
+            });
+          } else if (isPlatformWrapper) {
+            // Inside a wallet's in-app browser (e.g. Freighter Mobile webview)
+            // → show WalletConnect modal (user picks wallet from list)
+            setStellarConnector({
+              ...wallet,
+              id: WALLET_CONNECT_ID,
+            });
+            setRoute(ROUTES.STELLAR_CONNECTOR, {
+              event: "click-stellar-wallet-wc",
+              walletName: wallet.name,
+            });
+          } else {
+            // Extension NOT installed, not a platform wrapper → route through
+            // WalletConnect with AppKit modal (user picks wallet from list)
+            setStellarConnector({
+              ...wallet,
+              id: WALLET_CONNECT_ID,
+            });
+            setRoute(ROUTES.STELLAR_CONNECTOR, {
+              event: "click-stellar-wallet-wc",
+              walletName: wallet.name,
+            });
+          }
         },
-      }));
+      });
+    }
+
+    // Include other available wallets (excluding those already added above)
+    stellarWallets
+      .filter(
+        (wallet: any) => wallet.isAvailable && !ALWAYS_SHOW.includes(wallet.id),
+      )
+      .forEach((wallet: any) => {
+        options.push({
+          id: wallet.id,
+          title: wallet.name
+            .toLowerCase()
+            .split(" ")
+            .map((word: string) =>
+              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+            )
+            .join(" "),
+          icons: [
+            <SquircleIcon
+              key={wallet.id}
+              icon={wallet.icon}
+              alt={wallet.name}
+            />,
+          ],
+          onClick: () => {
+            log(`[ConnectStellar] Wallet selected: ${wallet.id}`);
+
+            // Set the selected wallet in context (like Solana pattern)
+            // The full wallet object is stored so ConnectorStellar can use it
+            setStellarConnector(wallet);
+
+            // Navigate to connector page - actual connection happens there
+            setRoute(ROUTES.STELLAR_CONNECTOR, {
+              event: "click-stellar-wallet",
+              walletName: wallet.name,
+            });
+          },
+        });
+      });
+
+    return options;
   }, [stellarWallets, log, setStellarConnector, setRoute]);
 
   return (
     <PageContent>
-      {isLoading || !kit ? (
+      {!kit || stellarWallets.length === 0 ? (
         <WalletPaymentSpinner
           logo={<Stellar />}
           logoShape="circle"

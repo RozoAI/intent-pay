@@ -1,5 +1,5 @@
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount, useConnect, useConnectors } from "wagmi";
 
 import { ROUTES } from "../../constants/routes";
@@ -37,6 +37,7 @@ import PayWithSolanaToken from "../Pages/Solana/PayWithSolanaToken";
 import SelectSolanaAmount from "../Pages/Solana/SelectSolanaAmount";
 import ConnectorStellar from "../Pages/Stellar/ConnectorStellar";
 import ConnectStellar from "../Pages/Stellar/ConnectStellar";
+import StellarWalletConnectQR from "../Pages/Stellar/StellarWalletConnectQR";
 import PayWithStellarToken from "../Pages/Stellar/PayWithStellarToken";
 import SelectStellarAmount from "../Pages/Stellar/SelectStellarAmount";
 import SwitchNetworks from "../Pages/SwitchNetworks";
@@ -227,6 +228,7 @@ export const RozoPayModal: React.FC<{
 
     [ROUTES.STELLAR_CONNECT]: <ConnectStellar />,
     [ROUTES.STELLAR_CONNECTOR]: <ConnectorStellar />,
+    [ROUTES.STELLAR_WALLET_CONNECT_QR]: <StellarWalletConnectQR />,
     [ROUTES.STELLAR_SELECT_AMOUNT]: <SelectStellarAmount />,
     [ROUTES.STELLAR_PAY_WITH_TOKEN]: <PayWithStellarToken />,
     // Unused routes. Kept to minimize connectkit merge conflicts.
@@ -411,7 +413,7 @@ export const RozoPayModal: React.FC<{
     ) {
       // Wait for connection to fully settle, not just isConnected flag
       if (ethStatus === "connecting" || ethStatus === "reconnecting") return;
-      
+
       if (isEthConnected) {
         // Dual-chain connect (e.g. Phantom mobile) just linked both EVM and
         // Solana. Return to the pay page so the user picks which connected

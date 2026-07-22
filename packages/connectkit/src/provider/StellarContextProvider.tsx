@@ -34,6 +34,10 @@ type StellarContextProviderValue = {
   setWallet: (option: ISupportedWallet) => Promise<void>;
   disconnect: () => Promise<void>;
   convertXlmToUsdc: (amount: string) => Promise<string>;
+  /** Pre-fetched supported wallets from the kit. */
+  supportedWallets: any[];
+  /** Re-fetch supported wallets (e.g. after kit init). */
+  refreshSupportedWallets: () => Promise<void>;
 };
 
 export type StellarWalletName = ISupportedWallet;
@@ -56,6 +60,8 @@ const initialContext: StellarContextProviderValue = {
   setWallet: () => Promise.resolve(),
   disconnect: () => Promise.resolve(),
   convertXlmToUsdc: () => Promise.resolve(""),
+  supportedWallets: [],
+  refreshSupportedWallets: () => Promise.resolve(),
 };
 
 export const StellarContext =
@@ -80,8 +86,17 @@ export const StellarContextProvider = ({
     undefined,
   );
   const [isAccountExists, setIsAccountExists] = useState(false);
+  const [supportedWallets, setSupportedWallets] = useState<any[]>([]);
+
+  // Check the global singleton synchronously to avoid a loading flash.
+  // The async getStellarKitInstance() in useEffect below may take time even
+  // when the instance is already cached, because it returns a Promise.
+  const cachedKit =
+    typeof window !== "undefined"
+      ? (globalThis as any).__ROZO_STELLAR_KIT_INSTANCE__
+      : undefined;
   const [internalKit, setInternalKit] = useState<StellarWalletsKit | undefined>(
-    undefined,
+    cachedKit,
   );
   const [kitError, setKitError] = useState<string | undefined>(undefined);
 
@@ -233,6 +248,22 @@ export const StellarContextProvider = ({
     };
   }, []);
 
+  const refreshSupportedWallets = async () => {
+    if (!kit) return;
+    try {
+      const wallets = await kit.getSupportedWallets();
+      setSupportedWallets(wallets);
+    } catch (e) {
+      log?.(`[Rozo] Failed to fetch supported wallets: ${e}`);
+    }
+  };
+
+  // Pre-fetch supported wallets as soon as the kit is ready
+  useEffect(() => {
+    if (!kit) return;
+    refreshSupportedWallets();
+  }, [kit]);
+
   // Show error if kit initialization failed
   useEffect(() => {
     if (kitError) {
@@ -297,6 +328,8 @@ export const StellarContextProvider = ({
       setWallet,
       disconnect,
       convertXlmToUsdc,
+      supportedWallets,
+      refreshSupportedWallets,
     };
     return context;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -308,6 +341,7 @@ export const StellarContextProvider = ({
     accountInfo,
     isAccountExists,
     connector,
+    supportedWallets,
   ]);
 
   return (

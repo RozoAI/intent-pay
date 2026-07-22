@@ -83,6 +83,7 @@ const ConnectorStellar: React.FC = () => {
   // Get wallet display info from stellarConnector (which is now the full wallet object)
   const walletName = stellarConnector?.name || "Stellar Wallet";
   const walletIcon = stellarConnector?.icon;
+  const isWalletConnect = stellarConnector?.id === "wallet_connect";
 
   return (
     <PageContent>
@@ -132,7 +133,11 @@ const ConnectorStellar: React.FC = () => {
         ) : (
           <>
             <ModalH1>Requesting Connection</ModalH1>
-            <ModalBody>Open {walletName} to continue.</ModalBody>
+            <ModalBody>
+              {isWalletConnect
+                ? `Scan the QR code with ${walletName}.`
+                : `Open ${walletName} to continue.`}
+            </ModalBody>
           </>
         )}
       </ModalContent>

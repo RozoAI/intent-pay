@@ -155,8 +155,40 @@ export class WalletConnectModule implements ModuleInterface {
       this.modal.open({ uri });
     }
 
+    // Reject when the user closes the AppKit modal without scanning.
+    // AppKit doesn't expose a close event, so we watch the DOM for the
+    // modal element being removed (the <appkit-modal> web component).
+    const modalClosed = new Promise<never>((_, reject) => {
+      const selector = "appkit-modal, w3m-modal, [data-testid='appkit-modal']";
+      const found = document.querySelector(selector);
+      if (!found) return; // modal not in DOM — approval() will handle it
+
+      const observer = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          for (const node of Array.from(m.removedNodes)) {
+            if (
+              node === found ||
+              (node instanceof HTMLElement && node.matches?.(selector))
+            ) {
+              observer.disconnect();
+              reject(
+                parseError(
+                  new Error("Connection cancelled — modal was closed."),
+                ),
+              );
+              return;
+            }
+          }
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+
     try {
-      const session: SessionTypes.Struct = await approval();
+      const session: SessionTypes.Struct = await Promise.race([
+        approval(),
+        modalClosed,
+      ]);
       const accounts: string[] = session.namespaces.stellar.accounts.map(
         (account: string) => account.split(":")[2],
       );
