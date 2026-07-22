@@ -7,7 +7,15 @@ import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateCheckoutSnippet } from "@/lib/snippets"
 import { createPayment } from "@rozoai/intent-common"
 import { RozoPayButton } from "@rozoai/intent-pay"
-import { useCallback, useEffect, useId, useMemo, useState } from "react"
+import {
+  WalletMetamask,
+  WalletPhantom,
+  WalletTrust,
+  WalletCoinbase,
+  WalletOkx,
+} from "@web3icons/react"
+import { useSearchParams } from "next/navigation"
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { CodeSnippet } from "./CodeSnippet"
 import { EventLog, type LogEntry } from "./EventLog"
 import { ModeDescription } from "./ModeDescription"
@@ -17,6 +25,7 @@ import { PreviewPane } from "./PreviewPane"
 const APP_ID = "rozoDemo"
 
 export function CheckoutMode() {
+  const searchParams = useSearchParams()
   const [config, setConfig, hydrated] = useSharedConfig()
   const [pending, setPending] = useState(config)
   const [paymentId, setPaymentId] = useState<string | null>(null)
@@ -24,7 +33,39 @@ export function CheckoutMode() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
+  const showRef = useRef<(() => void) | null>(null)
+  const hasAutoOpened = useRef(false)
+  const [isMounted, setIsMounted] = useState(false)
   const uid = useId()
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  // Read paymentId from URL and set it, then clean up URL
+  useEffect(() => {
+    const urlPaymentId = searchParams.get("paymentId")
+    if (urlPaymentId && !paymentId) {
+      setPaymentId(urlPaymentId)
+      // Clean up URL to prevent re-triggering on refresh
+      const url = new URL(window.location.href)
+      url.searchParams.delete("paymentId")
+      window.history.replaceState({}, "", url.toString())
+    }
+  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-open modal when paymentId is set from URL
+  useEffect(() => {
+    if (paymentId && !hasAutoOpened.current) {
+      hasAutoOpened.current = true
+      // Small delay to ensure RozoPayButton.Custom is mounted
+      const timer = setTimeout(() => {
+        showRef.current?.()
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [paymentId])
+
   // sync pending when storage hydrates
   useEffect(() => {
     if (hydrated) setPending(config)
@@ -172,16 +213,72 @@ export function CheckoutMode() {
             onPaymentCompleted={(e) => addLog("completed", e)}
             onPayoutCompleted={(e) => addLog("payout", e)}
           >
-            {({ show }) => (
-              <Button onClick={show} size="lg" className="min-w-40">
-                Pay Now
-              </Button>
-            )}
+            {({ show }) => {
+              showRef.current = show
+              return (
+                <Button onClick={show} size="lg" className="min-w-40">
+                  Pay Now
+                </Button>
+              )
+            }}
           </RozoPayButton.Custom>
-          <div className="flex flex-col items-center gap-1.5">
+          <div className="flex flex-col items-center gap-3">
             <p className="max-w-md text-center font-mono text-xs break-all text-muted-foreground">
               Payment ID: {paymentId}
             </p>
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-xs text-muted-foreground">Open in wallet</p>
+              <div className="flex gap-3">
+                {isMounted &&
+                  (() => {
+                    // ponytail: computed once, reused by all wallet hrefs
+                    const payUrl = `${window.location.origin}/checkout?paymentId=${paymentId}`
+                    const encoded = encodeURIComponent(payUrl)
+                    const origin = encodeURIComponent(window.location.origin)
+                    const wallets = [
+                      {
+                        name: "MetaMask",
+                        icon: <WalletMetamask size={40} variant="branded" />,
+                        href: `https://link.metamask.io/dapp/${encoded}`,
+                      },
+                      {
+                        name: "Phantom",
+                        icon: <WalletPhantom size={40} variant="branded" />,
+                        href: `https://phantom.app/ul/browse/${encoded}?ref=${origin}`,
+                      },
+                      {
+                        name: "Trust",
+                        icon: <WalletTrust size={40} variant="branded" />,
+                        href: `trust://open_url?coin_id=60&url=${encoded}`,
+                      },
+                      {
+                        name: "Coinbase",
+                        icon: <WalletCoinbase size={40} variant="branded" />,
+                        href: `cbwallet://dapp?url=${encoded}`,
+                      },
+                      {
+                        name: "OKX",
+                        icon: <WalletOkx size={40} variant="branded" />,
+                        href: `okx://wallet/dapp/url?dappUrl=${encoded}`,
+                      },
+                    ]
+                    return wallets.map((w) => (
+                      <a
+                        key={w.name}
+                        href={w.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl overflow-hidden">
+                          {w.icon}
+                        </div>
+                        <span className="text-[10px]">{w.name}</span>
+                      </a>
+                    ))
+                  })()}
+              </div>
+            </div>
             <Button
               variant="secondary"
               className="text-muted-foreground"
