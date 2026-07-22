@@ -37,6 +37,7 @@ function RozoPayProviderWithTheme({
       stellarWalletPersistence={false}
       posthog={posthog}
       stellarKit={stellarKit}
+      suppressModal={false} // Set to true when using RozoPayCard exclusively
     >
       {children}
     </RozoPayProvider>

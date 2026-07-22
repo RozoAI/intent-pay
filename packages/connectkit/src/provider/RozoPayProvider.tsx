@@ -91,6 +91,11 @@ type RozoPayUIProviderProps = {
    * Set to false to fully disable all built-in tracking.
    */
   telemetry?: boolean;
+  /**
+   * Suppress RozoPayModal rendering. Use when using RozoPayCard exclusively.
+   * Default: false.
+   */
+  suppressModal?: boolean;
 } & useConnectCallbackProps;
 
 const RozoPayUIProvider = ({
@@ -107,6 +112,7 @@ const RozoPayUIProvider = ({
   log,
   posthog: _posthog,
   telemetry: _telemetry,
+  suppressModal = false,
 }: RozoPayUIProviderProps) => {
   const { capture } = useAnalytics();
   const connectedChainId = useChainId();
@@ -473,13 +479,15 @@ const RozoPayUIProvider = ({
       <WagmiDependentEffects onConnect={onConnect} onDisconnect={onDisconnect} />
       <ThemeProvider theme={defaultTheme}>
         {children}
-        <RozoPayModal
-          lang={ckLang}
-          theme={ckTheme}
-          mode={ckMode}
-          customTheme={ckCustomTheme}
-          disableMobileInjector={disableMobileInjector}
-        />
+        {!suppressModal && (
+          <RozoPayModal
+            lang={ckLang}
+            theme={ckTheme}
+            mode={ckMode}
+            customTheme={ckCustomTheme}
+            disableMobileInjector={disableMobileInjector}
+          />
+        )}
       </ThemeProvider>
     </Web3ContextProvider>,
   );
@@ -517,6 +525,11 @@ type RozoPayProviderProps = {
    * Default: true. Set to false to fully disable all built-in tracking.
    */
   telemetry?: boolean;
+  /**
+   * Suppress RozoPayModal rendering. Use when using RozoPayCard exclusively.
+   * Default: false.
+   */
+  suppressModal?: boolean;
 } & useConnectCallbackProps;
 
 /**

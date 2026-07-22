@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const tabs = [
   { href: "/bridge", label: "Bridge" },
   { href: "/checkout", label: "Online Checkout" },
+  { href: "/card", label: "Card" },
   { href: "/deposit", label: "Wallet Deposit" },
 ];
 

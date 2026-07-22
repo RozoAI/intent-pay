@@ -83,6 +83,70 @@ Then drop a `<RozoPayButton appId="rozoSandbox" ... />` (snippet above) anywhere
 
 > **Result truth lives on the backend.** Treat `onPaymentCompleted` as a UI hint and confirm settlement server-side (webhook or `getPayment`) before fulfilling.
 
+## RozoPayCard — Inline Payment Card
+
+RozoPayCard is an alternative to RozoPayButton that embeds the payment flow directly in your page layout. No modal, no redirect — just a clean two-panel card.
+
+### When to use RozoPayCard
+
+- **Embedded checkout** — when you want the payment UI to be part of your page, not a popup
+- **Merchants** — for a seamless, branded payment experience
+- **Dedicated payment pages** — when you have space for a full card layout
+
+### Quick start
+
+```tsx
+import { RozoPayCard } from "@rozoai/intent-pay";
+
+// Inside RozoPayProvider
+<RozoPayCard
+  payId="pay_abc123"
+  width={480}
+  onPaymentCompleted={(e) => console.log("done", e.paymentId)}
+/>
+```
+
+### Features
+
+- **Two-panel layout** — wallet list on left, payment action on right
+- **Recently used wallets** — remembers last 5 wallets via cookie
+- **Multi-network wallets** — MetaMask/Phantom show Ethereum/Solana choice
+- **All tokens** — shows tokens across all networks, sorted by balance
+- **Responsive** — two-column on desktop, stacked on mobile
+- **Dark/light mode** — inherits from RozoPayProvider
+- **Intercom help** — built-in support trigger in footer
+
+### Props
+
+RozoPayCard accepts the same payment props as RozoPayButton, plus:
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `width` | `number \| string` | `480` | Card width in pixels |
+| `height` | `number \| string` | `auto` | Card height |
+| `className` | `string` | — | CSS class name |
+| `style` | `React.CSSProperties` | — | Inline styles |
+
+### Provider setup
+
+```tsx
+import { RozoPayProvider, RozoPayCard } from "@rozoai/intent-pay";
+
+// Use suppressModal to prevent modal from rendering
+<RozoPayProvider payApiUrl="..." suppressModal>
+  <RozoPayCard
+    payId="pay_abc123"
+    onPaymentCompleted={(e) => console.log(e)}
+  />
+</RozoPayProvider>
+```
+
+### Wallet sources
+
+1. **Recently Used** — cookie storage (`rk_recent_wallets`), 30-day expiry, max 5 entries
+2. **Available** — detected wallets (MetaMask, Phantom, Coinbase, etc.)
+3. **Others** — WalletConnect via Reown AppKit (lazy-loaded on click)
+
 ## Features
 
 - 🌱 Cross-chain payments from 1000+ tokens in under 1 minute.

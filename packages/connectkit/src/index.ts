@@ -14,6 +14,14 @@ export type {
   RozoPayButtonProps,
 } from "./components/RozoPayButton/types";
 
+// Pay card (inline payment card)
+export { RozoPayCard } from "./components/RozoPayCard";
+
+export type {
+  RozoPayCardProps,
+  RozoPayCardCustomProps,
+} from "./components/RozoPayCard/types";
+
 // Hooks to track payment status + UI status.
 export { useRozoPay } from "./hooks/useRozoPay";
 export { useRozoPayStatus } from "./hooks/useRozoPayStatus";
