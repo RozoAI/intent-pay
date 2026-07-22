@@ -48,8 +48,8 @@ importers:
         specifier: 0.1.26-beta.2
         version: 0.1.26-beta.2(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
       '@rozoai/intent-pay':
-        specifier: 0.1.38-beta.7
-        version: 0.1.38-beta.7(39ffed284c1998b2b4af73ee4d40db80)
+        specifier: 0.1.38-beta.8
+        version: 0.1.38-beta.8(39ffed284c1998b2b4af73ee4d40db80)
       '@stellar/stellar-sdk':
         specifier: ^14.4.3
         version: 14.6.1
@@ -2590,8 +2590,8 @@ packages:
   '@rozoai/intent-common@0.1.26-beta.2':
     resolution: {integrity: sha512-c98dRHIcjO5gUW3Iob0cYvg6o/uyDrXX6DeVI5El+ETXiGm3RinRS+ESg19OY7Ctbfrg5i/esGEVLgMe0qpLFA==}
 
-  '@rozoai/intent-pay@0.1.38-beta.7':
-    resolution: {integrity: sha512-4WktRKZKCbPYgMTQQyYgi7RF+TTOXuaKvY2NGAYpAeJYBUPBvfHtfTJXXHdXnxarC6OHtwPVbCj86lvhxTx8tA==}
+  '@rozoai/intent-pay@0.1.38-beta.8':
+    resolution: {integrity: sha512-NO5Bev2/rS6QQeTFsjwuXA4ryrk2z6z2QJyk4Wnv3djQz/AWiISuODVfaum17QJBZpcg3/EMZPtds7aiGniRjg==}
     engines: {node: '>=12.4'}
     peerDependencies:
       '@creit.tech/stellar-wallets-kit': ^1.9.5
@@ -11974,7 +11974,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@rozoai/intent-pay@0.1.38-beta.7(39ffed284c1998b2b4af73ee4d40db80)':
+  '@rozoai/intent-pay@0.1.38-beta.8(39ffed284c1998b2b4af73ee4d40db80)':
     dependencies:
       '@creit.tech/stellar-wallets-kit': 1.9.5(62b9aba56a6edcfc5568ca8536dcbed1)
       '@reown/appkit': 1.8.21(@react-native-async-storage/async-storage@1.24.0(react-native@0.86.0(@babel/core@7.29.7)(@types/react@18.3.31)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@6.0.6)))(@types/react@18.3.31)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(react@18.2.0)(typescript@5.5.2)(use-sync-external-store@1.4.0(react@18.2.0))(utf-8-validate@6.0.6)(zod@4.4.3)
