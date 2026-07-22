@@ -20,7 +20,6 @@ export enum ROUTES {
   // Stellar
   STELLAR_CONNECT = "rozoPayStellarConnect",
   STELLAR_CONNECTOR = "rozoPayStellarConnector",
-  STELLAR_WALLET_CONNECT_QR = "rozoPayStellarWalletConnectQR",
   STELLAR_SELECT_AMOUNT = "rozoPayStellarSelectAmount",
   STELLAR_PAY_WITH_TOKEN = "rozoPayStellarPayWithToken",
   ERROR = "rozoPayError",

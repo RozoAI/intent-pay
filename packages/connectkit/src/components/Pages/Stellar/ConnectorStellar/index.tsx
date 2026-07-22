@@ -11,6 +11,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
 import { useStellar } from "../../../../provider/StellarContextProvider";
+import { WALLET_CONNECT_ID } from "../../../../utils/stellar";
 import styled from "../../../../styles/styled";
 import Button from "../../../Common/Button";
 import SquircleSpinner from "../../../Spinners/SquircleSpinner";
@@ -83,7 +84,7 @@ const ConnectorStellar: React.FC = () => {
   // Get wallet display info from stellarConnector (which is now the full wallet object)
   const walletName = stellarConnector?.name || "Stellar Wallet";
   const walletIcon = stellarConnector?.icon;
-  const isWalletConnect = stellarConnector?.id === "wallet_connect";
+  const isWalletConnect = stellarConnector?.id === WALLET_CONNECT_ID;
 
   return (
     <PageContent>

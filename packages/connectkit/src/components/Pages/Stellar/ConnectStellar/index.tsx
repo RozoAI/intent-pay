@@ -19,7 +19,12 @@ import WalletPaymentSpinner from "../../../Spinners/WalletPaymentSpinner";
 
 const ConnectStellar: React.FC = () => {
   const { setStellarConnector, setRoute, log } = usePayContext();
-  const { kit, supportedWallets } = useStellar();
+  const {
+    kit,
+    supportedWallets,
+    walletsLoaded,
+    hasWalletConnect,
+  } = useStellar();
 
   // Detect if we're inside a wallet's in-app browser (e.g. Freighter Mobile).
   // FreighterModule doesn't expose isPlatformWrapper, so we check directly.
@@ -69,15 +74,8 @@ const ConnectStellar: React.FC = () => {
         ],
         onClick: () => {
           log(
-            `[ConnectStellar] ${wallet.name} selected (extension: ${wallet.isAvailable}, platformWrapper: ${wallet.isPlatformWrapper})`,
+            `[ConnectStellar] ${wallet.name} selected (extension: ${wallet.isAvailable})`,
           );
-
-          // Platform wrapper: inside Freighter/Lobstr mobile webview.
-          // FreighterModule.isPlatformWrapper is undefined, so we detect via
-          // window.stellar (same check WalletConnectModule uses).
-          const isPlatformWrapper =
-            (wallet.id === "freighter" && isFreighterMobilePlatform) ||
-            wallet.isPlatformWrapper === true;
 
           if (wallet.isAvailable) {
             // Extension installed → use native module directly
@@ -86,20 +84,9 @@ const ConnectStellar: React.FC = () => {
               event: "click-stellar-wallet",
               walletName: wallet.name,
             });
-          } else if (isPlatformWrapper) {
-            // Inside a wallet's in-app browser (e.g. Freighter Mobile webview)
-            // → show WalletConnect modal (user picks wallet from list)
-            setStellarConnector({
-              ...wallet,
-              id: WALLET_CONNECT_ID,
-            });
-            setRoute(ROUTES.STELLAR_CONNECTOR, {
-              event: "click-stellar-wallet-wc",
-              walletName: wallet.name,
-            });
-          } else {
-            // Extension NOT installed, not a platform wrapper → route through
-            // WalletConnect with AppKit modal (user picks wallet from list)
+          } else if (hasWalletConnect) {
+            // Extension NOT installed → route through WalletConnect modal
+            // (works for both desktop QR and Freighter Mobile wallet list)
             setStellarConnector({
               ...wallet,
               id: WALLET_CONNECT_ID,
@@ -109,6 +96,8 @@ const ConnectStellar: React.FC = () => {
               walletName: wallet.name,
             });
           }
+          // If no WalletConnect module, clicking does nothing (option stays
+          // visible but connection is not possible without the extension).
         },
       });
     }
@@ -152,56 +141,55 @@ const ConnectStellar: React.FC = () => {
       });
 
     return options;
-  }, [stellarWallets, log, setStellarConnector, setRoute]);
+  }, [stellarWallets, log, setStellarConnector, setRoute, hasWalletConnect]);
 
-  return (
-    <PageContent>
-      {!kit || stellarWallets.length === 0 ? (
+  // Show spinner only while kit is loading or wallets haven't been fetched yet
+  if (!kit || !walletsLoaded) {
+    return (
+      <PageContent>
         <WalletPaymentSpinner
           logo={<Stellar />}
           logoShape="circle"
           loading={true}
           unavailable={false}
         />
+      </PageContent>
+    );
+  }
+
+  return (
+    <PageContent>
+      {stellarOptions.length === 0 ? (
+        <ModalContent
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            paddingTop: 16,
+            paddingBottom: 16,
+            gap: 16,
+          }}
+        >
+          <ModalH1>No Stellar wallets detected.</ModalH1>
+          <SelectAnotherMethodButton />
+        </ModalContent>
       ) : (
         <>
-          {/* No wallets on desktop */}
-          {stellarOptions.length === 0 && (
-            <ModalContent
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                paddingTop: 16,
-                paddingBottom: 16,
-                gap: 16,
-              }}
-            >
-              <ModalH1>No Stellar wallets detected.</ModalH1>
-              <SelectAnotherMethodButton />
-            </ModalContent>
-          )}
-
-          {/* Show wallet options when not on mobile adapter */}
-          {stellarOptions.length > 0 && (
-            <>
-              <OrderHeader
-                minified
-                excludeLogos={[
-                  "tron",
-                  "arbitrum",
-                  "optimism",
-                  "base",
-                  "bsc",
-                  "polygon",
-                  "solana",
-                  "ethereum",
-                ]}
-              />
-              <OptionsList options={stellarOptions} />
-            </>
-          )}
+          <OrderHeader
+            minified
+            excludeLogos={[
+              "tron",
+              "arbitrum",
+              "optimism",
+              "base",
+              "bsc",
+              "polygon",
+              "solana",
+              "ethereum",
+            ]}
+          />
+          <OptionsList options={stellarOptions} />
         </>
       )}
     </PageContent>

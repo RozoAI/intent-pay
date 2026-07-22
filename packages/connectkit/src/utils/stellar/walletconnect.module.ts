@@ -158,19 +158,20 @@ export class WalletConnectModule implements ModuleInterface {
     // Reject when the user closes the AppKit modal without scanning.
     // AppKit doesn't expose a close event, so we watch the DOM for the
     // modal element being removed (the <appkit-modal> web component).
+    let modalObserver: MutationObserver | undefined;
     const modalClosed = new Promise<never>((_, reject) => {
       const selector = "appkit-modal, w3m-modal, [data-testid='appkit-modal']";
       const found = document.querySelector(selector);
       if (!found) return; // modal not in DOM — approval() will handle it
 
-      const observer = new MutationObserver((mutations) => {
+      modalObserver = new MutationObserver((mutations) => {
         for (const m of mutations) {
           for (const node of Array.from(m.removedNodes)) {
             if (
               node === found ||
               (node instanceof HTMLElement && node.matches?.(selector))
             ) {
-              observer.disconnect();
+              modalObserver?.disconnect();
               reject(
                 parseError(
                   new Error("Connection cancelled — modal was closed."),
@@ -181,7 +182,7 @@ export class WalletConnectModule implements ModuleInterface {
           }
         }
       });
-      observer.observe(document.body, { childList: true, subtree: true });
+      modalObserver.observe(document.body, { childList: true, subtree: true });
     });
 
     try {
@@ -207,6 +208,9 @@ export class WalletConnectModule implements ModuleInterface {
     } catch (e) {
       this.modal.close();
       throw parseError(e as Error);
+    } finally {
+      // Always clean up the observer to avoid leaks
+      modalObserver?.disconnect();
     }
   }
 

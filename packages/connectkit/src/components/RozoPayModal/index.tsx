@@ -37,7 +37,6 @@ import PayWithSolanaToken from "../Pages/Solana/PayWithSolanaToken";
 import SelectSolanaAmount from "../Pages/Solana/SelectSolanaAmount";
 import ConnectorStellar from "../Pages/Stellar/ConnectorStellar";
 import ConnectStellar from "../Pages/Stellar/ConnectStellar";
-import StellarWalletConnectQR from "../Pages/Stellar/StellarWalletConnectQR";
 import PayWithStellarToken from "../Pages/Stellar/PayWithStellarToken";
 import SelectStellarAmount from "../Pages/Stellar/SelectStellarAmount";
 import SwitchNetworks from "../Pages/SwitchNetworks";
@@ -228,7 +227,6 @@ export const RozoPayModal: React.FC<{
 
     [ROUTES.STELLAR_CONNECT]: <ConnectStellar />,
     [ROUTES.STELLAR_CONNECTOR]: <ConnectorStellar />,
-    [ROUTES.STELLAR_WALLET_CONNECT_QR]: <StellarWalletConnectQR />,
     [ROUTES.STELLAR_SELECT_AMOUNT]: <SelectStellarAmount />,
     [ROUTES.STELLAR_PAY_WITH_TOKEN]: <PayWithStellarToken />,
     // Unused routes. Kept to minimize connectkit merge conflicts.
