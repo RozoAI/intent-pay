@@ -133,6 +133,8 @@ export interface CreatePaymentRequest {
    * URL to receive payment status updates
    */
   webhookUrl?: string;
+  /** Intent type (e.g., "stellar_direct" for direct same-chain settlement) */
+  intent?: string;
   [property: string]: any;
 }
 
@@ -260,6 +262,8 @@ export interface PaymentResponse {
    * Present on v2+ API responses.
    */
   isMerchant?: boolean;
+  /** Settlement mode — "stellar_direct" for direct same-chain USDC→USDC */
+  settlementMode?: "stellar_direct";
   [property: string]: any;
 }
 
@@ -306,4 +310,6 @@ export interface CreateNewPaymentParams {
   receiverMemo?: string;
   /** API version to use (v2 or v4). Defaults to v4 */
   apiVersion?: ApiVersion;
+  /** Intent type (e.g., "stellar_direct" for direct same-chain USDC→USDC settlement) */
+  intent?: string;
 }

@@ -60,6 +60,7 @@ export async function createPayment(
     webhookSecret,
     receiverMemo,
     apiVersion,
+    intent,
   } = params;
 
   // Set API version if provided
@@ -129,6 +130,7 @@ export async function createPayment(
     },
     ...(webhookUrl ? { webhookUrl } : {}),
     ...(webhookSecret ? { webhookSecret } : {}),
+    ...(intent ? { intent } : {}),
   };
 
   if (apiVersion === "v1") {

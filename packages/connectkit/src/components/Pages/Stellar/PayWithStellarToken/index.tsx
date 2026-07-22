@@ -199,6 +199,7 @@ const PayWithStellarToken: React.FC = () => {
 
       let hydratedOrder: RozoPayHydratedOrderWithOrg;
       let paymentId: string | undefined;
+      let settlementMode: string | undefined;
 
       // When payId is used (no payParams), fetch the existing payment instead
       // of creating a new one to avoid re-creating a payment that already exists.
@@ -267,6 +268,7 @@ const PayWithStellarToken: React.FC = () => {
             throw new Error("Failed to checkout payment");
           }
           paymentId = checkoutRes.data.id;
+          settlementMode = checkoutRes.data.settlementMode;
           hydratedOrder = formatPaymentResponseToHydratedOrder(
             checkoutRes.data,
           );
@@ -298,6 +300,7 @@ const PayWithStellarToken: React.FC = () => {
             throw new Error("Failed to checkout payment");
           }
           paymentId = checkoutRes.data.id;
+          settlementMode = checkoutRes.data.settlementMode;
           hydratedOrder = formatPaymentResponseToHydratedOrder(
             checkoutRes.data,
           );
@@ -319,6 +322,7 @@ const PayWithStellarToken: React.FC = () => {
             throw new Error("Failed to create Rozo payment");
           }
           paymentId = res.id;
+          settlementMode = res.settlementMode;
           hydratedOrder = formatPaymentResponseToHydratedOrder(res);
         }
       } else {
@@ -419,6 +423,9 @@ const PayWithStellarToken: React.FC = () => {
         `[PayWithStellarToken] Payment setup - destAddress: ${finalDestAddress}, toChain: ${payParams?.toChain}, token chain: ${option.required.token.chainId}`,
       );
 
+      // For stellar_direct: source IS the destination. Use source address/amount/memo directly.
+      // The hydratedOrder's intentAddr already points to the source (deposit) address,
+      // and fee is "0.00", so we just pass through.
       const paymentData = {
         destAddress: finalDestAddress,
       };
@@ -428,6 +435,10 @@ const PayWithStellarToken: React.FC = () => {
           memo: hydratedOrder.memo,
         });
       }
+
+      log?.(
+        `[PayWithStellarToken] settlementMode: ${settlementMode ?? "none"}, destAddress: ${finalDestAddress}, memo: ${hydratedOrder.memo ?? "none"}`,
+      );
 
       const result = await payWithStellarToken(
         {
