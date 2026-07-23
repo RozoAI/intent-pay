@@ -76,6 +76,18 @@ test("toUnits: fee exceeds amount — clamped to zero", (t) => {
   t.end();
 });
 
+test("toUnits: large-magnitude amount — no float precision loss", (t) => {
+  // Number("123456789012345.678901") loses precision past ~15-17 sig figs;
+  // string/BigInt-based scaling must not.
+  const payload = buildCreatePaymentPayload({
+    payParams: makePayParams({ toUnits: "123456789012345.678901" }),
+    feeTypeOverride: FeeType.ExactIn,
+  });
+
+  t.equal(payload.toUnits, "123456789012345.678901", "large amount forwarded exactly");
+  t.end();
+});
+
 // ---------- address resolution ----------
 
 test("resolveDestinationAddress: Solana takes precedence", (t) => {

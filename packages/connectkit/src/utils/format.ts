@@ -3,8 +3,32 @@ import { formatUnits } from "viem";
 
 export const USD_DECIMALS = 2;
 
+/**
+ * Fallback for `token.displayDecimals` when absent. Mirrors
+ * `defaultDisplayDecimals` in @rozoai/intent-common's token.ts — kept local
+ * since connectkit currently pins an older published version of that
+ * package where `displayDecimals` is still required (see PR #57 review).
+ */
+export function fallbackDisplayDecimals(decimals: number): number {
+  return decimals === 18 ? 5 : decimals === 9 ? 4 : 6;
+}
+
+/**
+ * Strip trailing zeros (and a trailing decimal point) from a fixed-decimal
+ * numeric string without round-tripping through `Number`/`parseFloat`,
+ * which rewrite small magnitudes into scientific notation (e.g. "1e-7")
+ * and silently turn non-finite input into "NaN"/"Infinity".
+ */
+export function stripTrailingZeros(value: string): string {
+  if (!value.includes(".")) return value;
+  return value.replace(/0+$/, "").replace(/\.$/, "");
+}
+
 export function formatTokenAmount(amount: number, decimals: number): string {
-  return parseFloat(amount.toFixed(decimals)).toString();
+  if (!Number.isFinite(amount)) {
+    throw new Error(`formatTokenAmount: non-finite amount ${amount}`);
+  }
+  return stripTrailingZeros(amount.toFixed(decimals));
 }
 
 
@@ -103,16 +127,13 @@ export function roundTokenAmount(
 
   const formattedAmount = formatUnits(amountBigInt, token.decimals);
 
-  return String(parseFloat(roundDecimals(
-    Number(formattedAmount),
-    token.displayDecimals,
-    round,
-  )));
+  const displayDecimals = token.displayDecimals ?? fallbackDisplayDecimals(token.decimals);
+  return stripTrailingZeros(roundDecimals(Number(formattedAmount), displayDecimals, round));
 }
 
 /** Strip trailing zeros from a decimal token amount string. e.g. "0.01600" → "0.016" */
 export function trimTokenAmount(amount: string): string {
-  return String(parseFloat(amount));
+  return stripTrailingZeros(amount);
 }
 
 /**
@@ -124,7 +145,8 @@ export function roundTokenAmountUnits(
   round: "up" | "down" | "nearest" = "down",
 ): string {
   // Use token.displayDecimals for full precision, strip trailing zeros
-  return String(parseFloat(roundDecimals(amountUnits, token.displayDecimals, round)));
+  const displayDecimals = token.displayDecimals ?? fallbackDisplayDecimals(token.decimals);
+  return stripTrailingZeros(roundDecimals(amountUnits, displayDecimals, round));
 }
 
 /**
