@@ -69,20 +69,25 @@ export const OrderHeader = ({
   ]);
   const appId = paymentState.payParams?.appId;
 
-  const titleAmountContent = (() => {
+  const titleAmountContent = React.useMemo(() => {
     if (paymentState.isDepositFlow) {
       return route === ROUTES.SELECT_TOKEN ? (
-        // TODO: make this match `ModalH1` font size for mobile
-        <span style={{ fontSize: "19px", lineHeight: "22px" }}>
+        <span style={{ fontSize: "clamp(16px, 4vw, 19px)", lineHeight: "1.45" }}>
           Your balances
         </span>
       ) : null;
     } else {
-      return orderUsd != null ? (
-        <span>{formatUsd(orderUsd, "nearest", destinationFiatISO)}</span>
+      return orderUsd != null && order ? (
+        <span>{formatUsd(orderUsd, "nearest", destinationFiatISO, order.destFinalCallTokenAmount.token.displayDecimals)}</span>
       ) : null;
     }
-  })();
+  }, [
+    paymentState.isDepositFlow,
+    route,
+    orderUsd,
+    order,
+    destinationFiatISO,
+  ]);
 
   const renderIcon = (
     icon: React.ReactNode | string | undefined,
@@ -235,17 +240,19 @@ const TitleAmount = styled(motion.h1)<{
 }>`
   margin-bottom: 24px;
   padding: 0;
-  line-height: 66px;
-  font-size: 64px;
+  line-height: 1.15;
+  font-size: clamp(28px, 6vw, 48px);
   font-weight: var(--ck-modal-h1-font-weight, 600);
+  text-wrap: balance;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+  max-width: 100%;
   color: ${(props) => {
     if (props.$error) return "var(--ck-body-color-danger)";
     if (props.$valid) return "var(--ck-body-color-valid)";
     return "var(--ck-body-color)";
   }};
-  @media only screen and (max-width: ${defaultTheme.mobileWidth}px) {
-    font-size: 64px;
-  }
   display: flex;
   align-items: center;
   justify-content: center;
@@ -253,17 +260,24 @@ const TitleAmount = styled(motion.h1)<{
 `;
 
 const Subtitle = styled(motion.div)`
-  font-size: 18px;
+  font-size: clamp(16px, 4vw, 18px);
   font-weight: 500;
-  line-height: 21px;
+  line-height: 1.45;
   color: var(--ck-body-color-muted);
+  text-wrap: balance;
 `;
 
 const MinifiedTitleAmount = styled(motion.div)`
-  font-size: 32px;
+  font-size: clamp(20px, 5vw, 28px);
   font-weight: var(--ck-modal-h1-font-weight, 600);
-  line-height: 36px;
+  line-height: 1.15;
   color: var(--ck-body-color);
+  text-wrap: balance;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: start;
@@ -276,6 +290,7 @@ const MinifiedContainer = styled(motion.div)`
   justify-content: space-between;
   width: 100%;
   margin-bottom: 24px;
+  overflow: hidden;
 `;
 
 const AnyChainAnyCoinContainer = styled(motion.div)`
@@ -322,4 +337,7 @@ const SubtitleContainer = styled.div`
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
 `;

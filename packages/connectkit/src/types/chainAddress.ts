@@ -1,7 +1,16 @@
-import { getChainById } from "@rozoai/intent-common";
+import { getChainById as getChainByIdUnsafe } from "@rozoai/intent-common";
 import { PublicKey } from "@solana/web3.js";
 import { StrKey } from "@stellar/stellar-sdk";
 import { Address, isAddress } from "viem";
+
+/** Safe getChainById — returns null instead of throwing for unknown chains. */
+function getChainById(chainId: number) {
+  try {
+    return getChainByIdUnsafe(chainId);
+  } catch {
+    return null;
+  }
+}
 
 // Validation helpers
 export function isValidEvmAddress(address: string): address is Address {
@@ -25,13 +34,10 @@ export function isValidStellarAddress(address: string): boolean {
  */
 export function validateAddressForChain(
   chainId: number,
-  address: string
+  address: string,
 ): boolean {
   const chain = getChainById(chainId);
-
-  if (!chain) {
-    return false;
-  }
+  if (!chain) return false;
 
   if (chain.type === "evm") {
     return isValidEvmAddress(address);

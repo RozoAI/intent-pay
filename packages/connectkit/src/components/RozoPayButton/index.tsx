@@ -4,7 +4,7 @@ import { usePayContext } from "../../hooks/usePayContext";
 import { TextContainer } from "./styles";
 
 import {
-  getChainById,
+  getChainById as getChainByIdUnsafe,
   getChainExplorerTxUrl,
   getRozoPayOrderView,
   PaymentBouncedEvent,
@@ -35,6 +35,15 @@ import { parseErrorMessage } from "../../utils/errorParser";
 import { validatePayoutToken } from "../../utils/validatePayoutToken";
 import ThemedButton, { ThemeContainer } from "../Common/ThemedButton";
 import { RozoPayButtonCustomProps, RozoPayButtonProps } from "./types";
+
+/** Safe getChainById — returns null instead of throwing for unknown chains. */
+function getChainById(chainId: number) {
+  try {
+    return getChainByIdUnsafe(chainId);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * A button that shows the Rozo Pay checkout. Replaces the traditional
@@ -86,7 +95,47 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
     if ("appId" in props) {
       const chain = getChainById(props.toChain);
       if (!chain) {
-        return { payParams: null, payId: null };
+        // Unknown chain — still build payParams so the SDK can operate.
+        // Reown/wagmi may still resolve the chain at wallet-connect time.
+        const {
+          appId,
+          toChain,
+          toAddress,
+          toToken,
+          toUnits,
+          intent,
+          paymentOptions,
+          preferredChains,
+          preferredTokens,
+          preferredSymbol,
+          feeType,
+          externalId,
+          metadata,
+          showProcessingPayout,
+          receiverMemo,
+        } = props;
+
+        return {
+          payParams: {
+            appId,
+            toChain,
+            toToken,
+            toUnits,
+            toAddress,
+            intent,
+            paymentOptions,
+            preferredChains,
+            preferredTokens,
+            preferredSymbol,
+            evmChains: undefined,
+            externalId,
+            metadata,
+            showProcessingPayout,
+            feeType,
+            receiverMemo,
+          } as PayParams,
+          payId: null,
+        };
       }
 
       const isEvm = chain.type === "evm";
@@ -161,16 +210,15 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
   const isToStellar = useMemo(() => {
     if (!payParams) return false;
+    // ponytail: safe wrapper — getChainById already returns null for unknown chains
     const chain = getChainById(payParams.toChain);
-    if (!chain) return false;
-    return chain.type === "stellar";
+    return chain?.type === "stellar";
   }, [payParams?.toChain]);
 
   const isToSolana = useMemo(() => {
     if (!payParams) return false;
     const chain = getChainById(payParams.toChain);
-    if (!chain) return false;
-    return chain.type === "solana";
+    return chain?.type === "solana";
   }, [payParams?.toChain]);
 
   // Store validation error ref
@@ -183,21 +231,17 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
       if (!isValid) {
         const chain = getChainById(props.toChain);
-        if (!chain) {
-          return;
-        }
-
-        const chainName = chain.name;
+        const chainLabel = chain?.name ?? `Chain ${props.toChain}`;
+        const expectedFormat =
+          chain?.type === "evm"
+            ? "0x... (EVM address)"
+            : chain?.type === "solana"
+              ? "Base58 encoded address (32-44 chars)"
+              : "G... (Stellar address, 56 chars)";
         console.error(
-          `[RozoPayButton] Invalid address format for ${chainName} (chain ${props.toChain}). ` +
+          `[RozoPayButton] Invalid address format for ${chainLabel} (chain ${props.toChain}). ` +
             `Received: ${props.toAddress}. ` +
-            `Expected format: ${
-              chain.type === "evm"
-                ? "0x... (EVM address)"
-                : chain.type === "solana"
-                  ? "Base58 encoded address (32-44 chars)"
-                  : "G... (Stellar address, 56 chars)"
-            }`,
+            `Expected format: ${expectedFormat}`,
         );
       }
 

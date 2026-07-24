@@ -369,7 +369,7 @@ export function formatPaymentResponseToHydratedOrder(
         usd: Number(sourceAmountUnits),
         priceFromUsd: 1,
         decimals: destToken.decimals,
-        displayDecimals: 2,
+        displayDecimals: 6,
         logoSourceURI: destToken.logoSourceURI,
         logoURI: destToken.logoURI,
         maxAcceptUsd: 100000,
@@ -407,7 +407,7 @@ export function formatPaymentResponseToHydratedOrder(
     lastUpdatedAt: Math.floor(new Date(order.updatedAt).getTime() / 1000),
     orgId: order.orgId ?? "",
     metadata: {
-      ...(order?.metadata ?? {}),
+      ...order?.metadata,
       // Preserve the top-level appId from the payment API response so
       // payId/checkout mode (which has no payParams.appId) can still resolve
       // it via order.metadata.appId (see resolveOrderAppId in connectkit).

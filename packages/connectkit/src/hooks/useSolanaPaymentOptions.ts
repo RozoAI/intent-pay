@@ -10,6 +10,7 @@ import { useMemo } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
+import { formatTokenAmount } from "../utils/format";
 import { useSupportedChains } from "./useSupportedChains";
 
 /** Wallet payment options. User picks one. */
@@ -106,7 +107,7 @@ export function useSolanaPaymentOptions({
           item.balance.token.token,
         )?.fiatISO;
         if (item.balance.usd < usd) {
-          value.disabledReason = `Balance too low: ${item.balance.usd.toFixed(2)} ${destinationFiatISO}`;
+          value.disabledReason = `Balance too low: ${formatTokenAmount(item.balance.usd, 6)} ${destinationFiatISO}`;
         }
         return value;
       }) as WalletPaymentOption[];
