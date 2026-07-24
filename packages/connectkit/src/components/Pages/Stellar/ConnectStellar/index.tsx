@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 
 import {
   ModalContent,
@@ -24,7 +24,14 @@ const ConnectStellar: React.FC = () => {
     supportedWallets,
     walletsLoaded,
     hasWalletConnect,
+    refreshSupportedWallets,
   } = useStellar();
+
+  // Re-fetch wallet availability on mount so isAvailable reflects the actual
+  // browser state (e.g. Freighter extension injected after kit init).
+  useEffect(() => {
+    if (kit) refreshSupportedWallets();
+  }, [kit, refreshSupportedWallets]);
 
   // Detect if we're inside a wallet's in-app browser (e.g. Freighter Mobile).
   // FreighterModule doesn't expose isPlatformWrapper, so we check directly.

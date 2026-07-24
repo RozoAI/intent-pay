@@ -207,12 +207,16 @@ export const StellarContextProvider = ({
       setConnector(option);
 
       if (stellarWalletPersistence) {
-        LocalStorage.add(STELLAR_WALLET_STORAGE_KEY, {
-          walletId: option.id,
-          walletName: option.name,
-          walletIcon: option.icon,
-          publicKey: pk,
-        });
+        LocalStorage.add(
+          STELLAR_WALLET_STORAGE_KEY,
+          {
+            walletId: option.id,
+            walletName: option.name,
+            walletIcon: option.icon,
+            publicKey: pk,
+          },
+          "publicKey",
+        );
       }
 
       log?.(`[Rozo] setWallet completed successfully for: ${option.name}`);

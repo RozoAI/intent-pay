@@ -24,10 +24,14 @@ export function useAutoConnectGate() {
     const anyWalletConnected =
       isEthConnected || isSolanaConnected || isStellarConnected;
 
-    const walletSettling =
-      ethStatus === "reconnecting" ||
-      ethStatus === "connecting" ||
-      isSolanaConnecting;
+    // Only treat wagmi as settling when an EVM wallet is actually connected
+    // or actively connecting. Otherwise wagmi's background reconnect (which
+    // can hang when no EVM wallet is installed) blocks the gate for Stellar-
+    // only users on refresh.
+    const evmSettling =
+      (isEthConnected || ethStatus === "connecting") &&
+      (ethStatus === "reconnecting" || ethStatus === "connecting");
+    const walletSettling = evmSettling || isSolanaConnecting;
 
     const orderPending = paymentState === "idle";
     const orderError = paymentState === "error";

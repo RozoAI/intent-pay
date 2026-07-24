@@ -305,8 +305,14 @@ export const RozoPayModal: React.FC<{
     if (isExplicitBackNavigation) return;
 
     // Direct wallet settling checks — guard against race where isConnected
-    // updates before gateState recomputes
-    if (ethStatus === "reconnecting" || ethStatus === "connecting") return;
+    // updates before gateState recomputes. Only block on wagmi when an EVM
+    // wallet is actually connected or actively connecting — otherwise the
+    // background reconnect (which can hang when no EVM wallet is installed)
+    // blocks Stellar-only auto-navigate on refresh.
+    if (
+      (isEthConnected || ethStatus === "connecting") &&
+      (ethStatus === "reconnecting" || ethStatus === "connecting")
+    ) return;
     if (isSolanaConnecting) return;
     // Note: Stellar doesn't expose a connecting state yet
 
