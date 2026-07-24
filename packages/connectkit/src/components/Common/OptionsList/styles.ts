@@ -15,7 +15,7 @@ export const OptionButton = styled(motion.button)`
   min-height: 64px;
   font-size: 17px;
   font-weight: var(--ck-primary-button-font-weight, 500);
-  line-height: 20px;
+  line-height: 1.35;
   text-align: var(--ck-body-button-text-align, left);
   transition: 180ms ease;
   transition-property: background, color, box-shadow, transform, opacity;
@@ -122,15 +122,15 @@ export const OptionTitle = styled(motion.span)`
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
+  text-wrap: balance;
   width: 100%;
 `;
 
 export const OptionSubtitle = styled(motion.span)`
-  font-size: 14px;
-  opacity: 0.6;
+  font-size: clamp(12px, 3vw, 14px);
+  line-height: 1.45;
+  opacity: 0.65;
   font-weight: 400;
-  // white-space: nowrap;
-  // text-overflow: ellipsis;
   overflow: hidden;
   width: 100%;
 `;

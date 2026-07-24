@@ -14,9 +14,45 @@ import {
   rozoStellar,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
-import { formatUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "./paymentFsm";
+
+/**
+ * Round a decimal amount string to `decimals` fraction digits, string-only
+ * (no `Number()` round-trip), so large-magnitude amounts don't lose
+ * precision before being scaled to atomic units via `parseUnits`.
+ */
+function roundDecimalString(value: string, decimals: number): string {
+  const [wholeRaw, fracRaw = ""] = value.split(".");
+  const whole = wholeRaw || "0";
+  if (fracRaw.length <= decimals) {
+    return decimals === 0 ? whole : `${whole}.${fracRaw.padEnd(decimals, "0")}`;
+  }
+
+  const kept = fracRaw.slice(0, decimals);
+  const roundUp = fracRaw.charCodeAt(decimals) >= "5".charCodeAt(0);
+  if (!roundUp) {
+    return decimals === 0 ? whole : `${whole}.${kept}`;
+  }
+
+  // Propagate the carry through `whole.kept` as a single integer string.
+  const digits = (whole + kept).split("");
+  let i = digits.length - 1;
+  while (i >= 0) {
+    if (digits[i] === "9") {
+      digits[i] = "0";
+      i--;
+    } else {
+      digits[i] = String(Number(digits[i]) + 1);
+      break;
+    }
+  }
+  const carried = i < 0 ? "1" + digits.join("") : digits.join("");
+  const newWhole = carried.slice(0, carried.length - decimals) || "0";
+  const newFrac = carried.slice(carried.length - decimals);
+  return decimals === 0 ? newWhole : `${newWhole}.${newFrac}`;
+}
 
 type OrderLike = RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg;
 
@@ -102,7 +138,10 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     rawAmountUnitsStr = payParams.toUnits ?? "0";
   }
 
-  const rawAmountNumber = Number(rawAmountUnitsStr);
+  const rawAmountAtomic = parseUnits(
+    roundDecimalString(rawAmountUnitsStr, tokenDecimals),
+    tokenDecimals,
+  );
 
   // --------------------------------------------------
   // Preferred payment method (what user will pay with)
@@ -131,12 +170,15 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
   // --------------------------------------------------
   // Fee handling
   // --------------------------------------------------
+  // Fee comes from the wallet quote as a float USD value; it's not the
+  // backend-critical amount, so precision only needs to hold to the
+  // token's atomic-unit resolution.
   const feeUsd = walletOption?.fees.usd ?? 0;
-  const calculatedToUnits =
-    feeType === FeeType.ExactIn ? rawAmountNumber : rawAmountNumber - Number(feeUsd);
+  const feeAtomic = feeType === FeeType.ExactIn ? 0n : parseUnits(feeUsd.toFixed(tokenDecimals), tokenDecimals);
+  const calculatedAtomic = rawAmountAtomic - feeAtomic;
 
   // Clamp to zero to avoid negative amounts when fees exceed amount
-  const safeToUnits = Math.max(calculatedToUnits, 0);
+  const safeAtomic = calculatedAtomic < 0n ? 0n : calculatedAtomic;
 
   // --------------------------------------------------
   // Address & metadata
@@ -173,7 +215,7 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     toAddress,
     preferredChain,
     preferredTokenAddress,
-    toUnits: safeToUnits.toFixed(2),
+    toUnits: formatUnits(safeAtomic, tokenDecimals),
     ...(isAbleToIncludeReceiverMemo && payParams.receiverMemo
       ? { receiverMemo: payParams.receiverMemo }
       : {}),

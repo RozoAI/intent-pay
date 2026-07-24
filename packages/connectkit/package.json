@@ -1,6 +1,6 @@
 {
   "name": "@rozoai/intent-pay",
-  "version": "0.1.38-beta.4",
+  "version": "0.1.38-beta.6",
   "private": false,
   "description": "Seamless crypto payments. Onboard users from any chain, any coin into your app with one click.",
   "keywords": [
@@ -40,6 +40,7 @@
     "lint": "oxlint src/",
     "format": "oxfmt src/",
     "format:check": "oxfmt --check src/",
+    "test": "tsx node_modules/tape/bin/tape test/**/*.test.ts",
     "release": "bumpp",
     "publish:beta": "node scripts/release.js beta",
     "publish:latest": "node scripts/release.js latest"
@@ -48,7 +49,7 @@
     "@reown/appkit": "^1.7.0",
     "@rollup/plugin-image": "^3.0.3",
     "@rollup/plugin-typescript": "^12.1.2",
-    "@rozoai/intent-common": "0.1.25",
+    "@rozoai/intent-common": "0.1.26-beta.1",
     "@solana/spl-memo": "^0.2.5",
     "@solana/spl-token": "^0.4.14",
     "@solana/wallet-adapter-base": "^0.9.27",
@@ -81,7 +82,10 @@
     "oxlint": "latest",
     "rollup": "^3.29.5",
     "rollup-plugin-peer-deps-external": "^2.2.4",
-    "rollup-plugin-visualizer": "^6.0.5"
+    "rollup-plugin-visualizer": "^6.0.5",
+    "tape": "^5.10.2",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.23.1"
   },
   "peerDependencies": {
     "@creit.tech/stellar-wallets-kit": "^1.9.5",

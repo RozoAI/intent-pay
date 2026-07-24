@@ -12,6 +12,7 @@ import { WalletPaymentOption } from "@rozoai/intent-common";
 import { parseUnits } from "viem";
 import styled from "../../../styles/styled";
 import {
+  fallbackDisplayDecimals,
   formatUsd,
   roundTokenAmount,
   roundTokenAmountUnits,
@@ -105,7 +106,7 @@ const MultiCurrencySelectAmount: React.FC<{
     const value = e.target.value;
     const maxDecimals = isEditingUsd
       ? USD_DECIMALS
-      : balanceToken.displayDecimals;
+      : (balanceToken.displayDecimals ?? fallbackDisplayDecimals(balanceToken.decimals));
     if (value !== "" && !isValidNumber(value, maxDecimals)) return;
 
     const sanitizedValue = sanitizeNumber(value);
