@@ -20,6 +20,7 @@ const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 export const metadata: Metadata = {
   title: "Rozo Pay Playground",
   description: "Interactive developer playground for @rozoai/intent-pay",
+  robots: { index: false, follow: false },
 };
 
 export default async function RootLayout({
