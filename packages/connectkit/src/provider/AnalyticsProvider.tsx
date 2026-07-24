@@ -28,7 +28,11 @@ interface PostHogFull extends PostHogCapture {
       disable_session_recording: boolean;
       persistence: string;
     },
-  ) => void;
+    // Named-instance form: posthog-js keys instances by `name` off its
+    // internal registry instead of mutating the shared default singleton.
+    // Required here — see call site below.
+    name?: string,
+  ) => PostHogFull;
   opt_out_capturing: () => void;
 }
 
@@ -75,21 +79,38 @@ export function AnalyticsProvider({
     // Lazy-load posthog-js only when telemetry is on. It's a peer dep so
     // we try/catch — if the host app didn't install it, built-in telemetry
     // silently no-ops rather than crashing.
+    //
+    // Use the NAMED-instance init form (3rd arg), not the default export
+    // directly. `import("posthog-js").then(mod => mod.default)` resolves to
+    // the SAME module-level singleton the host app's own `posthog.init()`
+    // uses (same package, same version = one module instance). Calling
+    // .init() again on that default instance with the SDK's own key mutates
+    // (or, once loaded, silently no-ops on) whatever config the host
+    // already set — so this telemetry either overwrites the host's PostHog
+    // client or gets dropped entirely, depending on init order. The named
+    // form creates/reuses an isolated instance keyed by `name`, fully
+    // independent of the host's default client and of any other named
+    // instance, so this SDK's telemetry always uses ITS OWN key/config
+    // regardless of what else has called posthog.init() on this page.
     let cancelled = false;
     import("posthog-js")
       .then((mod) => {
         if (cancelled) return;
-        const ph = mod.default as PostHogFull;
-        ph.init(POSTHOG_KEY, {
-          api_host: POSTHOG_HOST,
-          person_profiles: "identified_only",
-          capture_pageview: false,
-          capture_pageleave: false,
-          autocapture: false,
-          disable_session_recording: true,
-          persistence: "memory",
-        });
-        builtinRef.current = ph;
+        const ph = mod.default as unknown as PostHogFull;
+        const builtin = ph.init(
+          POSTHOG_KEY,
+          {
+            api_host: POSTHOG_HOST,
+            person_profiles: "identified_only",
+            capture_pageview: false,
+            capture_pageleave: false,
+            autocapture: false,
+            disable_session_recording: true,
+            persistence: "memory",
+          },
+          "rozo-sdk-telemetry",
+        );
+        builtinRef.current = builtin;
       })
       .catch(() => {
         // posthog-js not installed — built-in telemetry silently disabled
