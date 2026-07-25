@@ -22,12 +22,7 @@ import {
   rozoStellar,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
-import {
-  FeeBumpTransaction,
-  Networks,
-  Transaction,
-  TransactionBuilder,
-} from "@stellar/stellar-sdk";
+import type { FeeBumpTransaction, Transaction } from "@stellar/stellar-sdk";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../../lib/analytics/events";
@@ -496,6 +491,10 @@ const PayWithStellarToken: React.FC = () => {
   const handleSubmitTx = async () => {
     if (signedTx && stellarServer && stellarKit) {
       try {
+        // @stellar/stellar-sdk is ~14M — load it only when actually
+        // submitting a Stellar transaction, not on every modal mount.
+        const { Networks, TransactionBuilder } = await import("@stellar/stellar-sdk");
+
         // Sign and submit transaction
         const signedTransaction = await stellarKit.signTransaction(signedTx, {
           address: stellarPublicKey,

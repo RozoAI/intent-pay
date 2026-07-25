@@ -3,7 +3,7 @@ import type {
   StellarWalletsKit,
 } from "@creit.tech/stellar-wallets-kit";
 import { rozoStellarUSDC } from "@rozoai/intent-common";
-import { Asset, Horizon } from "@stellar/stellar-sdk";
+import type { Horizon } from "@stellar/stellar-sdk";
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { DEFAULT_STELLAR_RPC_URL } from "../constants/rozoConfig";
@@ -23,7 +23,7 @@ type StellarContextProviderValue = {
   kit: StellarWalletsKit | undefined;
   isExternalKit: boolean;
   stellarWalletPersistence: boolean;
-  server: Horizon.Server;
+  server: Horizon.Server | undefined;
   publicKey: string | undefined;
   setPublicKey: (publicKey: string) => void;
   account: Horizon.AccountResponse | undefined;
@@ -53,7 +53,7 @@ const initialContext: StellarContextProviderValue = {
   kit: undefined,
   isExternalKit: false,
   stellarWalletPersistence: false,
-  server: undefined as any,
+  server: undefined,
   publicKey: undefined,
   setPublicKey: () => {},
   account: undefined,
@@ -115,9 +115,18 @@ export const StellarContextProvider = ({
     return !!externalKit;
   }, [externalKit]);
 
-  const server = useMemo(() => {
-    const s = new Horizon.Server(rpcUrl ?? DEFAULT_STELLAR_RPC_URL);
-    return s;
+  // @stellar/stellar-sdk is ~14M — load it lazily so it's off the critical
+  // path for first paint. Only needed once a wallet actually connects or a
+  // swap quote is requested, never just to render the connect button.
+  const [server, setServer] = useState<Horizon.Server | undefined>(undefined);
+  useEffect(() => {
+    let mounted = true;
+    import("@stellar/stellar-sdk").then(({ Horizon }) => {
+      if (mounted) setServer(new Horizon.Server(rpcUrl ?? DEFAULT_STELLAR_RPC_URL));
+    });
+    return () => {
+      mounted = false;
+    };
   }, [rpcUrl]);
 
   // Debug: on kit (external/internal) assign/change
@@ -125,7 +134,7 @@ export const StellarContextProvider = ({
 
   const getAccountInfo = async () => {
     try {
-      if (!publicKey) return;
+      if (!publicKey || !server) return;
 
       const data = await server.loadAccount(publicKey);
       setAccountInfo(data);
@@ -139,9 +148,12 @@ export const StellarContextProvider = ({
 
   const convertXlmToUsdc = async (amount: string) => {
     try {
+      const { Asset, Horizon } = await import("@stellar/stellar-sdk");
+      const activeServer =
+        server ?? new Horizon.Server(rpcUrl ?? DEFAULT_STELLAR_RPC_URL);
       const issuer = rozoStellarUSDC.token.split(":")[1];
       const destAsset = new Asset("USDC", issuer);
-      const pathResults = await server
+      const pathResults = await activeServer
         .strictSendPaths(Asset.native(), amount, [destAsset])
         .call();
       if (!pathResults?.records?.length) {

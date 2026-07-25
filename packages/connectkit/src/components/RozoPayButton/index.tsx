@@ -30,7 +30,7 @@ import {
 import { PayParams } from "../../payment/paymentFsm";
 import { useAnalytics } from "../../provider/AnalyticsProvider";
 import { ResetContainer } from "../../styles";
-import { validateAddressForChain } from "../../types/chainAddress";
+import { validateAddressForChainAsync } from "../../types/chainAddress";
 import { parseErrorMessage } from "../../utils/errorParser";
 import { validatePayoutToken } from "../../utils/validatePayoutToken";
 import ThemedButton, { ThemeContainer } from "../Common/ThemedButton";
@@ -226,8 +226,15 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
 
   // Validate address format matches chain type and chain/token support
   useEffect(() => {
-    if ("appId" in props && props.toAddress) {
-      const isValid = validateAddressForChain(props.toChain, props.toAddress);
+    if (!("appId" in props && props.toAddress)) return;
+
+    let cancelled = false;
+    (async () => {
+      const isValid = await validateAddressForChainAsync(
+        props.toChain,
+        props.toAddress,
+      );
+      if (cancelled) return;
 
       if (!isValid) {
         const chain = getChainById(props.toChain);
@@ -256,7 +263,11 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
       } else {
         validationErrorRef.current = null;
       }
-    }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [props]);
 
   // Track previous values to prevent unnecessary API calls

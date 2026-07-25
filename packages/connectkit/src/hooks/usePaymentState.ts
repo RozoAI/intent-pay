@@ -64,7 +64,6 @@ import {
   getAssociatedTokenAddress,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
-import { Asset, Memo, Networks, Operation, TransactionBuilder } from "@stellar/stellar-sdk";
 import bs58 from "bs58";
 import { waitForCallsStatus } from "viem/actions";
 import { PayButtonPaymentProps } from "../components/RozoPayButton/types";
@@ -1082,6 +1081,12 @@ export function usePaymentState({
       } else {
         throw new Error("Unsupported token");
       }
+
+      // @stellar/stellar-sdk is ~14M — load it only when actually building a
+      // Stellar transaction, not on every SDK mount.
+      const { Asset, Memo, Networks, Operation, TransactionBuilder } = await import(
+        "@stellar/stellar-sdk"
+      );
 
       const destAsset = new Asset(walletPaymentOption.required.token.symbol, issuer);
       const fee = String(await stellarServer.fetchBaseFee());
