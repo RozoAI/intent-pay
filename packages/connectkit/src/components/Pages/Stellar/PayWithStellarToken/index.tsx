@@ -73,12 +73,16 @@ const PayWithStellarToken: React.FC = () => {
     kit: stellarKit,
   } = useStellar();
   const submitButtonRef = useRef<HTMLButtonElement>(null);
-  // Prevents the payId fetch+checkout from firing more than once per mount.
-  const checkoutDoneRef = useRef(false);
-  const cachedCheckoutOrderRef = useRef<RozoPayHydratedOrderWithOrg | null>(
-    null,
-  );
-  const cachedCheckoutPaymentIdRef = useRef<string | undefined>(undefined);
+  // Dedupes the payId fetch+checkout across overlapping handleTransfer calls
+  // (e.g. the auto-transfer effect firing twice in quick succession). Claimed
+  // synchronously — before any await — so a second call always sees and
+  // awaits the first call's in-flight promise instead of racing past a
+  // not-yet-true guard.
+  const checkoutInFlightRef = useRef<Promise<{
+    hydratedOrder: RozoPayHydratedOrderWithOrg;
+    paymentId: string | undefined;
+    settlementMode: string | undefined;
+  }> | null>(null);
 
   const { capture } = useAnalytics();
   const [payState, setPayState] = useState<PayState>(
@@ -237,39 +241,47 @@ const PayWithStellarToken: React.FC = () => {
 
       if (isPayIdMode) {
         // payId mode: checkout (refresh) the payment with the selected source token.
-        // Guard against duplicate calls (e.g. from the recursive payment_unpaid branch).
-        if (checkoutDoneRef.current && cachedCheckoutOrderRef.current) {
-          log?.(
-            "[PayWithStellarToken] isPayIdMode checkout already done, reusing cached result",
-          );
-          hydratedOrder = cachedCheckoutOrderRef.current;
-          paymentId = cachedCheckoutPaymentIdRef.current;
+        // Claim checkoutInFlightRef synchronously (no await before this point
+        // in the branch) so a second overlapping handleTransfer call — e.g.
+        // the auto-transfer effect firing twice in quick succession — always
+        // sees and awaits this same promise instead of racing past a
+        // not-yet-set guard and firing a second checkout POST.
+        if (!checkoutInFlightRef.current) {
+          checkoutInFlightRef.current = (async () => {
+            const paymentRes = await getPayment(existingPayId!);
+            if (!paymentRes?.data) {
+              throw new Error("Failed to fetch payment");
+            }
+            const checkoutRes = await checkoutPayment(
+              existingPayId!,
+              buildCheckoutPayload(paymentRes.data, {
+                chainId: option.required.token.chainId,
+                tokenSymbol: option.required.token.symbol,
+                tokenAddress: option.required.token.token,
+                amount: String(option.required.usd),
+              }),
+            );
+            if (!checkoutRes?.data) {
+              throw new Error("Failed to checkout payment");
+            }
+            return {
+              paymentId: checkoutRes.data.id,
+              settlementMode: checkoutRes.data.settlementMode,
+              hydratedOrder: formatPaymentResponseToHydratedOrder(
+                checkoutRes.data,
+              ),
+            };
+          })();
         } else {
-          checkoutDoneRef.current = true;
-          const paymentRes = await getPayment(existingPayId!);
-          if (!paymentRes?.data) {
-            throw new Error("Failed to fetch payment");
-          }
-          const checkoutRes = await checkoutPayment(
-            existingPayId!,
-            buildCheckoutPayload(paymentRes.data, {
-              chainId: option.required.token.chainId,
-              tokenSymbol: option.required.token.symbol,
-              tokenAddress: option.required.token.token,
-              amount: String(option.required.usd),
-            }),
+          log?.(
+            "[PayWithStellarToken] isPayIdMode checkout already in flight, awaiting shared result",
           );
-          if (!checkoutRes?.data) {
-            throw new Error("Failed to checkout payment");
-          }
-          paymentId = checkoutRes.data.id;
-          settlementMode = checkoutRes.data.settlementMode;
-          hydratedOrder = formatPaymentResponseToHydratedOrder(
-            checkoutRes.data,
-          );
-          cachedCheckoutOrderRef.current = hydratedOrder;
-          cachedCheckoutPaymentIdRef.current = paymentId;
         }
+
+        const checkoutResult = await checkoutInFlightRef.current;
+        paymentId = checkoutResult.paymentId;
+        settlementMode = checkoutResult.settlementMode;
+        hydratedOrder = checkoutResult.hydratedOrder;
       } else if (
         (state === "payment_unpaid" || state === "payment_started") &&
         !needRozoPayment
@@ -452,6 +464,11 @@ const PayWithStellarToken: React.FC = () => {
       setPayState(PayState.WaitingForConfirmation);
     } catch (error) {
       console.error("[PayWithStellarToken] Error:", error);
+
+      // Clear the in-flight guard so a Retry Payment click (a genuine new
+      // attempt) can re-checkout instead of forever awaiting this failed
+      // attempt's rejected promise.
+      checkoutInFlightRef.current = null;
 
       // Use `resolvedPaymentId` (the ID from this attempt) rather than
       // the stale `rozoPaymentId` from the React state closure.

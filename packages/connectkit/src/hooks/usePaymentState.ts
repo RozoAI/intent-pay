@@ -233,6 +233,18 @@ export function usePaymentState({
   // Track deposit address calls to prevent duplicates
   const depositAddressCallRef = useRef<Set<DepositAddressPaymentOptions>>(new Set());
 
+  // Dedupes handleCreateRozoPayment's checkout call, keyed by
+  // `${payId}:${chainId}:${tokenAddress}` — so an overlapping call for the
+  // SAME requested source token awaits the first call's in-flight promise
+  // instead of firing a second checkout POST, while a call for a DIFFERENT
+  // source token (e.g. switching USDC Base -> USDT ETH on the same payId)
+  // never reuses a stale result cached under the previous token's key.
+  // Claimed synchronously — before any await — same pattern as
+  // PayWithStellarToken/PayWithSolanaToken's checkoutInFlightRef.
+  const rozoPaymentCheckoutInFlightRef = useRef<
+    Map<string, Promise<PaymentResponse>>
+  >(new Map());
+
   // Browser state.
   const [platform, setPlatform] = useState<PlatformType>();
   useEffect(() => {
@@ -531,25 +543,53 @@ export function usePaymentState({
         throw new Error("No pay params provided");
       }
       try {
-        const paymentRes = await getPayment(existingPayId);
-        if (!paymentRes?.data) {
-          throw new Error("Failed to fetch payment");
+        // Keyed by payId + requested source (chain, token), not payId alone
+        // — a genuinely different source-token selection (e.g. USDC Base ->
+        // USDT ETH on the same payId) must never reuse a cached checkout
+        // result for the PREVIOUS source token. Only truly concurrent
+        // requests for the identical source dedupe.
+        const checkoutCacheKey = `${existingPayId}:${walletOption.required.token.chainId}:${walletOption.required.token.token.toLowerCase()}`;
+
+        // Claim the in-flight slot synchronously (no await before this
+        // point) so an overlapping call for the same key always awaits
+        // this same promise instead of racing a second checkout POST.
+        let inFlight = rozoPaymentCheckoutInFlightRef.current.get(checkoutCacheKey);
+        if (!inFlight) {
+          inFlight = (async () => {
+            const paymentRes = await getPayment(existingPayId);
+            if (!paymentRes?.data) {
+              throw new Error("Failed to fetch payment");
+            }
+            const checkoutRes = await checkoutPayment(
+              existingPayId,
+              buildCheckoutPayload(paymentRes.data, {
+                chainId: walletOption.required.token.chainId,
+                tokenSymbol: walletOption.required.token.symbol,
+                tokenAddress: walletOption.required.token.token,
+                amount: String(walletOption.required.usd),
+              }),
+            );
+            if (!checkoutRes?.data) {
+              throw new Error("Failed to checkout payment");
+            }
+            return checkoutRes.data;
+          })();
+          rozoPaymentCheckoutInFlightRef.current.set(checkoutCacheKey, inFlight);
+        } else {
+          log?.(
+            `[handleCreateRozoPayment] checkout already in flight for ${checkoutCacheKey}, awaiting shared result`,
+          );
         }
-        const checkoutRes = await checkoutPayment(
-          existingPayId,
-          buildCheckoutPayload(paymentRes.data, {
-            chainId: walletOption.required.token.chainId,
-            tokenSymbol: walletOption.required.token.symbol,
-            tokenAddress: walletOption.required.token.token,
-            amount: String(walletOption.required.usd),
-          }),
-        );
-        if (!checkoutRes?.data) {
-          throw new Error("Failed to checkout payment");
-        }
-        setRozoPaymentId(checkoutRes.data.id);
-        return checkoutRes.data;
+
+        const checkoutData = await inFlight;
+        setRozoPaymentId(checkoutData.id);
+        return checkoutData;
       } catch (error) {
+        // Clear the in-flight guard so a genuine retry can re-checkout
+        // instead of forever awaiting this failed attempt's rejection.
+        const checkoutCacheKey = `${existingPayId}:${walletOption.required.token.chainId}:${walletOption.required.token.token.toLowerCase()}`;
+        rozoPaymentCheckoutInFlightRef.current.delete(checkoutCacheKey);
+
         const message = parseErrorMessage(error);
         store.dispatch({
           type: "error",
@@ -624,20 +664,47 @@ export function usePaymentState({
     // const paymentAmount = BigInt(required.amount) + BigInt(fees.amount);
     const paymentAmount = parseUnits(required.usd.toString(), required.token.decimals);
 
-    // Check if we need to create a new Rozo payment (cache this check)
-    const previousChainId = pay.order.preferredChainId ? Number(pay.order.preferredChainId) : null;
+    // Read the freshest order straight from the store instead of the `pay`
+    // closure snapshot. `payWithToken` is a plain (non-useCallback) function
+    // recreated on every usePaymentState render, but the component calling
+    // it (e.g. PayWithToken's handleTransfer) may itself be a memoized
+    // callback holding an older reference — trusting `pay.order` there can
+    // read a stale externalId/preferredChainId (e.g. right after switching
+    // back from a Solana/Stellar checkout) and wrongly hit createPayment
+    // instead of checkout.
+    const currentPayState = pay.store.getState();
+    const currentOrder = assertNotNull(
+      currentPayState.type !== "idle" ? currentPayState.order : pay.order,
+      "[PAY TOKEN] no order available",
+    );
 
-    // If we have an existing payment and chain differs, MUST create new payment
-    // Also check if order has externalId (existing payment) and we're on different chain
-    const hasExistingPayment = pay.order.externalId != null;
+    // Check if we need to refresh the Rozo payment (cache this check).
+    // "Refresh" means checkout, not create — handleCreateRozoPayment routes
+    // to checkout whenever an externalId exists, and only creates a brand
+    // new payment when there isn't one yet.
+    const previousChainId = currentOrder.preferredChainId
+      ? Number(currentOrder.preferredChainId)
+      : null;
+    const previousTokenAddress = currentOrder.preferredTokenAddress ?? null;
+
+    // If we have an existing payment and the selected source token differs
+    // — by chain OR by token address on the same chain (e.g. USDC Base ->
+    // USDT ETH) — the payment must be refreshed via checkout. Comparing
+    // chainId alone missed same-chain token switches, silently reusing the
+    // stale order with no checkout call at all.
+    const hasExistingPayment = currentOrder.externalId != null;
+    const sourceChanged =
+      previousChainId !== required.token.chainId ||
+      (previousTokenAddress != null &&
+        previousTokenAddress.toLowerCase() !== required.token.token.toLowerCase());
     const needRozoPayment =
-      (previousChainId !== null && previousChainId !== required.token.chainId) ||
-      (hasExistingPayment &&
-        previousChainId === null &&
-        pay.order.destFinalCallTokenAmount?.token?.chainId !== required.token.chainId);
+      hasExistingPayment &&
+      (previousChainId !== null || previousTokenAddress != null
+        ? sourceChanged
+        : currentOrder.destFinalCallTokenAmount?.token?.chainId !== required.token.chainId);
 
     log?.(
-      `[PAY TOKEN] Chain check: previous=${previousChainId}, current=${required.token.chainId}, hasExistingPayment=${hasExistingPayment}, needRozoPayment=${needRozoPayment}`,
+      `[PAY TOKEN] Chain check: previousChain=${previousChainId}, previousToken=${previousTokenAddress}, currentChain=${required.token.chainId}, currentToken=${required.token.token}, hasExistingPayment=${hasExistingPayment}, needRozoPayment=${needRozoPayment}`,
     );
 
     // Prepare transaction parameters early (before async operations)
@@ -700,13 +767,16 @@ export function usePaymentState({
       const newId = (paymentId ?? hydratedOrder.externalId) || undefined;
       setRozoPaymentId(newId);
 
-      // Handle payment state transitions
-      const currentState = pay.paymentState;
+      // Handle payment state transitions. Re-read fresh — `currentPayState`
+      // above may itself be stale by now (setPaymentStarted et al. from
+      // needRozoPayment's handleCreateRozoPayment call could have advanced
+      // the FSM since it was captured).
+      const currentState = pay.store.getState().type;
 
       if (currentState === "payment_started" && paymentId) {
         // A new payment was created while in payment_started state (cross-chain switch)
         // First transition back to payment_unpaid, then to payment_started with new order
-        const oldPaymentId = pay.order.externalId;
+        const oldPaymentId = currentOrder.externalId;
         if (oldPaymentId) {
           try {
             await pay.setPaymentUnpaid(oldPaymentId);
