@@ -23,6 +23,7 @@ export default [
       "@trpc/client",
       "@wagmi/connectors",
       "@walletconnect/sign-client",
+      "@walletconnect/universal-provider",
       "@worldcoin/minikit-js",
       "bs58",
       "buffer",
