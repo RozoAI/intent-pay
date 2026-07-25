@@ -7,6 +7,22 @@ declare global {
   let __ROZO_STELLAR_KIT_LOADING__: Promise<StellarWalletsKit> | undefined;
 }
 
+const ROZO_WC_METADATA_URL = "https://rozo.ai";
+
+/**
+ * WalletConnect flags a mismatch between `metadata.url` and the actual page
+ * origin ("configured WalletConnect metadata.url differs from the actual
+ * page url"). Use the real page origin when on a rozo.ai (sub)domain, so the
+ * metadata matches what the wallet actually sees; fall back to rozo.ai for
+ * every other host (consumer apps embedding the SDK on their own domain).
+ */
+function resolveWalletConnectMetadataUrl(): string {
+  if (typeof window === "undefined") return ROZO_WC_METADATA_URL;
+  const { hostname, origin } = window.location;
+  const isRozoDomain = hostname === "rozo.ai" || hostname.endsWith(".rozo.ai");
+  return isRozoDomain ? origin : ROZO_WC_METADATA_URL;
+}
+
 /**
  * Creates or returns existing StellarWalletsKit instance
  * This prevents duplicate custom element registration errors
@@ -70,7 +86,7 @@ export async function getStellarKitInstance(config?: {
         modules: config?.modules || [
           ...allowAllModules(),
           new WalletConnectModule({
-            url: "https://rozo.ai",
+            url: resolveWalletConnectMetadataUrl(),
             projectId: "7440dd8acf85933ffcc775ec6675d4a9",
             description: `Visa Layer for Stablecoins`,
             name: "Rozo",

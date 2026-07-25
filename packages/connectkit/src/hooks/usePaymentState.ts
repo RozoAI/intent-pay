@@ -72,7 +72,10 @@ import { ROUTES } from "../constants/routes";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { getDataSuffix } from "../defaultConnectors";
 import { ROZO_EVENTS } from "../lib/analytics/events";
-import { buildCreatePaymentPayload } from "../payment/createPaymentPayload";
+import {
+  buildCreatePaymentPayload,
+  derivePayIdPreferredTokens,
+} from "../payment/createPaymentPayload";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
 import { useAnalytics } from "../provider/AnalyticsProvider";
 import { useStellar } from "../provider/StellarContextProvider";
@@ -397,17 +400,10 @@ export function usePaymentState({
       };
     }
 
-    // payId mode: derive filtering params from the loaded order so that
-    // payment option hooks apply the same token filtering as appId mode.
-    // e.g. if destination is USDC, only show USDC/USDT sources (not EURC).
+    // payId mode: derive source-token filter from the loaded order.
     if (pay.order && pay.order.destFinalCallTokenAmount) {
       const destSymbol = pay.order.destFinalCallTokenAmount.token.symbol;
-      // Derive preferredSymbol from destination: EURC destinations show EURC,
-      // everything else defaults to USDC + USDT.
-      const preferredSymbol: TokenSymbol[] =
-        destSymbol === TokenSymbol.EURC ? [TokenSymbol.EURC] : [TokenSymbol.USDC, TokenSymbol.USDT];
-
-      const preferredTokens = convertPreferredSymbolsToTokens(preferredSymbol, undefined);
+      const { preferredSymbol, preferredTokens } = derivePayIdPreferredTokens(destSymbol);
 
       return {
         toChain: pay.order.destFinalCallTokenAmount.token.chainId,

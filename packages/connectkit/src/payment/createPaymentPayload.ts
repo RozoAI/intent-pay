@@ -14,10 +14,13 @@ import {
   rozoStellar,
   rozoStellarEURC,
   rozoStellarUSDC,
+  Token,
+  TokenSymbol,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import { formatUnits, parseUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
+import { convertPreferredSymbolsToTokens } from "../utils/token";
 import { PayParams } from "./paymentFsm";
 
 /**
@@ -89,6 +92,26 @@ export function resolveDestinationAddress(payParams: PayParams): string {
     return payParams.toStellarAddress;
   }
   return payParams.toAddress ?? "";
+}
+
+/**
+ * payId mode has no RozoPayButton props to read preferredTokens from, so
+ * source stablecoin filtering must mirror the destination: EURC destination
+ * → source restricted to EURC; any other destination → source restricted to
+ * USDC/USDT (EURC balances can't fund a USD destination, and vice versa).
+ * Non-stablecoin source options (native tokens etc.) are unaffected — this
+ * filter only ever narrows within [USDC, USDT, EURC].
+ */
+export function derivePayIdPreferredTokens(destTokenSymbol: string): {
+  preferredSymbol: TokenSymbol[];
+  preferredTokens: Token[] | undefined;
+} {
+  const preferredSymbol =
+    destTokenSymbol === TokenSymbol.EURC ? [TokenSymbol.EURC] : [TokenSymbol.USDC, TokenSymbol.USDT];
+  return {
+    preferredSymbol,
+    preferredTokens: convertPreferredSymbolsToTokens(preferredSymbol, undefined),
+  };
 }
 
 /**
