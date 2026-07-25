@@ -1,6 +1,6 @@
 {
   "name": "@rozoai/intent-pay",
-  "version": "0.1.38-beta.11",
+  "version": "0.1.38-beta.13",
   "private": false,
   "description": "Seamless crypto payments. Onboard users from any chain, any coin into your app with one click.",
   "keywords": [
@@ -40,6 +40,7 @@
     "lint": "oxlint src/",
     "format": "oxfmt src/",
     "format:check": "oxfmt --check src/",
+    "test": "vitest run",
     "release": "bumpp",
     "publish:beta": "node scripts/release.js beta",
     "publish:latest": "node scripts/release.js latest"
@@ -57,6 +58,7 @@
     "@trpc/client": "^11.0.0-next-beta.318",
     "@trpc/server": "^11.0.0-next-beta.318",
     "@walletconnect/sign-client": "^2.22.3",
+    "@walletconnect/universal-provider": "^2.22.3",
     "@worldcoin/minikit-js": "^1.9.7",
     "bs58": "^6.0.0",
     "buffer": "^6.0.3",
@@ -79,9 +81,10 @@
     "@walletconnect/types": "^2.22.3",
     "oxfmt": "latest",
     "oxlint": "latest",
-    "rollup": "^3.29.5",
+    "rollup": "^4.24.0",
     "rollup-plugin-peer-deps-external": "^2.2.4",
-    "rollup-plugin-visualizer": "^6.0.5"
+    "rollup-plugin-visualizer": "^6.0.5",
+    "vitest": "^3.2.4"
   },
   "peerDependencies": {
     "@creit.tech/stellar-wallets-kit": "^1.9.5",

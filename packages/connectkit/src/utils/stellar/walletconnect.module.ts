@@ -4,7 +4,8 @@ import type {
 } from "@creit.tech/stellar-wallets-kit";
 import { CreateAppKit, createAppKit } from "@reown/appkit";
 import type { SignClientTypes } from "@walletconnect/types";
-import { type default as Client, SignClient } from "@walletconnect/sign-client";
+import { type default as Client } from "@walletconnect/sign-client";
+import { UniversalProvider } from "@walletconnect/universal-provider";
 import type { SessionTypes } from "@walletconnect/types";
 import { parseError } from "../index";
 import { mainnet } from "@reown/appkit/networks";
@@ -73,11 +74,13 @@ export class WalletConnectModule implements ModuleInterface {
   private signClientReady: Promise<void>;
 
   constructor(public wcParams: IWalletConnectConstructorParams) {
-    // Initialize SignClient first — this creates exactly ONE WalletConnect Core.
-    // createAppKit() is called after so it reuses the same Core instance via
-    // manualWCControl, avoiding the "WalletConnect Core is already initialized"
-    // double-init that caused key-store mismatches and relay decryption failures.
-    this.signClientReady = SignClient.init({
+    // UniversalProvider.init() creates exactly ONE WalletConnect Core and
+    // wraps a SignClient internally (exposed as `.client`, same API surface
+    // as SignClient.init()'s previous return value). Passing this same
+    // provider into createAppKit's `universalProvider` option makes AppKit
+    // reuse it instead of creating its own Core — avoiding the "WalletConnect
+    // Core is already initialized" double-init from two independent Cores.
+    this.signClientReady = UniversalProvider.init({
       projectId: wcParams.projectId,
       metadata: {
         name: wcParams.name,
@@ -87,7 +90,9 @@ export class WalletConnectModule implements ModuleInterface {
       },
       ...(wcParams.signClientOptions || {}),
     })
-      .then((client): void => {
+      .then((provider): void => {
+        const client = provider.client as Client;
+
         // Forward the WalletConnect URI to the AppKit modal automatically.
         (
           client as Client & {
@@ -114,34 +119,34 @@ export class WalletConnectModule implements ModuleInterface {
             wcParams.onSessionDeleted!(ev.topic);
           });
         }
+
+        // AppKit is used only for the QR-code modal UI. Passing the already
+        // -initialized provider makes AppKit skip its own Core creation.
+        this.modal = createAppKit({
+          projectId: wcParams.projectId,
+          universalProvider: provider,
+          manualWCControl: true,
+          enableReconnect: true,
+          // mainnet is required by AppKit types; Stellar sessions are handled
+          // entirely through the SignClient, not through AppKit adapters.
+          networks: [mainnet as any],
+          metadata: {
+            name: wcParams.name,
+            url: wcParams.url,
+            description: wcParams.description,
+            icons: wcParams.icons,
+          },
+          featuredWalletIds: [
+            // Freighter
+            "997a355c8f682468706a76cff1b004a7115f505fb962dac54b6e9b442dd1c380",
+            // Lobstr
+            "76a3d548a08cf402f5c7d021f24fd2881d767084b387a5325df88bc3d4b6f21b",
+          ],
+          ...(wcParams.appKitOptions || {}),
+        });
       })
       .catch(console.error);
     // ponytail: fire-and-forget — signClientReady lets isAvailable() await
-
-    // AppKit is used only for the QR-code modal UI. manualWCControl: true tells
-    // it not to create its own WalletConnect Core — it reuses the one SignClient
-    // already created above.
-    this.modal = createAppKit({
-      projectId: wcParams.projectId,
-      manualWCControl: true,
-      enableReconnect: true,
-      // mainnet is required by AppKit types; Stellar sessions are handled
-      // entirely through the SignClient, not through AppKit adapters.
-      networks: [mainnet as any],
-      metadata: {
-        name: wcParams.name,
-        url: wcParams.url,
-        description: wcParams.description,
-        icons: wcParams.icons,
-      },
-      featuredWalletIds: [
-        // Freighter
-        "997a355c8f682468706a76cff1b004a7115f505fb962dac54b6e9b442dd1c380",
-        // Lobstr
-        "76a3d548a08cf402f5c7d021f24fd2881d767084b387a5325df88bc3d4b6f21b",
-      ],
-      ...(wcParams.appKitOptions || {}),
-    });
   }
 
   async isAvailable(): Promise<boolean> {
