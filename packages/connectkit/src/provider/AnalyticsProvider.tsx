@@ -42,6 +42,16 @@ const AnalyticsContext = createContext<AnalyticsContextValue>({
   capture: noop,
 });
 
+// Module-level cache for the named telemetry instance. AnalyticsProvider
+// remounts whenever a host app remounts its provider tree (e.g. a
+// per-route layout that wraps RozoPayProvider fresh on each client-side
+// navigation) — without this, the effect below would call posthog-js's
+// named-instance init() again on every remount. Re-init on an existing
+// name logs "You have already initialized PostHog!" and is a no-op, but
+// the console warning is still spurious noise for host apps. Reusing the
+// cached instance across remounts avoids the duplicate init call entirely.
+let cachedBuiltin: unknown = null;
+
 const SDK_APP_NAME = "rozo-intent-sdk";
 
 /** Properties stripped from built-in telemetry — host app receives them unchanged. */
@@ -75,6 +85,13 @@ export function AnalyticsProvider({
 
   useEffect(() => {
     if (!telemetryEnabled) return;
+
+    // Reuse the cached instance across remounts instead of calling init()
+    // again — see cachedBuiltin comment above.
+    if (cachedBuiltin) {
+      builtinRef.current = cachedBuiltin as PostHogFull;
+      return;
+    }
 
     // Lazy-load posthog-js only when telemetry is on. It's a peer dep so
     // we try/catch — if the host app didn't install it, built-in telemetry
@@ -110,6 +127,7 @@ export function AnalyticsProvider({
           },
           "rozo-sdk-telemetry",
         );
+        cachedBuiltin = builtin;
         builtinRef.current = builtin;
       })
       .catch(() => {
