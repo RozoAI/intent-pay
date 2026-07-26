@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.39] - 2026-07-26
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **sdk**: Cache built-in PostHog instance across AnalyticsProvider remounts &nbsp;-&nbsp; by @akbarsaputrait [<samp>(097c2)</samp>](https://github.com/RozoAI/intent-pay/commit/097c29a4)
+
+---
+
 ## [0.1.38] - 2026-07-26
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
