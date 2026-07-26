@@ -241,7 +241,7 @@ const TitleAmount = styled(motion.h1)<{
   margin-bottom: 24px;
   padding: 0;
   line-height: 1.15;
-  font-size: clamp(28px, 6vw, 48px);
+  font-size: clamp(28px, 12vw, 64px);
   font-weight: var(--ck-modal-h1-font-weight, 600);
   text-wrap: balance;
   overflow: hidden;

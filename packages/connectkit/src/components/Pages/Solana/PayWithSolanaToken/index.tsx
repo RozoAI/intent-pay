@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
 
@@ -65,6 +65,15 @@ const PayWithSolanaToken: React.FC = () => {
     hydrateOrder,
   } = useRozoPay();
   const handleContactClick = useContactSupport();
+  // Dedupes the payId fetch+checkout across overlapping handleTransfer calls
+  // (e.g. the auto-transfer effect firing twice in quick succession). Claimed
+  // synchronously — before any await — so a second call always sees and
+  // awaits the first call's in-flight promise instead of racing a second
+  // checkout POST. See PayWithStellarToken for the same fix + rationale.
+  const checkoutInFlightRef = useRef<Promise<{
+    hydratedOrder: RozoPayHydratedOrderWithOrg;
+    paymentId: string | undefined;
+  }> | null>(null);
 
   const { capture } = useAnalytics();
   const [payState, setPayStateInner] = useState<PayState>(
@@ -202,36 +211,55 @@ const PayWithSolanaToken: React.FC = () => {
         setFeeData(feeData.data);
 
         if (isPayIdMode) {
-          // payId mode: checkout (refresh) the payment with the selected source token
-          const paymentRes = await getPayment(existingPayId!);
-          if (!paymentRes?.data) {
-            throw new Error("Failed to fetch payment");
+          // payId mode: checkout (refresh) the payment with the selected
+          // source token. Claim checkoutInFlightRef synchronously (no await
+          // before this point in the branch) so a second overlapping
+          // handleTransfer call — e.g. the auto-transfer effect firing twice
+          // in quick succession — always sees and awaits this same promise
+          // instead of racing past a not-yet-set guard and firing a second
+          // checkout POST.
+          if (!checkoutInFlightRef.current) {
+            checkoutInFlightRef.current = (async () => {
+              const paymentRes = await getPayment(existingPayId!);
+              if (!paymentRes?.data) {
+                throw new Error("Failed to fetch payment");
+              }
+
+              let sourceChainId = Number(option.required.token.chainId);
+
+              if (sourceChainId === solana.chainId) {
+                sourceChainId = rozoSolana.chainId;
+              }
+
+              const checkoutRes = await checkoutPayment(
+                existingPayId!,
+                buildCheckoutPayload(paymentRes.data, {
+                  chainId: option.required.token.chainId,
+                  tokenSymbol: option.required.token.symbol,
+                  tokenAddress: option.required.token.token,
+                  amount: String(option.required.usd),
+                }),
+              );
+              if (!checkoutRes?.data) {
+                throw new Error("Failed to checkout payment");
+              }
+
+              return {
+                paymentId: checkoutRes.data.id,
+                hydratedOrder: formatPaymentResponseToHydratedOrder(
+                  checkoutRes.data,
+                ),
+              };
+            })();
+          } else {
+            log?.(
+              "[PayWithSolanaToken] isPayIdMode checkout already in flight, awaiting shared result",
+            );
           }
 
-          let sourceChainId = Number(option.required.token.chainId);
-
-          if (sourceChainId === solana.chainId) {
-            sourceChainId = rozoSolana.chainId;
-          }
-
-          const checkoutRes = await checkoutPayment(
-            existingPayId!,
-            buildCheckoutPayload(paymentRes.data, {
-              chainId: option.required.token.chainId,
-              tokenSymbol: option.required.token.symbol,
-              tokenAddress: option.required.token.token,
-              amount: String(option.required.usd),
-            }),
-          );
-          if (!checkoutRes?.data) {
-            throw new Error("Failed to checkout payment");
-          }
-          paymentId = checkoutRes.data.id;
-
-          const formattedOrder = formatPaymentResponseToHydratedOrder(
-            checkoutRes.data,
-          );
-          hydratedOrder = formattedOrder;
+          const checkoutResult = await checkoutInFlightRef.current;
+          paymentId = checkoutResult.paymentId;
+          hydratedOrder = checkoutResult.hydratedOrder;
         } else if (
           (state === "payment_unpaid" || state === "payment_started") &&
           !needRozoPayment
@@ -430,6 +458,12 @@ const PayWithSolanaToken: React.FC = () => {
         }
       } catch (error) {
         console.error("Failed to pay with solana token", error);
+
+        // Clear the in-flight guard so a Retry Payment click (a genuine new
+        // attempt) can re-checkout instead of forever awaiting this failed
+        // attempt's rejected promise.
+        checkoutInFlightRef.current = null;
+
         // Use `resolvedPaymentId` (the ID from this attempt) rather than
         // the stale `rozoPaymentId` from the React state closure.
         const paymentIdToReset = resolvedPaymentId ?? rozoPaymentId;

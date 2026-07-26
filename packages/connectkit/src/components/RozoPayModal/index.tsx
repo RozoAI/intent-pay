@@ -1,5 +1,5 @@
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount, useConnect, useConnectors } from "wagmi";
 
 import { ROUTES } from "../../constants/routes";
@@ -305,8 +305,14 @@ export const RozoPayModal: React.FC<{
     if (isExplicitBackNavigation) return;
 
     // Direct wallet settling checks — guard against race where isConnected
-    // updates before gateState recomputes
-    if (ethStatus === "reconnecting" || ethStatus === "connecting") return;
+    // updates before gateState recomputes. Only block on wagmi when an EVM
+    // wallet is actually connected or actively connecting — otherwise the
+    // background reconnect (which can hang when no EVM wallet is installed)
+    // blocks Stellar-only auto-navigate on refresh.
+    if (
+      (isEthConnected || ethStatus === "connecting") &&
+      (ethStatus === "reconnecting" || ethStatus === "connecting")
+    ) return;
     if (isSolanaConnecting) return;
     // Note: Stellar doesn't expose a connecting state yet
 
@@ -411,7 +417,7 @@ export const RozoPayModal: React.FC<{
     ) {
       // Wait for connection to fully settle, not just isConnected flag
       if (ethStatus === "connecting" || ethStatus === "reconnecting") return;
-      
+
       if (isEthConnected) {
         // Dual-chain connect (e.g. Phantom mobile) just linked both EVM and
         // Solana. Return to the pay page so the user picks which connected

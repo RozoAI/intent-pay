@@ -4,7 +4,8 @@ import type {
 } from "@creit.tech/stellar-wallets-kit";
 import { CreateAppKit, createAppKit } from "@reown/appkit";
 import type { SignClientTypes } from "@walletconnect/types";
-import { type default as Client, SignClient } from "@walletconnect/sign-client";
+import { type default as Client } from "@walletconnect/sign-client";
+import { UniversalProvider } from "@walletconnect/universal-provider";
 import type { SessionTypes } from "@walletconnect/types";
 import { parseError } from "../index";
 import { mainnet } from "@reown/appkit/networks";
@@ -21,14 +22,43 @@ declare const window: Window &
 export const WALLET_CONNECT_ID = "wallet_connect";
 
 const PUBLIC_NETWORK_NAME = "Public Global Stellar Network ; September 2015";
+const WC_SESSION_PATHS_KEY = "rozo_wc_session_paths";
 
 /**
  * In-memory store for WalletConnect session paths (publicKey → topic mappings).
- * Replaces the previous `activeSession` string so signTransaction can find the
- * correct session by the signer's public key rather than relying on a single
- * stored topic that can go stale.
+ * Persisted to localStorage so sessions survive page reloads.
  */
-let wcSessionPaths: Array<{ publicKey: string; topic: string }> = [];
+let wcSessionPaths: Array<{ publicKey: string; topic: string }> =
+  loadSessionPaths();
+
+function loadSessionPaths(): Array<{ publicKey: string; topic: string }> {
+  try {
+    const raw = localStorage.getItem(WC_SESSION_PATHS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistSessionPaths(): void {
+  try {
+    localStorage.setItem(WC_SESSION_PATHS_KEY, JSON.stringify(wcSessionPaths));
+  } catch {
+    // localStorage full or unavailable — silent fail
+  }
+}
+
+function removeSessionPath(topic: string): void {
+  wcSessionPaths = wcSessionPaths.filter((p) => p.topic !== topic);
+  persistSessionPaths();
+}
+
+function addSessionPaths(
+  entries: Array<{ publicKey: string; topic: string }>,
+): void {
+  wcSessionPaths = [...wcSessionPaths, ...entries];
+  persistSessionPaths();
+}
 
 export class WalletConnectModule implements ModuleInterface {
   moduleType: ModuleType = "BRIDGE_WALLET" as ModuleType;
@@ -41,13 +71,16 @@ export class WalletConnectModule implements ModuleInterface {
 
   modal!: ReturnType<typeof createAppKit>;
   signClient!: Client;
+  private signClientReady: Promise<void>;
 
   constructor(public wcParams: IWalletConnectConstructorParams) {
-    // Initialize SignClient first — this creates exactly ONE WalletConnect Core.
-    // createAppKit() is called after so it reuses the same Core instance via
-    // manualWCControl, avoiding the "WalletConnect Core is already initialized"
-    // double-init that caused key-store mismatches and relay decryption failures.
-    SignClient.init({
+    // UniversalProvider.init() creates exactly ONE WalletConnect Core and
+    // wraps a SignClient internally (exposed as `.client`, same API surface
+    // as SignClient.init()'s previous return value). Passing this same
+    // provider into createAppKit's `universalProvider` option makes AppKit
+    // reuse it instead of creating its own Core — avoiding the "WalletConnect
+    // Core is already initialized" double-init from two independent Cores.
+    this.signClientReady = UniversalProvider.init({
       projectId: wcParams.projectId,
       metadata: {
         name: wcParams.name,
@@ -57,7 +90,9 @@ export class WalletConnectModule implements ModuleInterface {
       },
       ...(wcParams.signClientOptions || {}),
     })
-      .then((client): void => {
+      .then((provider): void => {
+        const client = provider.client as Client;
+
         // Forward the WalletConnect URI to the AppKit modal automatically.
         (
           client as Client & {
@@ -69,47 +104,55 @@ export class WalletConnectModule implements ModuleInterface {
 
         // Clean up session paths when a session is deleted from the wallet side.
         client.on("session_delete", (ev: { topic: string }): void => {
-          wcSessionPaths = wcSessionPaths.filter((p) => p.topic !== ev.topic);
+          removeSessionPath(ev.topic);
         });
 
         this.signClient = client;
+
+        // Restore session paths from persisted storage, validating against
+        // live sessions. Stale entries (sessions the wallet closed while the
+        // page was unloaded) are discarded.
+        this.restorePersistedSessions();
 
         if (wcParams.onSessionDeleted) {
           client.on("session_delete", (ev: { topic: string }) => {
             wcParams.onSessionDeleted!(ev.topic);
           });
         }
+
+        // AppKit is used only for the QR-code modal UI. Passing the already
+        // -initialized provider makes AppKit skip its own Core creation.
+        this.modal = createAppKit({
+          projectId: wcParams.projectId,
+          universalProvider: provider,
+          manualWCControl: true,
+          enableReconnect: true,
+          // mainnet is required by AppKit types; Stellar sessions are handled
+          // entirely through the SignClient, not through AppKit adapters.
+          networks: [mainnet as any],
+          metadata: {
+            name: wcParams.name,
+            url: wcParams.url,
+            description: wcParams.description,
+            icons: wcParams.icons,
+          },
+          featuredWalletIds: [
+            // Freighter
+            "997a355c8f682468706a76cff1b004a7115f505fb962dac54b6e9b442dd1c380",
+            // Lobstr
+            "76a3d548a08cf402f5c7d021f24fd2881d767084b387a5325df88bc3d4b6f21b",
+          ],
+          ...(wcParams.appKitOptions || {}),
+        });
       })
       .catch(console.error);
-
-    // AppKit is used only for the QR-code modal UI. manualWCControl: true tells
-    // it not to create its own WalletConnect Core — it reuses the one SignClient
-    // already created above.
-    this.modal = createAppKit({
-      projectId: wcParams.projectId,
-      manualWCControl: true,
-      enableReconnect: true,
-      // mainnet is required by AppKit types; Stellar sessions are handled
-      // entirely through the SignClient, not through AppKit adapters.
-      networks: [mainnet as any],
-      metadata: {
-        name: wcParams.name,
-        url: wcParams.url,
-        description: wcParams.description,
-        icons: wcParams.icons,
-      },
-      featuredWalletIds: [
-        // Freighter
-        "997a355c8f682468706a76cff1b004a7115f505fb962dac54b6e9b442dd1c380",
-        // Lobstr
-        "76a3d548a08cf402f5c7d021f24fd2881d767084b387a5325df88bc3d4b6f21b",
-      ],
-      ...(wcParams.appKitOptions || {}),
-    });
+    // ponytail: fire-and-forget — signClientReady lets isAvailable() await
   }
 
   async isAvailable(): Promise<boolean> {
-    return !!this.signClient && !!this.modal;
+    if (!this.modal) return false;
+    await this.signClientReady;
+    return !!this.signClient;
   }
 
   async isPlatformWrapper(): Promise<boolean> {
@@ -131,8 +174,51 @@ export class WalletConnectModule implements ModuleInterface {
     }
   }
 
+  /**
+   * Restore wcSessionPaths from localStorage and validate against live
+   * WalletConnect sessions. Removes stale entries whose sessions no longer
+   * exist in signClient.session.values.
+   */
+  private restorePersistedSessions(): void {
+    if (!this.signClient) return;
+    const liveTopics = new Set(
+      this.signClient.session.values.map((s) => s.topic),
+    );
+    const valid = wcSessionPaths.filter((p) => liveTopics.has(p.topic));
+    if (valid.length !== wcSessionPaths.length) {
+      wcSessionPaths = valid;
+      persistSessionPaths();
+    }
+  }
+
+  /**
+   * Check for an existing valid WalletConnect session for the given address.
+   * Returns the address if a live session exists, null otherwise.
+   */
+  private getExistingSession(
+    address?: string,
+  ): { address: string } | null {
+    if (!this.signClient) return null;
+    const liveTopics = new Set(
+      this.signClient.session.values.map((s) => s.topic),
+    );
+    // Filter paths to only those backed by a live session
+    const live = wcSessionPaths.filter((p) => liveTopics.has(p.topic));
+    if (live.length === 0) return null;
+
+    const match = address
+      ? live.find((p) => p.publicKey === address)
+      : live[0];
+    if (match && match.publicKey) return { address: match.publicKey };
+    return null;
+  }
+
   async getAddress(): Promise<{ address: string }> {
     await this.runChecks();
+
+    // Reuse existing session if available
+    const existing = this.getExistingSession();
+    if (existing) return existing;
 
     const { uri, approval } = await this.signClient.connect({
       requiredNamespaces: {
@@ -155,26 +241,61 @@ export class WalletConnectModule implements ModuleInterface {
       this.modal.open({ uri });
     }
 
+    // Reject when the user closes the AppKit modal without scanning.
+    // AppKit doesn't expose a close event, so we watch the DOM for the
+    // modal element being removed (the <appkit-modal> web component).
+    let modalObserver: MutationObserver | undefined;
+    const modalClosed = new Promise<never>((_, reject) => {
+      const selector = "appkit-modal, w3m-modal, [data-testid='appkit-modal']";
+      const found = document.querySelector(selector);
+      if (!found) return; // modal not in DOM — approval() will handle it
+
+      modalObserver = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          for (const node of Array.from(m.removedNodes)) {
+            if (
+              node === found ||
+              (node instanceof HTMLElement && node.matches?.(selector))
+            ) {
+              modalObserver?.disconnect();
+              reject(
+                parseError(
+                  new Error("Connection cancelled — modal was closed."),
+                ),
+              );
+              return;
+            }
+          }
+        }
+      });
+      modalObserver.observe(document.body, { childList: true, subtree: true });
+    });
+
     try {
-      const session: SessionTypes.Struct = await approval();
+      const session: SessionTypes.Struct = await Promise.race([
+        approval(),
+        modalClosed,
+      ]);
       const accounts: string[] = session.namespaces.stellar.accounts.map(
         (account: string) => account.split(":")[2],
       );
 
       // Store publicKey → topic mappings for use in signTransaction.
-      wcSessionPaths = [
-        ...wcSessionPaths,
-        ...accounts.map((publicKey: string) => ({
+      addSessionPaths(
+        accounts.map((publicKey: string) => ({
           publicKey,
           topic: session.topic,
         })),
-      ];
+      );
 
       this.modal.close();
       return { address: accounts[0] };
     } catch (e) {
       this.modal.close();
       throw parseError(e as Error);
+    } finally {
+      // Always clean up the observer to avoid leaks
+      modalObserver?.disconnect();
     }
   }
 
@@ -258,7 +379,7 @@ export class WalletConnectModule implements ModuleInterface {
     // store an empty string; signTransaction will still match via topic
     // when no address is provided.
     if (!wcSessionPaths.find((p) => p.topic === sessionId)) {
-      wcSessionPaths.push({ publicKey: "", topic: sessionId });
+      addSessionPaths([{ publicKey: "", topic: sessionId }]);
     }
   }
 
@@ -300,7 +421,7 @@ export class WalletConnectModule implements ModuleInterface {
     if (!this.signClient) {
       throw new Error("WalletConnect is not running yet");
     }
-    wcSessionPaths = wcSessionPaths.filter((p) => p.topic !== sessionId);
+    removeSessionPath(sessionId);
     await this.signClient.disconnect({
       topic: sessionId,
       reason: { message: reason ?? "Session closed", code: -1 },
