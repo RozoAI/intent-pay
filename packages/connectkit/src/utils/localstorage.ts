@@ -59,8 +59,29 @@ export const get = (storageKey: string) => {
   }
 };
 
-export const add = (storageKey: string, item: Record<string, unknown>) => {
+export const add = (
+  storageKey: string,
+  item: Record<string, unknown>,
+  dedupeKey?: string,
+) => {
   const data = get(storageKey);
+
+  if (dedupeKey) {
+    const existingIndex = data.findIndex(
+      (entry: any) => entry[dedupeKey] === item[dedupeKey],
+    );
+    if (existingIndex !== -1) {
+      const newData = [...data];
+      newData[existingIndex] = {
+        ...item,
+        ckStoreKey: data[existingIndex].ckStoreKey,
+        timestamp: new Date(),
+      };
+      save(storageKey, newData);
+      return get(storageKey);
+    }
+  }
+
   const newData = [
     {
       ...item,

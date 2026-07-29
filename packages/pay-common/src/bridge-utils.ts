@@ -363,7 +363,7 @@ export function formatPaymentResponseToHydratedOrder(
         usd: Number(destinationAmountUnits),
         priceFromUsd: 1,
         decimals: destToken.decimals,
-        displayDecimals: 2,
+        displayDecimals: 6,
         logoSourceURI: destToken.logoSourceURI,
         logoURI: destToken.logoURI,
         maxAcceptUsd: 100000,

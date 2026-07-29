@@ -2,6 +2,18 @@ import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@rozoai/intent-pay"],
+  async headers() {
+    return [
+      {
+        source: "/_next/static/:path*",
+        headers: [{ key: "X-Robots-Tag", value: "noindex" }],
+      },
+      {
+        source: "/:path*.css",
+        headers: [{ key: "X-Robots-Tag", value: "noindex" }],
+      },
+    ]
+  },
   webpack: (config) => {
     // Force single wagmi instance across workspace symlink by pointing to the
     // app's own node_modules copy so SDK and app share the same context registry.

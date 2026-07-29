@@ -1,0 +1,139 @@
+# AI PR Review (v2) — official anthropics/claude-code-action on a subscription token.
+#
+# ┌───────────────────────────────────────────────────────────────────────────┐
+# │ SECURITY BOUNDARY — DO NOT change `pull_request` to `pull_request_target`. │
+# └───────────────────────────────────────────────────────────────────────────┘
+# `pull_request` runs in the BASE repo's context but WITHOUT secrets on fork PRs,
+# so a fork PR gets no CLAUDE_CODE_OAUTH_TOKEN and the action no-ops. Never switch
+# to pull_request_target — that would expose the subscription token AND the
+# approver PAT to untrusted fork code.
+#
+# Why v2: the hand-rolled raw-API script kept hitting HTTP 429 on the subscription
+# OAuth token — its fixed backoff can't ride out the subscription raw-/v1/messages
+# rate limit. claude-code-action runs the Claude Code CLI internally, which has
+# subscription-aware 429 backoff.
+#
+# Auto-approve (this file): a SEPARATE, deterministic step approves the PR when
+# the review reports zero blockers — NOT the model self-approving. The action
+# returns a machine-readable verdict via --json-schema; a follow-up step reads
+# `has_blockers` and, only when false, submits an APPROVE using a dedicated
+# approver PAT (AI_REVIEW_APPROVER_TOKEN). The default Actions GITHUB_TOKEN cannot
+# approve PRs (422), and GitHub forbids approving your own PR (also 422) — both
+# are treated as a soft skip, so the review comment still lands.
+
+name: AI PR Review v2
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Least privilege. contents:read to read the diff; pull-requests:write to comment
+# + approve; issues:write to add the ai-review-passed label; id-token for the
+# action's OIDC auth.
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+# One in-flight review per PR; a new push cancels the previous run.
+concurrency:
+  group: ai-pr-review-v2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # Trusted-author gate: only review PRs opened by a login in the repo/org
+    # variable AI_REVIEW_TRUSTED_AUTHORS (comma-separated, space-free). Fork PRs
+    # also lack the secret, so this is belt-and-suspenders.
+    # NOTE: GHA expressions have no replace(); the substring match tolerates the
+    # surrounding commas, so keep AI_REVIEW_TRUSTED_AUTHORS space-free.
+    if: >
+      contains(
+        format(',{0},', vars.AI_REVIEW_TRUSTED_AUTHORS),
+        format(',{0},', github.event.pull_request.user.login)
+      )
+    steps:
+      - name: Checkout PR head (read-only; never executed with secrets)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Claude Code review
+        id: review
+        uses: anthropics/claude-code-action@v1
+        with:
+          # Subscription OAuth token (Pro/Max). Absent on fork PRs -> action no-ops.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Non-interactive automatic run: providing `prompt` triggers a one-shot
+          # review, no @claude mention needed.
+          prompt: |
+            Review the diff of pull request #${{ github.event.pull_request.number }}
+            in ${{ github.repository }}. This is a pre-merge review for the Rozo
+            project (cross-chain USDC / stablecoin payment infrastructure).
+
+            Classify every finding into exactly one severity:
+            - P0 (blocking): leaked secret / private key / API key / JWT in code or
+              logs; weakened or removed auth or Supabase RLS; a public edge function
+              deploy missing --no-verify-jwt; a write to a read-only mirror table;
+              payment / payout / withdrawal logic changed with zero test coverage;
+              a blacklisted wallet address used as a receiver.
+            - P1 (should fix): real bugs, security weaknesses, missing error
+              handling, incorrect logic, meaningful test gaps.
+            - P2 (nice to have): style, naming, readability.
+
+            Be specific and cite file:line. Leave inline comments on specific lines
+            and one summary PR comment. Do NOT approve or merge — a separate
+            automated step decides approval from your verdict.
+
+            After reviewing, return the structured verdict: set has_blockers to true
+            if and only if you found one or more P0 findings; put the P0 count in
+            p0_count; put a one-line summary in summary.
+          # Model + tool allowlist. The allowlist enforces "pure code review, no
+          # network": WebSearch / WebFetch are NOT listed, so the CLI cannot reach
+          # the network. `gh pr review` is deliberately NOT allowed — approval is
+          # done by the separate deterministic step below, never by the model.
+          # --json-schema makes the verdict machine-readable in
+          # steps.review.outputs.structured_output.
+          claude_args: |
+            --model claude-opus-4-8
+            --max-turns 15
+            --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),mcp__github_inline_comment__create_inline_comment"
+            --json-schema '{"type":"object","properties":{"has_blockers":{"type":"boolean"},"p0_count":{"type":"integer"},"summary":{"type":"string"}},"required":["has_blockers","p0_count","summary"],"additionalProperties":false}'
+
+      # ── Deterministic verdict gate (NOT the model) ──────────────────────────
+      # Reads the machine-readable verdict. On zero blockers: label + approve.
+      # Approval uses the dedicated approver PAT and is best-effort: a missing
+      # token, self-approval (author == PAT owner), or org policy all 422 -> the
+      # step logs and skips without failing the job (the review comment already
+      # landed).
+      - name: Label + approve when no blockers
+        if: >
+          steps.review.outputs.structured_output != '' &&
+          fromJSON(steps.review.outputs.structured_output).has_blockers == false
+        env:
+          GH_TOKEN: ${{ secrets.AI_REVIEW_APPROVER_TOKEN }}
+          FALLBACK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          SUMMARY: ${{ fromJSON(steps.review.outputs.structured_output).summary }}
+        run: |
+          set -uo pipefail
+          # Label with the Actions token (can write issues). Best-effort.
+          GH_TOKEN="$FALLBACK_TOKEN" gh pr edit "$PR" --repo "$REPO" \
+            --add-label "ai-review-passed" || echo "label add skipped (may not exist / race)"
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "No AI_REVIEW_APPROVER_TOKEN configured — commenting pass, not approving."
+            echo "AI review: no blockers. (Auto-approve skipped: no approver token.)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Approve with the dedicated PAT. 422 (self-approval / policy / dup) is a soft skip.
+          if gh pr review "$PR" --repo "$REPO" --approve \
+               --body "AI review found no P0 blockers. $SUMMARY"; then
+            echo "Approved PR #$PR." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Approve returned non-zero (likely self-approval or policy 422) — skipping." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+          fi

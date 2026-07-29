@@ -11,6 +11,7 @@ import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
 import { roundTokenAmount } from "../utils/format";
 import { TrpcClient } from "../utils/trpc";
+import { formatTokenAmount } from "../utils/format";
 import { useSupportedChains } from "./useSupportedChains";
 import { isNativeToken } from "../utils/token";
 
@@ -131,7 +132,7 @@ export function useSolanaPaymentOptions({
               item.balance.token,
             )} ${item.balance.token.symbol}`;
           } else if (fiatISO) {
-            value.disabledReason = `Balance too low: ${item.balance.usd.toFixed(2)} ${fiatISO}`;
+            value.disabledReason = `Balance too low: ${formatTokenAmount(item.balance.usd, 6)} ${fiatISO}`;
           } else {
             value.disabledReason = `Balance too low: ${roundTokenAmount(
               item.balance.amount,

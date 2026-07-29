@@ -18,14 +18,7 @@ import {
   rozoStellar,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
-import { isNativeToken } from "../../../../utils/token";
-import {
-  FeeBumpTransaction,
-  Networks,
-  Transaction,
-  TransactionBuilder,
-} from "@stellar/stellar-sdk";
-import { tokenBaseAmountToDecimalString } from "../../../../utils/format";
+import type { FeeBumpTransaction, Transaction } from "@stellar/stellar-sdk";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../../lib/analytics/events";
@@ -72,10 +65,16 @@ const PayWithStellarToken: React.FC = () => {
   // Get the destination address and payment direction using our custom hook
   const { server: stellarServer, publicKey: stellarPublicKey, kit: stellarKit } = useStellar();
   const submitButtonRef = useRef<HTMLButtonElement>(null);
-  // Prevents the payId fetch+checkout from firing more than once per mount.
-  const checkoutDoneRef = useRef(false);
-  const cachedCheckoutOrderRef = useRef<RozoPayHydratedOrderWithOrg | null>(null);
-  const cachedCheckoutPaymentIdRef = useRef<string | undefined>(undefined);
+  // Dedupes the payId fetch+checkout across overlapping handleTransfer calls
+  // (e.g. the auto-transfer effect firing twice in quick succession). Claimed
+  // synchronously — before any await — so a second call always sees and
+  // awaits the first call's in-flight promise instead of racing past a
+  // not-yet-true guard.
+  const checkoutInFlightRef = useRef<Promise<{
+    hydratedOrder: RozoPayHydratedOrderWithOrg;
+    paymentId: string | undefined;
+    settlementMode: string | undefined;
+  }> | null>(null);
 
   const { capture } = useAnalytics();
   const [payState, setPayState] = useState<PayState>(PayState.PreparingTransaction);
@@ -185,6 +184,7 @@ const PayWithStellarToken: React.FC = () => {
 
       let hydratedOrder: RozoPayHydratedOrderWithOrg;
       let paymentId: string | undefined;
+      let settlementMode: string | undefined;
 
       // When payId is used (no payParams), fetch the existing payment instead
       // of creating a new one to avoid re-creating a payment that already exists.
@@ -243,35 +243,51 @@ const PayWithStellarToken: React.FC = () => {
 
       if (isPayIdMode) {
         // payId mode: checkout (refresh) the payment with the selected source token.
-        // Guard against duplicate calls (e.g. from the recursive payment_unpaid branch).
-        if (checkoutDoneRef.current && cachedCheckoutOrderRef.current) {
-          log?.("[PayWithStellarToken] isPayIdMode checkout already done, reusing cached result");
-          hydratedOrder = cachedCheckoutOrderRef.current;
-          paymentId = cachedCheckoutPaymentIdRef.current;
+        // Claim checkoutInFlightRef synchronously (no await before this point
+        // in the branch) so a second overlapping handleTransfer call — e.g.
+        // the auto-transfer effect firing twice in quick succession — always
+        // sees and awaits this same promise instead of racing past a
+        // not-yet-set guard and firing a second checkout POST.
+        if (!checkoutInFlightRef.current) {
+          checkoutInFlightRef.current = (async () => {
+            const paymentRes = await getPayment(existingPayId!);
+            if (!paymentRes?.data) {
+              throw new Error("Failed to fetch payment");
+            }
+            const checkoutRes = await checkoutPayment(
+              existingPayId!,
+              buildCheckoutPayload(paymentRes.data, {
+                chainId: option.required.token.chainId,
+                tokenSymbol: option.required.token.symbol,
+                tokenAddress: option.required.token.token,
+                amount: String(option.required.usd),
+              }),
+            );
+            if (!checkoutRes?.data) {
+              throw new Error("Failed to checkout payment");
+            }
+            return {
+              paymentId: checkoutRes.data.id,
+              settlementMode: checkoutRes.data.settlementMode,
+              hydratedOrder: formatPaymentResponseToHydratedOrder(
+                checkoutRes.data,
+              ),
+            };
+          })();
         } else {
-          checkoutDoneRef.current = true;
-          const paymentRes = await getPayment(existingPayId!);
-          if (!paymentRes?.data) {
-            throw new Error("Failed to fetch payment");
-          }
-          const checkoutRes = await checkoutPayment(
-            existingPayId!,
-            buildCheckoutPayload(paymentRes.data, {
-              chainId: option.required.token.chainId,
-              tokenSymbol: option.required.token.symbol,
-              tokenAddress: option.required.token.token,
-              amount: sourceAmount,
-            }),
+          log?.(
+            "[PayWithStellarToken] isPayIdMode checkout already in flight, awaiting shared result",
           );
-          if (!checkoutRes?.data) {
-            throw new Error("Failed to checkout payment");
-          }
-          paymentId = checkoutRes.data.id;
-          hydratedOrder = formatPaymentResponseToHydratedOrder(checkoutRes.data);
-          cachedCheckoutOrderRef.current = hydratedOrder;
-          cachedCheckoutPaymentIdRef.current = paymentId;
         }
-      } else if ((state === "payment_unpaid" || state === "payment_started") && !needRozoPayment) {
+
+        const checkoutResult = await checkoutInFlightRef.current;
+        paymentId = checkoutResult.paymentId;
+        settlementMode = checkoutResult.settlementMode;
+        hydratedOrder = checkoutResult.hydratedOrder;
+      } else if (
+        (state === "payment_unpaid" || state === "payment_started") &&
+        !needRozoPayment
+      ) {
         hydratedOrder = currentOrder as RozoPayHydratedOrderWithOrg;
       } else if (needRozoPayment) {
         // Backend rejects `checkout` when rotating to a native source
@@ -297,7 +313,10 @@ const PayWithStellarToken: React.FC = () => {
             throw new Error("Failed to checkout payment");
           }
           paymentId = checkoutRes.data.id;
-          hydratedOrder = formatPaymentResponseToHydratedOrder(checkoutRes.data);
+          settlementMode = checkoutRes.data.settlementMode;
+          hydratedOrder = formatPaymentResponseToHydratedOrder(
+            checkoutRes.data,
+          );
         } else {
           const res = await createPayment(
             {
@@ -316,6 +335,7 @@ const PayWithStellarToken: React.FC = () => {
             throw new Error("Failed to create Rozo payment");
           }
           paymentId = res.id;
+          settlementMode = res.settlementMode;
           hydratedOrder = formatPaymentResponseToHydratedOrder(res);
         }
       } else {
@@ -408,6 +428,9 @@ const PayWithStellarToken: React.FC = () => {
         `[PayWithStellarToken] Payment setup - destAddress: ${finalDestAddress}, toChain: ${payParams?.toChain}, token chain: ${option.required.token.chainId}`,
       );
 
+      // For stellar_direct: source IS the destination. Use source address/amount/memo directly.
+      // The hydratedOrder's intentAddr already points to the source (deposit) address,
+      // and fee is "0.00", so we just pass through.
       const paymentData = {
         destAddress: finalDestAddress,
       };
@@ -417,6 +440,10 @@ const PayWithStellarToken: React.FC = () => {
           memo: hydratedOrder.memo,
         });
       }
+
+      log?.(
+        `[PayWithStellarToken] settlementMode: ${settlementMode ?? "none"}, destAddress: ${finalDestAddress}, memo: ${hydratedOrder.memo ?? "none"}`,
+      );
 
       const result = await payWithStellarToken(
         {
@@ -433,6 +460,11 @@ const PayWithStellarToken: React.FC = () => {
       setPayState(PayState.WaitingForConfirmation);
     } catch (error) {
       console.error("[PayWithStellarToken] Error:", error);
+
+      // Clear the in-flight guard so a Retry Payment click (a genuine new
+      // attempt) can re-checkout instead of forever awaiting this failed
+      // attempt's rejected promise.
+      checkoutInFlightRef.current = null;
 
       // Use `resolvedPaymentId` (the ID from this attempt) rather than
       // the stale `rozoPaymentId` from the React state closure.
@@ -469,6 +501,10 @@ const PayWithStellarToken: React.FC = () => {
   const handleSubmitTx = async () => {
     if (signedTx && stellarServer && stellarKit) {
       try {
+        // @stellar/stellar-sdk is ~14M — load it only when actually
+        // submitting a Stellar transaction, not on every modal mount.
+        const { Networks, TransactionBuilder } = await import("@stellar/stellar-sdk");
+
         // Sign and submit transaction
         const signedTransaction = await stellarKit.signTransaction(signedTx, {
           address: stellarPublicKey,

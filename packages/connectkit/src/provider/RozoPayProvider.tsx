@@ -487,37 +487,133 @@ const RozoPayUIProvider = ({
 
 type RozoPayProviderProps = {
   children?: React.ReactNode;
-  theme?: Theme;
-  mode?: Mode;
-  customTheme?: CustomTheme;
-  options?: RozoPayContextOptions;
-  debugMode?: boolean;
-  /** API Version (v1 or v2). Default is v2. */
-  apiVersion?: ApiVersion;
+
   /**
-   * Be careful with this endpoint, some endpoints (incl. Alchemy) don't support
-   * `signatureSubscribe` which leads to txes behaving erratically
-   * (ex. successful txes take minutes to confirm instead of seconds)
+   * Predefined visual theme for the payment modal.
+   * @defaultValue `"auto"` — follows system light/dark preference.
+   */
+  theme?: Theme;
+
+  /**
+   * Force light or dark mode, or follow system preference.
+   * @defaultValue `"auto"` — uses `prefers-color-scheme`.
+   */
+  mode?: Mode;
+
+  /**
+   * Full custom theme object to override colors, fonts, borders, etc.
+   * When provided, overrides the built-in `theme` preset.
+   * @see {@link https://docs.rozo.ai/intent-pay/theming} for theme shape.
+   */
+  customTheme?: CustomTheme;
+
+  /**
+   * Global UI options applied to all RozoPayButton instances.
+   * - `language` — UI language code (default: `"en"`).
+   * - `hideBalance` — hide token balances in the modal. Default `false`.
+   * - `hideTooltips` — disable tooltip hints. Default `false`.
+   * - `hideQuestionMarkCTA` — hide the "?" help CTA. Default `false`.
+   * - `hideNoWalletCTA` — hide the "Don't have a wallet?" CTA. Default `false`.
+   * - `hideRecentBadge` — hide the "Recent" badge on tokens. Default `false`.
+   * - `avoidLayoutShift` — add body padding when modal is open. Default `false`.
+   * - `embedGoogleFonts` — auto-load Google Font for current theme. Default `false`.
+   * - `truncateLongENSAddress` — shorten long ENS names. Default `false`.
+   * - `reducedMotion` — disable animations. Default `false`.
+   * - `disclaimer` — custom disclaimer node shown in the modal.
+   * - `bufferPolyfill` — polyfill `Buffer` for older browsers. Default `false`.
+   * - `customAvatar` — custom avatar component for wallet addresses.
+   * - `initialChainId` — force initial chain selection.
+   * - `enforceSupportedChains` — restrict to supported chains only. Default `false`.
+   * - `ethereumOnboardingUrl` — custom URL for Ethereum wallet onboarding.
+   * - `walletOnboardingUrl` — custom URL for general wallet onboarding.
+   * - `overlayBlur` — blur amount (px) for modal backdrop. Default `0`.
+   * - `disableMobileInjector` — disable mobile wallet deep-link detection. Default `false`.
+   */
+  options?: RozoPayContextOptions;
+
+  /**
+   * Log internal SDK state transitions and API calls to console.
+   * @defaultValue `false`
+   */
+  debugMode?: boolean;
+
+  /**
+   * API version used for payment endpoints.
+   * - `"v1"` — legacy endpoint format.
+   * - `"v2"` — current endpoint format with hydrated orders.
+   * @defaultValue `"v2"`
+   */
+  apiVersion?: ApiVersion;
+
+  /**
+   * Custom Solana RPC endpoint. Some providers (e.g. Alchemy) don't support
+   * `signatureSubscribe`, which causes transactions to take minutes instead of
+   * seconds to confirm. Use a provider that supports WebSocket subscriptions.
+   * @defaultValue Solana public RPC (rate-limited).
    */
   solanaRpcUrl?: string;
+
+  /**
+   * Custom Stellar RPC endpoint for horizon/friendbot access.
+   * @defaultValue Stellar public network RPC.
+   */
   stellarRpcUrl?: string;
 
-  /** Custom Pay API, useful for test and staging. */
+  /**
+   * Override the Pay API base URL. Useful for test/staging environments.
+   * @defaultValue `"https://intentapi.rozo.ai"`
+   */
   payApiUrl?: string;
 
-  /** Stellar custom property */
+  /**
+   * Provide your own StellarWalletsKit instance instead of the built-in one.
+   * Useful when you need custom wallet configuration or want to share a single
+   * kit instance across your app.
+   * @defaultValue Built-in kit with default wallet list.
+   */
   stellarKit?: StellarWalletsKit;
-  /** Persistent Stellar wallet connection (localStorage) in StellarContextProvider. */
+
+  /**
+   * Persist Stellar wallet connection to `localStorage` and auto-reconnect on
+   * page refresh. When `true`, the last connected Stellar wallet is saved under
+   * `rozo-stellar-wallet` and restored automatically on mount.
+   *
+   * **Caveat**: auto-reconnect can cause a brief spinner on refresh when combined
+   * with wagmi's EVM reconnect — see the auto-connect gate for details.
+   * @defaultValue `true`
+   */
   stellarWalletPersistence?: boolean;
-  /** Optional PostHog instance from host app. All payment events fire through it. */
+
+  /**
+   * Host app's PostHog instance. Payment events (started, completed, bounced,
+   * payout_completed) are forwarded to this instance via `capture()`.
+   * When omitted, only built-in SDK telemetry fires (if enabled).
+   */
   posthog?: PostHogCapture;
+
   /**
    * Enable built-in SDK telemetry. Tracks anonymous payment funnel events
-   * (no addresses, amounts, or tx hashes). Respects browser Do Not Track.
-   * Default: true. Set to false to fully disable all built-in tracking.
+   * using the SDK's own PostHog project. Does NOT track addresses, amounts,
+   * or tx hashes. Respects browser Do Not Track.
+   * @defaultValue `true` — set to `false` to fully disable all built-in tracking.
    */
   telemetry?: boolean;
-} & useConnectCallbackProps;
+
+  /**
+   * Called when an EVM wallet connects (not on reconnect).
+   * Receives the connected address and connector ID.
+   */
+  onConnect?: ({
+    address,
+    connectorId,
+  }: {
+    address?: string;
+    connectorId?: string;
+  }) => void;
+
+  /** Called when the EVM wallet disconnects. */
+  onDisconnect?: () => void;
+};
 
 /**
  * Provides context for RozoPayButton and hooks. Place in app root or layout.

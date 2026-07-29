@@ -4,6 +4,35 @@ import { formatUnits, parseUnits } from "viem";
 export const USD_DECIMALS = 2;
 
 /**
+ * Fallback for `token.displayDecimals` when absent. Mirrors
+ * `defaultDisplayDecimals` in @rozoai/intent-common's token.ts — kept local
+ * since connectkit currently pins an older published version of that
+ * package where `displayDecimals` is still required (see PR #57 review).
+ */
+export function fallbackDisplayDecimals(decimals: number): number {
+  return decimals === 18 ? 5 : decimals === 9 ? 4 : 6;
+}
+
+/**
+ * Strip trailing zeros (and a trailing decimal point) from a fixed-decimal
+ * numeric string without round-tripping through `Number`/`parseFloat`,
+ * which rewrite small magnitudes into scientific notation (e.g. "1e-7")
+ * and silently turn non-finite input into "NaN"/"Infinity".
+ */
+export function stripTrailingZeros(value: string): string {
+  if (!value.includes(".")) return value;
+  return value.replace(/0+$/, "").replace(/\.$/, "");
+}
+
+export function formatTokenAmount(amount: number, decimals: number): string {
+  if (!Number.isFinite(amount)) {
+    throw new Error(`formatTokenAmount: non-finite amount ${amount}`);
+  }
+  return stripTrailingZeros(amount.toFixed(decimals));
+}
+
+
+/**
  * Round a number to a given number of decimal places
  *
  * @param round - The rounding strategy to use:
@@ -42,19 +71,22 @@ export function formatUsd(
   usd: number,
   round: "up" | "down" | "nearest" = "down",
   fiatISO = "USD",
+  decimals: number = USD_DECIMALS,
 ): string {
   const currency = fiatISO.toUpperCase();
-  const value = Number(roundUsd(usd, round));
+  const value = Number(roundDecimals(usd, decimals, round));
 
   try {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency,
+      maximumFractionDigits: decimals,
     }).format(value);
   } catch {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
+      maximumFractionDigits: decimals,
     }).format(value);
   }
 }
@@ -95,10 +127,13 @@ export function roundTokenAmount(
 
   const formattedAmount = formatUnits(amountBigInt, token.decimals);
 
-  // Use the token's own displayDecimals so small-quantity, high-unit-value
-  // tokens render meaningfully: forcing 2 dp shows e.g. 0.00089 ETH as
-  // "0.00". Stablecoins keep displayDecimals=2 → "1.00"; natives use 5.
-  return roundDecimals(Number(formattedAmount), token.displayDecimals ?? USD_DECIMALS, round);
+  const displayDecimals = token.displayDecimals ?? fallbackDisplayDecimals(token.decimals);
+  return stripTrailingZeros(roundDecimals(Number(formattedAmount), displayDecimals, round));
+}
+
+/** Strip trailing zeros from a decimal token amount string. e.g. "0.01600" → "0.016" */
+export function trimTokenAmount(amount: string): string {
+  return stripTrailingZeros(amount);
 }
 
 /**
@@ -109,7 +144,9 @@ export function roundTokenAmountUnits(
   token: RozoPayToken,
   round: "up" | "down" | "nearest" = "down",
 ): string {
-  return roundDecimals(amountUnits, token.displayDecimals ?? USD_DECIMALS, round);
+  // Use token.displayDecimals for full precision, strip trailing zeros
+  const displayDecimals = token.displayDecimals ?? fallbackDisplayDecimals(token.decimals);
+  return stripTrailingZeros(roundDecimals(amountUnits, displayDecimals, round));
 }
 
 /**
@@ -224,15 +261,6 @@ export function tokenBaseAmountToDecimalString(
  * human-readable) and converts it up to base units via `parseUnits`;
  * otherwise assumes the string is already an integer base-units amount.
  */
-/**
- * Strip trailing zeros from a non-native token amount string for display.
- * "0.0200" → "0.02", "1.5000" → "1.5", "1.0" → "1"
- * Only for display — never use for calculations or on-chain amounts.
- */
-export function trimTokenAmount(amount: string): string {
-  return String(parseFloat(amount));
-}
-
 export function tokenAmountToBaseUnits(amount: bigint | BigIntStr, decimals: number): bigint {
   if (typeof amount === "string" && amount.includes(".")) {
     return parseUnits(amount, decimals);

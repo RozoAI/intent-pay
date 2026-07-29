@@ -120,7 +120,7 @@ export function useExternalPaymentOptions({
               usd: 1,
               priceFromUsd: 1,
               decimals: 6,
-              displayDecimals: 2,
+              displayDecimals: 6,
               logoSourceURI: TokenLogo.USDC,
               logoURI: TokenLogo.USDC,
               maxAcceptUsd: 100000,

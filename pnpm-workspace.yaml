@@ -23,7 +23,7 @@ allowBuilds:
 overrides:
   playwright-core: "1.61.1"
   "@stellar/stellar-sdk": "^14.4.3"
-  rollup: "^3.29.5"
+  rollup: "^4.24.0"
   bs58: "^6.0.0"
   "@solana/sysvars": "^3.0.3"
   utf-8-validate: "6.0.6"
@@ -31,6 +31,10 @@ overrides:
   react-dom: "18.2.0"
   viem: "^2.23.2"
   wagmi: "^2.14.11"
+  "@walletconnect/core": "2.23.10"
+  "@walletconnect/sign-client": "2.23.10"
+  "@walletconnect/universal-provider": "2.23.10"
+  "@walletconnect/ethereum-provider": "2.23.10"
 
 dedupePeerDependents: true
 
@@ -39,7 +43,7 @@ minimumReleaseAge: 0
 peerDependencyRules:
   allowedVersions:
     "@stellar/stellar-sdk": "14"
-    rollup: "3"
+    rollup: "4"
     react: "18"
     "@types/react": "18"
   ignoreMissing:

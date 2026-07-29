@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.39] - 2026-07-26
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **sdk**: Cache built-in PostHog instance across AnalyticsProvider remounts &nbsp;-&nbsp; by @akbarsaputrait [<samp>(097c2)</samp>](https://github.com/RozoAI/intent-pay/commit/097c29a4)
+
+---
+
+## [0.1.38] - 2026-07-26
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **stellar**:
+  - Add stellar_direct settlement support &nbsp;-&nbsp; by @akbarsaputrait [<samp>(350ba)</samp>](https://github.com/RozoAI/intent-pay/commit/350ba62a)
+  - Improve Stellar wallet UX &nbsp;-&nbsp; by @akbarsaputrait [<samp>(458b0)</samp>](https://github.com/RozoAI/intent-pay/commit/458b0636)
+- **sdk**:
+  - Prevent duplicate checkout calls and stale-order createPayment fallback &nbsp;-&nbsp; by @akbarsaputrait [<samp>(a13ac)</samp>](https://github.com/RozoAI/intent-pay/commit/a13ace70)
+  - Dedupe WalletConnect Core to stop double-init warning &nbsp;-&nbsp; by @akbarsaputrait [<samp>(4e5dc)</samp>](https://github.com/RozoAI/intent-pay/commit/4e5dc1b2)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **stellar**:
+  - Auto connect gate, wallet options, and persistence storage &nbsp;-&nbsp; by @akbarsaputrait [<samp>(ecd37)</samp>](https://github.com/RozoAI/intent-pay/commit/ecd37739)
+  - Address PR review feedback &nbsp;-&nbsp; by @akbarsaputrait [<samp>(62157)</samp>](https://github.com/RozoAI/intent-pay/commit/62157552)
+
+### &nbsp;&nbsp;&nbsp;⚡ Performance
+
+- Lazy-load @stellar/stellar-sdk off the render-critical path &nbsp;-&nbsp; by @akbarsaputrait [<samp>(c0508)</samp>](https://github.com/RozoAI/intent-pay/commit/c0508f01)
+
+### &nbsp;&nbsp;&nbsp;🧪 Tests
+
+- Improve connectkit test &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b8c64)</samp>](https://github.com/RozoAI/intent-pay/commit/b8c64796)
+
+---
+
+
+## [0.1.37] - 2026-07-17
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- **sdk**:
+  - Add wallet deeplink logos with @web3icons/react to CheckoutMode &nbsp;-&nbsp; by @akbarsaputrait [<samp>(d09c5)</samp>](https://github.com/RozoAI/intent-pay/commit/d09c5c6b)
+  - Add ?paymentId query param support to CheckoutMode &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b4815)</samp>](https://github.com/RozoAI/intent-pay/commit/b48150e8)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **sdk**:
+  - Standardize displayDecimals and improve typography &nbsp;-&nbsp; by @akbarsaputrait [<samp>(7318c)</samp>](https://github.com/RozoAI/intent-pay/commit/7318ca40)
+  - Address Codex review - forced-connect timeout re-render + MetaMask deeplink domain &nbsp;-&nbsp; by @akbarsaputrait [<samp>(2c9b0)</samp>](https://github.com/RozoAI/intent-pay/commit/2c9b0804)
+  - Wallet deeplinks point to /checkout path &nbsp;-&nbsp; by @akbarsaputrait [<samp>(0ec72)</samp>](https://github.com/RozoAI/intent-pay/commit/0ec72f60)
+  - Phantom in-app browser race condition in auto-navigate effect &nbsp;-&nbsp; by @akbarsaputrait [<samp>(24b43)</samp>](https://github.com/RozoAI/intent-pay/commit/24b4323c)
+  - Show all supported wallets in MobileConnectors &nbsp;-&nbsp; by @akbarsaputrait [<samp>(dfe91)</samp>](https://github.com/RozoAI/intent-pay/commit/dfe91718)
+  - UserDisconnected flag prevents reconnect loop after Pay-with-another-wallet &nbsp;-&nbsp; by @akbarsaputrait [<samp>(9f33b)</samp>](https://github.com/RozoAI/intent-pay/commit/9f33b0ab)
+  - Mobile wallet UX fixes and connection stability &nbsp;-&nbsp; by @akbarsaputrait [<samp>(0adee)</samp>](https://github.com/RozoAI/intent-pay/commit/0adee842)
+  - Guard window.innerWidth against SSR in ScrollArea/SelectToken &nbsp;-&nbsp; by @akbarsaputrait [<samp>(611be)</samp>](https://github.com/RozoAI/intent-pay/commit/611be293)
+- **example**: Stub @x402/* missing transitive deps from @coinbase/cdp-sdk &nbsp;-&nbsp; by @akbarsaputrait [<samp>(323cc)</samp>](https://github.com/RozoAI/intent-pay/commit/323cc8c3)
+
+### &nbsp;&nbsp;&nbsp;🧹 Chores
+
+- CI(pr-review): migrate to claude-code-action v2, retire raw-API script &nbsp;-&nbsp; by @akbarsaputrait [<samp>(69300)</samp>](https://github.com/RozoAI/intent-pay/commit/69300c6c)
+- Demo: make Rozo Pay Playground non-indexable &nbsp;-&nbsp; by @akbarsaputrait [<samp>(155bb)</samp>](https://github.com/RozoAI/intent-pay/commit/155bb6ba)
+
+---
+
+
 ## [0.1.36] - 2026-07-14
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features

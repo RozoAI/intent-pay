@@ -32,6 +32,8 @@ export type Token = {
   symbol: string;
   /** Token decimals, eg 8 for WBTC */
   decimals: number;
+  /** Display decimals for UI, eg 6 for USDC, 2 for USD. Falls back to `defaultDisplayDecimals(decimals)` when absent. */
+  displayDecimals?: number;
   /** Fiat ISO code for stablecoins, eg "USD" or "EUR" */
   fiatISO?: string;
   /** Logo preview data URI. Generally SVG or 64x64 PNG. */
@@ -39,6 +41,11 @@ export type Token = {
   /** Original source image URL. */
   logoSourceURI: string;
 };
+
+/** Fallback `displayDecimals` for a token when none is set explicitly. */
+export function defaultDisplayDecimals(decimals: number): number {
+  return decimals === 18 ? 5 : decimals === 9 ? 4 : 6;
+}
 
 export enum TokenLogo {
   ETH = "https://imagedelivery.net/AKLvTMvIg6yc9W08fHl1Tg/5dbadc94-b4be-4961-0b5b-8407f885db00/public",
@@ -1236,6 +1243,7 @@ function nativeToken({
     token,
     name,
     decimals,
+    displayDecimals: defaultDisplayDecimals(decimals),
     symbol,
     logoURI,
     logoSourceURI: logoURI,
@@ -1248,6 +1256,7 @@ export function token({
   name,
   symbol,
   decimals,
+  displayDecimals,
   fiatISO,
   logoURI,
 }: {
@@ -1256,6 +1265,7 @@ export function token({
   name: string;
   symbol: string;
   decimals: number;
+  displayDecimals?: number;
   fiatISO?: string;
   logoURI: string;
 }): Token {
@@ -1265,6 +1275,7 @@ export function token({
     name,
     symbol,
     decimals,
+    displayDecimals: displayDecimals ?? defaultDisplayDecimals(decimals),
     fiatISO,
     logoURI,
     logoSourceURI: logoURI,
