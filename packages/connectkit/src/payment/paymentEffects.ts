@@ -350,6 +350,7 @@ async function runSetPayParamsEffects(
         feeType: payParams.feeType,
         receiverMemo: payParams.receiverMemo,
         metadata: payParams.metadata,
+        intent: payParams.intent,
       },
     });
   } catch (e: any) {
@@ -416,6 +417,36 @@ async function runSetPayIdEffects(
   }
 }
 
+/**
+ * Builds the createPayment payload for the hydrate_order effect.
+ *
+ * Exported for testing: `prev.payParamsData` is a narrowed PayParamsData,
+ * not the full PayParams the button originally set — any field this
+ * function's caller needs (e.g. `intent`) must be present on that narrowed
+ * type, or it's silently lost between preview and the actual createPayment
+ * call. See paymentFsm.ts's PayParamsData for the source of truth on what
+ * that narrowing carries.
+ */
+export function buildHydratePayParamsPayload(
+  prev: Extract<PaymentState, { type: "preview" }>,
+  event: Extract<PaymentEvent, { type: "hydrate_order" }>,
+  apiVersion: ApiVersion = "v2",
+) {
+  const payParams = prev.payParamsData;
+  return buildCreatePaymentPayload({
+    // payParamsData only carries a subset; normalise to full PayParams
+    payParams: {
+      ...payParams,
+      appId: payParams.appId ?? DEFAULT_ROZO_APP_ID,
+    } as any,
+    order: prev.order,
+    walletOption: event.walletPaymentOption,
+    apiVersion,
+    feeTypeOverride: payParams.feeType,
+    includeOrderMetadata: true,
+  });
+}
+
 async function runHydratePayParamsEffects(
   store: PaymentStore,
   trpc: TrpcClient,
@@ -443,18 +474,7 @@ async function runHydratePayParamsEffects(
         2,
       )}`,
     );
-    const payload = buildCreatePaymentPayload({
-      // payParamsData only carries a subset; normalise to full PayParams
-      payParams: {
-        ...payParams,
-        appId: payParams.appId ?? DEFAULT_ROZO_APP_ID,
-      } as any,
-      order,
-      walletOption,
-      apiVersion,
-      feeTypeOverride: payParams.feeType,
-      includeOrderMetadata: true,
-    });
+    const payload = buildHydratePayParamsPayload(prev, event, apiVersion);
     log?.(`[Payment Effect]: payload: ${JSON.stringify(payload, null, 2)}`);
 
     const rozoPayment = await createPayment(payload);
