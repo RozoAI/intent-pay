@@ -167,8 +167,8 @@ importers:
         specifier: ^12.1.2
         version: 12.3.0(rollup@4.62.2)(tslib@2.8.1)(typescript@5.5.2)
       '@rozoai/intent-common':
-        specifier: 0.1.26
-        version: 0.1.26(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
+        specifier: workspace:*
+        version: link:../pay-common
       '@solana/spl-memo':
         specifier: ^0.2.5
         version: 0.2.5(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6))
