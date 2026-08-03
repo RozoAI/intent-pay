@@ -1,5 +1,4 @@
 export { setApiConfig, type ApiVersion } from "./api/base";
-export * from "./api/fee";
 export * from "./api/payment";
 export * from "./api/types";
 export * from "./assert";

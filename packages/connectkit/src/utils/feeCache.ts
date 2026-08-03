@@ -1,4 +1,4 @@
-import { getFee, GetFeeParams } from "@rozoai/intent-common";
+import { CreateNewPaymentParams, getFee } from "@rozoai/intent-common";
 
 /**
  * Module-level cache for getFee results, keyed by a stable JSON representation
@@ -23,17 +23,10 @@ const TTL_MS = 60_000;
 
 const cache = new Map<string, CacheEntry>();
 
-export function getCachedFee(params: GetFeeParams): Promise<FeeResult> {
-  const key = JSON.stringify({
-    appId: params.appId ?? null,
-    type: params.type,
-    sourceChainId: params.sourceChainId,
-    sourceTokenSymbol: params.sourceTokenSymbol,
-    amount: params.amount,
-    destChainId: params.destChainId,
-    destReceiverAddress: params.destReceiverAddress,
-    destTokenSymbol: params.destTokenSymbol,
-  });
+export function getCachedFee(
+  params: CreateNewPaymentParams,
+): Promise<FeeResult> {
+  const key = JSON.stringify(params);
 
   const existing = cache.get(key);
 

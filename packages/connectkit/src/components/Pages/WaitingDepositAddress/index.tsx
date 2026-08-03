@@ -13,6 +13,7 @@ import {
   rozoStellar,
   solana,
   stellar,
+  type CreateNewPaymentParams,
   type FeeErrorData,
   type FeeResponseData,
   type Token,
@@ -358,23 +359,26 @@ export default function WaitingDepositAddress() {
           try {
             // @TODO: Handle fee calculation for other currencies
             const destToken = currentOrder?.destFinalCallTokenAmount?.token;
-            const feeResponse = await getFee({
-              type: payParams?.feeType ?? FeeType.ExactIn,
+            const destChainId = destToken?.chainId ?? selectedDepositAddressOption.token.chainId;
+            const destTokenAddress = destToken?.token ?? selectedDepositAddressOption.token.token;
+            const destAddress =
+              (currentOrder
+                ? getCanonicalDestination(currentOrder).finalDestinationAddress
+                : undefined) ??
+              payParams?.toAddress ??
+              "";
+            const feeParams: CreateNewPaymentParams = {
               appId: resolvedAppId,
-              sourceChainId: selectedDepositAddressOption.token.chainId.toString(),
-              sourceTokenSymbol: selectedDepositAddressOption.token.symbol,
-              amount: amount.toString(),
-              destChainId: (
-                destToken?.chainId ?? selectedDepositAddressOption.token.chainId
-              ).toString(),
-              destReceiverAddress:
-                (currentOrder
-                  ? getCanonicalDestination(currentOrder).finalDestinationAddress
-                  : undefined) ??
-                payParams?.toAddress ??
-                "",
-              destTokenSymbol: destToken?.symbol ?? selectedDepositAddressOption.token.symbol,
-            });
+              feeType: payParams?.feeType ?? FeeType.ExactIn,
+              toChain: destChainId,
+              toToken: destTokenAddress,
+              toAddress: destAddress,
+              preferredChain: selectedDepositAddressOption.token.chainId,
+              preferredTokenAddress: selectedDepositAddressOption.token.token,
+              toUnits: amount.toString(),
+              ...(payParams?.intent ? { intent: payParams.intent } : {}),
+            };
+            const feeResponse = await getFee(feeParams);
 
             if (feeResponse.data) {
               feeData = feeResponse.data;

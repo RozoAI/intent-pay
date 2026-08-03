@@ -428,6 +428,11 @@ export function formatPaymentResponseToHydratedOrder(
       receivingAddress: intentAddress ?? "",
       memo: intentMemo ?? null,
       isMerchant: order.isMerchant ?? false,
+      // Backend-decided settlement routing (e.g. "stellar_direct" for direct
+      // same-chain USDC/EURC settlement). Consumer never sets this — it's
+      // read back off the payment response so PayWith*Token flows and any
+      // payId/checkout hydration path can react to it consistently.
+      settlementMode: order.settlementMode,
     } as any,
     externalId: order.externalId ?? order.id ?? null,
     userMetadata: order.userMetadata as RozoPayUserMetadata | null,

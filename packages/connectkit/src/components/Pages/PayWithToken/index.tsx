@@ -1,4 +1,5 @@
 import {
+  CreateNewPaymentParams,
   FeeResponseData,
   FeeType,
   getCanonicalDestination,
@@ -164,19 +165,23 @@ const PayWithToken: React.FC = () => {
         // @NOTE: Fee calculation
         const destToken = currentOrder.destFinalCallTokenAmount?.token;
         setFeeLoading(true);
-        const feeData = await getCachedFee({
-          appId: resolveOrderAppId(currentOrder, paymentState.payParams?.appId),
-          type: paymentState.payParams?.feeType ?? FeeType.ExactIn,
-          sourceChainId: option.required.token.chainId.toString(),
-          sourceTokenSymbol: option.required.token.symbol,
-          amount: option.required.usd.toString(),
-          destChainId: destToken.chainId.toString(),
-          destReceiverAddress:
+        const feeParams: CreateNewPaymentParams = {
+          appId: resolveOrderAppId(currentOrder, paymentState.payParams?.appId) ?? "",
+          feeType: paymentState.payParams?.feeType ?? FeeType.ExactIn,
+          toChain: destToken.chainId,
+          toToken: destToken.token,
+          toAddress:
             getCanonicalDestination(currentOrder).finalDestinationAddress ??
             paymentState.payParams?.toAddress ??
             "",
-          destTokenSymbol: destToken.symbol,
-        });
+          preferredChain: option.required.token.chainId,
+          preferredTokenAddress: option.required.token.token,
+          toUnits: option.required.usd.toString(),
+          ...(paymentState.payParams?.intent
+            ? { intent: paymentState.payParams.intent }
+            : {}),
+        };
+        const feeData = await getCachedFee(feeParams);
         setFeeLoading(false);
 
         if (feeData.error) {
