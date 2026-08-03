@@ -1,7 +1,5 @@
 import {
-  CreateNewPaymentParams,
   FeeResponseData,
-  FeeType,
   getCanonicalDestination,
   getChainExplorerTxUrl,
   WalletPaymentOption,
@@ -14,7 +12,7 @@ import { usePayContext } from "../../../hooks/usePayContext";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
-import { getCachedFee, resolveOrderAppId } from "../../../utils/feeCache";
+import { buildFeeQuoteParams, getCachedFee } from "../../../utils/feeCache";
 import Button from "../../Common/Button";
 import {
   Link,
@@ -165,23 +163,20 @@ const PayWithToken: React.FC = () => {
         // @NOTE: Fee calculation
         const destToken = currentOrder.destFinalCallTokenAmount?.token;
         setFeeLoading(true);
-        const feeParams: CreateNewPaymentParams = {
-          appId: resolveOrderAppId(currentOrder, paymentState.payParams?.appId) ?? "",
-          feeType: paymentState.payParams?.feeType ?? FeeType.ExactIn,
-          toChain: destToken.chainId,
-          toToken: destToken.token,
-          toAddress:
-            getCanonicalDestination(currentOrder).finalDestinationAddress ??
-            paymentState.payParams?.toAddress ??
-            "",
-          preferredChain: option.required.token.chainId,
-          preferredTokenAddress: option.required.token.token,
-          toUnits: option.required.usd.toString(),
-          ...(paymentState.payParams?.intent
-            ? { intent: paymentState.payParams.intent }
-            : {}),
-        };
-        const feeData = await getCachedFee(feeParams);
+        const feeData = await getCachedFee(
+          buildFeeQuoteParams({
+            order: currentOrder,
+            payParams: paymentState.payParams,
+            destChainId: destToken.chainId,
+            destTokenAddress: destToken.token,
+            destAddress:
+              getCanonicalDestination(currentOrder).finalDestinationAddress ??
+              "",
+            sourceChainId: option.required.token.chainId,
+            sourceTokenAddress: option.required.token.token,
+            toUnits: option.required.usd.toString(),
+          }),
+        );
         setFeeLoading(false);
 
         if (feeData.error) {

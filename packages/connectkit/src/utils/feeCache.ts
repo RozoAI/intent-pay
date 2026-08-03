@@ -1,4 +1,4 @@
-import { CreateNewPaymentParams, getFee } from "@rozoai/intent-common";
+import { CreateNewPaymentParams, FeeType, getFee } from "@rozoai/intent-common";
 
 /**
  * Module-level cache for getFee results, keyed by a stable JSON representation
@@ -79,4 +79,54 @@ export function resolveOrderAppId(
   return typeof metaAppId === "string" && metaAppId.length > 0
     ? metaAppId
     : payParamsAppId;
+}
+
+/**
+ * Builds the CreateNewPaymentParams payload shared by every fee-quote call
+ * site (PayWithToken, PayWithSolanaToken, PayWithStellarToken,
+ * WaitingDepositAddress). Centralizing this means a new field on
+ * CreateNewPaymentParams (or a change to how appId/intent are resolved)
+ * only needs to be wired here once instead of at every call site.
+ */
+export function buildFeeQuoteParams(params: {
+  order: { metadata?: unknown } | undefined | null;
+  payParams?: {
+    appId?: string;
+    feeType?: CreateNewPaymentParams["feeType"];
+    toAddress?: string;
+    intent?: string;
+  } | null;
+  /** Destination chain/token — normally the order's destFinalCallTokenAmount.token. */
+  destChainId: number;
+  destTokenAddress: string;
+  /** Destination address — normally getCanonicalDestination(order).finalDestinationAddress. */
+  destAddress: string;
+  /** Source (what the payer sends) chain/token. */
+  sourceChainId: number;
+  sourceTokenAddress: string;
+  /** Amount in destination units. */
+  toUnits: string;
+}): CreateNewPaymentParams {
+  const {
+    order,
+    payParams,
+    destChainId,
+    destTokenAddress,
+    destAddress,
+    sourceChainId,
+    sourceTokenAddress,
+    toUnits,
+  } = params;
+
+  return {
+    appId: resolveOrderAppId(order, payParams?.appId) ?? "",
+    feeType: payParams?.feeType ?? FeeType.ExactIn,
+    toChain: destChainId,
+    toToken: destTokenAddress,
+    toAddress: destAddress || payParams?.toAddress || "",
+    preferredChain: sourceChainId,
+    preferredTokenAddress: sourceTokenAddress,
+    toUnits,
+    ...(payParams?.intent ? { intent: payParams.intent } : {}),
+  };
 }
