@@ -6,6 +6,10 @@ export const WALLET_EVENTS = {
 export const PAYMENT_EVENTS = {
   PAYMENT_FLOW_STARTED: "payment_flow_started",
   PAYMENT_METHOD_SELECTED: "payment_method_selected",
+  /** Concrete chain chosen for the payment. Props: chain_id (number|string),
+   * chain_name, token_symbol, is_default (false = user clicked; true = default
+   * chain applied without an explicit user choice). */
+  CHAIN_SELECTED: "chain_selected",
   PAYMENT_QUOTE_REQUESTED: "payment_quote_requested",
   PAYMENT_QUOTE_RECEIVED: "payment_quote_received",
   PAYMENT_QUOTE_FAILED: "payment_quote_failed",

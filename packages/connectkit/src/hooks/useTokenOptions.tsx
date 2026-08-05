@@ -9,8 +9,12 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Option } from "../components/Common/OptionsList";
 import TokenChainLogo from "../components/Common/TokenChainLogo";
 import { ROUTES } from "../constants/routes";
+import { ROZO_EVENTS, RozoEventName } from "../lib/analytics/events";
+import { useAnalytics } from "../provider/AnalyticsProvider";
 import { formatUsd, roundTokenAmount } from "../utils/format";
 import { usePayContext } from "./usePayContext";
+
+type CaptureFn = (event: RozoEventName, properties?: Record<string, unknown>) => void;
 
 /// Gets token options when paying from a connected wallet. Supports both EVM
 /// and Solana tokens. See OptionsList.
@@ -20,6 +24,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   refreshOptions: () => Promise<void>;
 } {
   const { setRoute, paymentState } = usePayContext();
+  const { capture } = useAnalytics();
   const {
     isDepositFlow,
     connectedWalletOnly,
@@ -94,6 +99,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
           isDepositFlow,
           setSelectedTokenOption,
           setRoute,
+          capture,
           preferredTokens,
         );
     optionsList.push(...evmOptions);
@@ -110,6 +116,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
       isDepositFlow,
       setSelectedSolanaTokenOption,
       setRoute,
+      capture,
       preferredTokens,
     );
     optionsList.push(...solanaOptions);
@@ -127,6 +134,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
           isDepositFlow,
           setSelectedStellarTokenOption,
           setRoute,
+          capture,
           preferredTokens,
         );
     optionsList.push(...stellarOptions);
@@ -404,6 +412,7 @@ function getEvmTokenOptions(
   isDepositFlow: boolean,
   setSelectedTokenOption: (option: WalletPaymentOption) => void,
   setRoute: (route: ROUTES, meta?: any) => void,
+  capture: CaptureFn,
   _preferredTokens?: Token[],
 ) {
   return options.map((option) => {
@@ -429,6 +438,12 @@ function getEvmTokenOptions(
         <TokenChainLogo key={getRozoTokenKey(option.balance.token)} token={option.balance.token} />,
       ],
       onClick: () => {
+        capture(ROZO_EVENTS.CHAIN_SELECTED, {
+          chain_id: option.balance.token.chainId,
+          chain_name: getChainName(option.balance.token.chainId),
+          token_symbol: option.balance.token.symbol,
+          is_default: false,
+        });
         setSelectedTokenOption(option);
         const meta = {
           event: "click-token",
@@ -451,6 +466,7 @@ function getSolanaTokenOptions(
   isDepositFlow: boolean,
   setSelectedSolanaTokenOption: (option: WalletPaymentOption) => void,
   setRoute: (route: ROUTES, meta?: any) => void,
+  capture: CaptureFn,
   _preferredTokens?: Token[],
 ) {
   return options.map((option) => {
@@ -474,6 +490,12 @@ function getSolanaTokenOptions(
         <TokenChainLogo key={getRozoTokenKey(option.balance.token)} token={option.balance.token} />,
       ],
       onClick: () => {
+        capture(ROZO_EVENTS.CHAIN_SELECTED, {
+          chain_id: option.balance.token.chainId,
+          chain_name: "Solana",
+          token_symbol: option.balance.token.symbol,
+          is_default: false,
+        });
         setSelectedSolanaTokenOption(option);
         const meta = {
           event: "click-solana-token",
@@ -496,6 +518,7 @@ function getStellarTokenOptions(
   isDepositFlow: boolean,
   setSelectedStellarTokenOption: (option: WalletPaymentOption) => void,
   setRoute: (route: ROUTES, meta?: any) => void,
+  capture: CaptureFn,
   _preferredTokens?: Token[],
 ) {
   return options.map((option) => {
@@ -519,6 +542,12 @@ function getStellarTokenOptions(
         <TokenChainLogo key={getRozoTokenKey(option.balance.token)} token={option.balance.token} />,
       ],
       onClick: () => {
+        capture(ROZO_EVENTS.CHAIN_SELECTED, {
+          chain_id: option.balance.token.chainId,
+          chain_name: "Stellar",
+          token_symbol: option.balance.token.symbol,
+          is_default: false,
+        });
         setSelectedStellarTokenOption(option);
         const meta = {
           event: "click-stellar-token",
