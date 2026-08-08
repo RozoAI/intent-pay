@@ -327,24 +327,36 @@ export function usePaymentState({
     return currPayParams?.paymentOptions;
   }, [currPayParams?.paymentOptions]);
 
+  // payId mode has no currPayParams (see stablePayParams above) — paymentOptions/
+  // preferredTokens/preferredChains for that mode live only on buttonProps, the
+  // raw props RozoPayButtonCustom publishes via setButtonProps. Falling back to
+  // them here is the same pattern externalPaymentOptions' filterIds already uses.
+  const effectivePaymentOptions = currPayParams?.paymentOptions ?? buttonProps?.paymentOptions;
+  const effectivePreferredTokens = currPayParams?.preferredTokens ?? buttonProps?.preferredTokens;
+  const effectivePreferredChains = currPayParams?.preferredChains ?? buttonProps?.preferredChains;
+
   // Include by default if paymentOptions not provided. Solana bridging is only
   // supported on the destination chain.
   const showSolanaPaymentMethod = useMemo(() => {
-    const paymentOptions = currPayParams?.paymentOptions;
+    if (effectivePreferredChains && effectivePreferredChains.length > 0) {
+      if (!effectivePreferredChains.includes(rozoSolana.chainId)) return false;
+    }
     return (
-      (paymentOptions == null || paymentOptions?.includes(ExternalPaymentOptions.Solana)) &&
+      (effectivePaymentOptions == null ||
+        effectivePaymentOptions?.includes(ExternalPaymentOptions.Solana)) &&
       pay.order != null
       // isCCTPV1Chain(getOrderDestChainId(pay.order))
     );
-  }, [currPayParams?.paymentOptions, pay.order]);
+  }, [effectivePaymentOptions, effectivePreferredChains, pay.order]);
 
   const showStellarPaymentMethod = useMemo(() => {
-    const paymentOptions = currPayParams?.paymentOptions;
-    const preferredTokens = currPayParams?.preferredTokens;
+    if (effectivePreferredChains && effectivePreferredChains.length > 0) {
+      if (!effectivePreferredChains.includes(rozoStellar.chainId)) return false;
+    }
 
     // If preferredTokens exists and has no Stellar tokens, don't show Stellar method
-    if (preferredTokens && preferredTokens.length > 0) {
-      const hasStellarToken = preferredTokens
+    if (effectivePreferredTokens && effectivePreferredTokens.length > 0) {
+      const hasStellarToken = effectivePreferredTokens
         .filter((v) => !!v)
         .some((t) => t.chainId === rozoStellar.chainId);
       if (!hasStellarToken) {
@@ -354,10 +366,11 @@ export function usePaymentState({
 
     // Otherwise, show based on paymentOptions and order
     return (
-      (paymentOptions == null || paymentOptions?.includes(ExternalPaymentOptions.Stellar)) &&
+      (effectivePaymentOptions == null ||
+        effectivePaymentOptions?.includes(ExternalPaymentOptions.Stellar)) &&
       pay.order != null
     );
-  }, [currPayParams?.paymentOptions, pay.order, currPayParams?.preferredTokens]);
+  }, [effectivePaymentOptions, effectivePreferredTokens, effectivePreferredChains, pay.order]);
 
   // Order-independent eligibility for Solana/Stellar. Same rules as
   // show{Solana,Stellar}PaymentMethod but WITHOUT the `pay.order != null` gate,
@@ -366,21 +379,30 @@ export function usePaymentState({
   // The order gate stays on the show* flags because tapping a tile starts a
   // payment (needs an order); auto-navigating to the token screen does not.
   const solanaPaymentEligible = useMemo(() => {
-    const paymentOptions = currPayParams?.paymentOptions;
-    return paymentOptions == null || paymentOptions.includes(ExternalPaymentOptions.Solana);
-  }, [currPayParams?.paymentOptions]);
+    if (effectivePreferredChains && effectivePreferredChains.length > 0) {
+      if (!effectivePreferredChains.includes(rozoSolana.chainId)) return false;
+    }
+    return (
+      effectivePaymentOptions == null ||
+      effectivePaymentOptions.includes(ExternalPaymentOptions.Solana)
+    );
+  }, [effectivePaymentOptions, effectivePreferredChains]);
 
   const stellarPaymentEligible = useMemo(() => {
-    const paymentOptions = currPayParams?.paymentOptions;
-    const preferredTokens = currPayParams?.preferredTokens;
-    if (preferredTokens && preferredTokens.length > 0) {
-      const hasStellarToken = preferredTokens
+    if (effectivePreferredChains && effectivePreferredChains.length > 0) {
+      if (!effectivePreferredChains.includes(rozoStellar.chainId)) return false;
+    }
+    if (effectivePreferredTokens && effectivePreferredTokens.length > 0) {
+      const hasStellarToken = effectivePreferredTokens
         .filter((v) => !!v)
         .some((t) => t.chainId === rozoStellar.chainId);
       if (!hasStellarToken) return false;
     }
-    return paymentOptions == null || paymentOptions.includes(ExternalPaymentOptions.Stellar);
-  }, [currPayParams?.paymentOptions, currPayParams?.preferredTokens]);
+    return (
+      effectivePaymentOptions == null ||
+      effectivePaymentOptions.includes(ExternalPaymentOptions.Stellar)
+    );
+  }, [effectivePaymentOptions, effectivePreferredTokens, effectivePreferredChains]);
 
   // Memoize usdRequired and destChainId to prevent unnecessary refetches when order object reference changes
   const usdRequired = useMemo(
@@ -411,23 +433,38 @@ export function usePaymentState({
       };
     }
 
-    // payId mode: derive source-token filter from the loaded order.
+    // payId mode: derive source-token filter from the loaded order, then let
+    // the button's own preferredChains/preferredTokens/preferredSymbol (never
+    // reachable here otherwise — payId mode has no payParams of its own)
+    // override or narrow that derivation.
     if (pay.order && pay.order.destFinalCallTokenAmount) {
       const destSymbol = pay.order.destFinalCallTokenAmount.token.symbol;
-      const { preferredSymbol, preferredTokens } = derivePayIdPreferredTokens(destSymbol);
+      const derived = derivePayIdPreferredTokens(destSymbol);
+      const preferredSymbol = buttonProps?.preferredSymbol ?? derived.preferredSymbol;
+      let preferredTokens = buttonProps?.preferredTokens ?? derived.preferredTokens;
+      const preferredChains = buttonProps?.preferredChains;
+
+      // Narrow to the requested chains when given. Intersect rather than
+      // replace outright so an unsupported/mistyped chain ID can't silently
+      // empty the token list — falls back to the full derived set instead.
+      if (preferredChains && preferredChains.length > 0 && preferredTokens) {
+        const narrowed = preferredTokens.filter((t) => preferredChains.includes(t.chainId));
+        if (narrowed.length > 0) preferredTokens = narrowed;
+      }
 
       return {
         toChain: pay.order.destFinalCallTokenAmount.token.chainId,
         toToken: pay.order.destFinalCallTokenAmount.token.token,
         toAddress: "",
         preferredTokens,
+        preferredChains,
         appId: stableAppId,
         preferredSymbol,
       } as PayParams;
     }
 
     return undefined;
-  }, [stableAppId, currPayParams, pay.order]);
+  }, [stableAppId, currPayParams, pay.order, buttonProps]);
 
   // UI state. Selection for external payment (Binance, etc) vs wallet payment.
   const externalPaymentOptions = useExternalPaymentOptions({

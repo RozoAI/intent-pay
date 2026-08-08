@@ -122,6 +122,22 @@ export type PayButtonPaymentProps =
       payId: string;
       /** Payment options. By default, all are enabled. */
       paymentOptions?: ExternalPaymentOptionsString[];
+      /**
+       * Preferred chain IDs. Assets on these chains will appear first, and if
+       * they intersect the order's destination-derived tokens, the token list
+       * is filtered down to just those chains.
+       */
+      preferredChains?: number[];
+      /**
+       * Preferred tokens. These appear first in the token list.
+       */
+      preferredTokens?: Token[];
+      /**
+       * Preferred token symbols. These will be converted to preferredTokens
+       * internally. Only USDC, USDT, and EURC are allowed. Defaults to the
+       * symbol(s) implied by the order's destination token.
+       */
+      preferredSymbol?: TokenSymbol[];
     };
 
 type PayButtonCommonProps = PayButtonPaymentProps & {

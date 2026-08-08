@@ -284,6 +284,17 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payId]);
 
+  // Publish raw button props (paymentOptions, preferredChains, preferredTokens,
+  // preferredSymbol) so payId mode can read them — payId mode builds its
+  // payParams from the loaded order (see usePaymentState's stablePayParams),
+  // not from this component's memoized payParams/payId pair, so those props
+  // must reach it via context instead.
+  const { setButtonProps } = paymentState;
+  useEffect(() => {
+    setButtonProps(props);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props, JSON.stringify(props)]);
+
   // Handle payParams changes — separate effect
   // Use JSON.stringify to detect deep changes since payParams is a new object each render
   const payParamsJson = payParams ? JSON.stringify(payParams) : null;
