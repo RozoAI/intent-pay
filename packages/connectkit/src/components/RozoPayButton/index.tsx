@@ -301,6 +301,9 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   const { setButtonProps } = paymentState;
   useEffect(() => {
     setButtonProps(props);
+    // Clear on unmount so a later payId-mode button that passes no props
+    // doesn't inherit this button's preferredChains/paymentOptions.
+    return () => setButtonProps(undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propsJson]);
 

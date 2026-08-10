@@ -1,4 +1,11 @@
-import { CreateNewPaymentParams, FeeType, getFee } from "@rozoai/intent-common";
+import {
+  CreateNewPaymentParams,
+  FeeType,
+  getFee,
+  rozoStellar,
+  rozoStellarEURC,
+  rozoStellarUSDC,
+} from "@rozoai/intent-common";
 
 /**
  * Module-level cache for getFee results, keyed by a stable JSON representation
@@ -42,20 +49,27 @@ export function getCachedFee(
     }
   }
 
-  const promise = getFee(params).then((result) => {
-    // Only cache successful responses; errors should be retryable
-    if (!result.error) {
-      cache.set(key, {
-        status: "resolved",
-        value: result,
-        expiresAt: Date.now() + TTL_MS,
-      });
-    } else {
-      // Remove the pending entry so a subsequent call can retry
+  const promise = getFee(params)
+    .then((result) => {
+      // Only cache successful responses; errors should be retryable
+      if (!result.error) {
+        cache.set(key, {
+          status: "resolved",
+          value: result,
+          expiresAt: Date.now() + TTL_MS,
+        });
+      } else {
+        // Remove the pending entry so a subsequent call can retry
+        cache.delete(key);
+      }
+      return result;
+    })
+    .catch((e: unknown) => {
+      // Rejection poisons the pending entry forever — delete it so a retry
+      // can make a fresh request (e.g. after a bad token/address resolves).
       cache.delete(key);
-    }
-    return result;
-  });
+      throw e;
+    });
 
   cache.set(key, { status: "pending", promise });
   return promise;
@@ -118,6 +132,21 @@ export function buildFeeQuoteParams(params: {
     toUnits,
   } = params;
 
+  // Stellar Direct Settlement: same derivation as buildCreatePaymentPayload
+  // (createPaymentPayload.ts). When both source and destination are Stellar
+  // with the same supported token (USDC or EURC), force intent to
+  // "stellar_direct" so getFee quotes the zero-fee direct-settlement path
+  // instead of the bridge/hub route.
+  const isStellarSameToken =
+    destChainId === rozoStellar.chainId &&
+    sourceChainId === rozoStellar.chainId &&
+    destTokenAddress.toLowerCase() === sourceTokenAddress.toLowerCase();
+  const isSupportedStellarToken =
+    destTokenAddress.toLowerCase() === rozoStellarUSDC.token.toLowerCase() ||
+    destTokenAddress.toLowerCase() === rozoStellarEURC.token.toLowerCase();
+  const isStellarDirect = isStellarSameToken && isSupportedStellarToken;
+  const intent = isStellarDirect ? "stellar_direct" : payParams?.intent;
+
   return {
     appId: resolveOrderAppId(order, payParams?.appId) ?? "",
     feeType: payParams?.feeType ?? FeeType.ExactIn,
@@ -127,6 +156,6 @@ export function buildFeeQuoteParams(params: {
     preferredChain: sourceChainId,
     preferredTokenAddress: sourceTokenAddress,
     toUnits,
-    ...(payParams?.intent ? { intent: payParams.intent } : {}),
+    ...(intent ? { intent } : {}),
   };
 }
