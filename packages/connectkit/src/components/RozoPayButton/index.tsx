@@ -83,6 +83,13 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   const { subscribe, reset } = usePaymentEvents();
   const { capture } = useAnalytics();
 
+  // Stable string key for the whole props object — raw `props` is a new
+  // reference every render, so memos/effects must key off this instead or
+  // they recompute/refire every render, which cascades into an infinite
+  // update loop (React error #185) whenever a resulting setState causes
+  // this component's parent to re-render.
+  const propsJson = JSON.stringify(props);
+
   // Memoize payParams/payId with proper dependency tracking
   // For object/array props, we serialize them to detect deep changes
   const { payParams, payId } = useMemo(() => {
@@ -203,7 +210,8 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
     }
 
     return { payParams: null, payId: null };
-  }, [props, JSON.stringify(props)]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propsJson]);
 
   const { paymentState, log } = context;
   const { order } = useRozoPay();
@@ -268,7 +276,8 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [props]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propsJson]);
 
   // Track previous values to prevent unnecessary API calls
   const prevPayIdRef = useRef<string | null>(null);
@@ -293,7 +302,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   useEffect(() => {
     setButtonProps(props);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props, JSON.stringify(props)]);
+  }, [propsJson]);
 
   // Handle payParams changes — separate effect
   // Use JSON.stringify to detect deep changes since payParams is a new object each render
@@ -321,7 +330,8 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
     if ("redirectReturnUrl" in props && props.redirectReturnUrl) {
       setRedirectReturnUrl(props.redirectReturnUrl as string);
     }
-  }, [props]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propsJson, setRedirectReturnUrl]);
 
   // Set the onOpen and onClose callbacks
   const { setOnOpen, setOnClose } = context;
