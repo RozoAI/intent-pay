@@ -66,7 +66,7 @@ const defaultConfig = ({
 
   const paddedChains: [Chain, ...Chain[]] = [...chains];
   for (const chain of REQUIRED_CHAINS) {
-    if (!paddedChains.includes(chain)) {
+    if (!paddedChains.some((c) => c.id === chain.id)) {
       paddedChains.push(chain);
     }
   }
