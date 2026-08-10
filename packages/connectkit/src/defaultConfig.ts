@@ -48,6 +48,19 @@ export const REQUIRED_CHAINS: CreateConfigParameters["chains"] = [
   hyperEvm,
 ];
 
+/**
+ * Resolves a chain id to its canonical Chain object from REQUIRED_CHAINS.
+ * Transaction call sites (writeContractAsync, sendTransactionAsync, etc.)
+ * should pass this explicitly alongside chainId rather than relying on
+ * wagmi's config.chains registry lookup — if a consumer's own chain object
+ * (e.g. imported from a different resolved copy of viem/wagmi) ever ends up
+ * duplicated in config.chains, registry lookup can resolve `chain: undefined`
+ * for a valid id. Passing the object directly removes that dependency.
+ */
+export function resolveChainObject(chainId: number): Chain | undefined {
+  return REQUIRED_CHAINS.find((c) => c.id === chainId);
+}
+
 /** Rozo Pay recommended config, for use with wagmi's createConfig(). */
 const defaultConfig = ({
   appName = "Rozo Pay",

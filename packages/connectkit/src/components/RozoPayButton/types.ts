@@ -91,7 +91,10 @@ type CommonPaymentProps = {
    */
   preferredChains?: number[];
   /**
-   * Preferred tokens. These appear first in the token list.
+   * Preferred tokens. Wallet payment options are restricted to these
+   * tokens — any connected-wallet balance not matching one of these
+   * (chainId, address) pairs is hidden entirely, not merely ranked lower.
+   * See useWalletPaymentOptions.ts's matchesPreferredTokens.
    */
   preferredTokens?: Token[];
   /**
@@ -129,7 +132,10 @@ export type PayButtonPaymentProps =
        */
       preferredChains?: number[];
       /**
-       * Preferred tokens. These appear first in the token list.
+       * Preferred tokens. Wallet payment options are restricted to these
+       * tokens — any connected-wallet balance not matching one of these
+       * (chainId, address) pairs is hidden entirely, not merely ranked lower.
+       * See useWalletPaymentOptions.ts's matchesPreferredTokens.
        */
       preferredTokens?: Token[];
       /**

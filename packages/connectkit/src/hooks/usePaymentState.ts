@@ -55,6 +55,7 @@ import {
 } from "wagmi";
 import { useWriteContracts } from "wagmi/experimental";
 import { convertPreferredSymbolsToTokens } from "../utils/token";
+import { resolveChainObject } from "../defaultConfig";
 
 import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
 import { createMemoInstruction } from "@solana/spl-memo";
@@ -900,6 +901,11 @@ export function usePaymentState({
             abi: erc20Abi,
             address: tokenAddress!,
             chainId: required.token.chainId,
+            // Pass the chain object explicitly, not just chainId — avoids
+            // depending on wagmi's config.chains registry lookup at call
+            // time, which has surfaced as `chain: undefined (id: 8453)`
+            // in production (see 20260810-intent-pay-chain-undefined-base.md).
+            chain: resolveChainObject(required.token.chainId),
             functionName: "transfer",
             args: [getAddress(destinationAddress), paymentAmount],
             dataSuffix: resolvedDataSuffix,
