@@ -44,6 +44,7 @@ import WaitingDepositAddress from "../Pages/WaitingDepositAddress";
 import WaitingExternal from "../Pages/WaitingExternal";
 import WaitingWallet from "../Pages/WaitingWallet";
 import ConnectUsing from "./ConnectUsing";
+import ConnectWalletConnect from "../Pages/ConnectWalletConnect";
 
 export const RozoPayModal: React.FC<{
   mode: Mode;
@@ -236,6 +237,7 @@ export const RozoPayModal: React.FC<{
     [ROUTES.CONNECTORS]: <Connectors />,
     [ROUTES.MOBILECONNECTORS]: <MobileConnectors />,
     [ROUTES.CONNECT]: <ConnectUsing />,
+    [ROUTES.CONNECT_WALLETCONNECT]: <ConnectWalletConnect />,
     [ROUTES.SWITCHNETWORKS]: <SwitchNetworks />,
   };
 

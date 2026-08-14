@@ -7,7 +7,7 @@ import { useRozoPay } from "../../../hooks/useRozoPay";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { useLastConnector } from "../../../hooks/useLastConnector";
 import { usePayContext } from "../../../hooks/usePayContext";
-import { detectBrowser, isCoinbaseWalletConnector } from "../../../utils";
+import { detectBrowser, isCoinbaseWalletConnector, isWalletConnectConnector } from "../../../utils";
 import {
   WALLET_ID_MOBILE_WALLETS,
   WALLET_ID_OTHER_WALLET,
@@ -141,6 +141,12 @@ const ConnectorItem = ({
 
     // Desktop multi-chain wallet flow: prompt for chain selection.
     if (!isMobile) {
+      if (isWalletConnectConnector(wallet.connector?.id)) {
+        context.setPendingConnectorId(wallet.id);
+        context.setRoute(ROUTES.CONNECT_WALLETCONNECT, meta);
+        return;
+      }
+
       if (wallet.solanaConnectorName) {
         const supportsEvm = wallet.connector?.name != null;
 

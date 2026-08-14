@@ -13,6 +13,11 @@ import { CoinbaseWalletParameters } from "wagmi/connectors";
 
 import defaultConnectors from "./defaultConnectors";
 
+// Rozo's own WalletConnect Cloud project ID — same one used for Stellar's
+// WalletConnectModule (utils/stellar/singleton-import.ts). Consumers can
+// override via walletConnectProjectId if they want their own.
+const ROZO_WALLETCONNECT_PROJECT_ID = "7440dd8acf85933ffcc775ec6675d4a9";
+
 // TODO: Move these to a provider rather than global variable
 let globalAppName: string;
 let globalAppIcon: string;
@@ -32,6 +37,12 @@ type DefaultConfigProps = {
 
   // Additional connectors to use
   additionalConnectors?: CreateConnectorFn[];
+
+  // WalletConnect Cloud project ID (https://cloud.reown.com). Defaults to
+  // Rozo's shared project ID so the WalletConnect wallet option (desktop: our
+  // own QR + copy page; mobile: WalletConnect's own bundled modal) is always
+  // available. Pass your own to use a separate WalletConnect Cloud project.
+  walletConnectProjectId?: string;
 } & Partial<CreateConfigParameters>;
 
 /**
@@ -57,6 +68,7 @@ const defaultConfig = ({
   coinbaseWalletPreference,
   dataSuffix,
   additionalConnectors,
+  walletConnectProjectId = ROZO_WALLETCONNECT_PROJECT_ID,
   chains = REQUIRED_CHAINS,
   client,
   ...props
@@ -97,6 +109,7 @@ const defaultConfig = ({
       coinbaseWalletPreference,
       dataSuffix,
       additionalConnectors,
+      walletConnectProjectId,
     });
 
   const config: CreateConfigParameters<any, any> = {
