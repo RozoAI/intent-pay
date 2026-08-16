@@ -298,14 +298,13 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   // payParams from the loaded order (see usePaymentState's stablePayParams),
   // not from this component's memoized payParams/payId pair, so those props
   // must reach it via context instead.
-  const { setButtonProps } = paymentState;
+  const { setButtonProps, removeButtonProps } = paymentState;
+  const buttonKey = payId ?? `appId-${propsJson}`;
   useEffect(() => {
-    setButtonProps(props);
-    // Clear on unmount so a later payId-mode button that passes no props
-    // doesn't inherit this button's preferredChains/paymentOptions.
-    return () => setButtonProps(undefined);
+    setButtonProps(buttonKey, props);
+    return () => removeButtonProps(buttonKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propsJson]);
+  }, [propsJson, buttonKey, setButtonProps, removeButtonProps]);
 
   // Handle payParams changes — separate effect
   // Use JSON.stringify to detect deep changes since payParams is a new object each render

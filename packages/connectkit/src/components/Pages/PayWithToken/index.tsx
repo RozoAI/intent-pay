@@ -4,6 +4,7 @@ import {
   getChainExplorerTxUrl,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
+import { formatUnits } from "viem";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { ROUTES } from "../../../constants/routes";
@@ -162,6 +163,10 @@ const PayWithToken: React.FC = () => {
 
         // @NOTE: Fee calculation
         const destToken = currentOrder.destFinalCallTokenAmount?.token;
+        const destAmountAtomic = currentOrder.destFinalCallTokenAmount?.amount;
+        const toUnits = destAmountAtomic && destToken
+          ? formatUnits(BigInt(destAmountAtomic), destToken.decimals)
+          : option.required.usd.toString();
         setFeeLoading(true);
         const feeData = await getCachedFee(
           buildFeeQuoteParams({
@@ -174,7 +179,8 @@ const PayWithToken: React.FC = () => {
               "",
             sourceChainId: option.required.token.chainId,
             sourceTokenAddress: option.required.token.token,
-            toUnits: option.required.usd.toString(),
+            toUnits,
+            feeUsd: option.fees.usd,
           }),
         );
         setFeeLoading(false);

@@ -21,6 +21,7 @@ import {
   rozoStellar,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
+import { formatUnits } from "viem";
 import type { FeeBumpTransaction, Transaction } from "@stellar/stellar-sdk";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
@@ -206,6 +207,10 @@ const PayWithStellarToken: React.FC = () => {
 
       // @NOTE: Fee calculation
       const destToken = currentOrder.destFinalCallTokenAmount?.token;
+      const destAmountAtomic = currentOrder.destFinalCallTokenAmount?.amount;
+      const toUnits = destAmountAtomic && destToken
+        ? formatUnits(BigInt(destAmountAtomic), destToken.decimals)
+        : option.required.usd.toString();
       setFeeLoading(true);
       const feeData = await getCachedFee(
         buildFeeQuoteParams({
@@ -218,7 +223,8 @@ const PayWithStellarToken: React.FC = () => {
             "",
           sourceChainId: option.required.token.chainId,
           sourceTokenAddress: option.required.token.token,
-          toUnits: option.required.usd.toString(),
+          toUnits,
+          feeUsd: option.fees.usd,
         }),
       );
       setFeeLoading(false);

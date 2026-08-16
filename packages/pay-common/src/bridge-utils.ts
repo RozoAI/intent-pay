@@ -398,14 +398,15 @@ export function formatPaymentResponseToHydratedOrder(
     sourceTokenAmount: null,
     sourceInitiateTxHash: order.sourceInitiateTxHash ?? null,
     sourceStatus: RozoPayOrderStatusSource.WAITING_PAYMENT,
-    sourceStartTxHash: order.sourceStartTxHash ?? null,
+    sourceStartTxHash: order.sourceStartTxHash ?? order.source?.txHash ?? null,
     destStatus: RozoPayOrderStatusDest.PENDING,
-    destFastFinishTxHash: order.destFastFinishTxHash ?? null,
+    destFastFinishTxHash: order.destFastFinishTxHash ?? order.destination?.txHash ?? null,
     destClaimTxHash: order.destClaimTxHash ?? null,
     redirectUri: null,
     createdAt: Math.floor(new Date(order.createdAt).getTime() / 1000),
     lastUpdatedAt: Math.floor(new Date(order.updatedAt).getTime() / 1000),
     orgId: order.orgId ?? "",
+    payoutTransactionHash: order.destination?.txHash ?? null,
     metadata: {
       ...order?.metadata,
       // Preserve the top-level appId from the payment API response so

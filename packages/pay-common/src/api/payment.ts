@@ -218,7 +218,22 @@ export const getFee = async (
     setApiConfig({ version: params.apiVersion });
   }
 
-  const paymentData = buildPaymentRequestBody(params);
+  let paymentData: CreatePaymentRequest;
+  try {
+    paymentData = buildPaymentRequestBody(params);
+  } catch (e) {
+    // buildPaymentRequestBody throws if source/destination tokens are not
+    // in the known token registry (e.g. exotic tokens, deposit addresses).
+    // Return a structured error instead of throwing, so callers can handle
+    // gracefully (show "fee unknown" instead of hard error).
+    const message =
+      e instanceof Error ? e.message : "Fee calculation failed: token not found";
+    return {
+      data: null,
+      error: new Error(message),
+      status: 400,
+    };
+  }
 
   const result = await apiClient.post<FeeResponseData | FeeErrorData>(
     "payment-api/payments",

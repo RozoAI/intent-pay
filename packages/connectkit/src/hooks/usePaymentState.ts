@@ -101,9 +101,13 @@ export interface PaymentState {
   generatePreviewOrder: () => void;
   resetOrder: (payParams?: Partial<PayParams> | null) => Promise<void>;
 
-  /// RozoPayButton props
+  /// RozoPayButton props (resolved for the current payId, or undefined in appId mode)
   buttonProps: PayButtonPaymentProps | undefined;
-  setButtonProps: (props: PayButtonPaymentProps | undefined) => void;
+  buttonPropsMap: Map<string, PayButtonPaymentProps>;
+  setButtonProps: (key: string, props: PayButtonPaymentProps) => void;
+  removeButtonProps: (key: string) => void;
+  /// Current payId (for payId mode buttons) to look up buttonProps
+  currentPayId: string | undefined;
 
   /// Modal options
   connectedWalletOnly: boolean;
@@ -289,8 +293,28 @@ export function usePaymentState({
   const stellarPubKey = stellarPublicKey;
 
   // From RozoPayButton props
-  const [buttonProps, setButtonProps] = useState<PayButtonPaymentProps>();
+  const [buttonPropsMap, setButtonPropsMap] = useState<Map<string, PayButtonPaymentProps>>(new Map());
+  const [currentPayId, setCurrentPayId] = useState<string | undefined>(undefined);
   const [currPayParams, setCurrPayParams] = useState<PayParams>();
+
+  const setButtonProps = useCallback((key: string, props: PayButtonPaymentProps) => {
+    setButtonPropsMap((prev) => {
+      const next = new Map(prev);
+      next.set(key, props);
+      return next;
+    });
+  }, []);
+
+  const removeButtonProps = useCallback((key: string) => {
+    setButtonPropsMap((prev) => {
+      const next = new Map(prev);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
+  // Derive buttonProps for the current payId (payId mode) or undefined (appId mode)
+  const buttonProps = currentPayId ? buttonPropsMap.get(currentPayId) : undefined;
 
   // Ref to store latest payParams synchronously to avoid stale closures
   const currPayParamsRef = useRef<PayParams>();
@@ -334,13 +358,28 @@ export function usePaymentState({
   // them here is the same pattern externalPaymentOptions' filterIds already uses.
   const effectivePaymentOptions = currPayParams?.paymentOptions ?? buttonProps?.paymentOptions;
   const effectivePreferredTokens = currPayParams?.preferredTokens ?? buttonProps?.preferredTokens;
+  // Helper: normalize preferredChains to accept both rozo and native chain IDs
+  const solanaChainIds = useMemo(() => [solana.chainId, rozoSolana.chainId], []);
+  const stellarChainIds = useMemo(() => [stellar.chainId, rozoStellar.chainId], []);
+
+  const includesSolanaChain = useCallback(
+    (chains: number[] | undefined) =>
+      chains?.some((c) => solanaChainIds.includes(c)) ?? false,
+    [],
+  );
+  const includesStellarChain = useCallback(
+    (chains: number[] | undefined) =>
+      chains?.some((c) => stellarChainIds.includes(c)) ?? false,
+    [],
+  );
+
   const effectivePreferredChains = currPayParams?.preferredChains ?? buttonProps?.preferredChains;
 
   // Include by default if paymentOptions not provided. Solana bridging is only
   // supported on the destination chain.
   const showSolanaPaymentMethod = useMemo(() => {
     if (effectivePreferredChains && effectivePreferredChains.length > 0) {
-      if (!effectivePreferredChains.includes(rozoSolana.chainId)) return false;
+      if (!includesSolanaChain(effectivePreferredChains)) return false;
     }
     return (
       (effectivePaymentOptions == null ||
@@ -348,18 +387,18 @@ export function usePaymentState({
       pay.order != null
       // isCCTPV1Chain(getOrderDestChainId(pay.order))
     );
-  }, [effectivePaymentOptions, effectivePreferredChains, pay.order]);
+  }, [effectivePaymentOptions, effectivePreferredChains, pay.order, includesSolanaChain]);
 
   const showStellarPaymentMethod = useMemo(() => {
     if (effectivePreferredChains && effectivePreferredChains.length > 0) {
-      if (!effectivePreferredChains.includes(rozoStellar.chainId)) return false;
+      if (!includesStellarChain(effectivePreferredChains)) return false;
     }
 
     // If preferredTokens exists and has no Stellar tokens, don't show Stellar method
     if (effectivePreferredTokens && effectivePreferredTokens.length > 0) {
       const hasStellarToken = effectivePreferredTokens
         .filter((v) => !!v)
-        .some((t) => t.chainId === rozoStellar.chainId);
+        .some((t) => stellarChainIds.includes(t.chainId));
       if (!hasStellarToken) {
         return false;
       }
@@ -371,7 +410,7 @@ export function usePaymentState({
         effectivePaymentOptions?.includes(ExternalPaymentOptions.Stellar)) &&
       pay.order != null
     );
-  }, [effectivePaymentOptions, effectivePreferredTokens, effectivePreferredChains, pay.order]);
+  }, [effectivePaymentOptions, effectivePreferredTokens, effectivePreferredChains, pay.order, includesStellarChain, stellarChainIds]);
 
   // Order-independent eligibility for Solana/Stellar. Same rules as
   // show{Solana,Stellar}PaymentMethod but WITHOUT the `pay.order != null` gate,
@@ -381,29 +420,29 @@ export function usePaymentState({
   // payment (needs an order); auto-navigating to the token screen does not.
   const solanaPaymentEligible = useMemo(() => {
     if (effectivePreferredChains && effectivePreferredChains.length > 0) {
-      if (!effectivePreferredChains.includes(rozoSolana.chainId)) return false;
+      if (!includesSolanaChain(effectivePreferredChains)) return false;
     }
     return (
       effectivePaymentOptions == null ||
       effectivePaymentOptions.includes(ExternalPaymentOptions.Solana)
     );
-  }, [effectivePaymentOptions, effectivePreferredChains]);
+  }, [effectivePaymentOptions, effectivePreferredChains, includesSolanaChain]);
 
   const stellarPaymentEligible = useMemo(() => {
     if (effectivePreferredChains && effectivePreferredChains.length > 0) {
-      if (!effectivePreferredChains.includes(rozoStellar.chainId)) return false;
+      if (!includesStellarChain(effectivePreferredChains)) return false;
     }
     if (effectivePreferredTokens && effectivePreferredTokens.length > 0) {
       const hasStellarToken = effectivePreferredTokens
         .filter((v) => !!v)
-        .some((t) => t.chainId === rozoStellar.chainId);
+        .some((t) => stellarChainIds.includes(t.chainId));
       if (!hasStellarToken) return false;
     }
     return (
       effectivePaymentOptions == null ||
       effectivePaymentOptions.includes(ExternalPaymentOptions.Stellar)
     );
-  }, [effectivePaymentOptions, effectivePreferredTokens, effectivePreferredChains]);
+  }, [effectivePaymentOptions, effectivePreferredTokens, effectivePreferredChains, includesStellarChain, stellarChainIds]);
 
   // Memoize usdRequired and destChainId to prevent unnecessary refetches when order object reference changes
   const usdRequired = useMemo(
@@ -449,7 +488,12 @@ export function usePaymentState({
       // replace outright so an unsupported/mistyped chain ID can't silently
       // empty the token list — falls back to the full derived set instead.
       if (preferredChains && preferredChains.length > 0 && preferredTokens) {
-        const narrowed = preferredTokens.filter((t) => preferredChains.includes(t.chainId));
+        const narrowed = preferredTokens.filter((t) => {
+          const chainIds = [t.chainId];
+          if (t.chainId === solana.chainId) chainIds.push(rozoSolana.chainId);
+          if (t.chainId === stellar.chainId) chainIds.push(rozoStellar.chainId);
+          return chainIds.some((id) => preferredChains.includes(id));
+        });
         if (narrowed.length > 0) preferredTokens = narrowed;
       }
 
@@ -471,7 +515,7 @@ export function usePaymentState({
   const externalPaymentOptions = useExternalPaymentOptions({
     trpc,
     // allow <RozoPayButton payId={...} paymentOptions={override} />
-    filterIds: buttonProps?.paymentOptions ?? pay.order?.metadata.payer?.paymentOptions,
+    filterIds: effectivePaymentOptions ?? pay.order?.metadata.payer?.paymentOptions,
     platform,
     usdRequired,
     mode: pay.order?.mode,
@@ -1503,6 +1547,7 @@ export function usePaymentState({
       setSenderAddress(undefined);
       setRoute(ROUTES.SELECT_METHOD);
 
+      setCurrentPayId(payId);
       pay.setPayId(payId);
     },
     [lockPayParams, pay],
@@ -1649,7 +1694,10 @@ export function usePaymentState({
 
   return {
     buttonProps,
+    buttonPropsMap,
     setButtonProps,
+    removeButtonProps,
+    currentPayId,
     connectedWalletOnly,
     setConnectedWalletOnly,
     setPayId,

@@ -62,11 +62,27 @@ const Confirmation: React.FC = () => {
   // Whether this is a non-merchant (rozo) payment — stellar, solana, or evm with a user-submitted txHash
   const { tokens: supportedTokens } = useSupportedChains();
 
+  // stellar_direct optimization: when settlementMode is "stellar_direct" and
+  // source txHash === destination txHash, the same Stellar transaction settles
+  // both deposit and payout. Skip Pusher/polling entirely — the payout txHash
+  // is known as soon as the pay-in txHash is confirmed.
+  const isStellarDirectSameTx = useMemo(() => {
+    if (!order) return false;
+    const settlementMode = (order.metadata as any)?.settlementMode;
+    if (settlementMode !== "stellar_direct") return false;
+    const sourceTx = order.sourceStartTxHash ?? order.metadata?.payinTransactionHash;
+    const destTx = order.payoutTransactionHash ?? order.destFastFinishTxHash ?? order.destClaimTxHash;
+    return !!sourceTx && !!destTx && sourceTx === destTx;
+  }, [order]);
+
   // showProcessingPayout: true only when the merchant explicitly opts in AND
   // the API tells us this is not a merchant payment (isMerchant = false).
   // Merchant payments always resolve immediately — no payout waiting step.
   const showProcessingPayout = useMemo(() => {
     const { payParams, tokenMode } = paymentStateContext;
+
+    // Skip payout waiting when stellar_direct settles source and dest in same tx
+    if (isStellarDirectSameTx) return false;
 
     // If the API says this is a merchant payment, always suppress payout step
     if (order && "metadata" in order && order.metadata != null) {
@@ -81,7 +97,7 @@ const Confirmation: React.FC = () => {
     }
 
     return false;
-  }, [order, paymentStateContext]);
+  }, [order, paymentStateContext, isStellarDirectSameTx]);
 
   // Compute Pusher payout URL at render time to avoid stale closure issues
   // (the onPayoutCompleted callback may have stale `order` reference)
@@ -452,10 +468,24 @@ const Confirmation: React.FC = () => {
       });
 
       setPaymentCompleted(rawPayInHash, rozoPaymentId, paymentStateContext.senderAddress ?? null);
+
+      // For stellar_direct where source and dest txHash are identical, the payout
+      // is already settled by the same transaction — skip Pusher/polling and
+      // mark payout completed directly.
+      if (isStellarDirectSameTx) {
+        const payoutKey = `${rawPayInHash}-${rozoPaymentId}`;
+        if (payoutCompletedSent.current !== payoutKey) {
+          payoutCompletedSent.current = payoutKey;
+          payoutCompletedRef.current = true;
+          setPaymentPayoutCompleted(rawPayInHash, rozoPaymentId);
+          context.log("[CONFIRMATION] stellar_direct: payout completed directly (same txHash)");
+        }
+      }
+
       onSuccess();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [done, paymentStateContext, rawPayInHash, rozoPaymentId]);
+  }, [done, paymentStateContext, rawPayInHash, rozoPaymentId, isStellarDirectSameTx]);
 
   /**
    * Sets the payout completed state.
