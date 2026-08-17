@@ -7,3 +7,6 @@ dist/
 config.bat
 .impeccable
 .github/skills/
+
+graphify-out/
+bundle-analysis.html

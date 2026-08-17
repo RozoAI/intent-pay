@@ -1,6 +1,5 @@
 import {
   DepositAddressPaymentOptions,
-  FeeType,
   generateEVMDeepLink,
   generateSolanaDeepLink,
   getAddressContraction,
@@ -28,7 +27,7 @@ import { usePayinPolling } from "../../../hooks/usePayinPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import styled from "../../../styles/styled";
-import { resolveOrderAppId } from "../../../utils/feeCache";
+import { buildFeeQuoteParams, resolveOrderAppId } from "../../../utils/feeCache";
 import { formatUsd, roundUsd, trimTokenAmount } from "../../../utils/format";
 import Button from "../../Common/Button";
 import CircleTimer from "../../Common/CircleTimer";
@@ -358,23 +357,23 @@ export default function WaitingDepositAddress() {
           try {
             // @TODO: Handle fee calculation for other currencies
             const destToken = currentOrder?.destFinalCallTokenAmount?.token;
-            const feeResponse = await getFee({
-              type: payParams?.feeType ?? FeeType.ExactIn,
-              appId: resolvedAppId,
-              sourceChainId: selectedDepositAddressOption.token.chainId.toString(),
-              sourceTokenSymbol: selectedDepositAddressOption.token.symbol,
-              amount: amount.toString(),
-              destChainId: (
-                destToken?.chainId ?? selectedDepositAddressOption.token.chainId
-              ).toString(),
-              destReceiverAddress:
-                (currentOrder
-                  ? getCanonicalDestination(currentOrder).finalDestinationAddress
-                  : undefined) ??
-                payParams?.toAddress ??
-                "",
-              destTokenSymbol: destToken?.symbol ?? selectedDepositAddressOption.token.symbol,
-            });
+            const destAddress = currentOrder
+              ? getCanonicalDestination(currentOrder).finalDestinationAddress
+              : undefined;
+            const feeResponse = await getFee(
+              buildFeeQuoteParams({
+                order: currentOrder,
+                payParams,
+                destChainId:
+                  destToken?.chainId ?? selectedDepositAddressOption.token.chainId,
+                destTokenAddress:
+                  destToken?.token ?? selectedDepositAddressOption.token.token,
+                destAddress: destAddress ?? "",
+                sourceChainId: selectedDepositAddressOption.token.chainId,
+                sourceTokenAddress: selectedDepositAddressOption.token.token,
+                toUnits: amount.toString(),
+              }),
+            );
 
             if (feeResponse.data) {
               feeData = feeResponse.data;

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.40] - 2026-08-11
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Propagate intent to getFee and carry settlementMode through payId hydration &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e2d5c)</samp>](https://github.com/RozoAI/intent-pay/commit/e2d5cc69)
+- **connectkit**: Add preferred chain/tokens property on RozoPayButton payId mode &nbsp;-&nbsp; by @akbarsaputrait [<samp>(5a88d)</samp>](https://github.com/RozoAI/intent-pay/commit/5a88dd95)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**: Forward top-level intent through the hydrate_order effect &nbsp;-&nbsp; by @akbarsaputrait [<samp>(3f66c)</samp>](https://github.com/RozoAI/intent-pay/commit/3f66c4a8)
+- Dedupe REQUIRED_CHAINS by chain.id, not object identity &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e80e1)</samp>](https://github.com/RozoAI/intent-pay/commit/e80e168b)
+- Chain: undefined (id: 8453) — pass explicit chain object, tighten viem peer range &nbsp;-&nbsp; by @akbarsaputrait [<samp>(6b3cd)</samp>](https://github.com/RozoAI/intent-pay/commit/6b3cde10)
+- Bad state &nbsp;-&nbsp; by @akbarsaputrait [<samp>(99e77)</samp>](https://github.com/RozoAI/intent-pay/commit/99e77d96)
+- Address code review — stellar_direct in getFee, cache poison, legacy export, workspace:* dep, buttonProps cleanup &nbsp;-&nbsp; by @akbarsaputrait [<samp>(93c00)</samp>](https://github.com/RozoAI/intent-pay/commit/93c00cd1)
+
+### &nbsp;&nbsp;&nbsp;🔨 Refactor
+
+- Extract shared buildFeeQuoteParams helper &nbsp;-&nbsp; by @akbarsaputrait [<samp>(2ec6c)</samp>](https://github.com/RozoAI/intent-pay/commit/2ec6c011)
+
+### &nbsp;&nbsp;&nbsp;🧪 Tests
+
+- **pay-common**: Add getFee/createPayment body-identity invariant test &nbsp;-&nbsp; by @akbarsaputrait [<samp>(6586e)</samp>](https://github.com/RozoAI/intent-pay/commit/6586e9e7)
+
+---
+
 ## [0.1.39] - 2026-07-26
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes

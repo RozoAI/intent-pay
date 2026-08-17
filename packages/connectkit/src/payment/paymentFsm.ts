@@ -161,6 +161,8 @@ type PayParamsData = {
   toAddress?: string;
   metadata?: RozoPayUserMetadata;
   receiverMemo?: string;
+  /** Top-level API intent flag (e.g. "stellarsponsor", "stellar_direct") — distinct from metadata.intent (display title). */
+  intent?: string;
 };
 
 /**
