@@ -154,8 +154,12 @@ export function buildFeeQuoteParams(params: {
   // Apply ExactOut adjustment to match buildCreatePaymentPayload behavior.
   // For ExactOut, the API expects the destination amount MINUS the fee.
   // feeUsd is the fee for the selected wallet option (in USD).
+  // Gate on the SAME resolved feeType that gets posted below — an undefined
+  // payParams.feeType (payId mode) defaults to ExactIn, which means no adjustment.
+  const feeType = payParams?.feeType ?? FeeType.ExactIn;
+
   let adjustedToUnits = toUnits;
-  if (params.feeUsd != null && payParams?.feeType !== FeeType.ExactIn) {
+  if (params.feeUsd != null && feeType !== FeeType.ExactIn) {
     // Need to know the destination token decimals to parse/adjust.
     // The order carries the destination token info.
     const destToken = order?.destFinalCallTokenAmount?.token;
@@ -170,7 +174,7 @@ export function buildFeeQuoteParams(params: {
 
   return {
     appId: resolveOrderAppId(order, payParams?.appId) ?? DEFAULT_ROZO_APP_ID,
-    feeType: payParams?.feeType ?? FeeType.ExactIn,
+    feeType,
     toChain: destChainId,
     toToken: destTokenAddress,
     toAddress: destAddress || payParams?.toAddress || "",
