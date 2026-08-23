@@ -398,14 +398,15 @@ export function formatPaymentResponseToHydratedOrder(
     sourceTokenAmount: null,
     sourceInitiateTxHash: order.sourceInitiateTxHash ?? null,
     sourceStatus: RozoPayOrderStatusSource.WAITING_PAYMENT,
-    sourceStartTxHash: order.sourceStartTxHash ?? null,
+    sourceStartTxHash: order.sourceStartTxHash ?? order.source?.txHash ?? null,
     destStatus: RozoPayOrderStatusDest.PENDING,
-    destFastFinishTxHash: order.destFastFinishTxHash ?? null,
+    destFastFinishTxHash: order.destFastFinishTxHash ?? order.destination?.txHash ?? null,
     destClaimTxHash: order.destClaimTxHash ?? null,
     redirectUri: null,
     createdAt: Math.floor(new Date(order.createdAt).getTime() / 1000),
     lastUpdatedAt: Math.floor(new Date(order.updatedAt).getTime() / 1000),
     orgId: order.orgId ?? "",
+    payoutTransactionHash: order.destination?.txHash ?? null,
     metadata: {
       ...order?.metadata,
       // Preserve the top-level appId from the payment API response so
@@ -428,6 +429,11 @@ export function formatPaymentResponseToHydratedOrder(
       receivingAddress: intentAddress ?? "",
       memo: intentMemo ?? null,
       isMerchant: order.isMerchant ?? false,
+      // Backend-decided settlement routing (e.g. "stellar_direct" for direct
+      // same-chain USDC/EURC settlement). Consumer never sets this — it's
+      // read back off the payment response so PayWith*Token flows and any
+      // payId/checkout hydration path can react to it consistently.
+      settlementMode: order.settlementMode,
     } as any,
     externalId: order.externalId ?? order.id ?? null,
     userMetadata: order.userMetadata as RozoPayUserMetadata | null,

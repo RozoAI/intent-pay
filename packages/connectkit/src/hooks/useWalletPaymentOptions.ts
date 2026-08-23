@@ -116,6 +116,11 @@ export function useWalletPaymentOptions({
           tokens.some((t) => t.token === o.balance.token.token),
       );
 
+    // Hard filter, not a ranking hint: any balance not matching a
+    // preferredTokens entry is dropped entirely. RozoPayButton's own type
+    // docs describe preferredTokens as restricting wallet payment options
+    // to that set (unlike preferredChains/preferredSymbol elsewhere, which
+    // only affect sort order) — see types.ts.
     const matchesPreferredTokens = (o: WalletPaymentOption) => {
       if (!memoizedPreferredTokens || memoizedPreferredTokens.length === 0) {
         return true;
