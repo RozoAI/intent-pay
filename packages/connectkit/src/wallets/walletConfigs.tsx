@@ -379,6 +379,7 @@ export const walletConfigs: {
     },
   },
   okx: {
+    name: "OKX",
     walletConnectFallback: true,
     icon: <Logos.OKX />,
     showInMobileConnectors: true,
