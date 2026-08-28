@@ -176,7 +176,7 @@ importers:
         specifier: ^12.1.2
         version: 12.3.0(rollup@4.63.0)(tslib@2.8.1)(typescript@5.5.2)
       '@rozoai/intent-common':
-        specifier: workspace:*
+        specifier: workspace:0.1.29-beta.0
         version: link:../pay-common
       '@solana/spl-memo':
         specifier: ^0.2.5
