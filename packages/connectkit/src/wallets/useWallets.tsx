@@ -235,6 +235,40 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
     return c;
   });
 
+  // Desktop, no injected EVM provider (e.g. incognito / no extension): the
+  // only live connector is Coinbase's SDK, so the curated tiles vanish.
+  // Surface major wallets as stubs that route through the WalletConnect QR —
+  // any WC wallet can scan it, no extension needed. Desktop-only: this whole
+  // branch runs after the mobile early-return above.
+  // Check window.ethereum, not the connector list — defaultConnectors() never
+  // adds an injected() connector, so wagmi's list is empty even when a wallet
+  // extension IS installed (then it arrives via EIP-6963 / additionalConnectors).
+  const hasInjectedProvider =
+    typeof window !== "undefined" && window.ethereum != null;
+  const hasWalletConnect = wallets.some((w) => isWalletConnectConnector(w.id));
+  // ponytail: name-fuzzy dedupe vs live injected wallets; exact-id matching if
+  // collisions ever show duplicates.
+  if (!hasInjectedProvider && hasWalletConnect) {
+    Object.entries(walletConfigs).forEach(([key, cfg]) => {
+      if (!cfg.walletConnectFallback) return;
+      const cfgName = (cfg.name ?? "").toLowerCase();
+      if (wallets.some((w) => {
+        const n = (w.name ?? "").toLowerCase();
+        return n && cfgName && (n.includes(cfgName) || cfgName.includes(n));
+      })) return;
+      wallets.push({
+        id: `wc-fallback-${key}`,
+        name: cfg.name,
+        shortName: cfg.shortName,
+        icon: cfg.icon,
+        iconConnector: cfg.iconConnector,
+        iconShape: cfg.iconShape,
+        iconShouldShrink: cfg.iconShouldShrink,
+        walletConnectFallback: true,
+      });
+    });
+  }
+
   // wallets.push({
   //   id: WALLET_ID_MOBILE_WALLETS,
   //   name: "Mobile Wallets",

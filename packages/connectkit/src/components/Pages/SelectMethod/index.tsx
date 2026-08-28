@@ -19,9 +19,11 @@ import {
   MetaMask,
   Phantom,
   Rainbow,
+  WalletConnect,
   WalletIcon,
 } from "../../../assets/logos";
 import { useAutoConnectGate } from "../../../hooks/useAutoConnectGate";
+import { isWalletConnectConnector } from "../../../utils";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { useStellar } from "../../../provider/StellarContextProvider";
 import { walletConfigs } from "../../../wallets/walletConfigs";
@@ -139,30 +141,35 @@ export default function SelectMethod() {
 
       // Prefer icon from walletConfigs if there's a name match, otherwise fall back
       // to the connector-provided icon, and finally to the generic WalletIcon.
+      // WalletConnect connectors have no name/icon payload — show WC branding.
       let walletIcon: JSX.Element;
 
-      const matchedConfig = Object.values(walletConfigs).find((cfg) => {
-        if (!cfg.name || !connector?.name) return false;
-        const cfgName = cfg.name.toLowerCase();
-        const connName = connector.name.toLowerCase();
-        return cfgName.includes(connName) || connName.includes(cfgName);
-      });
-
-      if (matchedConfig?.icon) {
-        walletIcon =
-          typeof matchedConfig.icon === "string" ? (
-            <img src={matchedConfig.icon} alt={matchedConfig.name} />
-          ) : (
-            (matchedConfig.icon as JSX.Element)
-          );
-      } else if (connector?.icon) {
-        walletIcon = (
-          <div style={{ borderRadius: "22.5%", overflow: "hidden" }}>
-            <img src={connector.icon} alt={connector.name} />
-          </div>
-        );
+      if (isWalletConnectConnector(connector?.id)) {
+        walletIcon = <WalletConnect />;
       } else {
-        walletIcon = <WalletIcon />;
+        const matchedConfig = Object.values(walletConfigs).find((cfg) => {
+          if (!cfg.name || !connector?.name) return false;
+          const cfgName = cfg.name.toLowerCase();
+          const connName = connector.name.toLowerCase();
+          return cfgName.includes(connName) || connName.includes(cfgName);
+        });
+
+        if (matchedConfig?.icon) {
+          walletIcon =
+            typeof matchedConfig.icon === "string" ? (
+              <img src={matchedConfig.icon} alt={matchedConfig.name} />
+            ) : (
+              (matchedConfig.icon as JSX.Element)
+            );
+        } else if (connector?.icon) {
+          walletIcon = (
+            <div style={{ borderRadius: "22.5%", overflow: "hidden" }}>
+              <img src={connector.icon} alt={connector.name} />
+            </div>
+          );
+        } else {
+          walletIcon = <WalletIcon />;
+        }
       }
 
       const connectedEthWalletOption = {

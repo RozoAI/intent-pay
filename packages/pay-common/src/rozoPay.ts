@@ -160,6 +160,11 @@ export const zRozoPayOrderMetadata = z.object({
   // Source-side token symbol (e.g. "SOL", "ETH", "USDC"). Paired with
   // `sourceAmountUnits` above.
   sourceTokenSymbol: z.string().nullish(),
+  // Written by formatPaymentResponseToHydratedOrder for stellar_direct flows
+  // (see Confirmation isStellarDirectSameTx — skip payout wait when same tx).
+  settlementMode: z.string().optional(),
+  payinTransactionHash: z.string().nullish(),
+  payoutTransactionHash: z.string().nullish(),
 });
 
 export type RozoPayOrderMetadata = z.infer<typeof zRozoPayOrderMetadata>;

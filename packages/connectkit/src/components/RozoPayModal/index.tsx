@@ -116,6 +116,8 @@ export const RozoPayModal: React.FC<{
       context.setRoute(ROUTES.CONNECT, meta);
     } else if (context.route === ROUTES.CONNECTORS) {
       context.setRoute(ROUTES.SELECT_METHOD, meta);
+    } else if (context.route === ROUTES.CONNECT_WALLETCONNECT) {
+      context.setRoute(ROUTES.CONNECTORS, meta);
     } else if (context.route === ROUTES.SELECT_AMOUNT) {
       setSelectedTokenOption(undefined);
       context.setRoute(ROUTES.SELECT_TOKEN, meta);

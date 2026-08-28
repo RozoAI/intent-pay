@@ -2,6 +2,7 @@ import { CreateConnectorFn } from "wagmi";
 import {
   coinbaseWallet,
   CoinbaseWalletParameters,
+  injected,
   safe,
   walletConnect,
 } from "wagmi/connectors";
@@ -142,6 +143,13 @@ const defaultConnectors = ({
       overrideIsMetaMask: false,
       preference: mergedPreference,
     })
+  );
+
+  // EIP-6963 injected wallets (MetaMask, Rabby, etc.). With extension present,
+  // connector names itself after the wallet (e.g. "io.metamask") and connects
+  // directly. Without extension, generic "injected" name is filtered by useWallets.
+  connectors.push(
+    injected({ shimDisconnect: true })
   );
 
   // WalletConnect's provider touches indexedDB/localStorage at construction

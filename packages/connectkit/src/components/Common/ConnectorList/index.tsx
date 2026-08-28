@@ -147,6 +147,15 @@ const ConnectorItem = ({
         return;
       }
 
+      // No-extension fallback tile: any WC wallet can scan the QR, so route
+      // to the shared WalletConnect page. pendingConnectorId keeps the stub
+      // wallet id so the QR page can brand itself ("Scan with MetaMask").
+      if (wallet.walletConnectFallback) {
+        context.setPendingConnectorId(wallet.id);
+        context.setRoute(ROUTES.CONNECT_WALLETCONNECT, meta);
+        return;
+      }
+
       if (wallet.solanaConnectorName) {
         const supportsEvm = wallet.connector?.name != null;
 
