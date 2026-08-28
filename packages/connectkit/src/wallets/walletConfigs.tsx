@@ -245,7 +245,7 @@ export const walletConfigs: {
         ""
       )}`;
     },
-    walletConnectFallback: false,
+    walletConnectFallback: true,
   },
   "app.phantom": {
     name: "Phantom",
