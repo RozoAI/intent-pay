@@ -117,7 +117,12 @@ jobs:
           FALLBACK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
-          SUMMARY: ${{ fromJSON(steps.review.outputs.structured_output).summary }}
+          # `env` is evaluated before the step's `if`, so this must tolerate an
+          # empty structured_output (e.g. the review step failed or had no API
+          # key). Without the `|| '{}'` fallback, fromJSON('') raises "Error
+          # reading JToken from JsonReader" and fails the whole job even though
+          # the `if` above would have skipped this step.
+          SUMMARY: ${{ fromJSON(steps.review.outputs.structured_output || '{}').summary }}
         run: |
           set -uo pipefail
           # Label with the Actions token (can write issues). Best-effort.
