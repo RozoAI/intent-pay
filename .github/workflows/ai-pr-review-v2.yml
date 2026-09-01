@@ -96,9 +96,17 @@ jobs:
           # done by the separate deterministic step below, never by the model.
           # --json-schema makes the verdict machine-readable in
           # steps.review.outputs.structured_output.
+          # --max-turns: a real review spends turns on gh pr diff, per-file
+          # Reads, and one inline comment per finding, so the ceiling scales
+          # with findings, not with diff size. At 15 the action failed the job
+          # AFTER a successful review (`Claude reported a successful result
+          # after 18 turns` / `error_max_turns` with no structured_output) on
+          # PRs as small as 3 files — a red check for a review that actually
+          # worked. 40 leaves real headroom; the daily USD cap below, not this
+          # number, is what bounds spend.
           claude_args: |
             --model claude-opus-4-8
-            --max-turns 15
+            --max-turns 40
             --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),mcp__github_inline_comment__create_inline_comment"
             --json-schema '{"type":"object","properties":{"has_blockers":{"type":"boolean"},"p0_count":{"type":"integer"},"summary":{"type":"string"}},"required":["has_blockers","p0_count","summary"],"additionalProperties":false}'
 
