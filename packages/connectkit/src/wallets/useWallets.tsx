@@ -2,7 +2,7 @@ import { assertNotNull } from "@rozoai/intent-common";
 import { Connector } from "wagmi";
 
 import { useWallet as useSolanaWalletAdapter } from "@solana/wallet-adapter-react";
-import Logos, { SquircleIcon } from "../assets/logos";
+import Logos, { SquircleIcon, WalletConnect } from "../assets/logos";
 import { useConnectors } from "../hooks/useConnectors";
 import { usePayContext } from "../hooks/usePayContext";
 import { SolanaWalletName } from "../provider/SolanaContextProvider";
@@ -10,6 +10,7 @@ import {
   isCoinbaseWalletConnector,
   isInjectedConnector,
   isPhantomConnector,
+  isWalletConnectConnector,
 } from "../utils";
 import { WalletConfigProps, walletConfigs } from "./walletConfigs";
 
@@ -64,6 +65,12 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
         });
       }
     }
+
+    // WalletConnect is desktop-only for now (see ConnectWalletConnect /
+    // ConnectWalletConnectMobile) — routing through WC's own bundled modal
+    // on mobile didn't reliably surface, and mobile already deeplinks
+    // directly into installed wallets without needing it. Skip the
+    // "walletConnectModal" connector entirely here.
 
     // Add injected wallet (if any) first, unless disabled
     if (!disableMobileInjector) {
@@ -141,13 +148,14 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
   }
 
   const filteredConnectors = connectors.filter((connector) => {
-    // Skip if id === "phantom" or "injected" and connector name does NOT include "walletconnect"
+    // Desktop uses our custom QR page for "walletConnect"; the mobile-modal
+    // instance ("walletConnectModal") is mobile-only, hide it here.
     if (
       ["phantom"].includes(connector.id) ||
+      connector.id === "walletConnectModal" ||
       (connector.id === "injected" &&
         connector.name?.toLowerCase().includes("injected") &&
-        connector.type === "injected") ||
-      connector.name?.toLowerCase().includes("walletconnect")
+        connector.type === "injected")
     ) {
       return false;
     }
@@ -155,6 +163,19 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
   });
 
   const wallets = filteredConnectors.map((connector): WalletProps => {
+    // WalletConnect: dedicated tile, our own QR + copy page (see
+    // ConnectWalletConnect) instead of matching against walletConfigs.
+    if (isWalletConnectConnector(connector.id)) {
+      return {
+        id: connector.id,
+        name: "WalletConnect",
+        connector,
+        iconConnector: <WalletConnect />,
+        iconShape: "squircle",
+        isInstalled: true,
+      };
+    }
+
     // First, attempt to find a config by matching connector.id (existing logic).
     let walletConfigKey: string | undefined = Object.keys(walletConfigs).find(
       (id) =>
@@ -213,6 +234,40 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
 
     return c;
   });
+
+  // Desktop, no injected EVM provider (e.g. incognito / no extension): the
+  // only live connector is Coinbase's SDK, so the curated tiles vanish.
+  // Surface major wallets as stubs that route through the WalletConnect QR —
+  // any WC wallet can scan it, no extension needed. Desktop-only: this whole
+  // branch runs after the mobile early-return above.
+  // Check window.ethereum, not the connector list — defaultConnectors() never
+  // adds an injected() connector, so wagmi's list is empty even when a wallet
+  // extension IS installed (then it arrives via EIP-6963 / additionalConnectors).
+  const hasInjectedProvider =
+    typeof window !== "undefined" && window.ethereum != null;
+  const hasWalletConnect = wallets.some((w) => isWalletConnectConnector(w.id));
+  // ponytail: name-fuzzy dedupe vs live injected wallets; exact-id matching if
+  // collisions ever show duplicates.
+  if (!hasInjectedProvider && hasWalletConnect) {
+    Object.entries(walletConfigs).forEach(([key, cfg]) => {
+      if (!cfg.walletConnectFallback) return;
+      const cfgName = (cfg.name ?? "").toLowerCase();
+      if (wallets.some((w) => {
+        const n = (w.name ?? "").toLowerCase();
+        return n && cfgName && (n.includes(cfgName) || cfgName.includes(n));
+      })) return;
+      wallets.push({
+        id: `wc-fallback-${key}`,
+        name: cfg.name,
+        shortName: cfg.shortName,
+        icon: cfg.icon,
+        iconConnector: cfg.iconConnector,
+        iconShape: cfg.iconShape,
+        iconShouldShrink: cfg.iconShouldShrink,
+        walletConnectFallback: true,
+      });
+    });
+  }
 
   // wallets.push({
   //   id: WALLET_ID_MOBILE_WALLETS,

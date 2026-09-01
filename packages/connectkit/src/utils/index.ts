@@ -89,6 +89,9 @@ export const isSafeConnector = (connectorId?: string) => connectorId === "safe";
 export const isInjectedConnector = (connectorId?: string) =>
   connectorId === "injected";
 
+export const isWalletConnectConnector = (connectorId?: string) =>
+  connectorId === "walletConnect" || connectorId === "walletConnectModal";
+
 export function parseError(e: any) {
   return {
     code: e?.error?.code || e?.code || -1,

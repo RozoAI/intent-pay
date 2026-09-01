@@ -76,6 +76,9 @@ export type WalletConfigProps = {
   // Used to filter wallets that only support solana in mobile mode to not show in the connector options when the payID doesn't support solana
   isSolanaOnly?: boolean;
   // Used to filter wallets that only support stellar in mobile mode to not show in the connector options when the payID doesn't support stellar
+  // Desktop no-extension fallback: tile routes through the WalletConnect QR
+  // (any WC wallet can scan it) instead of requiring an injected connector.
+  walletConnectFallback?: boolean;
   isStellarOnly?: boolean;
 };
 
@@ -203,7 +206,7 @@ export const walletConfigs: {
         customDeeplink ?? getRozoPayUrl(payId, appId)
       }`;
     },
-    showInMobileConnectors: true,
+    walletConnectFallback: true,
   },
   "metaMask, metaMask-io, io.metamask, io.metamask.mobile, metaMaskSDK": {
     name: "MetaMask",
@@ -242,6 +245,7 @@ export const walletConfigs: {
         ""
       )}`;
     },
+    walletConnectFallback: true,
   },
   "app.phantom": {
     name: "Phantom",
@@ -313,8 +317,8 @@ export const walletConfigs: {
       ios: "https://apps.apple.com/app/rainbow-ethereum-wallet/id1457119021?pt=119997837&ct=rozopay&mt=8",
       chrome: "https://rainbow.me/extension?utm_source=rozopay",
       edge: "https://rainbow.me/extension?utm_source=rozopay",
-      brave: "https://rainbow.me/extension?utm_source=rozopay",
     },
+    walletConnectFallback: true,
     showInMobileConnectors: true,
     deeplinkScheme: "rainbow://",
     getRozoPayDeeplink: ({
@@ -354,8 +358,8 @@ export const walletConfigs: {
       download: "https://connect.family.co/v0/download/trust",
       android:
         "https://play.google.com/store/apps/details?id=com.wallet.crypto.trustapp",
-      ios: "https://apps.apple.com/app/trust-crypto-bitcoin-wallet/id1288339409",
     },
+    walletConnectFallback: true,
     showInMobileConnectors: true,
     deeplinkScheme: "trust://",
     getRozoPayDeeplink: ({
@@ -376,6 +380,7 @@ export const walletConfigs: {
   },
   okx: {
     name: "OKX",
+    walletConnectFallback: true,
     icon: <Logos.OKX />,
     showInMobileConnectors: true,
     deeplinkScheme: "okx://",

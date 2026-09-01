@@ -6,6 +6,7 @@ import { Link, ModalBody, ModalContent, ModalH1, PageContent } from "../../Commo
 import {
   assert,
   getAddressContraction,
+  isHydrated,
   getChainExplorerTxUrl,
   getOrderDestChainId,
   normalizeTokenAddress,
@@ -68,10 +69,16 @@ const Confirmation: React.FC = () => {
   // is known as soon as the pay-in txHash is confirmed.
   const isStellarDirectSameTx = useMemo(() => {
     if (!order) return false;
-    const settlementMode = (order.metadata as any)?.settlementMode;
-    if (settlementMode !== "stellar_direct") return false;
-    const sourceTx = order.sourceStartTxHash ?? order.metadata?.payinTransactionHash;
-    const destTx = order.payoutTransactionHash ?? order.destFastFinishTxHash ?? order.destClaimTxHash;
+    const settlementMode = order.metadata?.settlementMode;
+    // txHash fields only exist on hydrated orders — narrow first.
+    const hydrated = isHydrated(order) ? order : null;
+    const sourceTx =
+      hydrated?.sourceStartTxHash ?? order.metadata?.payinTransactionHash;
+    const destTx =
+      order.metadata?.payoutTransactionHash ??
+      hydrated?.payoutTransactionHash ??
+      hydrated?.destFastFinishTxHash ??
+      hydrated?.destClaimTxHash;
     return !!sourceTx && !!destTx && sourceTx === destTx;
   }, [order]);
 
