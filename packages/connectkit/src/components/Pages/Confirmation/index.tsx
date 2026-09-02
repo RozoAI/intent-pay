@@ -87,10 +87,18 @@ const Confirmation: React.FC = () => {
   // is known as soon as the pay-in txHash is confirmed.
   const isStellarDirectSameTx = useMemo(() => {
     if (!order) return false;
-    const settlementMode = (order.metadata as any)?.settlementMode;
-    if (settlementMode !== "stellar_direct") return false;
-    const sourceTx = order.sourceStartTxHash ?? order.metadata?.payinTransactionHash;
-    const destTx = order.payoutTransactionHash ?? order.destFastFinishTxHash ?? order.destClaimTxHash;
+
+    const meta = (order as any).metadata as Record<string, unknown> | undefined;
+    if (meta?.settlementMode !== "stellar_direct") return false;
+
+    const sourceTx =
+      (order as any).sourceStartTxHash ?? (meta?.payinTransactionHash as string | undefined);
+
+    const destTx =
+      (order as any).payoutTransactionHash ??
+      (order as any).destFastFinishTxHash ??
+      (order as any).destClaimTxHash;
+
     return !!sourceTx && !!destTx && sourceTx === destTx;
   }, [order]);
 
@@ -729,10 +737,10 @@ const Confirmation: React.FC = () => {
         <AnimationContainer>
           <InsetContainer>
             {!done && <Spinner $status={false} />}
-            {done && (!showProcessingPayout || payoutResolved) && <SuccessIcon $status={true} />}
             {done && showProcessingPayout && !payoutResolved && (
               <Ring width={100} height={100} color="#0052ff" />
             )}
+            {done && (!showProcessingPayout || payoutResolved) && <SuccessIcon $status={true} />}
           </InsetContainer>
         </AnimationContainer>
 
@@ -755,7 +763,7 @@ const Confirmation: React.FC = () => {
                     </Link>
                   </ModalBody>
                 </ListItem>
-                <ModalBody>
+                <ModalBody style={{ marginTop: 8, fontSize: 14 }}>
                   {payinWaitTimedOut
                     ? "We have not seen this transfer confirmed yet. If your wallet shows it as sent, check the receipt later or contact support with the hash above."
                     : "Waiting for the network to confirm your transfer."}

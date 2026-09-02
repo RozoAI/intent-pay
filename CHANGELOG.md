@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.42] - 2026-09-02
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **pay-common**: Use `extraFields` instead &nbsp;-&nbsp; by @akbarsaputrait [<samp>(1f62f)</samp>](https://github.com/RozoAI/intent-pay/commit/1f62f04d)
+
+---
+
 ## [0.1.40] - 2026-08-11
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
