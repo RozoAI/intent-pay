@@ -43,15 +43,22 @@ const Confirmation: React.FC = () => {
 
   const { capture } = useAnalytics();
 
-  // Server-confirmed payin. A wallet-returned tx hash is only a claim that a
-  // transaction was submitted; the API is the only party that verifies it
-  // landed on-chain for this order. Nothing below may show "Payment
-  // Completed", emit onPaymentCompleted, or fire onSuccess until this is set.
+  // Server-confirmed payin, keyed by (paymentId, txHash) so a confirmation
+  // for one payment can never satisfy the gate for another. A wallet-returned
+  // tx hash is only a claim that a transaction was submitted; the API is the
+  // only party that verifies it landed on-chain for this order. Nothing below
+  // may show "Payment Completed", emit onPaymentCompleted, or fire onSuccess
+  // until this is set for the current key.
   const [payinConfirmed, setPayinConfirmed] = useState<{
+    key: string;
     txHash: string;
     confirmedAt?: string;
+    payoutTxHash?: string;
+    sameTxPayout: boolean;
   } | null>(null);
-  const payinGateKeyRef = useRef<string | null>(null);
+  // Set when the gate stops waiting (payment expired or hard timeout) without
+  // a confirmation. Still not "done" — the UI switches to an actionable state.
+  const [payinTimedOut, setPayinTimedOut] = useState<string | null>(null);
 
   // Track if completion events have been sent to prevent duplicate calls
   const paymentCompletedSent = useRef<string | null>(null);
@@ -157,20 +164,33 @@ const Confirmation: React.FC = () => {
     );
   }, [order, paymentStateContext, supportedTokens]);
 
-  // Payin truth gate (rozo payments): report the wallet's tx hash to the API,
-  // then poll the payment until the API says the deposit is confirmed. Runs
-  // once per (paymentId, txHash). The UI stays on "Confirming..." throughout.
-  useEffect(() => {
-    const { txHash, senderAddress } = paymentStateContext;
-    if (!isRozoPayment || !txHash || !rozoPaymentId) return;
+  // Only payments the API knows about can be gated. A rozo-destination EVM
+  // order with no payment id keeps the legacy behaviour (done on txHash).
+  const payinGateActive = isRozoPayment && !!rozoPaymentId;
+  const payinGateKey =
+    payinGateActive && paymentStateContext.txHash
+      ? `${rozoPaymentId}:${paymentStateContext.txHash}`
+      : null;
 
-    const key = `${rozoPaymentId}:${txHash}`;
-    if (payinGateKeyRef.current === key) return;
-    payinGateKeyRef.current = key;
+  // Payin truth gate: report the wallet's tx hash to the API, then poll the
+  // payment until the API says the deposit is confirmed. Restarts safely on
+  // re-run (StrictMode double-mount, key change): the report is idempotent
+  // server-side and the poll is read-only. The UI stays on "Confirming..."
+  // throughout. Bounded by the payment's expiresAt (+ grace) or 15 minutes.
+  useEffect(() => {
+    if (!payinGateKey || !rozoPaymentId) return;
+    const { txHash, senderAddress } = paymentStateContext;
+    if (!txHash) return;
+    if (payinConfirmed?.key === payinGateKey) return;
 
     let active = true;
     let timeoutId: NodeJS.Timeout | undefined;
     const startedAt = Date.now();
+    const HARD_CAP_MS = 15 * 60_000;
+    const EXPIRY_GRACE_MS = 2 * 60_000;
+    let deadline = startedAt + HARD_CAP_MS;
+    setPayinTimedOut(null);
+
     const sleep = (ms: number) =>
       new Promise<void>((resolve) => {
         timeoutId = setTimeout(resolve, ms);
@@ -180,21 +200,25 @@ const Confirmation: React.FC = () => {
       // Three attempts. A failure here is not fatal for the payment itself
       // (the API's on-chain scan will still find a real deposit), but it must
       // never be silent: it is exactly how a wallet-returned hash that never
-      // landed goes unnoticed.
+      // landed goes unnoticed. apiClient resolves HTTP failures as
+      // { data: null, error }, so check the response, not just for a throw.
       for (let attempt = 1; attempt <= 3 && active; attempt++) {
         try {
-          await updatePaymentPayInTxHash({
+          const res = await updatePaymentPayInTxHash({
             paymentId: rozoPaymentId,
             txHash,
             senderAddress: senderAddress || undefined,
             apiVersion: "v2",
           });
-          context.log("[CONFIRMATION] Payin tx hash reported:", { rozoPaymentId, txHash });
-          return true;
+          if (res && !res.error && res.data) {
+            context.log("[CONFIRMATION] Payin tx hash reported:", { rozoPaymentId, txHash });
+            return true;
+          }
+          context.log(`[CONFIRMATION] Payin report attempt ${attempt} rejected:`, res?.error);
         } catch (error) {
           context.log(`[CONFIRMATION] Payin report attempt ${attempt} failed:`, error);
-          if (attempt < 3) await sleep(1000 * attempt);
         }
+        if (attempt < 3 && active) await sleep(1000 * attempt);
       }
       if (active) {
         capture(ROZO_EVENTS.PAYMENT_FAILED, {
@@ -213,6 +237,10 @@ const Confirmation: React.FC = () => {
           const payment = response.data;
           if (!active) return;
           if (payment) {
+            const expiresAt = payment.expiresAt ? new Date(payment.expiresAt).getTime() : NaN;
+            if (Number.isFinite(expiresAt)) {
+              deadline = Math.min(startedAt + HARD_CAP_MS, expiresAt + EXPIRY_GRACE_MS);
+            }
             const confirmedAt = payment.source?.confirmedAt;
             const status = payment.status;
             const confirmed =
@@ -221,10 +249,19 @@ const Confirmation: React.FC = () => {
               status === PaymentStatus.PaymentCompleted ||
               status === PaymentStatus.PaymentPayoutCompleted;
             if (confirmed) {
-              context.log("[CONFIRMATION] Payin confirmed by API:", { status, confirmedAt });
+              const sourceTxHash = payment.source?.txHash || txHash;
+              const payoutTxHash = payment.destination?.txHash || undefined;
+              const sameTxPayout =
+                (payment.metadata as any)?.settlementMode === "stellar_direct" &&
+                !!payoutTxHash &&
+                payoutTxHash === sourceTxHash;
+              context.log("[CONFIRMATION] Payin confirmed by API:", { status, confirmedAt, sameTxPayout });
               setPayinConfirmed({
-                txHash: payment.source?.txHash || txHash,
+                key: payinGateKey,
+                txHash: sourceTxHash,
                 confirmedAt: confirmedAt ? String(confirmedAt) : undefined,
+                payoutTxHash,
+                sameTxPayout,
               });
               return;
             }
@@ -250,7 +287,17 @@ const Confirmation: React.FC = () => {
         } catch (error) {
           context.log("[CONFIRMATION] Payin polling error:", error);
         }
-        // 2s for the first minute, then 5s. No cap: unmount stops the loop.
+        if (Date.now() >= deadline) {
+          context.log("[CONFIRMATION] Payin confirmation timed out:", { rozoPaymentId, txHash });
+          capture(ROZO_EVENTS.PAYMENT_FAILED, {
+            payment_id: rozoPaymentId,
+            tx_hash: txHash,
+            error_message: "payin_confirmation_timeout",
+          });
+          setPayinTimedOut(payinGateKey);
+          return;
+        }
+        // 2s for the first minute, then 5s.
         await sleep(Date.now() - startedAt < 60_000 ? 2000 : 5000);
       }
     };
@@ -265,7 +312,7 @@ const Confirmation: React.FC = () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRozoPayment, paymentStateContext.txHash, rozoPaymentId]);
+  }, [payinGateKey, rozoPaymentId]);
 
   // useMemo only for computation, no state changes
   const { done, txURL, rawPayInHash, pendingTxURL } = useMemo(() => {
@@ -282,18 +329,24 @@ const Confirmation: React.FC = () => {
         chainId = Number(paymentStateContext.selectedTokenOption?.required.token.chainId);
       }
 
-      // Not done until the API has confirmed the deposit (see payin gate).
-      if (!payinConfirmed) {
-        return {
-          done: false,
-          txURL: undefined,
-          rawPayInHash: undefined,
-          pendingTxURL: getChainExplorerTxUrl(chainId, txHash),
-        };
+      // Gated payments are not done until the API confirmed THIS deposit.
+      if (payinGateActive) {
+        const confirmedForKey = payinConfirmed && payinConfirmed.key === payinGateKey;
+        if (!confirmedForKey) {
+          return {
+            done: false,
+            txURL: undefined,
+            rawPayInHash: undefined,
+            pendingTxURL: getChainExplorerTxUrl(chainId, txHash),
+          };
+        }
+        const txURL = getChainExplorerTxUrl(chainId, payinConfirmed.txHash);
+        return { done: true, txURL, rawPayInHash: payinConfirmed.txHash, pendingTxURL: undefined };
       }
 
-      const txURL = getChainExplorerTxUrl(chainId, payinConfirmed.txHash);
-      return { done: true, txURL, rawPayInHash: payinConfirmed.txHash, pendingTxURL: undefined };
+      // Legacy: rozo-destination order without an API payment id.
+      const txURL = getChainExplorerTxUrl(chainId, txHash);
+      return { done: true, txURL, rawPayInHash: txHash, pendingTxURL: undefined };
     } else {
       if (paymentState === "payment_completed" || paymentState === "payment_bounced") {
         const txHash = order.destFastFinishTxHash ?? order.destClaimTxHash;
@@ -307,7 +360,9 @@ const Confirmation: React.FC = () => {
 
     return { done: false, txURL: undefined, rawPayInHash: undefined, pendingTxURL: undefined };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentState, order, paymentStateContext, isRozoPayment, payinConfirmed]);
+  }, [paymentState, order, paymentStateContext, isRozoPayment, payinGateActive, payinGateKey, payinConfirmed]);
+
+  const payinWaitTimedOut = !!payinGateKey && payinTimedOut === payinGateKey;
 
   const analyticsCompletedSent = useRef<string | null>(null);
   useEffect(() => {
@@ -561,24 +616,32 @@ const Confirmation: React.FC = () => {
       // Rozo payments only get here after the payin gate above saw the API
       // confirm the deposit; the tx hash was already reported there.
       setPaymentCompleted(rawPayInHash, rozoPaymentId, paymentStateContext.senderAddress ?? null);
-
-      // For stellar_direct where source and dest txHash are identical, the payout
-      // is already settled by the same transaction — skip Pusher/polling and
-      // mark payout completed directly.
-      if (isStellarDirectSameTx) {
-        const payoutKey = `${rawPayInHash}-${rozoPaymentId}`;
-        if (payoutCompletedSent.current !== payoutKey) {
-          payoutCompletedSent.current = payoutKey;
-          payoutCompletedRef.current = true;
-          setPaymentPayoutCompleted(rawPayInHash, rozoPaymentId);
-          context.log("[CONFIRMATION] stellar_direct: payout completed directly (same txHash)");
-        }
-      }
-
       onSuccess();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [done, paymentStateContext, rawPayInHash, rozoPaymentId, isStellarDirectSameTx]);
+  }, [done, paymentStateContext, rawPayInHash, rozoPaymentId]);
+
+  /**
+   * Payout that is settled by the payin itself, so there is nothing to wait
+   * for: stellar_direct with source txHash === destination txHash (known from
+   * the order, or from the confirmed API response), and deposit-address flows
+   * (which previously marked payout completed on payin detection). Separate
+   * from the completion effect so its dedupe cannot swallow this event.
+   */
+  useEffect(() => {
+    if (!done || !rawPayInHash || !rozoPaymentId) return;
+    const sameTx = isStellarDirectSameTx || !!payinConfirmed?.sameTxPayout;
+    const depositFlow = !!paymentStateContext.selectedDepositAddressOption;
+    if (!sameTx && !depositFlow) return;
+    const payoutHash = sameTx ? rawPayInHash : (payinConfirmed?.payoutTxHash ?? rawPayInHash);
+    const payoutKey = `${payoutHash}-${rozoPaymentId}`;
+    if (payoutCompletedSent.current === payoutKey) return;
+    payoutCompletedSent.current = payoutKey;
+    payoutCompletedRef.current = true;
+    setPaymentPayoutCompleted(payoutHash, rozoPaymentId);
+    context.log("[CONFIRMATION] payout completed directly:", { sameTx, depositFlow, payoutHash });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done, rawPayInHash, rozoPaymentId, isStellarDirectSameTx, payinConfirmed]);
 
   /**
    * Sets the payout completed state.
@@ -653,7 +716,7 @@ const Confirmation: React.FC = () => {
 
         {!done ? (
           <>
-            <ModalH1>Confirming...</ModalH1>
+            <ModalH1>{payinWaitTimedOut ? "Still waiting for confirmation" : "Confirming..."}</ModalH1>
             {pendingTxURL && (
               <ListContainer>
                 <ListItem>
@@ -670,7 +733,11 @@ const Confirmation: React.FC = () => {
                     </Link>
                   </ModalBody>
                 </ListItem>
-                <ModalBody>Waiting for the network to confirm your transfer.</ModalBody>
+                <ModalBody>
+                  {payinWaitTimedOut
+                    ? "We have not seen this transfer confirmed yet. If your wallet shows it as sent, check the receipt later or contact support with the hash above."
+                    : "Waiting for the network to confirm your transfer."}
+                </ModalBody>
               </ListContainer>
             )}
           </>
@@ -734,7 +801,7 @@ const Confirmation: React.FC = () => {
           </>
         )}
 
-        {done && generateReceiptUrl && (
+        {(done || payinWaitTimedOut) && generateReceiptUrl && (
           <Button iconPosition="right" href={generateReceiptUrl} style={{ width: "100%" }}>
             See Receipt
           </Button>
