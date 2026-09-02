@@ -237,16 +237,21 @@ const Confirmation: React.FC = () => {
           // deadline (capped at 20s) so a stalled connection cannot outlive
           // the bound below.
           const remaining = Math.max(deadline - Date.now(), 0);
-          const response = await Promise.race([
-            getPayment(rozoPaymentId, "v2"),
-            new Promise<never>((_, reject) => {
-              timeoutId = setTimeout(
-                () => reject(new Error("getPayment timed out")),
-                Math.min(remaining, 20_000) + 1,
-              );
-            }),
-          ]);
-          if (timeoutId) clearTimeout(timeoutId);
+          let raceTimer: NodeJS.Timeout | undefined;
+          let response: Awaited<ReturnType<typeof getPayment>>;
+          try {
+            response = await Promise.race([
+              getPayment(rozoPaymentId, "v2"),
+              new Promise<never>((_, reject) => {
+                raceTimer = setTimeout(
+                  () => reject(new Error("getPayment timed out")),
+                  Math.min(remaining, 20_000) + 1,
+                );
+              }),
+            ]);
+          } finally {
+            if (raceTimer) clearTimeout(raceTimer);
+          }
           const payment = response.data;
           if (!active) return;
           if (payment) {
