@@ -74,8 +74,8 @@ function buildPaymentRequestBody(
     receiverMemo,
     apiVersion,
     intent,
+    ...rest
   } = params;
-
   // Create payment bridge configuration
   const { preferred, destination } = createPaymentBridgeConfig({
     toChain,
@@ -139,6 +139,7 @@ function buildPaymentRequestBody(
     ...(webhookUrl ? { webhookUrl } : {}),
     ...(webhookSecret ? { webhookSecret } : {}),
     ...(intent ? { intent } : {}),
+    ...rest,
   };
 
   if (apiVersion === "v1") {

@@ -737,10 +737,10 @@ const Confirmation: React.FC = () => {
         <AnimationContainer>
           <InsetContainer>
             {!done && <Spinner $status={false} />}
-            {done && (!showProcessingPayout || payoutResolved) && <SuccessIcon $status={true} />}
             {done && showProcessingPayout && !payoutResolved && (
               <Ring width={100} height={100} color="#0052ff" />
             )}
+            {done && (!showProcessingPayout || payoutResolved) && <SuccessIcon $status={true} />}
           </InsetContainer>
         </AnimationContainer>
 
@@ -763,7 +763,7 @@ const Confirmation: React.FC = () => {
                     </Link>
                   </ModalBody>
                 </ListItem>
-                <ModalBody>
+                <ModalBody style={{ marginTop: 8, fontSize: 14 }}>
                   {payinWaitTimedOut
                     ? "We have not seen this transfer confirmed yet. If your wallet shows it as sent, check the receipt later or contact support with the hash above."
                     : "Waiting for the network to confirm your transfer."}
