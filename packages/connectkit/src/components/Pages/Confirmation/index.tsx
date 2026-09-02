@@ -233,7 +233,20 @@ const Confirmation: React.FC = () => {
     const pollUntilConfirmed = async () => {
       while (active) {
         try {
-          const response = await getPayment(rozoPaymentId, "v2");
+          // apiClient's fetch has no timeout; race it against the remaining
+          // deadline (capped at 20s) so a stalled connection cannot outlive
+          // the bound below.
+          const remaining = Math.max(deadline - Date.now(), 0);
+          const response = await Promise.race([
+            getPayment(rozoPaymentId, "v2"),
+            new Promise<never>((_, reject) => {
+              timeoutId = setTimeout(
+                () => reject(new Error("getPayment timed out")),
+                Math.min(remaining, 20_000) + 1,
+              );
+            }),
+          ]);
+          if (timeoutId) clearTimeout(timeoutId);
           const payment = response.data;
           if (!active) return;
           if (payment) {
@@ -631,15 +644,19 @@ const Confirmation: React.FC = () => {
   useEffect(() => {
     if (!done || !rawPayInHash || !rozoPaymentId) return;
     const sameTx = isStellarDirectSameTx || !!payinConfirmed?.sameTxPayout;
-    const depositFlow = !!paymentStateContext.selectedDepositAddressOption;
-    if (!sameTx && !depositFlow) return;
-    const payoutHash = sameTx ? rawPayInHash : (payinConfirmed?.payoutTxHash ?? rawPayInHash);
+    // Deposit-address flow: only when the API already reports the destination
+    // tx. Otherwise leave payoutCompletedRef untouched so the normal Pusher /
+    // polling payout wait runs — never report the source tx as the payout.
+    const depositPayout =
+      !!paymentStateContext.selectedDepositAddressOption && !!payinConfirmed?.payoutTxHash;
+    if (!sameTx && !depositPayout) return;
+    const payoutHash = sameTx ? rawPayInHash : payinConfirmed!.payoutTxHash!;
     const payoutKey = `${payoutHash}-${rozoPaymentId}`;
     if (payoutCompletedSent.current === payoutKey) return;
     payoutCompletedSent.current = payoutKey;
     payoutCompletedRef.current = true;
     setPaymentPayoutCompleted(payoutHash, rozoPaymentId);
-    context.log("[CONFIRMATION] payout completed directly:", { sameTx, depositFlow, payoutHash });
+    context.log("[CONFIRMATION] payout completed directly:", { sameTx, depositPayout, payoutHash });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [done, rawPayInHash, rozoPaymentId, isStellarDirectSameTx, payinConfirmed]);
 
