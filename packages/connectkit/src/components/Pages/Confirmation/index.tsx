@@ -87,10 +87,18 @@ const Confirmation: React.FC = () => {
   // is known as soon as the pay-in txHash is confirmed.
   const isStellarDirectSameTx = useMemo(() => {
     if (!order) return false;
-    const settlementMode = (order.metadata as any)?.settlementMode;
-    if (settlementMode !== "stellar_direct") return false;
-    const sourceTx = order.sourceStartTxHash ?? order.metadata?.payinTransactionHash;
-    const destTx = order.payoutTransactionHash ?? order.destFastFinishTxHash ?? order.destClaimTxHash;
+
+    const meta = (order as any).metadata as Record<string, unknown> | undefined;
+    if (meta?.settlementMode !== "stellar_direct") return false;
+
+    const sourceTx =
+      (order as any).sourceStartTxHash ?? (meta?.payinTransactionHash as string | undefined);
+
+    const destTx =
+      (order as any).payoutTransactionHash ??
+      (order as any).destFastFinishTxHash ??
+      (order as any).destClaimTxHash;
+
     return !!sourceTx && !!destTx && sourceTx === destTx;
   }, [order]);
 

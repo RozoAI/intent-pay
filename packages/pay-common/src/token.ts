@@ -727,7 +727,7 @@ export const solanaUSDC: Token = token({
 });
 
 export const solanaUSDT: Token = token({
-  chainId: rozoSolana.chainId,
+  chainId: solana.chainId,
   token: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
   decimals: 6,
   fiatISO: "USD",
