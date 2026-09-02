@@ -82,8 +82,6 @@ export default function WaitingDepositAddress() {
     paymentState: rozoPaymentState,
     reset,
     createPreviewOrder,
-    setPaymentCompleted,
-    setPaymentPayoutCompleted,
   } = useRozoPay();
 
   // Detect Optimism USDT0 under-payment: the order has received some funds
@@ -116,15 +114,17 @@ export default function WaitingDepositAddress() {
   // The active deposit payment id (same expression the Pusher block uses).
   const activePaymentId = rozoPaymentId || depAddr?.externalId;
 
-  const handlePayinDetected = (txHash: string, paymentId?: string) => {
+  const handlePayinDetected = (txHash: string, _paymentId?: string) => {
     if (payinDetectedRef.current) return; // run once
     if (!selectedDepositAddressOption) return;
     payinDetectedRef.current = true;
 
     context.log("[PAYIN DETECTED] Payment received:", txHash);
 
-    setPaymentCompleted(txHash, paymentId, null);
-    setPaymentPayoutCompleted(txHash, paymentId);
+    // Detection (source.txHash seen) is not confirmation (source.confirmedAt).
+    // Do not complete here: hand the hash to Confirmation, whose payin gate
+    // polls the API until the deposit is confirmed and then emits
+    // PaymentCompleted / PaymentPayoutCompleted.
 
     const tokenMode =
       selectedDepositAddressOption.id === DepositAddressPaymentOptions.SOLANA

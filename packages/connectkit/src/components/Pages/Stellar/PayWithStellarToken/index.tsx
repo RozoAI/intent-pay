@@ -61,7 +61,6 @@ const PayWithStellarToken: React.FC = () => {
     paymentState: state,
     setPaymentStarted,
     setPaymentUnpaid,
-    setPaymentCompleted,
     hydrateOrder,
   } = useRozoPay();
   const handleContactClick = useContactSupport();
@@ -552,13 +551,11 @@ const PayWithStellarToken: React.FC = () => {
           setPayState(PayState.RequestSuccessful);
           setTxHash(response.hash);
           setTxURL(getChainExplorerTxUrl(rozoStellar.chainId, response.hash));
+          // Do NOT mark the payment completed here: Horizon accepting the
+          // submission is not the API confirming the deposit for this order.
+          // The Confirmation page reports the hash and waits for that.
           setTimeout(() => {
             setSignedTx(undefined);
-            setPaymentCompleted(
-              response.hash,
-              rozoPaymentId,
-              stellarPublicKey ?? null,
-            );
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
           }, 200);
           setTimeout(() => {
