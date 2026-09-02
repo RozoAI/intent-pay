@@ -61,7 +61,6 @@ const PayWithSolanaToken: React.FC = () => {
     paymentState: state,
     setPaymentStarted,
     setPaymentUnpaid,
-    setPaymentCompleted,
     hydrateOrder,
   } = useRozoPay();
   const handleContactClick = useContactSupport();
@@ -440,15 +439,11 @@ const PayWithSolanaToken: React.FC = () => {
           } catch {}
           setPayState(PayState.RequestSuccessful);
           setTxHash(result.txHash);
-          // Use `newId` (resolved this attempt) instead of the stale
-          // `rozoPaymentId` React state captured in the useCallback closure.
-          const completedPaymentId = newId ?? undefined;
+          // Do NOT mark the payment completed here: `sendTransaction` only
+          // proves the wallet returned a signature, not that it landed. The
+          // Confirmation page reports the hash and waits for the API to
+          // confirm the deposit before completing.
           setTimeout(() => {
-            setPaymentCompleted(
-              result.txHash,
-              completedPaymentId,
-              solanaPubKey ?? null,
-            );
             setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-solana" });
           }, 200);
           setTimeout(() => {
@@ -519,7 +514,6 @@ const PayWithSolanaToken: React.FC = () => {
       setPaymentStarted,
       capture,
       setTxHash,
-      setPaymentCompleted,
       solanaPubKey,
       setRoute,
       solanaPaymentOptions,
