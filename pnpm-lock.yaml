@@ -52,8 +52,8 @@ importers:
         specifier: 0.1.27
         version: 0.1.27(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(viem@2.55.8(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@3.25.76))
       '@rozoai/intent-pay':
-        specifier: 0.1.40
-        version: 0.1.40(e452d91ea400f1f6b62444fa7669e589)
+        specifier: 0.1.41-beta.1
+        version: 0.1.41-beta.1(e452d91ea400f1f6b62444fa7669e589)
       '@stellar/stellar-sdk':
         specifier: ^14.4.3
         version: 14.6.1
@@ -2893,8 +2893,8 @@ packages:
     peerDependencies:
       viem: ^2.23.2
 
-  '@rozoai/intent-pay@0.1.40':
-    resolution: {integrity: sha512-9yGEHEWQIOa8+3SzyhOpzRvQrp0J3cfCE0tlLNHwCTvUVsPoG2jUD/xLW42PE9ZcndlR+Xt92zzgwLlBcPETyg==}
+  '@rozoai/intent-pay@0.1.41-beta.1':
+    resolution: {integrity: sha512-vpqX0cT/p0gb8zh4c6qHVcMGMZH36F1hfrbSM7dIuri4z33XbRot1O/3Ltvx/O0Tb1xtBPIV8/m8TBb6bQvWRg==}
     engines: {node: '>=12.4'}
     peerDependencies:
       '@creit.tech/stellar-wallets-kit': ^1.9.5
@@ -12495,6 +12495,21 @@ snapshots:
       - typescript
       - utf-8-validate
 
+  '@rozoai/intent-common@0.1.28(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(viem@2.55.8(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@3.25.76))':
+    dependencies:
+      '@scure/base': 1.2.6
+      '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)
+      '@stellar/stellar-sdk': 14.6.1
+      viem: 2.55.8(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - encoding
+      - supports-color
+      - typescript
+      - utf-8-validate
+
   '@rozoai/intent-common@0.1.28(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(viem@2.55.8(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@4.4.3))':
     dependencies:
       '@scure/base': 1.2.6
@@ -12510,13 +12525,13 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@rozoai/intent-pay@0.1.40(e452d91ea400f1f6b62444fa7669e589)':
+  '@rozoai/intent-pay@0.1.41-beta.1(e452d91ea400f1f6b62444fa7669e589)':
     dependencies:
       '@creit.tech/stellar-wallets-kit': 1.9.5(367f3ee1c63b93de1f1959f562dc3539)
       '@reown/appkit': 1.8.23(@react-native-async-storage/async-storage@1.24.0(react-native@0.86.0(@babel/core@7.29.7)(@types/react@18.3.31)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@6.0.6)))(@types/react@18.3.31)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(react@18.2.0)(typescript@5.5.2)(use-sync-external-store@1.4.0(react@18.2.0))(utf-8-validate@6.0.6)(zod@4.4.3)
       '@rollup/plugin-image': 3.0.3(rollup@4.62.2)
       '@rollup/plugin-typescript': 12.3.0(rollup@4.62.2)(tslib@2.8.1)(typescript@5.5.2)
-      '@rozoai/intent-common': 0.1.27(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(viem@2.55.8(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@3.25.76))
+      '@rozoai/intent-common': 0.1.28(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(viem@2.55.8(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@3.25.76))
       '@solana/spl-memo': 0.2.5(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6))
       '@solana/spl-token': 0.4.15(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.2)(utf-8-validate@6.0.6)
       '@solana/wallet-adapter-base': 0.9.27(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6))
