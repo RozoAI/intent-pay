@@ -23,6 +23,11 @@ import { ROZO_INVOICE_URL } from "../../../constants/rozoConfig";
 import { usePayoutPolling } from "../../../hooks/usePayoutPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useRozoPay } from "../../../hooks/useRozoPay";
+import {
+  beginRequestScope,
+  cancelRequestScope,
+  PAYMENT_REQUEST_SCOPE,
+} from "../../../utils/paymentRequestScope";
 import { useSupportedChains } from "../../../hooks/useSupportedChains";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
@@ -192,6 +197,7 @@ const Confirmation: React.FC = () => {
     if (payinConfirmed?.key === payinGateKey) return;
 
     let active = true;
+    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
     let timeoutId: NodeJS.Timeout | undefined;
     const startedAt = Date.now();
     const HARD_CAP_MS = 15 * 60_000;
@@ -200,8 +206,23 @@ const Confirmation: React.FC = () => {
     setPayinTimedOut(null);
 
     const sleep = (ms: number) =>
-      new Promise<void>((resolve) => {
-        timeoutId = setTimeout(resolve, ms);
+      new Promise<void>((resolve, reject) => {
+        const onAbort = () => {
+          if (timeoutId) clearTimeout(timeoutId);
+          request.signal.removeEventListener("abort", onAbort);
+          const error = new Error("Aborted");
+          error.name = "AbortError";
+          reject(error);
+        };
+        timeoutId = setTimeout(() => {
+          request.signal.removeEventListener("abort", onAbort);
+          resolve();
+        }, ms);
+        if (request.signal.aborted) {
+          onAbort();
+          return;
+        }
+        request.signal.addEventListener("abort", onAbort, { once: true });
       });
 
     const reportPayin = async () => {
@@ -217,6 +238,7 @@ const Confirmation: React.FC = () => {
             txHash,
             senderAddress: senderAddress || undefined,
             apiVersion: "v2",
+            signal: request.signal,
           });
           if (res && !res.error && res.data) {
             context.log("[CONFIRMATION] Payin tx hash reported:", { rozoPaymentId, txHash });
@@ -224,6 +246,7 @@ const Confirmation: React.FC = () => {
           }
           context.log(`[CONFIRMATION] Payin report attempt ${attempt} rejected:`, res?.error);
         } catch (error) {
+          if ((error as Error)?.name === "AbortError") return false;
           context.log(`[CONFIRMATION] Payin report attempt ${attempt} failed:`, error);
         }
         if (attempt < 3 && active) await sleep(1000 * attempt);
@@ -249,7 +272,7 @@ const Confirmation: React.FC = () => {
           let response: Awaited<ReturnType<typeof getPayment>>;
           try {
             response = await Promise.race([
-              getPayment(rozoPaymentId, "v2"),
+              getPayment(rozoPaymentId, "v2", { signal: request.signal }),
               new Promise<never>((_, reject) => {
                 raceTimer = setTimeout(
                   () => reject(new Error("getPayment timed out")),
@@ -311,6 +334,7 @@ const Confirmation: React.FC = () => {
             }
           }
         } catch (error) {
+          if ((error as Error)?.name === "AbortError") return;
           context.log("[CONFIRMATION] Payin polling error:", error);
         }
         if (Date.now() >= deadline) {
@@ -335,6 +359,7 @@ const Confirmation: React.FC = () => {
 
     return () => {
       active = false;
+      cancelRequestScope(PAYMENT_REQUEST_SCOPE);
       if (timeoutId) clearTimeout(timeoutId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

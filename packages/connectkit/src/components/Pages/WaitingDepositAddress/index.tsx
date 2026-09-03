@@ -23,6 +23,11 @@ import { AlertIcon, WarningIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { usePayContext } from "../../../hooks/usePayContext";
+import {
+  beginRequestScope,
+  cancelRequestScope,
+  PAYMENT_REQUEST_SCOPE,
+} from "../../../utils/paymentRequestScope";
 import { usePayinPolling } from "../../../hooks/usePayinPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useRozoPay } from "../../../hooks/useRozoPay";
@@ -479,9 +484,16 @@ export default function WaitingDepositAddress() {
       context.log(
         `Resetting payment state from ${rozoPaymentState} to preview for new deposit option`,
       );
+      const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
       reset();
-      createPreviewOrder(payParams);
+      void createPreviewOrder(payParams, { signal: request.signal }).catch((error) => {
+        if ((error as Error)?.name !== "AbortError") {
+          context.log("[WAITING_DEPOSIT] createPreviewOrder failed", error);
+        }
+      });
     }
+
+    return () => cancelRequestScope(PAYMENT_REQUEST_SCOPE);
   }, [selectedDepositAddressOption, rozoPaymentState, payParams]);
 
   // Generate deposit address when conditions are met
@@ -605,7 +617,7 @@ function FeeErrorContent({ feeError, fiatISO }: { feeError: FeeErrorData; fiatIS
     >
       <CenterContainer style={{ width: "100%" }}>
         <FailIcon />
-        <ModalH1 style={{ textAlign: "center", marginTop: 16 }}>Amount Too High</ModalH1>
+        <ModalH1 style={{ textAlign: "center", marginTop: 16 }}>Failed to Fetch Fee</ModalH1>
         <div style={{ height: 16 }} />
         <ModalBody style={{ textAlign: "center" }}>
           {feeError.error.message}

@@ -38,8 +38,15 @@ export function waitForPaymentState<
   const T extends readonly PaymentState["type"][]
 >(
   store: PaymentStore,
-  ...validTypes: T
+  ...validTypesAndMaybeOptions: [...T, { signal?: AbortSignal }?]
 ): Promise<Extract<PaymentState, { type: T[number] }>> {
+  const options =
+    validTypesAndMaybeOptions.length > 0 &&
+    typeof validTypesAndMaybeOptions[validTypesAndMaybeOptions.length - 1] === "object" &&
+    !Array.isArray(validTypesAndMaybeOptions[validTypesAndMaybeOptions.length - 1])
+      ? (validTypesAndMaybeOptions.pop() as { signal?: AbortSignal } | undefined)
+      : undefined;
+
   return waitForState<
     PaymentState,
     PaymentEvent,
@@ -47,8 +54,9 @@ export function waitForPaymentState<
   >(
     store,
     (s): s is Extract<PaymentState, { type: T[number] }> =>
-      (validTypes as readonly PaymentState["type"][]).includes(s.type),
+      (validTypesAndMaybeOptions as readonly PaymentState["type"][]).includes(s.type),
     (s) => s.type === "error",
-    (s) => (s as Extract<PaymentState, { type: "error" }>).message
+    (s) => (s as Extract<PaymentState, { type: "error" }>).message,
+    options,
   );
 }

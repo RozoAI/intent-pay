@@ -34,6 +34,7 @@ type RozoPayFunctions = {
    */
   createPreviewOrder: (
     params: PayParams,
+    options?: { signal?: AbortSignal },
   ) => Promise<Extract<PaymentState, { type: "preview" }>>;
 
   /**
@@ -42,7 +43,7 @@ type RozoPayFunctions = {
    *
    * @param id - The Rozo Pay order ID to set.
    */
-  setPayId: (id: RozoPayOrderID | string) => Promise<
+  setPayId: (id: RozoPayOrderID | string, options?: { signal?: AbortSignal }) => Promise<
     Extract<
       PaymentState,
       {
@@ -63,6 +64,7 @@ type RozoPayFunctions = {
   hydrateOrder: (
     refundAddress?: string,
     walletPaymentOption?: WalletPaymentOption,
+    options?: { signal?: AbortSignal },
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
   /**
@@ -72,6 +74,7 @@ type RozoPayFunctions = {
   hydrateOrderRozo: (
     refundAddress?: string,
     walletPaymentOption?: WalletPaymentOption,
+    options?: { signal?: AbortSignal },
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
   /** Trigger search for payment on the current order. */
@@ -255,19 +258,19 @@ export function useRozoPay(): UseRozoPay {
   const dispatch = useCallback((e: PaymentEvent) => store.dispatch(e), [store]);
 
   const createPreviewOrder = useCallback(
-    async (payParams: PayParams) => {
+    async (payParams: PayParams, options?: { signal?: AbortSignal }) => {
       dispatch({ type: "set_pay_params", payParams });
 
       // Wait for the order to enter the "preview" state, which means it
       // has been successfully created.
-      const previewOrderState = await waitForPaymentState(store, "preview");
+      const previewOrderState = await waitForPaymentState(store, "preview", options);
       return previewOrderState;
     },
     [dispatch, store],
   );
 
   const setPayId = useCallback(
-    async (payId: RozoPayOrderID | string) => {
+    async (payId: RozoPayOrderID | string, options?: { signal?: AbortSignal }) => {
       dispatch({ type: "set_pay_id", payId });
 
       // Wait for the order to be queried from the API. Using payId could
@@ -279,6 +282,7 @@ export function useRozoPay(): UseRozoPay {
         "payment_started",
         "payment_completed",
         "payment_bounced",
+        options,
       );
 
       return previewOrderState;
@@ -290,6 +294,7 @@ export function useRozoPay(): UseRozoPay {
     async (
       refundAddress?: Address,
       walletPaymentOption?: WalletPaymentOption,
+      options?: { signal?: AbortSignal },
     ) => {
       dispatch({
         type: "hydrate_order",
@@ -302,6 +307,7 @@ export function useRozoPay(): UseRozoPay {
       const hydratedOrderState = await waitForPaymentState(
         store,
         "payment_unpaid",
+        options,
       );
 
       return hydratedOrderState;
@@ -313,6 +319,7 @@ export function useRozoPay(): UseRozoPay {
     async (
       refundAddress?: Address,
       walletPaymentOption?: WalletPaymentOption,
+      options?: { signal?: AbortSignal },
     ) => {
       dispatch({
         type: "hydrate_order",
@@ -323,6 +330,7 @@ export function useRozoPay(): UseRozoPay {
       const hydratedOrderState = await waitForPaymentState(
         store,
         "payment_unpaid",
+        options,
       );
 
       return hydratedOrderState;

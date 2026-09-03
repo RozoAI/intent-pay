@@ -5,6 +5,10 @@ import { usePayContext } from "../../../hooks/usePayContext";
 import { ModalContent, PageContent } from "../../Common/Modal/styles";
 
 import { useRozoPay } from "../../../hooks/useRozoPay";
+import {
+  beginRequestScope,
+  PAYMENT_REQUEST_SCOPE,
+} from "../../../utils/paymentRequestScope";
 import styled from "../../../styles/styled";
 import { USD_DECIMALS } from "../../../utils/format";
 import { isValidNumber, sanitizeNumber } from "../../../utils/validateInput";
@@ -39,7 +43,14 @@ const SelectWalletAmount: React.FC = () => {
   const handleContinue = async () => {
     const amountUsd = Number(sanitizeNumber(usdInput));
     setChosenUsd(amountUsd);
-    await hydrateOrder();
+    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+    try {
+      await hydrateOrder(undefined, undefined, { signal: request.signal });
+    } catch (error) {
+      if ((error as Error)?.name === "AbortError") return;
+      console.error("[SelectWalletAmount] hydrateOrder failed", error);
+      return;
+    }
 
     if (selectedWallet.id === WALLET_ID_MOBILE_WALLETS) {
       setPendingConnectorId(WALLET_ID_MOBILE_WALLETS);

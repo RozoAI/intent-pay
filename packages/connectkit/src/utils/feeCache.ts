@@ -34,7 +34,18 @@ const cache = new Map<string, CacheEntry>();
 
 export function getCachedFee(
   params: CreateNewPaymentParams,
+  options?: { signal?: AbortSignal },
 ): Promise<FeeResult> {
+  if (options?.signal?.aborted) {
+    const error = new Error("Aborted");
+    error.name = "AbortError";
+    return Promise.resolve({
+      data: null,
+      error,
+      status: null,
+    });
+  }
+
   const key = JSON.stringify(params);
 
   const existing = cache.get(key);
@@ -51,7 +62,7 @@ export function getCachedFee(
     }
   }
 
-  const promise = getFee(params)
+  const promise = getFee(params, { signal: options?.signal })
     .then((result) => {
       // Only cache successful responses; errors should be retryable
       if (!result.error) {

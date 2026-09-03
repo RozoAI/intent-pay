@@ -2,6 +2,11 @@ import React, { useEffect, useMemo, useRef } from "react";
 
 import { ROUTES } from "../../../constants/routes";
 import { useRozoPay } from "../../../hooks/useRozoPay";
+import {
+  beginRequestScope,
+  cancelRequestScope,
+  PAYMENT_REQUEST_SCOPE,
+} from "../../../utils/paymentRequestScope";
 import { usePayContext } from "../../../hooks/usePayContext";
 import { WalletConfigProps, walletConfigs } from "../../../wallets/walletConfigs";
 import { WALLET_ID_OTHER_WALLET, WalletProps, useWallets } from "../../../wallets/useWallets";
@@ -41,9 +46,16 @@ const MobileConnectors: React.FC = () => {
       !hasCustomDeeplink
     ) {
       hasHydratedRef.current = true;
-      hydrateOrder();
+      const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+      void hydrateOrder(undefined, undefined, { signal: request.signal }).catch((error) => {
+        if ((error as Error)?.name !== "AbortError") {
+          context.log("[MOBILE_CONNECTORS] hydrateOrder failed", error);
+        }
+      });
     }
     if (hasCustomDeeplink) hasHydratedRef.current = true;
+
+    return () => cancelRequestScope(PAYMENT_REQUEST_SCOPE);
   }, [paymentState.isDepositFlow, order, isMobile, hasCustomDeeplink]);
 
   useEffect(() => {

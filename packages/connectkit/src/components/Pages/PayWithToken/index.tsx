@@ -11,6 +11,10 @@ import { ROUTES } from "../../../constants/routes";
 import { useContactSupport } from "../../../hooks/useContactSupport";
 import { usePayContext } from "../../../hooks/usePayContext";
 import { useRozoPay } from "../../../hooks/useRozoPay";
+import {
+  beginRequestScope,
+  PAYMENT_REQUEST_SCOPE,
+} from "../../../utils/paymentRequestScope";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import { buildFeeQuoteParams, getCachedFee } from "../../../utils/feeCache";
@@ -162,30 +166,37 @@ const PayWithToken: React.FC = () => {
         }
 
         // @NOTE: Fee calculation
+        const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+        setFeeLoading(true);
         const destToken = currentOrder.destFinalCallTokenAmount?.token;
         const destAmountAtomic = currentOrder.destFinalCallTokenAmount?.amount;
         const toUnits = destAmountAtomic && destToken
           ? formatUnits(BigInt(destAmountAtomic), destToken.decimals)
           : option.required.usd.toString();
-        setFeeLoading(true);
-        const feeData = await getCachedFee(
-          buildFeeQuoteParams({
-            order: currentOrder,
-            payParams: paymentState.payParams,
-            destChainId: destToken.chainId,
-            destTokenAddress: destToken.token,
-            destAddress:
-              getCanonicalDestination(currentOrder).finalDestinationAddress ??
-              "",
-            sourceChainId: option.required.token.chainId,
-            sourceTokenAddress: option.required.token.token,
-            toUnits,
-            feeUsd: option.fees.usd,
-          }),
-        );
+        const feeParams = buildFeeQuoteParams({
+          order: currentOrder,
+          payParams: paymentState.payParams,
+          destChainId: destToken.chainId,
+          destTokenAddress: destToken.token,
+          destAddress:
+            getCanonicalDestination(currentOrder).finalDestinationAddress ??
+            "",
+          sourceChainId: option.required.token.chainId,
+          sourceTokenAddress: option.required.token.token,
+          toUnits,
+          feeUsd: option.fees.usd,
+        });
+        const feeData = await getCachedFee(feeParams, { signal: request.signal });
         setFeeLoading(false);
 
+        if (request.signal.aborted) {
+          return;
+        }
+
         if (feeData.error) {
+          if (feeData.error.name === "AbortError") {
+            return;
+          }
           capture(ROZO_EVENTS.PAYMENT_FAILED, {
             payment_id: rozoPaymentId ?? order?.externalId,
             error_message: feeData.error.message,

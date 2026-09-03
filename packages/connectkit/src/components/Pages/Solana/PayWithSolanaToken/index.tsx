@@ -25,6 +25,10 @@ import {
 import { formatUnits } from "viem";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
+import {
+  beginRequestScope,
+  PAYMENT_REQUEST_SCOPE,
+} from "../../../../utils/paymentRequestScope";
 import { ROZO_EVENTS } from "../../../../lib/analytics/events";
 import { useAnalytics } from "../../../../provider/AnalyticsProvider";
 import { buildFeeQuoteParams, getCachedFee } from "../../../../utils/feeCache";
@@ -181,6 +185,7 @@ const PayWithSolanaToken: React.FC = () => {
         const toUnits = destAmountAtomic && destToken
           ? formatUnits(BigInt(destAmountAtomic), destToken.decimals)
           : option.required.usd.toString();
+        const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
         setFeeLoading(true);
         const feeData = await getCachedFee(
           buildFeeQuoteParams({
@@ -196,10 +201,18 @@ const PayWithSolanaToken: React.FC = () => {
             toUnits,
             feeUsd: option.fees.usd,
           }),
+          { signal: request.signal },
         );
         setFeeLoading(false);
 
+        if (request.signal.aborted) {
+          return;
+        }
+
         if (feeData.error) {
+          if (feeData.error.name === "AbortError") {
+            return;
+          }
           capture(ROZO_EVENTS.PAYMENT_FAILED, {
             payment_id: rozoPaymentId ?? order?.externalId,
             error_message: feeData.error.message,
@@ -225,9 +238,17 @@ const PayWithSolanaToken: React.FC = () => {
           // checkout POST.
           if (!checkoutInFlightRef.current) {
             checkoutInFlightRef.current = (async () => {
-              const paymentRes = await getPayment(existingPayId!);
+              const paymentRes = await getPayment(existingPayId!, undefined, {
+                signal: request.signal,
+              });
+              if (paymentRes.error) {
+                throw paymentRes.error;
+              }
               if (!paymentRes?.data) {
                 throw new Error("Failed to fetch payment");
+              }
+              if (request.signal.aborted) {
+                throw new Error("Aborted");
               }
 
               let sourceChainId = Number(option.required.token.chainId);
@@ -244,7 +265,12 @@ const PayWithSolanaToken: React.FC = () => {
                   tokenAddress: option.required.token.token,
                   amount: String(option.required.usd),
                 }),
+                undefined,
+                { signal: request.signal },
               );
+              if (checkoutRes.error) {
+                throw checkoutRes.error;
+              }
               if (!checkoutRes?.data) {
                 throw new Error("Failed to checkout payment");
               }
@@ -274,9 +300,17 @@ const PayWithSolanaToken: React.FC = () => {
           const existingId =
             rozoPaymentId ?? currentOrder.externalId ?? undefined;
           if (existingId) {
-            const paymentRes = await getPayment(existingId);
+            const paymentRes = await getPayment(existingId, undefined, {
+              signal: request.signal,
+            });
+            if (paymentRes.error) {
+              throw paymentRes.error;
+            }
             if (!paymentRes?.data) {
               throw new Error("Failed to fetch payment");
+            }
+            if (request.signal.aborted) {
+              throw new Error("Aborted");
             }
             const checkoutRes = await checkoutPayment(
               existingId,
@@ -286,7 +320,12 @@ const PayWithSolanaToken: React.FC = () => {
                 tokenAddress: option.required.token.token,
                 amount: String(option.required.usd),
               }),
+              undefined,
+              { signal: request.signal },
             );
+            if (checkoutRes.error) {
+              throw checkoutRes.error;
+            }
             if (!checkoutRes?.data) {
               throw new Error("Failed to checkout payment");
             }
@@ -325,7 +364,7 @@ const PayWithSolanaToken: React.FC = () => {
                   ? Number(feeData.data.source.fee)
                   : option.fees.usd,
             },
-          });
+          }, { signal: request.signal });
           hydratedOrder = res.order;
         }
 

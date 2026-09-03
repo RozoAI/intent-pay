@@ -7,6 +7,11 @@ import {
 } from "@rozoai/intent-common";
 import { useEffect, useState } from "react";
 import { PayLogFn } from "../provider/PayContext";
+import {
+  beginRequestScope,
+  cancelRequestScope,
+  PAYMENT_REQUEST_SCOPE,
+} from "../utils/paymentRequestScope";
 
 const POLL_DELAY = 1000;
 
@@ -86,6 +91,7 @@ export const usePayoutPolling = (
     log("[CONFIRMATION] Starting payout polling for order:", order.externalId);
     setPayoutLoading(true);
 
+    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
     let isActive = true;
     let timeoutId: NodeJS.Timeout;
 
@@ -94,7 +100,9 @@ export const usePayoutPolling = (
 
       try {
         log("[CONFIRMATION] Polling for payout transaction:", rozoPaymentId);
-        const response = await getPayment(rozoPaymentId, "v2");
+        const response = await getPayment(rozoPaymentId, "v2", {
+          signal: request.signal,
+        });
         log("[CONFIRMATION] Payout polling response:", response.data);
 
         if (
@@ -125,6 +133,7 @@ export const usePayoutPolling = (
           timeoutId = setTimeout(pollPayout, POLL_DELAY);
         }
       } catch (error) {
+        if ((error as Error)?.name === "AbortError") return;
         console.error("[CONFIRMATION] Payout polling error:", error);
         if (isActive) {
           timeoutId = setTimeout(pollPayout, POLL_DELAY);
@@ -137,6 +146,7 @@ export const usePayoutPolling = (
 
     return () => {
       isActive = false;
+      cancelRequestScope(PAYMENT_REQUEST_SCOPE);
       if (timeoutId) {
         clearTimeout(timeoutId);
       }

@@ -1,5 +1,5 @@
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAccount, useConnect, useConnectors } from "wagmi";
 
 import { ROUTES } from "../../constants/routes";
@@ -7,6 +7,7 @@ import { getAppName } from "../../defaultConfig";
 import { useAutoConnectGate } from "../../hooks/useAutoConnectGate";
 import { useChainIsSupported } from "../../hooks/useChainIsSupported";
 import { useRozoPay } from "../../hooks/useRozoPay";
+import { cancelRequestScope, PAYMENT_REQUEST_SCOPE } from "../../utils/paymentRequestScope";
 import useIsMobile from "../../hooks/useIsMobile";
 import { usePayContext } from "../../hooks/usePayContext";
 import { useStellar } from "../../provider/StellarContextProvider";
@@ -79,6 +80,7 @@ export const RozoPayModal: React.FC<{
     setSelectedStellarTokenOption,
     setSelectedDepositAddressOption,
     setSelectedWallet,
+    depositAddressState,
   } = paymentState;
   const { paymentState: paymentFsmState } = useRozoPay();
   const autoConnectGate = useAutoConnectGate();
@@ -93,21 +95,33 @@ export const RozoPayModal: React.FC<{
   const { isConnected: isStellarConnected } = useStellar();
 
   const chainIsSupported = useChainIsSupported(chain?.id);
+  const isDepositAddressReady =
+    context.route === ROUTES.WAITING_DEPOSIT_ADDRESS && depositAddressState === "ready";
+  const isConfirmationPending =
+    context.route === ROUTES.CONFIRMATION && paymentFsmState === "payment_started";
+  const isActionLockedRoute =
+    context.route === ROUTES.PAY_WITH_TOKEN ||
+    context.route === ROUTES.WAITING_WALLET ||
+    context.route === ROUTES.WAITING_EXTERNAL ||
+    isConfirmationPending;
 
   //if chain is unsupported we enforce a "switch chain" prompt
   const closeable = !(
     context.options?.enforceSupportedChains &&
     isEthConnected &&
     !chainIsSupported
-  );
+  ) &&
+    !isActionLockedRoute &&
+    !isDepositAddressReady;
 
   const showBackButton =
-    closeable &&
-    context.route !== ROUTES.SELECT_METHOD &&
-    context.route !== ROUTES.CONFIRMATION &&
-    context.route !== ROUTES.SELECT_TOKEN &&
-    context.route !== ROUTES.ERROR &&
-    paymentFsmState !== "error";
+    context.route === ROUTES.WAITING_DEPOSIT_ADDRESS ||
+    (closeable &&
+      context.route !== ROUTES.SELECT_METHOD &&
+      context.route !== ROUTES.CONFIRMATION &&
+      context.route !== ROUTES.SELECT_TOKEN &&
+      context.route !== ROUTES.ERROR &&
+      paymentFsmState !== "error");
 
   const onBack = () => {
     const meta = { event: "click-back" };
@@ -149,6 +163,13 @@ export const RozoPayModal: React.FC<{
     } else if (context.route === ROUTES.ONBOARDING) {
       context.setRoute(ROUTES.CONNECTORS, meta);
     } else if (context.route === ROUTES.WAITING_DEPOSIT_ADDRESS) {
+      if (isDepositAddressReady) {
+        const confirmSwitch = window.confirm(
+          "If you already paid, don't switch screens or confirmation may take longer. Continue?",
+        );
+        if (!confirmSwitch) return;
+      }
+      cancelRequestScope(PAYMENT_REQUEST_SCOPE);
       if (isDepositFlow) {
         if (paymentState.selectedDepositAddressOption === undefined) {
           context.setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_CHAIN, meta);
@@ -240,9 +261,7 @@ export const RozoPayModal: React.FC<{
   };
 
   function hide() {
-    if (isDepositFlow) {
-      generatePreviewOrder();
-    }
+    cancelRequestScope(PAYMENT_REQUEST_SCOPE);
     context.setOpen(false, { event: "click-close" });
   }
   const { isMobile } = useIsMobile();
