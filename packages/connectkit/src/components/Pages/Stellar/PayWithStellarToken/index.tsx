@@ -27,6 +27,7 @@ import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
 import {
   beginRequestScope,
+  isAbortError,
   PAYMENT_REQUEST_SCOPE,
 } from "../../../../utils/paymentRequestScope";
 import { ROZO_EVENTS } from "../../../../lib/analytics/events";
@@ -507,6 +508,12 @@ const PayWithStellarToken: React.FC = () => {
       setSignedTx(result.signedTx);
       setPayState(PayState.WaitingForConfirmation);
     } catch (error) {
+      // Abort = user navigated away (Back / reset). Not a payment failure.
+      if (isAbortError(error)) {
+        checkoutInFlightRef.current = null;
+        return;
+      }
+
       console.error("[PayWithStellarToken] Error:", error);
 
       // Clear the in-flight guard so a Retry Payment click (a genuine new

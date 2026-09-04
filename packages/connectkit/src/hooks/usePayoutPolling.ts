@@ -10,7 +10,7 @@ import { PayLogFn } from "../provider/PayContext";
 import {
   beginRequestScope,
   cancelRequestScope,
-  PAYMENT_REQUEST_SCOPE,
+  isAbortError,
 } from "../utils/paymentRequestScope";
 
 const POLL_DELAY = 1000;
@@ -91,7 +91,8 @@ export const usePayoutPolling = (
     log("[CONFIRMATION] Starting payout polling for order:", order.externalId);
     setPayoutLoading(true);
 
-    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+    const scopeKey = `payout-polling-${rozoPaymentId}`;
+    let request = beginRequestScope(scopeKey);
     let isActive = true;
     let timeoutId: NodeJS.Timeout;
 
@@ -133,11 +134,18 @@ export const usePayoutPolling = (
           timeoutId = setTimeout(pollPayout, POLL_DELAY);
         }
       } catch (error) {
-        if ((error as Error)?.name === "AbortError") return;
-        console.error("[CONFIRMATION] Payout polling error:", error);
-        if (isActive) {
+        if (!isActive) return;
+        // Abort from our own scope → component unmounted. Don't reschedule.
+        if (isAbortError(error) && request.signal.aborted) return;
+        // Abort from external scope: re-begin and retry.
+        if (isAbortError(error)) {
+          log("[CONFIRMATION] External abort, resuming poll");
+          request = beginRequestScope(scopeKey);
           timeoutId = setTimeout(pollPayout, POLL_DELAY);
+          return;
         }
+        console.error("[CONFIRMATION] Payout polling error:", error);
+        timeoutId = setTimeout(pollPayout, POLL_DELAY);
       }
     };
 
@@ -146,7 +154,7 @@ export const usePayoutPolling = (
 
     return () => {
       isActive = false;
-      cancelRequestScope(PAYMENT_REQUEST_SCOPE);
+      cancelRequestScope(scopeKey);
       if (timeoutId) {
         clearTimeout(timeoutId);
       }

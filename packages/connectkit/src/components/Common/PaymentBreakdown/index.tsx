@@ -60,11 +60,11 @@ const PaymentBreakdown: React.FC<{
         ) : feeDisplay === "free" ? (
           <Badge>Free</Badge>
         ) : (
-          <ModalBody>{feeDisplay}</ModalBody>
+          <ModalBody>+{feeDisplay}</ModalBody>
         )}
       </FeeRow>
-      <FeeRow style={{ marginTop: 8 }}>
-        <ModalBody style={{ fontWeight: 600 }}>Total</ModalBody>
+      <FeeRow style={{ marginTop: 12 }}>
+        <ModalBody style={{ fontWeight: 600 }}>You Pay</ModalBody>
         <ModalBody style={{ fontWeight: 600 }}>
           {feeLoading ? (
             <SpinnerContainer>
@@ -84,7 +84,7 @@ const FeesContainer = styled.div`
   flex-direction: column;
   align-items: center;
   width: 100%;
-  gap: 4px;
+  gap: 6px;
   margin: 16px 0;
 
   @media only screen and (max-width: ${defaultTheme.mobileWidth}px) {
@@ -99,7 +99,7 @@ const FeeRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 60%;
+  width: 65%;
 `;
 const Badge = styled.span`
   display: inline-block;

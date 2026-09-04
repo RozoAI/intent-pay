@@ -1344,7 +1344,7 @@ export function usePaymentState({
     // Mark this option as being processed
     depositAddressCallRef.current.add(option.id);
     setDepositAddressState("creating");
-    log?.(`[PAY DEPOSIT ADDRESS] Starting processing for ${option}`);
+    log?.(`[PAY DEPOSIT ADDRESS] Starting processing for ${JSON.stringify(option)}`);
 
     let depositAddressCompleted = false;
 
@@ -1492,7 +1492,7 @@ export function usePaymentState({
         uri: uriDeeplink ?? "",
         expirationS: Math.floor(Date.now() / 1000) + 300,
         externalId: order.externalId ?? "",
-        memo: order.metadata?.memo || "",
+        memo: order.memo || order.metadata?.memo || "",
       };
     } catch (error) {
       if (isAbortError(error)) {

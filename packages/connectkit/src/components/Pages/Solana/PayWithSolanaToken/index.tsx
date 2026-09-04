@@ -27,6 +27,7 @@ import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
 import {
   beginRequestScope,
+  isAbortError,
   PAYMENT_REQUEST_SCOPE,
 } from "../../../../utils/paymentRequestScope";
 import { ROZO_EVENTS } from "../../../../lib/analytics/events";
@@ -497,6 +498,12 @@ const PayWithSolanaToken: React.FC = () => {
           setPayState(PayState.RequestCancelled);
         }
       } catch (error) {
+        // Abort = user navigated away (Back / reset). Not a payment failure.
+        if (isAbortError(error)) {
+          checkoutInFlightRef.current = null;
+          return;
+        }
+
         console.error("Failed to pay with solana token", error);
 
         // Clear the in-flight guard so a Retry Payment click (a genuine new
