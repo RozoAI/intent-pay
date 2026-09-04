@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 
 import { FeeResponseData, WalletPaymentOption } from "@rozoai/intent-common";
 import defaultTheme from "../../../constants/defaultTheme";
@@ -7,6 +7,7 @@ import { roundTokenAmount, trimTokenAmount } from "../../../utils/format";
 import { ModalBody } from "../../Common/Modal/styles";
 import { Spinner } from "../Spinner";
 import { SpinnerContainer } from "../Spinner/styles";
+import { usePayContext } from "../../../hooks/usePayContext";
 
 const PaymentBreakdown: React.FC<{
   paymentOption: WalletPaymentOption;
@@ -14,6 +15,7 @@ const PaymentBreakdown: React.FC<{
   feeLoading?: boolean;
 }> = ({ paymentOption, feeData, feeLoading }) => {
   const tokenSymbol = paymentOption.required.token.symbol;
+  const { triggerResize } = usePayContext()
 
   const feeDisplay = useMemo(() => {
     if (feeLoading) return null;
@@ -41,6 +43,10 @@ const PaymentBreakdown: React.FC<{
     return null;
   }, [feeData])
 
+  useEffect(() => {
+    triggerResize()
+  }, [feeDisplay, totalDisplay, totalReceive])
+
   return (
     <FeesContainer>
       {!feeLoading && feeDisplay !== "free" && totalReceive &&
@@ -60,7 +66,7 @@ const PaymentBreakdown: React.FC<{
         ) : feeDisplay === "free" ? (
           <Badge>Free</Badge>
         ) : (
-          <ModalBody>+{feeDisplay}</ModalBody>
+          <ModalBody>{feeDisplay}</ModalBody>
         )}
       </FeeRow>
       <FeeRow style={{ marginTop: 12 }}>
