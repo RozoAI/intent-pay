@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.44] - 2026-09-04
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Trigger resize and remove extra '+' on fees &nbsp;-&nbsp; by @akbarsaputrait [<samp>(297ed)</samp>](https://github.com/RozoAI/intent-pay/commit/297ed980)
+
+---
+
 ## [0.1.43] - 2026-09-04
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features

@@ -52,8 +52,8 @@ importers:
         specifier: 0.1.32
         version: 0.1.32(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(viem@2.56.3(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@3.25.76))
       '@rozoai/intent-pay':
-        specifier: 0.1.43
-        version: 0.1.43(c0317f3e7fe5959a64f2846fc4baaa7f)
+        specifier: 0.1.44
+        version: 0.1.44(ac1985f42b143b3498df95d95a007ae9)
       '@stellar/stellar-sdk':
         specifier: ^14.4.3
         version: 14.6.1
@@ -80,7 +80,7 @@ importers:
         version: 0.4.6(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       posthog-js:
         specifier: ^1.378.1
-        version: 1.427.1(@types/react@18.3.31)(react@18.2.0)
+        version: 1.427.2(@types/react@18.3.31)(react@18.2.0)
       radix-ui:
         specifier: ^1.4.3
         version: 1.6.7(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -219,7 +219,7 @@ importers:
         version: 11.18.2(@emotion/is-prop-valid@1.4.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       posthog-js:
         specifier: ^1.0.0
-        version: 1.427.1(@types/react@18.3.31)(react@18.2.0)
+        version: 1.427.2(@types/react@18.3.31)(react@18.2.0)
       pusher-js:
         specifier: ^8.4.0
         version: 8.6.0
@@ -2765,8 +2765,8 @@ packages:
     peerDependencies:
       viem: ^2.23.2
 
-  '@rozoai/intent-pay@0.1.43':
-    resolution: {integrity: sha512-eKI+vdZ71HPtT4Zk8Mb0ZWulibr6ZxmP+NMKaPuOjF9JvuvN8cAgpTLnSZl+JkgGxGVp5kyjQCeHBicf9EK0Kg==}
+  '@rozoai/intent-pay@0.1.44':
+    resolution: {integrity: sha512-ue/0vC1yTIZ6gVYiDSepN1a4SV2mlHVeg45NzJ4LZDIRSS/DnUK6V3BqSoMDVmifqOjqniWIPLm1IVi+lHf2Fw==}
     engines: {node: '>=12.4'}
     peerDependencies:
       '@creit.tech/stellar-wallets-kit': ^1.9.5
@@ -7384,8 +7384,8 @@ packages:
     resolution: {integrity: sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-js@1.427.1:
-    resolution: {integrity: sha512-jPKpF5qQS+SIzg2kJH6mTqkMEVY9YVBEywIccLFdl8A7zn+9aSnXQVv4xbF5gIjPtQe2MdcDugcyyJqfVrImLw==}
+  posthog-js@1.427.2:
+    resolution: {integrity: sha512-/jRg3ChHuxcHTTJ/xb+IbpXLYxiBKIWdjrsNNqY1tAwjnFoijmz58i4mIR4A2P5MWx+4R7LlpK9vQfBr8v292g==}
     peerDependencies:
       '@types/react': '>=16.8.0'
       react: 18.2.0
@@ -8287,8 +8287,8 @@ packages:
     resolution: {integrity: sha512-op4nsTR47R6p0vMUUoYl/a+ljLFVtlfaXkLQmqfLR1qHma1h/ysYk4hEXZ880bf2CYgTskvTa/e196Vd5dDQXw==}
     engines: {node: '>=14.0.0'}
 
-  tinyspy@4.0.4:
-    resolution: {integrity: sha512-azl+t0z7pw/z958Gy9svOTuzqIk6xq+NSheJzn5MMWtWTFywIacg2wUlzKFGtt3cthx0r2SxMK0yzJOR0IES7Q==}
+  tinyspy@4.0.6:
+    resolution: {integrity: sha512-u8KszXvGfU68hVcZpRHKG28T0krMuv2G5nDhiHaMLen/gIuFEgIJhaJuO69qjnXg5paSrbPMFfx3brNuN8eVSg==}
     engines: {node: '>=14.0.0'}
 
   tmpl@1.0.5:
@@ -12340,7 +12340,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@rozoai/intent-pay@0.1.43(c0317f3e7fe5959a64f2846fc4baaa7f)':
+  '@rozoai/intent-pay@0.1.44(ac1985f42b143b3498df95d95a007ae9)':
     dependencies:
       '@creit.tech/stellar-wallets-kit': 1.9.5(9cefe9a0cf1871d579912eca36ef5853)
       '@reown/appkit': 1.8.23(@react-native-async-storage/async-storage@1.24.0(react-native@0.87.1(@babel/core@7.29.7)(@types/react@18.3.31)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@6.0.6)))(@types/react@18.3.31)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(react@18.2.0)(typescript@5.5.2)(use-sync-external-store@1.4.0(react@18.2.0))(utf-8-validate@6.0.6)(zod@4.5.4)
@@ -12374,7 +12374,7 @@ snapshots:
       viem: 2.56.3(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@3.25.76)
       wagmi: 2.19.5(@react-native-async-storage/async-storage@1.24.0(react-native@0.87.1(@babel/core@7.29.7)(@types/react@18.3.31)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@6.0.6)))(@tanstack/query-core@5.102.8)(@tanstack/react-query@5.102.8(react@18.2.0))(@types/react@18.3.31)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(react-native@0.87.1(@babel/core@7.29.7)(@types/react@18.3.31)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@6.0.6))(react@18.2.0)(supports-color@5.5.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(viem@2.56.3(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@3.25.76))(zod@4.5.4)
     optionalDependencies:
-      posthog-js: 1.427.1(@types/react@18.3.31)(react@18.2.0)
+      posthog-js: 1.427.2(@types/react@18.3.31)(react@18.2.0)
     transitivePeerDependencies:
       - '@azure/app-configuration'
       - '@azure/cosmos'
@@ -14659,7 +14659,7 @@ snapshots:
 
   '@vitest/spy@3.2.7':
     dependencies:
-      tinyspy: 4.0.4
+      tinyspy: 4.0.6
 
   '@vitest/utils@3.2.7':
     dependencies:
@@ -18468,7 +18468,7 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  posthog-js@1.427.1(@types/react@18.3.31)(react@18.2.0):
+  posthog-js@1.427.2(@types/react@18.3.31)(react@18.2.0):
     dependencies:
       '@posthog/browser-common': 0.7.2
       '@posthog/core': 1.50.5
@@ -19614,7 +19614,7 @@ snapshots:
 
   tinyrainbow@2.0.0: {}
 
-  tinyspy@4.0.4: {}
+  tinyspy@4.0.6: {}
 
   tmpl@1.0.5: {}
 
