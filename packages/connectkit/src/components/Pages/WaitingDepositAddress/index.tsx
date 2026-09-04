@@ -672,6 +672,7 @@ function DepositAddressInfo({
       ) : (
         <QRWrap>
           <CustomQRCode value={depAddr?.uri} contentPadding={24} size={200} image={logoElement} />
+          <AutoDetectHint>Payment is automatically detected once confirmed on-chain.</AutoDetectHint>
         </QRWrap>
       )}
       <CopyableInfo depAddr={depAddr} feeData={feeData} remainingS={remainingS} totalS={totalS} />
@@ -697,6 +698,14 @@ const LogoRow = styled.div`
 const QRWrap = styled.div`
   margin: 0 auto;
   width: 280px;
+`;
+
+const AutoDetectHint = styled.p`
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--ck-body-color-muted);
 `;
 
 function CopyableInfo({

@@ -294,7 +294,7 @@ export function useRozoPay(): UseRozoPay {
     async (
       refundAddress?: Address,
       walletPaymentOption?: WalletPaymentOption,
-      options?: { signal?: AbortSignal },
+      _options?: { signal?: AbortSignal },
     ) => {
       dispatch({
         type: "hydrate_order",
@@ -304,10 +304,13 @@ export function useRozoPay(): UseRozoPay {
 
       // Wait for the order to enter the "payment_unpaid" state, which means it
       // has been successfully hydrated.
+      // NOTE: Do NOT pass the caller's signal to waitForPaymentState.
+      // The effect handler calls beginRequestScope() which cancels the caller's
+      // controller, causing waitForPaymentState to reject with AbortError
+      // even though the API call succeeds on the effect's own controller.
       const hydratedOrderState = await waitForPaymentState(
         store,
         "payment_unpaid",
-        options,
       );
 
       return hydratedOrderState;
@@ -319,7 +322,7 @@ export function useRozoPay(): UseRozoPay {
     async (
       refundAddress?: Address,
       walletPaymentOption?: WalletPaymentOption,
-      options?: { signal?: AbortSignal },
+      _options?: { signal?: AbortSignal },
     ) => {
       dispatch({
         type: "hydrate_order",
@@ -327,10 +330,12 @@ export function useRozoPay(): UseRozoPay {
         walletPaymentOption,
       });
 
+      // NOTE: Do NOT pass the caller's signal to waitForPaymentState.
+      // Same race as hydrateOrder — effect handler calls beginRequestScope()
+      // which cancels the caller's controller.
       const hydratedOrderState = await waitForPaymentState(
         store,
         "payment_unpaid",
-        options,
       );
 
       return hydratedOrderState;

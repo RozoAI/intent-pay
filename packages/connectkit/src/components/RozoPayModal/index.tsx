@@ -1,5 +1,6 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useAccount, useConnect, useConnectors } from "wagmi";
 
 import { ROUTES } from "../../constants/routes";
@@ -12,6 +13,8 @@ import useIsMobile from "../../hooks/useIsMobile";
 import { usePayContext } from "../../hooks/usePayContext";
 import { useStellar } from "../../provider/StellarContextProvider";
 import { CustomTheme, Languages, Mode, Theme } from "../../types";
+import styled from "../../styles/styled";
+import { ResetContainer } from "../../styles";
 import { IntercomInitializer } from "../Common/Intercom";
 import Modal from "../Common/Modal";
 import { RozoPayThemeProvider } from "../RozoPayThemeProvider/RozoPayThemeProvider";
@@ -116,8 +119,7 @@ export const RozoPayModal: React.FC<{
 
   const showBackButton =
     context.route === ROUTES.WAITING_DEPOSIT_ADDRESS ||
-    (closeable &&
-      context.route !== ROUTES.SELECT_METHOD &&
+    (context.route !== ROUTES.SELECT_METHOD &&
       context.route !== ROUTES.CONFIRMATION &&
       context.route !== ROUTES.SELECT_TOKEN &&
       context.route !== ROUTES.ERROR &&
@@ -164,10 +166,25 @@ export const RozoPayModal: React.FC<{
       context.setRoute(ROUTES.CONNECTORS, meta);
     } else if (context.route === ROUTES.WAITING_DEPOSIT_ADDRESS) {
       if (isDepositAddressReady) {
-        const confirmSwitch = window.confirm(
-          "If you already paid, don't switch screens or confirmation may take longer. Continue?",
-        );
-        if (!confirmSwitch) return;
+        setConfirmState({
+          show: true,
+          message: "Switching away may delay confirmation. Go back anyway?",
+          onConfirm: () => {
+            cancelRequestScope(PAYMENT_REQUEST_SCOPE);
+            if (isDepositFlow) {
+              if (paymentState.selectedDepositAddressOption === undefined) {
+                context.setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_CHAIN, meta);
+              } else {
+                generatePreviewOrder();
+                context.setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_AMOUNT, meta);
+              }
+            } else {
+              setSelectedDepositAddressOption(undefined);
+              context.setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_CHAIN, meta);
+            }
+          },
+        });
+        return;
       }
       cancelRequestScope(PAYMENT_REQUEST_SCOPE);
       if (isDepositFlow) {
@@ -268,6 +285,11 @@ export const RozoPayModal: React.FC<{
   const { connect } = useConnect();
   const connectors = useConnectors();
   const [didForceEvmConnect, setDidForceEvmConnect] = useState(false);
+  const [confirmState, setConfirmState] = useState<{
+    show: boolean;
+    message: string;
+    onConfirm: () => void;
+  }>({ show: false, message: "", onConfirm: () => {} });
 
   // On deeplink open, only Solana auto-connects via wallet-standard.
   // EVM needs an explicit connect() — the wallet silently approves it inside
@@ -498,6 +520,98 @@ export const RozoPayModal: React.FC<{
       />
 
       <IntercomInitializer />
+
+      <AnimatePresence>
+        {confirmState.show && (
+          <ResetContainer
+            $useTheme={theme}
+            $useMode={mode}
+            $customTheme={customTheme}
+            style={{ position: "fixed", inset: 0, zIndex: 10000 }}
+          >
+            <ConfirmOverlay
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <ConfirmBox>
+                <ConfirmMessage>{confirmState.message}</ConfirmMessage>
+                <ConfirmButtons>
+                  <ConfirmButton
+                    $variant="secondary"
+                    onClick={() => setConfirmState(s => ({ ...s, show: false }))}
+                  >
+                    Go Back
+                  </ConfirmButton>
+                  <ConfirmButton
+                    $variant="primary"
+                    onClick={() => {
+                      confirmState.onConfirm();
+                      setConfirmState({ show: false, message: "", onConfirm: () => {} });
+                    }}
+                  >
+                    Switch Anyway
+                  </ConfirmButton>
+                </ConfirmButtons>
+              </ConfirmBox>
+            </ConfirmOverlay>
+          </ResetContainer>
+        )}
+      </AnimatePresence>
     </RozoPayThemeProvider>
   );
 };
+
+const ConfirmOverlay = styled(motion.div)`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+`;
+
+const ConfirmBox = styled.div`
+  background: var(--ck-body-background);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 320px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+`;
+
+const ConfirmMessage = styled.p`
+  margin: 0 0 20px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ck-body-color);
+  text-align: center;
+`;
+
+const ConfirmButtons = styled.div`
+  display: flex;
+  gap: 12px;
+`;
+
+const ConfirmButton = styled.button<{ $variant: "primary" | "secondary" }>`
+  flex: 1;
+  height: 40px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: opacity 100ms ease;
+
+  ${({ $variant }) =>
+    $variant === "primary"
+      ? `background: var(--ck-primary-button-background, var(--ck-accent-color));
+         color: var(--ck-primary-button-color, var(--ck-body-color));`
+      : `background: var(--ck-secondary-button-background, var(--ck-body-background-secondary));
+         color: var(--ck-secondary-button-color, var(--ck-body-color));`}
+
+  &:hover {
+    opacity: 0.85;
+  }
+`;

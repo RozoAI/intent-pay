@@ -29,7 +29,7 @@ import PaymentBreakdown from "../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../Spinners/TokenLogoSpinner";
 
 enum PayState {
-  RequestingPayment = "Waiting For Payment",
+  WaitingForPayment = "Waiting for Payment",
   PreparingTransaction = "Preparing Transaction",
   RequestCancelled = "Payment Cancelled",
   RequestSuccessful = "Payment Successful",
@@ -58,7 +58,7 @@ const PayWithToken: React.FC = () => {
 
   const { capture } = useAnalytics();
   const [payState, setPayStateInner] = useState<PayState>(
-    PayState.RequestingPayment,
+    PayState.PreparingTransaction,
   );
   const [txURL, setTxURL] = useState<string | undefined>();
   const [feeData, setFeeData] = useState<FeeResponseData | null>(null);
@@ -152,7 +152,6 @@ const PayWithToken: React.FC = () => {
       }
 
       try {
-        setPayState(PayState.RequestingPayment);
         const currentRozoPaymentId =
           rozoPaymentId ?? currentOrder.externalId ?? undefined;
         // Only set unpaid if state is payment_started (for retry scenarios and cross-chain switches)
@@ -211,6 +210,7 @@ const PayWithToken: React.FC = () => {
         }
 
         setFeeData(feeData.data);
+        setPayState(PayState.WaitingForPayment);
 
         const result = await payWithToken(
           {

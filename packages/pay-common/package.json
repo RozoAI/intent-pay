@@ -18,7 +18,7 @@
     "build": "pnpm run test && tsc",
     "dev": "tsc --watch",
     "prepublishOnly": "pnpm run build",
-    "test": "tape -r ts-node/register/transpile-only test/**/*.test.ts",
+    "test": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' tape -r ts-node/register/transpile-only test/**/*.test.ts",
     "lint": "pnpm run lint:deps && pnpm run lint:style",
     "lint:deps": "npx depcheck --ignores @tsconfig/node20,@types/tape,ts-node",
     "lint:style": "oxlint src/",

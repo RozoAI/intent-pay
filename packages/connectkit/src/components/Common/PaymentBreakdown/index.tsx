@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 
 import { FeeResponseData, WalletPaymentOption } from "@rozoai/intent-common";
 import defaultTheme from "../../../constants/defaultTheme";
@@ -15,7 +15,7 @@ const PaymentBreakdown: React.FC<{
 }> = ({ paymentOption, feeData, feeLoading }) => {
   const tokenSymbol = paymentOption.required.token.symbol;
 
-  const feeDisplay = (() => {
+  const feeDisplay = useMemo(() => {
     if (feeLoading) return null;
     if (feeData) {
       const feeAmount = parseFloat(feeData.source.fee);
@@ -25,17 +25,30 @@ const PaymentBreakdown: React.FC<{
     const feesUsd = paymentOption.fees.usd;
     if (feesUsd === 0) return "free";
     return `${roundTokenAmount(paymentOption.fees.amount, paymentOption.fees.token, "nearest")} ${tokenSymbol}`;
-  })();
+  }, [feeLoading, feeData, paymentOption])
 
-  const totalDisplay = (() => {
+  const totalDisplay = useMemo(() => {
     if (feeData) {
       return `${trimTokenAmount(feeData.source.amount)} ${feeData.source.tokenSymbol}`;
     }
     return `${roundTokenAmount(paymentOption.required.amount, paymentOption.required.token, "nearest")} ${tokenSymbol}`;
-  })();
+  }, [feeData, paymentOption])
+
+  const totalReceive = useMemo(() => {
+    if (feeData) {
+      return `${trimTokenAmount(feeData.destination.amount)} ${feeData.destination.tokenSymbol}`;
+    }
+    return null;
+  }, [feeData])
 
   return (
     <FeesContainer>
+      {!feeLoading && feeDisplay !== "free" && totalReceive &&
+        <FeeRow>
+          <ModalBody>Receives</ModalBody>
+          <ModalBody>{totalReceive}</ModalBody>
+        </FeeRow>
+      }
       <FeeRow>
         <ModalBody>Fees</ModalBody>
         {feeLoading ? (
