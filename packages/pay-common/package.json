@@ -1,6 +1,6 @@
 {
   "name": "@rozoai/intent-common",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "description": "Intent Pay shared types and utilities",
   "homepage": "https://github.com/RozoAI/intent-pay",
   "license": "BSD-2-Clause",
@@ -18,7 +18,7 @@
     "build": "pnpm run test && tsc",
     "dev": "tsc --watch",
     "prepublishOnly": "pnpm run build",
-    "test": "tape -r ts-node/register/transpile-only test/**/*.test.ts",
+    "test": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' tape -r ts-node/register/transpile-only test/**/*.test.ts",
     "lint": "pnpm run lint:deps && pnpm run lint:style",
     "lint:deps": "npx depcheck --ignores @tsconfig/node20,@types/tape,ts-node",
     "lint:style": "oxlint src/",

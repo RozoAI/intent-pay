@@ -25,6 +25,11 @@ import { formatUnits } from "viem";
 import type { FeeBumpTransaction, Transaction } from "@stellar/stellar-sdk";
 import { useContactSupport } from "../../../../hooks/useContactSupport";
 import { useRozoPay } from "../../../../hooks/useRozoPay";
+import {
+  beginRequestScope,
+  isAbortError,
+  PAYMENT_REQUEST_SCOPE,
+} from "../../../../utils/paymentRequestScope";
 import { ROZO_EVENTS } from "../../../../lib/analytics/events";
 import { useAnalytics } from "../../../../provider/AnalyticsProvider";
 import { useStellar } from "../../../../provider/StellarContextProvider";
@@ -210,6 +215,7 @@ const PayWithStellarToken: React.FC = () => {
       const toUnits = destAmountAtomic && destToken
         ? formatUnits(BigInt(destAmountAtomic), destToken.decimals)
         : option.required.usd.toString();
+      const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
       setFeeLoading(true);
       const feeData = await getCachedFee(
         buildFeeQuoteParams({
@@ -225,10 +231,18 @@ const PayWithStellarToken: React.FC = () => {
           toUnits,
           feeUsd: option.fees.usd,
         }),
+        { signal: request.signal },
       );
       setFeeLoading(false);
 
+      if (request.signal.aborted) {
+        return;
+      }
+
       if (feeData.error) {
+        if (feeData.error.name === "AbortError") {
+          return;
+        }
         capture(ROZO_EVENTS.PAYMENT_FAILED, {
           payment_id: rozoPaymentId ?? order?.externalId,
           error_message: feeData.error.message,
@@ -253,9 +267,17 @@ const PayWithStellarToken: React.FC = () => {
         // not-yet-set guard and firing a second checkout POST.
         if (!checkoutInFlightRef.current) {
           checkoutInFlightRef.current = (async () => {
-            const paymentRes = await getPayment(existingPayId!);
+            const paymentRes = await getPayment(existingPayId!, undefined, {
+              signal: request.signal,
+            });
+            if (paymentRes.error) {
+              throw paymentRes.error;
+            }
             if (!paymentRes?.data) {
               throw new Error("Failed to fetch payment");
+            }
+            if (request.signal.aborted) {
+              throw new Error("Aborted");
             }
             const checkoutRes = await checkoutPayment(
               existingPayId!,
@@ -265,7 +287,12 @@ const PayWithStellarToken: React.FC = () => {
                 tokenAddress: option.required.token.token,
                 amount: String(option.required.usd),
               }),
+              undefined,
+              { signal: request.signal },
             );
+            if (checkoutRes.error) {
+              throw checkoutRes.error;
+            }
             if (!checkoutRes?.data) {
               throw new Error("Failed to checkout payment");
             }
@@ -295,9 +322,17 @@ const PayWithStellarToken: React.FC = () => {
       } else if (needRozoPayment) {
         const existingId = rozoPaymentId ?? currentOrder.externalId ?? undefined;
         if (existingId) {
-          const paymentRes = await getPayment(existingId);
+          const paymentRes = await getPayment(existingId, undefined, {
+            signal: request.signal,
+          });
+          if (paymentRes.error) {
+            throw paymentRes.error;
+          }
           if (!paymentRes?.data) {
             throw new Error("Failed to fetch payment");
+          }
+          if (request.signal.aborted) {
+            throw new Error("Aborted");
           }
           const checkoutRes = await checkoutPayment(
             existingId,
@@ -307,7 +342,12 @@ const PayWithStellarToken: React.FC = () => {
               tokenAddress: option.required.token.token,
               amount: String(option.required.usd),
             }),
+            undefined,
+            { signal: request.signal },
           );
+          if (checkoutRes.error) {
+            throw checkoutRes.error;
+          }
           if (!checkoutRes?.data) {
             throw new Error("Failed to checkout payment");
           }
@@ -348,7 +388,7 @@ const PayWithStellarToken: React.FC = () => {
                 ? Number(feeData.data.source.fee)
                 : option.fees.usd,
           },
-        });
+        }, { signal: request.signal });
         hydratedOrder = res.order;
       }
 
@@ -468,6 +508,12 @@ const PayWithStellarToken: React.FC = () => {
       setSignedTx(result.signedTx);
       setPayState(PayState.WaitingForConfirmation);
     } catch (error) {
+      // Abort = user navigated away (Back / reset). Not a payment failure.
+      if (isAbortError(error)) {
+        checkoutInFlightRef.current = null;
+        return;
+      }
+
       console.error("[PayWithStellarToken] Error:", error);
 
       // Clear the in-flight guard so a Retry Payment click (a genuine new

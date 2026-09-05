@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FeeType } from "@rozoai/intent-common";
-import { buildFeeQuoteParams } from "../src/utils/feeCache.js";
+import { buildFeeQuoteParams, getCachedFee } from "../src/utils/feeCache.js";
 
 const BASE_CHAIN = 8453;
 const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -25,6 +25,27 @@ function build(payParams: Parameters<typeof buildFeeQuoteParams>[0]["payParams"]
     feeUsd: 0.3,
   });
 }
+
+describe("getCachedFee abort", () => {
+  it("returns AbortError when signal already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const res = await getCachedFee({
+      appId: "test-app",
+      toChain: BASE_CHAIN,
+      toToken: BASE_USDC,
+      toAddress: VALID_EVM_ADDRESS,
+      preferredChain: BASE_CHAIN,
+      preferredTokenAddress: BASE_USDC,
+      toUnits: "100",
+      feeType: FeeType.ExactIn,
+    }, { signal: controller.signal });
+
+    expect(res.error?.name).toBe("AbortError");
+    expect(res.data).toBeNull();
+  });
+});
 
 describe("buildFeeQuoteParams — feeType/amount consistency", () => {
   // Regression: the adjustment used to be gated on `payParams?.feeType !==

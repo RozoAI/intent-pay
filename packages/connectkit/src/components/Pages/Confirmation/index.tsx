@@ -23,6 +23,10 @@ import { ROZO_INVOICE_URL } from "../../../constants/rozoConfig";
 import { usePayoutPolling } from "../../../hooks/usePayoutPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useRozoPay } from "../../../hooks/useRozoPay";
+import {
+  beginRequestScope,
+  cancelRequestScope,
+} from "../../../utils/paymentRequestScope";
 import { useSupportedChains } from "../../../hooks/useSupportedChains";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
@@ -192,6 +196,12 @@ const Confirmation: React.FC = () => {
     if (payinConfirmed?.key === payinGateKey) return;
 
     let active = true;
+    // Isolated scope: the shared "payment-flow" scope is cancelled by
+    // unrelated unmounts (e.g. WaitingDepositAddress cleanup on route change),
+    // which aborted the in-flight payin report. Same pattern as
+    // usePayinPolling / usePayoutPolling.
+    const scopeKey = `payin-gate-${payinGateKey}`;
+    const request = beginRequestScope(scopeKey);
     let timeoutId: NodeJS.Timeout | undefined;
     const startedAt = Date.now();
     const HARD_CAP_MS = 15 * 60_000;
@@ -200,8 +210,23 @@ const Confirmation: React.FC = () => {
     setPayinTimedOut(null);
 
     const sleep = (ms: number) =>
-      new Promise<void>((resolve) => {
-        timeoutId = setTimeout(resolve, ms);
+      new Promise<void>((resolve, reject) => {
+        const onAbort = () => {
+          if (timeoutId) clearTimeout(timeoutId);
+          request.signal.removeEventListener("abort", onAbort);
+          const error = new Error("Aborted");
+          error.name = "AbortError";
+          reject(error);
+        };
+        timeoutId = setTimeout(() => {
+          request.signal.removeEventListener("abort", onAbort);
+          resolve();
+        }, ms);
+        if (request.signal.aborted) {
+          onAbort();
+          return;
+        }
+        request.signal.addEventListener("abort", onAbort, { once: true });
       });
 
     const reportPayin = async () => {
@@ -217,6 +242,7 @@ const Confirmation: React.FC = () => {
             txHash,
             senderAddress: senderAddress || undefined,
             apiVersion: "v2",
+            signal: request.signal,
           });
           if (res && !res.error && res.data) {
             context.log("[CONFIRMATION] Payin tx hash reported:", { rozoPaymentId, txHash });
@@ -224,6 +250,7 @@ const Confirmation: React.FC = () => {
           }
           context.log(`[CONFIRMATION] Payin report attempt ${attempt} rejected:`, res?.error);
         } catch (error) {
+          if ((error as Error)?.name === "AbortError") return false;
           context.log(`[CONFIRMATION] Payin report attempt ${attempt} failed:`, error);
         }
         if (attempt < 3 && active) await sleep(1000 * attempt);
@@ -249,7 +276,7 @@ const Confirmation: React.FC = () => {
           let response: Awaited<ReturnType<typeof getPayment>>;
           try {
             response = await Promise.race([
-              getPayment(rozoPaymentId, "v2"),
+              getPayment(rozoPaymentId, "v2", { signal: request.signal }),
               new Promise<never>((_, reject) => {
                 raceTimer = setTimeout(
                   () => reject(new Error("getPayment timed out")),
@@ -311,6 +338,7 @@ const Confirmation: React.FC = () => {
             }
           }
         } catch (error) {
+          if ((error as Error)?.name === "AbortError") return;
           context.log("[CONFIRMATION] Payin polling error:", error);
         }
         if (Date.now() >= deadline) {
@@ -335,6 +363,7 @@ const Confirmation: React.FC = () => {
 
     return () => {
       active = false;
+      cancelRequestScope(scopeKey);
       if (timeoutId) clearTimeout(timeoutId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -352,7 +381,13 @@ const Confirmation: React.FC = () => {
       } else if (tokenMode === "solana") {
         chainId = rozoSolana.chainId;
       } else {
-        chainId = Number(paymentStateContext.selectedTokenOption?.required.token.chainId);
+        // Wallet flow sets selectedTokenOption; deposit-address flow sets
+        // selectedDepositAddressOption instead — fall back to it.
+        chainId = Number(
+          paymentStateContext.selectedTokenOption?.required.token.chainId ??
+            paymentStateContext.selectedDepositAddressOption?.token.chainId ??
+            paymentStateContext.selectedDepositAddressOption?.chainId,
+        );
       }
 
       // Gated payments are not done until the API confirmed THIS deposit.
@@ -747,20 +782,26 @@ const Confirmation: React.FC = () => {
         {!done ? (
           <>
             <ModalH1>{payinWaitTimedOut ? "Still waiting for confirmation" : "Confirming..."}</ModalH1>
-            {pendingTxURL && (
+            {(pendingTxURL || paymentStateContext.txHash) && (
               <ListContainer>
                 <ListItem>
                   <ModalBody>Transfer Hash</ModalBody>
                   <ModalBody>
-                    <Link
-                      href={pendingTxURL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontSize: 14, fontWeight: 400 }}
-                    >
-                      {getAddressContraction(paymentStateContext.txHash ?? "")}
-                      <ExternalIcon />
-                    </Link>
+                    {pendingTxURL ? (
+                      <Link
+                        href={pendingTxURL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: 14, fontWeight: 400 }}
+                      >
+                        {getAddressContraction(paymentStateContext.txHash ?? "")}
+                        <ExternalIcon />
+                      </Link>
+                    ) : (
+                      <span style={{ fontSize: 14, fontWeight: 400 }}>
+                        {getAddressContraction(paymentStateContext.txHash ?? "")}
+                      </span>
+                    )}
                   </ModalBody>
                 </ListItem>
                 <ModalBody style={{ marginTop: 8, fontSize: 14 }}>
@@ -784,20 +825,26 @@ const Confirmation: React.FC = () => {
               {showProcessingPayout && !payoutResolved ? "Payment Confirmed" : "Payment Completed"}
             </ModalH1>
 
-            {txURL && (
+            {(txURL || rawPayInHash) && (
               <ListContainer>
                 <ListItem>
                   <ModalBody>Transfer Hash</ModalBody>
                   <ModalBody>
-                    <Link
-                      href={txURL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontSize: 14, fontWeight: 400 }}
-                    >
-                      {getAddressContraction(rawPayInHash)}
-                      <ExternalIcon />
-                    </Link>
+                    {txURL ? (
+                      <Link
+                        href={txURL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: 14, fontWeight: 400 }}
+                      >
+                        {getAddressContraction(rawPayInHash)}
+                        <ExternalIcon />
+                      </Link>
+                    ) : (
+                      <span style={{ fontSize: 14, fontWeight: 400 }}>
+                        {getAddressContraction(rawPayInHash)}
+                      </span>
+                    )}
                   </ModalBody>
                 </ListItem>
 
@@ -837,7 +884,7 @@ const Confirmation: React.FC = () => {
           </Button>
         )}
         <PoweredByFooter
-          showSupport={!done}
+          showSupport
           preFilledMessage={`Transaction: ${txURL ?? pendingTxURL}`}
         />
       </ModalContent>

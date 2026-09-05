@@ -9,6 +9,11 @@ import { PageContent } from "../../Common/Modal/styles";
 import { ExternalPaymentOptions, getAddressContraction } from "@rozoai/intent-common";
 import { RozoPayOrderMode } from "@rozoai/intent-common";
 import { useRozoPay } from "../../../hooks/useRozoPay";
+import {
+  beginRequestScope,
+  cancelRequestScope,
+  PAYMENT_REQUEST_SCOPE,
+} from "../../../utils/paymentRequestScope";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Connector, useAccount, useDisconnect } from "wagmi";
 import { Base, Ethereum, Solana, Stellar } from "../../../assets/chains";
@@ -91,9 +96,16 @@ export default function SelectMethod() {
       payState !== "payment_unpaid"
     ) {
       hasHydratedRef.current = true;
-      hydrateOrder();
+      const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+      void hydrateOrder(undefined, undefined, { signal: request.signal }).catch((error) => {
+        if ((error as Error)?.name !== "AbortError") {
+          log("[SELECT_METHOD] hydrateOrder failed", error);
+        }
+      });
     }
     if (hasCustomDeeplink) hasHydratedRef.current = true;
+
+    return () => cancelRequestScope(PAYMENT_REQUEST_SCOPE);
   }, [modalOpen, isMobile, paymentState.isDepositFlow, order, hasCustomDeeplink, payState]);
 
   const {

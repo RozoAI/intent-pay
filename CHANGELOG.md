@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.44] - 2026-09-04
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Trigger resize and remove extra '+' on fees &nbsp;-&nbsp; by @akbarsaputrait [<samp>(297ed)</samp>](https://github.com/RozoAI/intent-pay/commit/297ed980)
+
+---
+
+## [0.1.43] - 2026-09-04
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Add confirm dialog on waiting for deposit, and fix close/back button visibility &nbsp;-&nbsp; by @akbarsaputrait [<samp>(2e512)</samp>](https://github.com/RozoAI/intent-pay/commit/2e51297a)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Undefined balance too low fiatISO &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e7937)</samp>](https://github.com/RozoAI/intent-pay/commit/e793752f)
+- Use extraFields instead &nbsp;-&nbsp; by @akbarsaputrait [<samp>(1f62f)</samp>](https://github.com/RozoAI/intent-pay/commit/1f62f04d)
+- Workspaced deps wrong version &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b3ab5)</samp>](https://github.com/RozoAI/intent-pay/commit/b3ab5623)
+- Isolate payment request scopes and harden deposit-address flow &nbsp;-&nbsp; by @akbarsaputrait [<samp>(8cd6e)</samp>](https://github.com/RozoAI/intent-pay/commit/8cd6e4b5)
+
+---
+
 ## [0.1.42] - 2026-09-02
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes

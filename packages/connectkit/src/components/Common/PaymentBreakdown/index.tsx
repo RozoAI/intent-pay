@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo } from "react";
 
 import { FeeResponseData, WalletPaymentOption } from "@rozoai/intent-common";
 import defaultTheme from "../../../constants/defaultTheme";
@@ -7,6 +7,7 @@ import { roundTokenAmount, trimTokenAmount } from "../../../utils/format";
 import { ModalBody } from "../../Common/Modal/styles";
 import { Spinner } from "../Spinner";
 import { SpinnerContainer } from "../Spinner/styles";
+import { usePayContext } from "../../../hooks/usePayContext";
 
 const PaymentBreakdown: React.FC<{
   paymentOption: WalletPaymentOption;
@@ -14,8 +15,9 @@ const PaymentBreakdown: React.FC<{
   feeLoading?: boolean;
 }> = ({ paymentOption, feeData, feeLoading }) => {
   const tokenSymbol = paymentOption.required.token.symbol;
+  const { triggerResize } = usePayContext()
 
-  const feeDisplay = (() => {
+  const feeDisplay = useMemo(() => {
     if (feeLoading) return null;
     if (feeData) {
       const feeAmount = parseFloat(feeData.source.fee);
@@ -25,17 +27,34 @@ const PaymentBreakdown: React.FC<{
     const feesUsd = paymentOption.fees.usd;
     if (feesUsd === 0) return "free";
     return `${roundTokenAmount(paymentOption.fees.amount, paymentOption.fees.token, "nearest")} ${tokenSymbol}`;
-  })();
+  }, [feeLoading, feeData, paymentOption])
 
-  const totalDisplay = (() => {
+  const totalDisplay = useMemo(() => {
     if (feeData) {
       return `${trimTokenAmount(feeData.source.amount)} ${feeData.source.tokenSymbol}`;
     }
     return `${roundTokenAmount(paymentOption.required.amount, paymentOption.required.token, "nearest")} ${tokenSymbol}`;
-  })();
+  }, [feeData, paymentOption])
+
+  const totalReceive = useMemo(() => {
+    if (feeData) {
+      return `${trimTokenAmount(feeData.destination.amount)} ${feeData.destination.tokenSymbol}`;
+    }
+    return null;
+  }, [feeData])
+
+  useEffect(() => {
+    triggerResize()
+  }, [feeDisplay, totalDisplay, totalReceive])
 
   return (
     <FeesContainer>
+      {!feeLoading && feeDisplay !== "free" && totalReceive &&
+        <FeeRow>
+          <ModalBody>Receives</ModalBody>
+          <ModalBody>{totalReceive}</ModalBody>
+        </FeeRow>
+      }
       <FeeRow>
         <ModalBody>Fees</ModalBody>
         {feeLoading ? (
@@ -50,8 +69,8 @@ const PaymentBreakdown: React.FC<{
           <ModalBody>{feeDisplay}</ModalBody>
         )}
       </FeeRow>
-      <FeeRow style={{ marginTop: 8 }}>
-        <ModalBody style={{ fontWeight: 600 }}>Total</ModalBody>
+      <FeeRow style={{ marginTop: 12 }}>
+        <ModalBody style={{ fontWeight: 600 }}>You Pay</ModalBody>
         <ModalBody style={{ fontWeight: 600 }}>
           {feeLoading ? (
             <SpinnerContainer>
@@ -71,7 +90,7 @@ const FeesContainer = styled.div`
   flex-direction: column;
   align-items: center;
   width: 100%;
-  gap: 4px;
+  gap: 6px;
   margin: 16px 0;
 
   @media only screen and (max-width: ${defaultTheme.mobileWidth}px) {
@@ -86,7 +105,7 @@ const FeeRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 60%;
+  width: 65%;
 `;
 const Badge = styled.span`
   display: inline-block;

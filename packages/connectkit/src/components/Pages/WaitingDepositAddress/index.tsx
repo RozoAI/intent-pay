@@ -1,5 +1,4 @@
 import {
-  DepositAddressPaymentOptions,
   generateEVMDeepLink,
   generateSolanaDeepLink,
   getAddressContraction,
@@ -14,6 +13,7 @@ import {
   stellar,
   type FeeErrorData,
   type FeeResponseData,
+  type DepositAddressPaymentOptionMetadata,
   type Token,
 } from "@rozoai/intent-common";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -23,6 +23,11 @@ import { AlertIcon, WarningIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { usePayContext } from "../../../hooks/usePayContext";
+import {
+  beginRequestScope,
+  cancelRequestScope,
+  PAYMENT_REQUEST_SCOPE,
+} from "../../../utils/paymentRequestScope";
 import { usePayinPolling } from "../../../hooks/usePayinPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useRozoPay } from "../../../hooks/useRozoPay";
@@ -63,6 +68,22 @@ type Underpayment = {
   unitsPaid: string;
   coin: string;
 };
+
+// Single source of truth for tokenMode from the selected deposit option.
+// ChainId-based so per-token option ids (STELLAR_USDC, STELLAR_EURC,
+// SOLANA_USDT, SOLANA_USDC, ...) all resolve correctly — id-equality checks
+// against SOLANA/STELLAR do not.
+function tokenModeForDepositOption(
+  option: DepositAddressPaymentOptionMetadata | undefined,
+): "evm" | "solana" | "stellar" {
+  if (option && [rozoStellar.chainId, stellar.chainId].includes(option.chainId)) {
+    return "stellar";
+  }
+  if (option && [rozoSolana.chainId, solana.chainId].includes(option.chainId)) {
+    return "solana";
+  }
+  return "evm";
+}
 
 export default function WaitingDepositAddress() {
   const context = usePayContext();
@@ -126,13 +147,7 @@ export default function WaitingDepositAddress() {
     // polls the API until the deposit is confirmed and then emits
     // PaymentCompleted / PaymentPayoutCompleted.
 
-    const tokenMode =
-      selectedDepositAddressOption.id === DepositAddressPaymentOptions.SOLANA
-        ? "solana"
-        : selectedDepositAddressOption.id === DepositAddressPaymentOptions.STELLAR
-          ? "stellar"
-          : "evm";
-    setTokenMode(tokenMode);
+    setTokenMode(tokenModeForDepositOption(selectedDepositAddressOption));
     setTxHash(txHash);
 
     // Clear the fallback timer — detection done.
@@ -414,10 +429,6 @@ export default function WaitingDepositAddress() {
           context.log,
         );
         if (details) {
-          // Only Stellar needs a memo (destination tag) to route the pay-in.
-          const shouldShowMemo =
-            selectedDepositAddressOption.id === DepositAddressPaymentOptions.STELLAR;
-
           setDepAddr({
             address: details.address,
             amount: details.amount,
@@ -427,7 +438,7 @@ export default function WaitingDepositAddress() {
             displayToken: displayToken ?? null,
             logoURI,
             externalId: details.externalId,
-            memo: shouldShowMemo ? details.memo || "" : undefined,
+            memo: details.memo || "",
           });
           setRozoPaymentId(details.externalId);
           setDepoChain(selectedDepositAddressOption.id);
@@ -463,9 +474,17 @@ export default function WaitingDepositAddress() {
     }
   }, [selectedDepositAddressOption]);
 
-  // Reset payment state when selectedDepositAddressOption changes and we're not in preview
+  // Reset payment state when selectedDepositAddressOption changes and we're not in preview.
+  // IMPORTANT: only reset when the deposit option ACTUALLY changes — not on
+  // rozoPaymentState transitions (e.g. preview → payment_started), which are
+  // valid forward transitions the Confirmation page needs to observe.
+  const prevDepositOptionRef = useRef(selectedDepositAddressOption);
   useEffect(() => {
+    const optionChanged = prevDepositOptionRef.current !== selectedDepositAddressOption;
+    prevDepositOptionRef.current = selectedDepositAddressOption;
+
     if (
+      optionChanged &&
       selectedDepositAddressOption &&
       rozoPaymentState !== "preview" &&
       rozoPaymentState !== "idle" &&
@@ -479,9 +498,17 @@ export default function WaitingDepositAddress() {
       context.log(
         `Resetting payment state from ${rozoPaymentState} to preview for new deposit option`,
       );
+      const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
       reset();
-      createPreviewOrder(payParams);
+      void createPreviewOrder(payParams, { signal: request.signal }).catch((error) => {
+        if ((error as Error)?.name !== "AbortError") {
+          context.log("[WAITING_DEPOSIT] createPreviewOrder failed", error);
+        }
+      });
     }
+
+    return () => cancelRequestScope(PAYMENT_REQUEST_SCOPE);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDepositAddressOption, rozoPaymentState, payParams]);
 
   // Generate deposit address when conditions are met
@@ -510,13 +537,7 @@ export default function WaitingDepositAddress() {
       isHydrated(order)
     ) {
       context.log("[PAYMENT] Payment state changed, navigating to confirmation");
-      const tokenMode =
-        selectedDepositAddressOption?.id === DepositAddressPaymentOptions.SOLANA
-          ? "solana"
-          : selectedDepositAddressOption?.id === DepositAddressPaymentOptions.STELLAR
-            ? "stellar"
-            : "evm";
-      setTokenMode(tokenMode);
+      setTokenMode(tokenModeForDepositOption(selectedDepositAddressOption));
 
       // Extract transaction hash from order if available
       const txHash = order.sourceStartTxHash || order.sourceInitiateTxHash;
@@ -605,7 +626,7 @@ function FeeErrorContent({ feeError, fiatISO }: { feeError: FeeErrorData; fiatIS
     >
       <CenterContainer style={{ width: "100%" }}>
         <FailIcon />
-        <ModalH1 style={{ textAlign: "center", marginTop: 16 }}>Amount Too High</ModalH1>
+        <ModalH1 style={{ textAlign: "center", marginTop: 16 }}>Failed to Fetch Fee</ModalH1>
         <div style={{ height: 16 }} />
         <ModalBody style={{ textAlign: "center" }}>
           {feeError.error.message}
@@ -640,7 +661,7 @@ function DepositAddressInfo({
   const isExpired = depAddr?.expirationS != null && remainingS === 0;
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(triggerResize, [isExpired]);
+  useEffect(triggerResize, [isExpired, depAddr.uri]);
 
   const logoOffset = isMobile ? 4 : 0;
   const logoElement = depAddr.displayToken ? (
@@ -659,7 +680,8 @@ function DepositAddressInfo({
         </LogoRow>
       ) : (
         <QRWrap>
-          <CustomQRCode value={depAddr?.uri} contentPadding={24} size={200} image={logoElement} />
+          <CustomQRCode value={depAddr.uri} contentPadding={24} size={200} image={logoElement} />
+          <AutoDetectHint>Auto-detected after confirmation</AutoDetectHint>
         </QRWrap>
       )}
       <CopyableInfo depAddr={depAddr} feeData={feeData} remainingS={remainingS} totalS={totalS} />
@@ -685,6 +707,14 @@ const LogoRow = styled.div`
 const QRWrap = styled.div`
   margin: 0 auto;
   width: 280px;
+`;
+
+const AutoDetectHint = styled.p`
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--ck-body-color-muted);
 `;
 
 function CopyableInfo({
