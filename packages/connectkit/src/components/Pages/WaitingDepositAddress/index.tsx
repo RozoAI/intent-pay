@@ -1,6 +1,7 @@
 import {
   generateEVMDeepLink,
   generateSolanaDeepLink,
+  generateStellarDeepLink,
   getAddressContraction,
   getCanonicalDestination,
   getChainName,
@@ -62,6 +63,9 @@ type DepositAddr = {
   underpayment?: Underpayment;
   externalId?: string;
   memo?: string;
+  // Stellar Classic (G-address + memo) pay-in: memo is required, losing it
+  // loses the payment. Gates the REQUIRED warning and the missing-memo error.
+  isStellarClassic?: boolean;
 };
 
 type Underpayment = {
@@ -299,9 +303,16 @@ export default function WaitingDepositAddress() {
           memo: order.memo || order.metadata?.memo || undefined,
         });
       }
-      // If Stellar, do not generate a link (set to null)
+      // Stellar Classic (G-address + memo): SEP-0007 pay URI so wallets
+      // prefill destination, amount, asset and memo from the QR.
       else if ([stellar.chainId, rozoStellar.chainId].includes(preferredToken.chainId)) {
-        uriDeeplink = null;
+        uriDeeplink = generateStellarDeepLink({
+          destination: order.intentAddr,
+          amount: order.destFinalCallTokenAmount.usd.toString(),
+          tokenAddress: preferredToken.token,
+          tokenSymbol: preferredToken.symbol,
+          memo: order.memo || order.metadata?.memo || undefined,
+        });
       }
       // Otherwise use EVM deep link
       else {
@@ -329,10 +340,17 @@ export default function WaitingDepositAddress() {
         displayToken: order.destFinalCallTokenAmount.token,
         logoURI: "", // Not needed for underpaid orders
         memo: order.memo || order.metadata?.memo || undefined,
+        isStellarClassic:
+          [stellar.chainId, rozoStellar.chainId].includes(preferredToken.chainId) &&
+          order.intentAddr.startsWith("G"),
       });
     } else {
       // Prevent multiple executions for the same deposit option
       if (isLoading || hasExecutedDepositCall) return;
+      // Mark as processing only after passing guards — marking before an
+      // early return deadlocks option switches (ref stuck on new id while
+      // isLoading from the previous option blocks the retry).
+      processingOptionRef.current = selectedDepositAddressOption.id;
 
       const displayToken = getKnownToken(
         selectedDepositAddressOption.token.chainId,
@@ -428,6 +446,11 @@ export default function WaitingDepositAddress() {
           feeData,
           context.log,
         );
+        // Drop stale responses: user switched option while this request
+        // was in flight (option-change reset clears processingOptionRef).
+        if (processingOptionRef.current !== selectedDepositAddressOption.id) {
+          return;
+        }
         if (details) {
           setDepAddr({
             address: details.address,
@@ -438,7 +461,11 @@ export default function WaitingDepositAddress() {
             displayToken: displayToken ?? null,
             logoURI,
             externalId: details.externalId,
-            memo: details.memo || "",
+            memo: details.memo || undefined,
+            isStellarClassic:
+              [stellar.chainId, rozoStellar.chainId].includes(
+                selectedDepositAddressOption.token.chainId,
+              ) && details.address.startsWith("G"),
           });
           setRozoPaymentId(details.externalId);
           setDepoChain(selectedDepositAddressOption.id);
@@ -468,6 +495,8 @@ export default function WaitingDepositAddress() {
     if (selectedDepositAddressOption) {
       setHasExecutedDepositCall(false);
       setFailed(false);
+      setDepAddr(undefined); // Clear stale address/memo from previous option
+      setDepoChain(undefined);
       setFeeData(null); // Reset fee when deposit option changes
       setFeeError(null); // Reset fee error when deposit option changes
       processingOptionRef.current = null; // Reset processing flag
@@ -520,7 +549,6 @@ export default function WaitingDepositAddress() {
       processingOptionRef.current !== selectedDepositAddressOption.id
     ) {
       context.log("About to generate deposit address for:", selectedDepositAddressOption.id);
-      processingOptionRef.current = selectedDepositAddressOption.id; // Mark as processing
       generateDepositAddress();
     }
   }, [selectedDepositAddressOption, rozoPaymentState, hasExecutedDepositCall, isLoading]);
@@ -670,6 +698,34 @@ function DepositAddressInfo({
     <img src={depAddr.logoURI} width="64px" height="64px" />
   );
 
+  // Stellar Classic without a memo cannot be paid safely — a payment sent
+  // without the memo does not reach the order. Block instead of rendering
+  // a payable-looking screen.
+  if (depAddr.isStellarClassic && !depAddr.memo) {
+    return (
+      <ModalContent
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          paddingBottom: 0,
+          position: "relative",
+        }}
+      >
+        <CenterContainer style={{ width: "100%" }}>
+          <FailIcon />
+          <ModalH1 style={{ textAlign: "center", marginTop: 16 }}>Memo Missing</ModalH1>
+          <div style={{ height: 16 }} />
+          <ModalBody style={{ textAlign: "center" }}>
+            This Stellar payment needs a memo, but none was provided. Payments sent without the
+            memo may be lost. Please select another payment method.
+          </ModalBody>
+          <SelectAnotherMethodButton />
+        </CenterContainer>
+      </ModalContent>
+    );
+  }
+
   return (
     <ModalContent>
       {isExpired ? (
@@ -688,12 +744,6 @@ function DepositAddressInfo({
     </ModalContent>
   );
 }
-
-const LogoWrap = styled.div`
-  position: relative;
-  width: 64px;
-  height: 64px;
-`;
 
 const LogoRow = styled.div`
   padding: 32px 0;
@@ -728,29 +778,39 @@ function CopyableInfo({
   remainingS: number;
   totalS: number;
 }) {
+  const sourceAmount = depAddr?.amount ?? feeData?.source.amount ?? "0";
   const underpayment = depAddr?.underpayment;
   const isExpired = depAddr?.expirationS != null && remainingS === 0;
-  const sourceTokenSymbol = depAddr?.displayToken?.symbol;
+
+  // TEMP-HIDDEN: Merchant payments hide fee info — fee borne by merchant, not
+  // shown to payer. Whole Fee section hidden for now ("Send Exactly" is enough
+  // info). Uncomment below to restore.
+  // const { order } = useRozoPay();
+  // const isMerchant = (order?.metadata as any)?.isMerchant === true;
 
   return (
     <CopyableInfoWrapper>
       {underpayment && <UnderpaymentInfo underpayment={underpayment} />}
-      {feeData !== null && (
-        <FeeDisplayRow
+      {/* TEMP-HIDDEN Fee row — uncomment to restore:
+      {feeData !== null && !isMerchant && (
+        <DisplayRowOrThrobber
           title="Fee"
           value={
             parseFloat(feeData.source.fee) === 0
               ? "Free"
-              : `${trimTokenAmount(feeData.source.fee)} ${feeData.source.tokenSymbol} (${feeData.feeInfo.feePercentage})`
+              : `${trimTokenAmount(feeData.source.fee)}`
           }
+          smallText={parseFloat(feeData.source.fee) === 0 ? `${feeData.feeInfo.feePercentage} (${feeData.source.tokenSymbol})` : undefined}
+          disabled={isExpired}
         />
       )}
+      */}
       <CopyRowOrThrobber
         title="Send Exactly"
-        value={depAddr?.amount}
+        value={depAddr?.address ? sourceAmount : undefined}
         valueText={
-          depAddr?.amount
-            ? `${trimTokenAmount(depAddr.amount)} ${sourceTokenSymbol ?? ""}`.trim()
+          depAddr?.address && sourceAmount
+            ? `${trimTokenAmount(sourceAmount)}`.trim()
             : undefined
         }
         smallText={depAddr?.coins}
@@ -762,9 +822,10 @@ function CopyableInfo({
         valueText={depAddr?.address && getAddressContraction(depAddr.address)}
         disabled={isExpired}
       />
+
       {depAddr?.memo && (
         <CopyRowOrThrobber
-          title="Memo"
+          title="Memo (Required)"
           value={depAddr.memo}
           valueText={depAddr.memo}
           disabled={isExpired}
@@ -821,6 +882,24 @@ const CopyableInfoWrapper = styled.div`
   justify-content: stretch;
   gap: 0;
   margin-top: 8px;
+`;
+
+const MemoRequiredBox = styled.div`
+  border: 1px solid var(--ck-body-color-alert);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 0 4px 8px 4px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  color: var(--ck-body-color-alert);
+`;
+
+const MemoRequiredText = styled.span`
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: left;
 `;
 
 const CountdownWrap = styled.div`
@@ -1057,9 +1136,34 @@ const DisplayRow = styled.div`
   justify-content: space-between;
 `;
 
-function FeeDisplayRow({ title, value }: { title: string; value: string }) {
+function DisplayRowOrThrobber({
+  title,
+  value,
+  smallText,
+  disabled,
+}: {
+  title: string;
+  value?: string;
+  smallText?: string;
+  disabled?: boolean;
+}) {
+  if (!value) {
+    return (
+      <DisplayRow>
+        <div>
+          <LabelRow>
+            <LabelText>{title}</LabelText>
+          </LabelRow>
+          <MainRow>
+            <Skeleton />
+          </MainRow>
+        </div>
+      </DisplayRow>
+    );
+  }
+
   return (
-    <DisplayRow>
+    <DisplayRow style={disabled ? { opacity: 0.5 } : undefined}>
       <div>
         <LabelRow>
           <LabelText>{title}</LabelText>
@@ -1067,6 +1171,7 @@ function FeeDisplayRow({ title, value }: { title: string; value: string }) {
         <MainRow>
           <ValueContainer>
             <ValueText>{value}</ValueText>
+            {smallText && <SmallText>{smallText}</SmallText>}
           </ValueContainer>
         </MainRow>
       </div>
