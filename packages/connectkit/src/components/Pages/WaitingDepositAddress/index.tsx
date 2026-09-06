@@ -34,6 +34,7 @@ import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import styled from "../../../styles/styled";
 import { buildFeeQuoteParams, resolveOrderAppId } from "../../../utils/feeCache";
+import { resolveDepositSourceAmount } from "../../../payment/createPaymentPayload";
 import { formatUsd, roundUsd, trimTokenAmount } from "../../../utils/format";
 import Button from "../../Common/Button";
 import CircleTimer from "../../Common/CircleTimer";
@@ -294,13 +295,22 @@ export default function WaitingDepositAddress() {
 
       let uriDeeplink: string | null = null;
 
+      // Prefer the fee-quote source amount (fee-inclusive source-token units)
+      // over the destination USD value — same underpay class as the live
+      // payWithDepositAddress path (nonzero fees, non-$1-pegged sources).
+      const sourceAmount = resolveDepositSourceAmount(
+        null,
+        feeData,
+        order.destFinalCallTokenAmount.usd,
+      );
+
       // Use Solana deep link if it's a Solana chain
       if ([solana.chainId, rozoSolana.chainId].includes(preferredToken.chainId)) {
         uriDeeplink = generateSolanaDeepLink({
-          amountUnits: order.destFinalCallTokenAmount.usd.toString(),
+          amountUnits: sourceAmount,
           recipientAddress: order.intentAddr,
           tokenAddress: preferredToken.token,
-          memo: order.memo || order.metadata?.memo || undefined,
+          memo: order.memo || undefined,
         });
       }
       // Stellar Classic (G-address + memo): SEP-0007 pay URI so wallets
@@ -308,17 +318,17 @@ export default function WaitingDepositAddress() {
       else if ([stellar.chainId, rozoStellar.chainId].includes(preferredToken.chainId)) {
         uriDeeplink = generateStellarDeepLink({
           destination: order.intentAddr,
-          amount: order.destFinalCallTokenAmount.usd.toString(),
+          amount: sourceAmount,
           tokenAddress: preferredToken.token,
           tokenSymbol: preferredToken.symbol,
-          memo: order.memo || order.metadata?.memo || undefined,
+          memo: order.memo || undefined,
         });
       }
       // Otherwise use EVM deep link
       else {
         uriDeeplink = generateEVMDeepLink({
           amountUnits: parseUnits(
-            order.destFinalCallTokenAmount.usd.toString(),
+            sourceAmount,
             preferredToken.decimals,
           ).toString(),
           chainId: preferredToken.chainId,
@@ -339,7 +349,7 @@ export default function WaitingDepositAddress() {
         uri: uriDeeplink ?? undefined,
         displayToken: order.destFinalCallTokenAmount.token,
         logoURI: "", // Not needed for underpaid orders
-        memo: order.memo || order.metadata?.memo || undefined,
+        memo: order.memo || undefined,
         isStellarClassic:
           [stellar.chainId, rozoStellar.chainId].includes(preferredToken.chainId) &&
           order.intentAddr.startsWith("G"),

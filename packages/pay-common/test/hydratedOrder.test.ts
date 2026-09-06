@@ -37,8 +37,8 @@ test("formatter maps deposit address/memo/expiry from payment response", (t) => 
   t.equal(order.memo, "deposit-memo-1", "memo is the deposit memo");
   t.equal(
     (order.metadata as any).memo,
-    "deposit-memo-1",
-    "metadata.memo is the deposit memo",
+    "consumer-dest-memo",
+    "metadata.memo keeps the consumer destination memo",
   );
   t.equal(
     order.expirationTs,
@@ -55,13 +55,23 @@ test("source.receiverMemo wins over metadata.memo", (t) => {
     "deposit-memo-1",
     "consumer destination memo must never override the deposit memo",
   );
+  t.equal(
+    (order.metadata as any).memo,
+    "consumer-dest-memo",
+    "consumer destination memo is preserved distinctly in metadata",
+  );
   t.end();
 });
 
-test("falls back to metadata.memo when no deposit memo", (t) => {
+test("no fallback to metadata.memo when deposit memo is missing", (t) => {
   const res = makeResponse();
   delete res.source.receiverMemo;
   const order = formatPaymentResponseToHydratedOrder(res);
-  t.equal(order.memo, "consumer-dest-memo", "falls back to metadata.memo");
+  t.equal(order.memo, null, "missing deposit memo surfaces as null");
+  t.equal(
+    (order.metadata as any).memo,
+    "consumer-dest-memo",
+    "destination memo stays in metadata, never as pay-in instruction",
+  );
   t.end();
 });

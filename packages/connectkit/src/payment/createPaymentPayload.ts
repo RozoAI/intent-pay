@@ -314,3 +314,27 @@ export function buildDepositWalletOption(
     },
   };
 }
+
+/**
+ * Authoritative pay-in quantity (human-readable source-token units,
+ * fee-inclusive) for deposit QR/deeplinks and "Send Exactly".
+ *
+ * Preference: payment/checkout response `source.amount` (what the payer
+ * must actually send) > fee-quote `source.amount` > fallback (destination
+ * USD value). The fallback underpays when fees are nonzero or the source
+ * asset isn't $1-pegged — pass a real quote whenever one exists.
+ */
+export function resolveDepositSourceAmount(
+  responseAmount: string | null | undefined,
+  fees: FeeResponseData | null | undefined,
+  fallback: number | string,
+): string {
+  if (responseAmount != null && responseAmount !== "") {
+    return String(responseAmount);
+  }
+  const quoted = fees?.source?.amount;
+  if (quoted != null && quoted !== "") {
+    return String(quoted);
+  }
+  return String(fallback);
+}
