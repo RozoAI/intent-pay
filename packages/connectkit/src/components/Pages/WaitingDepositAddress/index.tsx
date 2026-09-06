@@ -1144,45 +1144,46 @@ const DisplayRow = styled.div`
   justify-content: space-between;
 `;
 
-function DisplayRowOrThrobber({
-  title,
-  value,
-  smallText,
-  disabled,
-}: {
-  title: string;
-  value?: string;
-  smallText?: string;
-  disabled?: boolean;
-}) {
-  if (!value) {
-    return (
-      <DisplayRow>
-        <div>
-          <LabelRow>
-            <LabelText>{title}</LabelText>
-          </LabelRow>
-          <MainRow>
-            <Skeleton />
-          </MainRow>
-        </div>
-      </DisplayRow>
-    );
-  }
+/** Uncomment to use the DisplayRowOrThrobber component */
+// function DisplayRowOrThrobber({
+//   title,
+//   value,
+//   smallText,
+//   disabled,
+// }: {
+//   title: string;
+//   value?: string;
+//   smallText?: string;
+//   disabled?: boolean;
+// }) {
+//   if (!value) {
+//     return (
+//       <DisplayRow>
+//         <div>
+//           <LabelRow>
+//             <LabelText>{title}</LabelText>
+//           </LabelRow>
+//           <MainRow>
+//             <Skeleton />
+//           </MainRow>
+//         </div>
+//       </DisplayRow>
+//     );
+//   }
 
-  return (
-    <DisplayRow style={disabled ? { opacity: 0.5 } : undefined}>
-      <div>
-        <LabelRow>
-          <LabelText>{title}</LabelText>
-        </LabelRow>
-        <MainRow>
-          <ValueContainer>
-            <ValueText>{value}</ValueText>
-            {smallText && <SmallText>{smallText}</SmallText>}
-          </ValueContainer>
-        </MainRow>
-      </div>
-    </DisplayRow>
-  );
-}
+//   return (
+//     <DisplayRow style={disabled ? { opacity: 0.5 } : undefined}>
+//       <div>
+//         <LabelRow>
+//           <LabelText>{title}</LabelText>
+//         </LabelRow>
+//         <MainRow>
+//           <ValueContainer>
+//             <ValueText>{value}</ValueText>
+//             {smallText && <SmallText>{smallText}</SmallText>}
+//           </ValueContainer>
+//         </MainRow>
+//       </div>
+//     </DisplayRow>
+//   );
+// }
