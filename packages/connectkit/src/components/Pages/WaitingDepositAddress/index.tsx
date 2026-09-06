@@ -825,18 +825,17 @@ function CopyableInfo({
 
       {depAddr?.memo && (
         <>
-          <MemoRequiredBox>
-            <MemoRequiredText>
-              Memo is required — include it with your payment or funds may be
-              lost.
-            </MemoRequiredText>
-          </MemoRequiredBox>
           <CopyRowOrThrobber
             title="Memo (Required)"
             value={depAddr.memo}
             valueText={depAddr.memo}
             disabled={isExpired}
           />
+          <MemoRequiredBox>
+            <MemoRequiredText>
+              Include the memo or funds may be lost.
+            </MemoRequiredText>
+          </MemoRequiredBox>
         </>
       )}
       <CountdownWrap>
@@ -896,7 +895,7 @@ const MemoRequiredBox = styled.div`
   border: 1px solid var(--ck-body-color-alert);
   border-radius: 8px;
   padding: 12px 16px;
-  margin: 0 4px 8px 4px;
+  margin: 0 0 8px 0;
   display: flex;
   gap: 8px;
   align-items: flex-start;
@@ -905,7 +904,7 @@ const MemoRequiredBox = styled.div`
 
 const MemoRequiredText = styled.span`
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.4;
   text-align: left;
 `;
