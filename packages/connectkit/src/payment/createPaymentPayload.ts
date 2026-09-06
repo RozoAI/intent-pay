@@ -3,6 +3,8 @@ import {
   baseEURC,
   baseUSDC,
   CreateNewPaymentParams,
+  DepositAddressPaymentOptionMetadata,
+  FeeResponseData,
   FeeType,
   generateIntentTitle,
   getKnownToken,
@@ -273,4 +275,42 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
   };
 
   return payload;
+}
+
+/**
+ * Minimal wallet-option shape the deposit-address flow fabricates from the
+ * selected source option + its fee quote. Only the fields
+ * `handleCreateRozoPayment` actually reads (create: required.token +
+ * fees.usd; checkout: required.token + required.usd) — balance/minimumRequired
+ * are meaningless for deposits (no wallet connected yet) and stay unset.
+ */
+export interface DepositWalletOption {
+  required: {
+    token: { chainId: number; token: string; symbol: string };
+    usd: number;
+  };
+  fees: { usd: number };
+}
+
+export function buildDepositWalletOption(
+  option: DepositAddressPaymentOptionMetadata,
+  fees: FeeResponseData | null | undefined,
+  fallbackUsd: number,
+): DepositWalletOption {
+  return {
+    required: {
+      token: {
+        chainId: option.token.chainId,
+        token: option.token.token,
+        symbol: option.token.symbol,
+      },
+      usd:
+        fees?.source?.amount != null
+          ? parseFloat(fees.source.amount)
+          : fallbackUsd,
+    },
+    fees: {
+      usd: fees?.source?.fee != null ? parseFloat(fees.source.fee) : 0,
+    },
+  };
 }

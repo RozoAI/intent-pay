@@ -87,7 +87,9 @@ export function generateStellarDeepLink({
     params.push(`asset_code=${encodeURIComponent(code)}`);
     params.push(`asset_issuer=${encodeURIComponent(issuer)}`);
   } else if (tokenSymbol === "XLM") {
-    params.push(`asset_code=XLM`);
+    // Native XLM: SEP-0007 signals native by omitting asset fields entirely.
+    // A bare asset_code with no issuer is not a valid asset and wallets
+    // may reject or mis-parse it.
   } else {
     params.push(`asset_code=${encodeURIComponent(tokenSymbol)}`);
     params.push(`asset_issuer=${encodeURIComponent(tokenAddress)}`);

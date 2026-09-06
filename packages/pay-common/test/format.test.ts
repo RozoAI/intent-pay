@@ -32,14 +32,14 @@ test("Stellar deeplink handles bare-issuer token and text memos", (t) => {
   t.end();
 });
 
-test("Stellar deeplink omits issuer for XLM and memo params when absent", (t) => {
+test("Stellar deeplink omits asset fields for native XLM", (t) => {
   t.equal(
     generateStellarDeepLink({
       destination: DEST,
       tokenAddress: "11111111111111111111111111111111",
       tokenSymbol: "XLM",
     }),
-    `web+stellar:pay?destination=${DEST}&asset_code=XLM`,
+    `web+stellar:pay?destination=${DEST}`,
   );
   t.end();
 });

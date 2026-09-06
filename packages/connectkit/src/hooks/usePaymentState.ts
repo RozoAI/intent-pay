@@ -80,6 +80,7 @@ import { getDataSuffix } from "../defaultConnectors";
 import { ROZO_EVENTS } from "../lib/analytics/events";
 import {
   buildCreatePaymentPayload,
+  buildDepositWalletOption,
   derivePayIdPreferredTokens,
 } from "../payment/createPaymentPayload";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
@@ -1415,22 +1416,11 @@ export function usePaymentState({
         log?.("[PAY DEPOSIT ADDRESS] creating payment for selected source token");
 
         const res = await handleCreateRozoPayment(
-          {
-            required: {
-              token: {
-                chainId: option.token.chainId,
-                token: option.token.token,
-                symbol: option.token.symbol,
-              },
-              usd:
-                fees?.source?.amount != null
-                  ? parseFloat(fees.source.amount)
-                  : Number(pay.order?.destFinalCallTokenAmount?.usd ?? 0),
-            },
-            fees: {
-              usd: fees?.source?.fee != null ? parseFloat(fees.source.fee) : 0,
-            },
-          } as any,
+          buildDepositWalletOption(
+            option,
+            fees,
+            Number(pay.order?.destFinalCallTokenAmount?.usd ?? 0),
+          ) as WalletPaymentOption,
           store,
         );
         if (!res) {

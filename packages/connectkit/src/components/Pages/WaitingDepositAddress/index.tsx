@@ -824,12 +824,20 @@ function CopyableInfo({
       />
 
       {depAddr?.memo && (
-        <CopyRowOrThrobber
-          title="Memo (Required)"
-          value={depAddr.memo}
-          valueText={depAddr.memo}
-          disabled={isExpired}
-        />
+        <>
+          <MemoRequiredBox>
+            <MemoRequiredText>
+              Memo is required — include it with your payment or funds may be
+              lost.
+            </MemoRequiredText>
+          </MemoRequiredBox>
+          <CopyRowOrThrobber
+            title="Memo (Required)"
+            value={depAddr.memo}
+            valueText={depAddr.memo}
+            disabled={isExpired}
+          />
+        </>
       )}
       <CountdownWrap>
         <CountdownTimer remainingS={remainingS} totalS={totalS} />
