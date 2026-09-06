@@ -16,6 +16,7 @@ import {
   formatPaymentResponseToHydratedOrder,
   generateEVMDeepLink,
   generateSolanaDeepLink,
+  generateStellarDeepLink,
   getChainById,
   getKnownToken,
   getPayment,
@@ -79,6 +80,7 @@ import { getDataSuffix } from "../defaultConnectors";
 import { ROZO_EVENTS } from "../lib/analytics/events";
 import {
   buildCreatePaymentPayload,
+  buildDepositWalletOption,
   derivePayIdPreferredTokens,
 } from "../payment/createPaymentPayload";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
@@ -1344,7 +1346,7 @@ export function usePaymentState({
     // Mark this option as being processed
     depositAddressCallRef.current.add(option.id);
     setDepositAddressState("creating");
-    log?.(`[PAY DEPOSIT ADDRESS] Starting processing for ${option}`);
+    log?.(`[PAY DEPOSIT ADDRESS] Starting processing for ${JSON.stringify(option)}`);
 
     let depositAddressCompleted = false;
 
@@ -1407,26 +1409,28 @@ export function usePaymentState({
           `[PAY DEPOSIT ADDRESS] payId mode — checked out order ${order.id} for ${order.usdValue} USD`,
         );
       } else {
-        log?.("[PAY DEPOSIT ADDRESS] hydrating order");
+        // Create a new payment — or checkout the existing one — bound to
+        // the selected source chain/token. hydrateOrder alone never updates
+        // preferredChainId/preferredTokenAddress, so switching options kept
+        // showing the first option's deposit address.
+        log?.("[PAY DEPOSIT ADDRESS] creating payment for selected source token");
 
-        const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
-        const result = await pay.hydrateOrder(
-          undefined,
-          {
-            required: {
-              token: {
-                token: option.token.token,
-                chainId: option.token.chainId,
-              } as any,
-            } as any,
-            fees: {
-              usd: fees?.source?.fee != null ? parseFloat(fees.source.fee) : 0,
-            },
-          } as any,
-          { signal: request.signal },
+        const res = await handleCreateRozoPayment(
+          buildDepositWalletOption(
+            option,
+            fees,
+            Number(pay.order?.destFinalCallTokenAmount?.usd ?? 0),
+          ) as WalletPaymentOption,
+          store,
         );
+        if (!res) {
+          throw new Error("Failed to create Rozo payment");
+        }
 
-        order = result.order;
+        setRozoPaymentId(res.id);
+        order = formatPaymentResponseToHydratedOrder(
+          res,
+        ) as RozoPayHydratedOrderWithOrg;
       }
 
       log?.(
@@ -1464,11 +1468,19 @@ export function usePaymentState({
           amountUnits: order.destFinalCallTokenAmount.usd.toString(),
           recipientAddress: order.intentAddr,
           tokenAddress: preferredToken.token,
+          memo: order.memo || order.metadata?.memo || undefined,
         });
       }
-      // If Stellar, do not generate a link (set to null)
+      // Stellar Classic (G-address + memo): SEP-0007 pay URI so wallets
+      // prefill destination, amount, asset and memo from the QR.
       else if ([stellar.chainId, rozoStellar.chainId].includes(preferredToken.chainId)) {
-        uriDeeplink = null;
+        uriDeeplink = generateStellarDeepLink({
+          destination: order.intentAddr,
+          amount: order.destFinalCallTokenAmount.usd.toString(),
+          tokenAddress: preferredToken.token,
+          tokenSymbol: preferredToken.symbol,
+          memo: order.memo || order.metadata?.memo || undefined,
+        });
       }
       // Otherwise use EVM deep link
       else {
@@ -1490,9 +1502,12 @@ export function usePaymentState({
         amount: String(order.usdValue),
         suffix: `${option.token.symbol} ${chain.name}`,
         uri: uriDeeplink ?? "",
-        expirationS: Math.floor(Date.now() / 1000) + 300,
+        expirationS:
+          order.expirationTs != null
+            ? Number(order.expirationTs)
+            : Math.floor(Date.now() / 1000) + 300,
         externalId: order.externalId ?? "",
-        memo: order.metadata?.memo || "",
+        memo: order.memo || order.metadata?.memo || "",
       };
     } catch (error) {
       if (isAbortError(error)) {

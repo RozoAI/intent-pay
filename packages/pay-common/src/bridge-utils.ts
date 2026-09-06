@@ -339,8 +339,11 @@ export function formatPaymentResponseToHydratedOrder(
   const intentAddress =
     (order.metadata?.receivingAddress ?? depositAddress) || "";
 
-  // Destination Intent Memo
-  const intentMemo = order.metadata?.memo ?? order.source?.receiverMemo;
+  // Deposit memo: the memo the user must attach when paying INTO the
+  // deposit address. source.receiverMemo is authoritative — metadata.memo
+  // may carry a consumer-set destination memo, which must never display
+  // as (or override) the deposit memo.
+  const intentMemo = order.source?.receiverMemo ?? order.metadata?.memo;
 
   // Destination token (what the user ultimately receives)
   const destToken = getKnownToken(

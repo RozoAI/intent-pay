@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 
 import { FeeResponseData, WalletPaymentOption } from "@rozoai/intent-common";
 import defaultTheme from "../../../constants/defaultTheme";
@@ -7,6 +7,8 @@ import { roundTokenAmount, trimTokenAmount } from "../../../utils/format";
 import { ModalBody } from "../../Common/Modal/styles";
 import { Spinner } from "../Spinner";
 import { SpinnerContainer } from "../Spinner/styles";
+import { usePayContext } from "../../../hooks/usePayContext";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 
 const PaymentBreakdown: React.FC<{
   paymentOption: WalletPaymentOption;
@@ -14,6 +16,10 @@ const PaymentBreakdown: React.FC<{
   feeLoading?: boolean;
 }> = ({ paymentOption, feeData, feeLoading }) => {
   const tokenSymbol = paymentOption.required.token.symbol;
+  const { triggerResize } = usePayContext()
+  // Merchant payments hide fee info — fee borne by merchant, not shown to payer.
+  const { order } = useRozoPay();
+  const isMerchant = (order?.metadata as any)?.isMerchant === true;
 
   const feeDisplay = useMemo(() => {
     if (feeLoading) return null;
@@ -41,14 +47,19 @@ const PaymentBreakdown: React.FC<{
     return null;
   }, [feeData])
 
+  useEffect(() => {
+    triggerResize()
+  }, [feeDisplay, totalDisplay, totalReceive])
+
   return (
     <FeesContainer>
-      {!feeLoading && feeDisplay !== "free" && totalReceive &&
+      {!feeLoading && feeDisplay !== "free" && totalReceive && !isMerchant &&
         <FeeRow>
           <ModalBody>Receives</ModalBody>
           <ModalBody>{totalReceive}</ModalBody>
         </FeeRow>
       }
+      {!isMerchant && (
       <FeeRow>
         <ModalBody>Fees</ModalBody>
         {feeLoading ? (
@@ -63,8 +74,9 @@ const PaymentBreakdown: React.FC<{
           <ModalBody>{feeDisplay}</ModalBody>
         )}
       </FeeRow>
-      <FeeRow style={{ marginTop: 8 }}>
-        <ModalBody style={{ fontWeight: 600 }}>Total</ModalBody>
+      )}
+      <FeeRow style={{ marginTop: 12 }}>
+        <ModalBody style={{ fontWeight: 600 }}>You Pay</ModalBody>
         <ModalBody style={{ fontWeight: 600 }}>
           {feeLoading ? (
             <SpinnerContainer>
@@ -84,7 +96,7 @@ const FeesContainer = styled.div`
   flex-direction: column;
   align-items: center;
   width: 100%;
-  gap: 4px;
+  gap: 6px;
   margin: 16px 0;
 
   @media only screen and (max-width: ${defaultTheme.mobileWidth}px) {
@@ -99,7 +111,7 @@ const FeeRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 60%;
+  width: 65%;
 `;
 const Badge = styled.span`
   display: inline-block;

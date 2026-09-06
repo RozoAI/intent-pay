@@ -56,7 +56,7 @@ export default [
         declaration: true,
         declarationDir: "build",
         rootDir: "src",
-        noEmitOnError: false,
+        noEmitOnError: true,
       }),
       visualizer({
         filename: "bundle-analysis.html",

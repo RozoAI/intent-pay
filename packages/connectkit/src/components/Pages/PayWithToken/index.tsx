@@ -13,6 +13,7 @@ import { usePayContext } from "../../../hooks/usePayContext";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import {
   beginRequestScope,
+  isAbortError,
   PAYMENT_REQUEST_SCOPE,
 } from "../../../utils/paymentRequestScope";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
@@ -259,6 +260,9 @@ const PayWithToken: React.FC = () => {
           setPayState(PayState.RequestFailed);
         }
       } catch (e: any) {
+        // Abort = user navigated away (Back / reset). Not a payment failure.
+        if (isAbortError(e)) return;
+
         if (e?.name === "ConnectorChainMismatchError") {
           // Workaround for Rainbow wallet bug -- user is able to switch chain without
           // the wallet updating the chain ID for wagmi.
