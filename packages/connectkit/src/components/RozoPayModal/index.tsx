@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useAccount, useConnect, useConnectors } from "wagmi";
 
 import { ROUTES } from "../../constants/routes";
+import defaultTheme from "../../constants/defaultTheme";
 import { getAppName } from "../../defaultConfig";
 import { useAutoConnectGate } from "../../hooks/useAutoConnectGate";
 import { useChainIsSupported } from "../../hooks/useChainIsSupported";
@@ -17,6 +18,8 @@ import styled from "../../styles/styled";
 import { ResetContainer } from "../../styles";
 import { IntercomInitializer } from "../Common/Intercom";
 import Modal from "../Common/Modal";
+import Portal from "../Common/Portal";
+import FocusTrap from "../../hooks/useFocusTrap";
 import { RozoPayThemeProvider } from "../RozoPayThemeProvider/RozoPayThemeProvider";
 import About from "../Pages/About";
 import Confirmation from "../Pages/Confirmation";
@@ -291,6 +294,21 @@ export const RozoPayModal: React.FC<{
     onConfirm: () => void;
   }>({ show: false, message: "", onConfirm: () => {} });
 
+  const closeConfirm = () =>
+    setConfirmState((s) => ({ ...s, show: false }));
+
+  // ESC dismisses the confirm dialog, mirroring Modal's keydown handler.
+  useEffect(() => {
+    if (!confirmState.show) return;
+    const listener = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeConfirm();
+    };
+    document.addEventListener("keydown", listener);
+    return () => {
+      document.removeEventListener("keydown", listener);
+    };
+  }, [confirmState.show]);
+
   // On deeplink open, only Solana auto-connects via wallet-standard.
   // EVM needs an explicit connect() — the wallet silently approves it inside
   // its own in-app browser (works for Phantom, Backpack, and any wallet that
@@ -523,39 +541,71 @@ export const RozoPayModal: React.FC<{
 
       <AnimatePresence>
         {confirmState.show && (
-          <ResetContainer
-            $useTheme={theme}
-            $useMode={mode}
-            $customTheme={customTheme}
-            style={{ position: "fixed", inset: 0, zIndex: 10000 }}
-          >
-            <ConfirmOverlay
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <ConfirmBox>
-                <ConfirmMessage>{confirmState.message}</ConfirmMessage>
-                <ConfirmButtons>
-                  <ConfirmButton
-                    $variant="secondary"
-                    onClick={() => setConfirmState(s => ({ ...s, show: false }))}
+          <Portal>
+            <FocusTrap>
+              <ResetContainer
+                $useTheme={theme}
+                $useMode={mode}
+                $customTheme={customTheme}
+                style={{ position: "fixed", inset: 0, zIndex: 10000 }}
+              >
+                <ConfirmOverlay
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) closeConfirm();
+                  }}
+                >
+                  <ConfirmBox
+                    role="dialog"
+                    aria-modal="true"
+                    initial={
+                      isMobile
+                        ? { opacity: 0, y: "100%" }
+                        : { opacity: 0, scale: 0.97 }
+                    }
+                    animate={
+                      isMobile
+                        ? { opacity: 1, y: "0%" }
+                        : { opacity: 1, scale: 1 }
+                    }
+                    exit={isMobile ? { opacity: 0 } : { opacity: 0, scale: 0.97 }}
+                    transition={
+                      isMobile
+                        ? {
+                            duration: 0.3,
+                            delay: 0.032,
+                            ease: [0.15, 1.15, 0.6, 1],
+                          }
+                        : { duration: 0.15, ease: "easeOut" }
+                    }
                   >
-                    Go Back
-                  </ConfirmButton>
-                  <ConfirmButton
-                    $variant="primary"
-                    onClick={() => {
-                      confirmState.onConfirm();
-                      setConfirmState({ show: false, message: "", onConfirm: () => {} });
-                    }}
-                  >
-                    Switch Anyway
-                  </ConfirmButton>
-                </ConfirmButtons>
-              </ConfirmBox>
-            </ConfirmOverlay>
-          </ResetContainer>
+                    <ConfirmMessage>{confirmState.message}</ConfirmMessage>
+                    <ConfirmButtons>
+                      <ConfirmButton $variant="secondary" onClick={closeConfirm}>
+                        Go Back
+                      </ConfirmButton>
+                      <ConfirmButton
+                        $variant="primary"
+                        onClick={() => {
+                          confirmState.onConfirm();
+                          setConfirmState({
+                            show: false,
+                            message: "",
+                            onConfirm: () => {},
+                          });
+                        }}
+                      >
+                        Switch Anyway
+                      </ConfirmButton>
+                    </ConfirmButtons>
+                  </ConfirmBox>
+                </ConfirmOverlay>
+              </ResetContainer>
+            </FocusTrap>
+          </Portal>
         )}
       </AnimatePresence>
     </RozoPayThemeProvider>
@@ -565,20 +615,32 @@ export const RozoPayModal: React.FC<{
 const ConfirmOverlay = styled(motion.div)`
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--ck-overlay-background, rgba(71, 88, 107, 0.24));
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
+
+  @media only screen and (max-width: ${defaultTheme.mobileWidth}px) {
+    align-items: flex-end;
+  }
 `;
 
-const ConfirmBox = styled.div`
+const ConfirmBox = styled(motion.div)`
   background: var(--ck-body-background);
-  border-radius: 16px;
+  border-radius: var(--ck-border-radius, 20px);
   padding: 24px;
   max-width: 320px;
   width: 90%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--ck-modal-box-shadow);
+
+  @media only screen and (max-width: ${defaultTheme.mobileWidth}px) {
+    width: 100%;
+    max-width: 448px;
+    margin: 0 auto -5px;
+    border-radius: var(--ck-border-radius, 30px) var(--ck-border-radius, 30px)
+      0 0;
+  }
 `;
 
 const ConfirmMessage = styled.p`
@@ -602,7 +664,9 @@ const ConfirmButton = styled.button<{ $variant: "primary" | "secondary" }>`
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  transition: opacity 100ms ease;
+  transition:
+    background-color 200ms ease,
+    transform 100ms ease;
 
   ${({ $variant }) =>
     $variant === "primary"
@@ -613,5 +677,9 @@ const ConfirmButton = styled.button<{ $variant: "primary" | "secondary" }>`
 
   &:hover {
     opacity: 0.85;
+  }
+
+  &:active {
+    transform: scale(0.9);
   }
 `;

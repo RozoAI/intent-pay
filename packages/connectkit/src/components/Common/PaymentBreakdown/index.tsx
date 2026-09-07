@@ -8,6 +8,7 @@ import { ModalBody } from "../../Common/Modal/styles";
 import { Spinner } from "../Spinner";
 import { SpinnerContainer } from "../Spinner/styles";
 import { usePayContext } from "../../../hooks/usePayContext";
+import { useRozoPay } from "../../../hooks/useRozoPay";
 
 const PaymentBreakdown: React.FC<{
   paymentOption: WalletPaymentOption;
@@ -16,6 +17,9 @@ const PaymentBreakdown: React.FC<{
 }> = ({ paymentOption, feeData, feeLoading }) => {
   const tokenSymbol = paymentOption.required.token.symbol;
   const { triggerResize } = usePayContext()
+  // Merchant payments hide fee info — fee borne by merchant, not shown to payer.
+  const { order } = useRozoPay();
+  const isMerchant = (order?.metadata as any)?.isMerchant === true;
 
   const feeDisplay = useMemo(() => {
     if (feeLoading) return null;
@@ -49,12 +53,13 @@ const PaymentBreakdown: React.FC<{
 
   return (
     <FeesContainer>
-      {!feeLoading && feeDisplay !== "free" && totalReceive &&
+      {!feeLoading && feeDisplay !== "free" && totalReceive && !isMerchant &&
         <FeeRow>
           <ModalBody>Receives</ModalBody>
           <ModalBody>{totalReceive}</ModalBody>
         </FeeRow>
       }
+      {!isMerchant && (
       <FeeRow>
         <ModalBody>Fees</ModalBody>
         {feeLoading ? (
@@ -69,6 +74,7 @@ const PaymentBreakdown: React.FC<{
           <ModalBody>{feeDisplay}</ModalBody>
         )}
       </FeeRow>
+      )}
       <FeeRow style={{ marginTop: 12 }}>
         <ModalBody style={{ fontWeight: 600 }}>You Pay</ModalBody>
         <ModalBody style={{ fontWeight: 600 }}>

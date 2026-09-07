@@ -339,8 +339,13 @@ export function formatPaymentResponseToHydratedOrder(
   const intentAddress =
     (order.metadata?.receivingAddress ?? depositAddress) || "";
 
-  // Destination Intent Memo
-  const intentMemo = order.metadata?.memo ?? order.source?.receiverMemo;
+  // Deposit memo: the memo the user must attach when paying INTO the
+  // deposit address. source.receiverMemo is authoritative — metadata.memo
+  // may carry a consumer-set destination memo, which must never display
+  // as (or override) the deposit memo. No fallback: a missing deposit
+  // memo must surface as null so Stellar Classic flows hit the Memo
+  // Missing block instead of instructing an unrelated memo.
+  const intentMemo = order.source?.receiverMemo ?? null;
 
   // Destination token (what the user ultimately receives)
   const destToken = getKnownToken(
@@ -427,7 +432,10 @@ export function formatPaymentResponseToHydratedOrder(
       depositChainId:
         order.source?.chainId ?? Number(order.destination.chainId),
       receivingAddress: intentAddress ?? "",
-      memo: intentMemo ?? null,
+      // Destination memo set by the consumer (e.g. receiverMemo for the
+      // payout leg). Kept distinct from the deposit memo (order.memo);
+      // never use this as a pay-in instruction.
+      memo: order.metadata?.memo ?? null,
       isMerchant: order.isMerchant ?? false,
       // Backend-decided settlement routing (e.g. "stellar_direct" for direct
       // same-chain USDC/EURC settlement). Consumer never sets this — it's
