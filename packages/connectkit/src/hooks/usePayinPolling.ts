@@ -1,6 +1,11 @@
 import { getPayment } from "@rozoai/intent-common";
 import { useEffect, useState } from "react";
 import { PayLogFn } from "../provider/PayContext";
+import {
+  beginRequestScope,
+  cancelRequestScope,
+  isAbortError,
+} from "../utils/paymentRequestScope";
 
 const POLL_DELAY = 1000;
 
@@ -39,6 +44,10 @@ export const usePayinPolling = (
 
     log("[WAITING_DEPOSIT] Starting payin polling for:", rozoPaymentId);
 
+    // Unique scope key per payment ID so an unrelated beginRequestScope
+    // (e.g. from setPayParams / generatePreviewOrder) doesn't kill this poll.
+    const scopeKey = `payin-polling-${rozoPaymentId}`;
+    let request = beginRequestScope(scopeKey);
     let isActive = true;
     let timeoutId: NodeJS.Timeout;
 
@@ -46,7 +55,9 @@ export const usePayinPolling = (
       if (!isActive || !rozoPaymentId) return;
 
       try {
-        const response = await getPayment(rozoPaymentId, "v2");
+        const response = await getPayment(rozoPaymentId, "v2", {
+          signal: request.signal,
+        });
         const sourceTxHash = response?.data?.source?.txHash;
 
         if (
@@ -63,10 +74,20 @@ export const usePayinPolling = (
           timeoutId = setTimeout(pollPayin, POLL_DELAY);
         }
       } catch (error) {
-        console.error("[WAITING_DEPOSIT] Payin polling error:", error);
-        if (isActive) {
+        if (!isActive) return;
+        // Abort from our own scope → component unmounted or scope intentionally
+        // cancelled. Don't reschedule.
+        if (isAbortError(error) && request.signal.aborted) return;
+        // Abort from external scope (shouldn't happen with unique key, but
+        // defensive): re-begin and retry.
+        if (isAbortError(error)) {
+          log("[WAITING_DEPOSIT] External abort, resuming poll");
+          request = beginRequestScope(scopeKey);
           timeoutId = setTimeout(pollPayin, POLL_DELAY);
+          return;
         }
+        console.error("[WAITING_DEPOSIT] Payin polling error:", error);
+        timeoutId = setTimeout(pollPayin, POLL_DELAY);
       }
     };
 
@@ -74,6 +95,7 @@ export const usePayinPolling = (
 
     return () => {
       isActive = false;
+      cancelRequestScope(scopeKey);
       if (timeoutId) {
         clearTimeout(timeoutId);
       }

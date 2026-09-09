@@ -94,6 +94,7 @@ export function waitForState<S, E, T extends S>(
   predicates: ((s: S) => s is T) | ReadonlyArray<(s: S) => s is T>,
   isError?: (s: S) => boolean,
   getErrorMessage?: (s: S) => string,
+  options?: { signal?: AbortSignal },
 ): Promise<T> {
   // Normalise to an array and build a helper that succeeds if *any* guard passes
   const guards = typeof predicates === "function" ? [predicates] : predicates;
@@ -101,18 +102,50 @@ export function waitForState<S, E, T extends S>(
   const matches = (s: S): s is T => guards.some((g) => g(s));
 
   return new Promise((resolve, reject) => {
+    let unsubscribe: (() => void) | undefined;
+    let removeSignalListener: (() => void) | undefined;
+
+    const cleanup = () => {
+      removeSignalListener?.();
+      unsubscribe?.();
+    };
+
+    const finishResolve = (value: T) => {
+      cleanup();
+      resolve(value);
+    };
+
+    const finishReject = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+
+    const abort = () => {
+      const error = new Error("Aborted");
+      error.name = "AbortError";
+      finishReject(error);
+    };
+
     // Fast path – we might already be in a valid state
     const first = store.getState();
     if (matches(first)) return resolve(first);
 
-    const unsubscribe = store.subscribe(({ next }) => {
+    unsubscribe = store.subscribe(({ next }) => {
       if (matches(next)) {
-        unsubscribe();
-        resolve(next);
+        finishResolve(next);
       } else if (isError?.(next)) {
-        unsubscribe();
-        reject(new Error(getErrorMessage?.(next) ?? "error"));
+        finishReject(new Error(getErrorMessage?.(next) ?? "error"));
       }
     });
+
+    if (options?.signal) {
+      if (options.signal.aborted) {
+        abort();
+        return;
+      }
+      const onAbort = () => abort();
+      options.signal.addEventListener("abort", onAbort, { once: true });
+      removeSignalListener = () => options.signal?.removeEventListener("abort", onAbort);
+    }
   });
 }

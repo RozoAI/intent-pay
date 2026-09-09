@@ -74,8 +74,8 @@ function buildPaymentRequestBody(
     receiverMemo,
     apiVersion,
     intent,
+    extraFields
   } = params;
-
   // Create payment bridge configuration
   const { preferred, destination } = createPaymentBridgeConfig({
     toChain,
@@ -139,6 +139,7 @@ function buildPaymentRequestBody(
     ...(webhookUrl ? { webhookUrl } : {}),
     ...(webhookSecret ? { webhookSecret } : {}),
     ...(intent ? { intent } : {}),
+    ...(extraFields ?? {}),
   };
 
   if (apiVersion === "v1") {
@@ -180,6 +181,7 @@ function buildPaymentRequestBody(
  */
 export async function createPayment(
   params: CreateNewPaymentParams,
+  options?: { signal?: AbortSignal },
 ): Promise<PaymentResponse> {
   // Set API version if provided
   if (params.apiVersion) {
@@ -192,10 +194,15 @@ export async function createPayment(
   const response = await apiClient.post<PaymentResponse>(
     "/payment-api",
     paymentData,
+    { signal: options?.signal },
   );
 
+  if (response.error) {
+    throw response.error;
+  }
+
   if (!response?.data?.id) {
-    throw new Error(response?.error?.message ?? "Payment creation failed");
+    throw new Error("Payment creation failed");
   }
 
   return response.data;
@@ -213,6 +220,7 @@ export async function createPayment(
  */
 export const getFee = async (
   params: CreateNewPaymentParams,
+  options?: { signal?: AbortSignal },
 ): Promise<ApiResponse<FeeResponseData>> => {
   if (params.apiVersion) {
     setApiConfig({ version: params.apiVersion });
@@ -238,7 +246,7 @@ export const getFee = async (
   const result = await apiClient.post<FeeResponseData | FeeErrorData>(
     "payment-api/payments",
     paymentData,
-    { params: { dryrun: "true" } },
+    { params: { dryrun: "true" }, signal: options?.signal },
   );
 
   if (result.error) {
@@ -270,6 +278,7 @@ export const getFee = async (
 export const getPayment = (
   paymentId: string,
   apiVersion?: ApiVersion,
+  options?: { signal?: AbortSignal },
 ): Promise<ApiResponse<PaymentResponse>> => {
   // Set API version if provided
   if (apiVersion) {
@@ -281,10 +290,12 @@ export const getPayment = (
     const endpoint = isMugglePay
       ? `/payment-api/${paymentId}`
       : `/payment/id/${paymentId}`;
-    return apiClient.get<PaymentResponse>(endpoint);
+    return apiClient.get<PaymentResponse>(endpoint, { signal: options?.signal });
   }
 
-  return apiClient.get<PaymentResponse>(`/payment-api/payments/${paymentId}`);
+  return apiClient.get<PaymentResponse>(`/payment-api/payments/${paymentId}`, {
+    signal: options?.signal,
+  });
 };
 
 /**
@@ -310,11 +321,13 @@ export const updatePaymentPayInTxHash = async ({
   txHash,
   apiVersion,
   senderAddress,
+  signal,
 }: {
   paymentId: string;
   txHash: string;
   senderAddress: string | undefined;
   apiVersion?: ApiVersion;
+  signal?: AbortSignal;
 }): Promise<ApiResponse<PaymentResponse>> => {
   // Set API version if provided
   if (apiVersion) {
@@ -337,7 +350,7 @@ export const updatePaymentPayInTxHash = async ({
     payload.senderAddress = senderAddress;
   }
 
-  return apiClient.post<PaymentResponse>(endpoint, payload);
+  return apiClient.post<PaymentResponse>(endpoint, payload, { signal });
 };
 
 /**
@@ -444,13 +457,16 @@ export const checkoutPayment = async (
   paymentId: string,
   params: CheckoutPaymentParams,
   apiVersion?: ApiVersion,
+  options?: { signal?: AbortSignal },
 ): Promise<ApiResponse<PaymentResponse>> => {
   if (apiVersion) {
     setApiConfig({ version: apiVersion });
   }
 
   const endpoint = `/payment-api/payments/${paymentId}/checkout`;
-  return apiClient.post<PaymentResponse>(endpoint, params);
+  return apiClient.post<PaymentResponse>(endpoint, params, {
+    signal: options?.signal,
+  });
 };
 
 /**

@@ -174,19 +174,18 @@ export const LoadingCircleIcon = ({ ...props }) => {
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
-      <circle cx="50" cy="50" r="50" fill="#0190FF" fillOpacity="0.15" />
       <circle
         cx="50"
         cy="50"
         r="30"
         stroke="#0190FF"
         strokeOpacity="0.4"
-        strokeWidth="16"
+        strokeWidth="8"
       />
       <path
         d="M50 20V20C66.5685 20 80 33.4315 80 50V50"
         stroke="#0190FF"
-        strokeWidth="16"
+        strokeWidth="8"
         strokeLinecap="round"
         strokeLinejoin="round"
       />

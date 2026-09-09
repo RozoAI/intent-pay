@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.45] - 2026-09-06
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Expose Stellar deeplink generation in pay-common &nbsp;-&nbsp; by @akbarsaputrait [<samp>(90623fe2)</samp>](https://github.com/RozoAI/intent-pay/commit/90623fe28a43c895e4e5c9f149e3453fb7e1682a)
+- Adjust fee info and memo guard in connectkit &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e976f5a5)</samp>](https://github.com/RozoAI/intent-pay/commit/e976f5a505fa2fcc53765970030b7432cf555f7f)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Prevent nullable memo and tighten warning text &nbsp;-&nbsp; by @akbarsaputrait [<samp>(ff6242f4)</samp>](https://github.com/RozoAI/intent-pay/commit/ff6242f493fdcdbbe8eeea3acaf2a9defbd31605)
+- Harden XLM deeplink and deposit payload handling &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e3fb14c7)</samp>](https://github.com/RozoAI/intent-pay/commit/e3fb14c727c2d3ddf487e7a813be74c9e85caaed)
+- Fix memo warning text &nbsp;-&nbsp; by @akbarsaputrait [<samp>(56f47102)</samp>](https://github.com/RozoAI/intent-pay/commit/56f47102351935e922f9528320f3fb5d7f3a93a0)
+
+---
+
+## [0.1.44] - 2026-09-04
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Trigger resize and remove extra '+' on fees &nbsp;-&nbsp; by @akbarsaputrait [<samp>(297ed)</samp>](https://github.com/RozoAI/intent-pay/commit/297ed980)
+
+---
+
+## [0.1.43] - 2026-09-04
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Add confirm dialog on waiting for deposit, and fix close/back button visibility &nbsp;-&nbsp; by @akbarsaputrait [<samp>(2e512)</samp>](https://github.com/RozoAI/intent-pay/commit/2e51297a)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Undefined balance too low fiatISO &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e7937)</samp>](https://github.com/RozoAI/intent-pay/commit/e793752f)
+- Use extraFields instead &nbsp;-&nbsp; by @akbarsaputrait [<samp>(1f62f)</samp>](https://github.com/RozoAI/intent-pay/commit/1f62f04d)
+- Workspaced deps wrong version &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b3ab5)</samp>](https://github.com/RozoAI/intent-pay/commit/b3ab5623)
+- Isolate payment request scopes and harden deposit-address flow &nbsp;-&nbsp; by @akbarsaputrait [<samp>(8cd6e)</samp>](https://github.com/RozoAI/intent-pay/commit/8cd6e4b5)
+
+---
+
+## [0.1.42] - 2026-09-02
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **pay-common**: Use `extraFields` instead &nbsp;-&nbsp; by @akbarsaputrait [<samp>(1f62f)</samp>](https://github.com/RozoAI/intent-pay/commit/1f62f04d)
+
+---
+
 ## [0.1.40] - 2026-08-11
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features

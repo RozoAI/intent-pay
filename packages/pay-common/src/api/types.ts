@@ -312,4 +312,6 @@ export interface CreateNewPaymentParams {
   apiVersion?: ApiVersion;
   /** Intent type (e.g., "stellar_direct" for direct same-chain USDC→USDC settlement) */
   intent?: string;
+  /** Additional custom fields */
+  extraFields?: Record<string, unknown>;
 }

@@ -19,6 +19,12 @@ import {
 } from "@rozoai/intent-common";
 import { Address, parseUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
+import {
+  beginRequestScope,
+  cancelRequestScope,
+  isAbortError,
+  PAYMENT_REQUEST_SCOPE,
+} from "../utils/paymentRequestScope";
 import { parseErrorMessage } from "../utils/errorParser";
 import { PollHandle, startPolling } from "../utils/polling";
 import { TrpcClient } from "../utils/trpc";
@@ -122,6 +128,7 @@ export function attachPaymentEffectHandlers(
       case "reset":
         latestSetPayParamsRequestId = null;
         latestSetPayIdRequestId = null;
+        cancelRequestScope(PAYMENT_REQUEST_SCOPE);
         log("[EFFECT] reset – invalidating in-flight preview and payId requests");
         break;
       case "set_pay_id": {
@@ -371,9 +378,13 @@ async function runSetPayIdEffects(
 ) {
   try {
     const payId = resolveOrderId(event.payId);
-    const res = await getPayment(payId);
+    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+    const res = await getPayment(payId, undefined, { signal: request.signal });
 
     if (!isLatest()) return;
+    if (res.error) {
+      throw res.error;
+    }
 
     if (!res?.data) {
       throw new Error("Payment not found");
@@ -408,7 +419,7 @@ async function runSetPayIdEffects(
       order,
     });
   } catch (e: any) {
-    if (!isLatest()) return;
+    if (isAbortError(e) || !isLatest()) return;
     store.dispatch({
       type: "error",
       order: undefined,
@@ -477,7 +488,8 @@ async function runHydratePayParamsEffects(
     const payload = buildHydratePayParamsPayload(prev, event, apiVersion);
     log?.(`[Payment Effect]: payload: ${JSON.stringify(payload, null, 2)}`);
 
-    const rozoPayment = await createPayment(payload);
+    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+    const rozoPayment = await createPayment(payload, { signal: request.signal });
 
     if (!rozoPayment?.id) {
       throw new Error("Payment creation failed");
@@ -490,6 +502,7 @@ async function runHydratePayParamsEffects(
     rozoPaymentResponse = rozoPayment;
     rozoPaymentId = rozoPayment.id;
   } catch (error) {
+    if (isAbortError(error)) return;
     console.error(error);
     const message = parseErrorMessage(error);
     store.dispatch({
@@ -534,7 +547,13 @@ async function runHydratePayIdEffects(
   const order = prev.order;
 
   try {
-    const orderData = await getPayment(order.id.toString(), apiVersion);
+    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+    const orderData = await getPayment(order.id.toString(), apiVersion, {
+      signal: request.signal,
+    });
+    if (orderData.error) {
+      throw orderData.error;
+    }
     if (!orderData?.data) {
       throw new Error("Order not found");
     }
@@ -546,6 +565,7 @@ async function runHydratePayIdEffects(
       order: hydratedOrder,
     });
   } catch (e: any) {
+    if (isAbortError(e)) return;
     store.dispatch({
       type: "error",
       order: prev.order,
@@ -562,7 +582,13 @@ async function runPaySourceEffects(
   const order = prev.order;
 
   try {
-    const orderData = await getPayment(order.id.toString());
+    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+    const orderData = await getPayment(order.id.toString(), undefined, {
+      signal: request.signal,
+    });
+    if (orderData.error) {
+      throw orderData.error;
+    }
     if (!orderData?.data) {
       throw new Error("Order not found");
     }
@@ -571,6 +597,7 @@ async function runPaySourceEffects(
 
     store.dispatch({ type: "order_refreshed", order: hydratedOrder });
   } catch (e: any) {
+    if (isAbortError(e)) return;
     store.dispatch({
       type: "error",
       order: prev.order,
