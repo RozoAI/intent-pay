@@ -11,6 +11,8 @@ import {
   Solana,
   Stellar,
 } from "../../../assets/chains";
+import { WalletConnect } from "../../../assets/logos";
+import { isWalletConnectConnector } from "../../../utils";
 import defaultTheme from "../../../constants/defaultTheme";
 import { ROUTES } from "../../../constants/routes";
 import { useRozoPay } from "../../../hooks/useRozoPay";
@@ -113,7 +115,13 @@ export const OrderHeader = ({
     );
   };
 
-  const walletIcon = renderIcon(connector?.icon, undefined, 32);
+  // WalletConnect connectors have no icon payload — show WC branding instead.
+  const evmWalletIcon = isWalletConnectConnector(connector?.id) ? (
+    <WalletConnect />
+  ) : (
+    connector?.icon
+  );
+  const walletIcon = renderIcon(evmWalletIcon, undefined, 32);
   const solanaIcon = renderIcon(
     solanaWallet?.adapter.icon || <Solana />,
     solanaWallet?.adapter.name,
