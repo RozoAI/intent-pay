@@ -36,6 +36,7 @@ import { buildFeeQuoteParams, getCachedFee } from "../../../../utils/feeCache";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
+import { createPaymentFailureError } from "../../../../utils/errorParser";
 
 enum PayState {
   PreparingTransaction = "Preparing Transaction",
@@ -349,7 +350,7 @@ const PayWithSolanaToken: React.FC = () => {
               store as any,
             );
             if (!res) {
-              throw new Error("Failed to create Rozo payment");
+              throw createPaymentFailureError(store);
             }
             paymentId = res.id;
             hydratedOrder = formatPaymentResponseToHydratedOrder(res);

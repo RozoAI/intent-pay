@@ -24,6 +24,7 @@ import { ROZO_INVOICE_URL } from "../../../constants/rozoConfig";
 import { usePayoutPolling } from "../../../hooks/usePayoutPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useRozoPay } from "../../../hooks/useRozoPay";
+import { resolveConfirmedPayoutTxHash } from "../../../payment/resolveConfirmedPayoutTxHash";
 import {
   beginRequestScope,
   cancelRequestScope,
@@ -126,7 +127,13 @@ const Confirmation: React.FC = () => {
       }
     }
 
-    if (payParams && (tokenMode === "stellar" || tokenMode === "solana" || tokenMode === "evm")) {
+    if (
+      payParams &&
+      (tokenMode === "stellar" ||
+        tokenMode === "solana" ||
+        tokenMode === "evm" ||
+        tokenMode === "all")
+    ) {
       return payParams.showProcessingPayout;
     }
 
@@ -142,6 +149,15 @@ const Confirmation: React.FC = () => {
     }
     return undefined;
   }, [pusherPayoutTxHash, order]);
+
+  const confirmedPayoutTxHash = payinConfirmed?.payoutTxHash;
+  const confirmedPayoutTxHashUrl = useMemo(() => {
+    if (!confirmedPayoutTxHash || !order) return undefined;
+    return getChainExplorerTxUrl(
+      getOrderDestChainId(order),
+      confirmedPayoutTxHash,
+    );
+  }, [confirmedPayoutTxHash, order]);
 
   const rozoPaymentId = useMemo(() => {
     const id = order?.externalId || paymentStateContext.rozoPaymentId;
@@ -503,6 +519,7 @@ const Confirmation: React.FC = () => {
 
   // Payout is resolved when either Pusher or polling has found the destination txhash
   const payoutResolved = !!(
+    (confirmedPayoutTxHash && confirmedPayoutTxHashUrl) ||
     (pusherPayoutTxHash && computedPusherPayoutTxHashUrl) ||
     (payoutTxHash && payoutTxHashUrl)
   );
@@ -686,28 +703,28 @@ const Confirmation: React.FC = () => {
   }, [done, paymentStateContext, rawPayInHash, rozoPaymentId]);
 
   /**
-   * Payout that is settled by the payin itself, so there is nothing to wait
-   * for: stellar_direct with source txHash === destination txHash (known from
-   * the order, or from the confirmed API response), and deposit-address flows
-   * (which previously marked payout completed on payin detection). Separate
-   * from the completion effect so its dedupe cannot swallow this event.
+   * Complete payout immediately when the payin confirmation response already
+   * includes its destination hash. This covers payouts completed before the
+   * Confirmation page subscribed to Pusher, plus stellar_direct same-tx flows.
    */
   useEffect(() => {
     if (!done || !rawPayInHash || !rozoPaymentId) return;
     const sameTx = isStellarDirectSameTx || !!payinConfirmed?.sameTxPayout;
-    // Deposit-address flow: only when the API already reports the destination
-    // tx. Otherwise leave payoutCompletedRef untouched so the normal Pusher /
-    // polling payout wait runs — never report the source tx as the payout.
-    const depositPayout =
-      !!paymentStateContext.selectedDepositAddressOption && !!payinConfirmed?.payoutTxHash;
-    if (!sameTx && !depositPayout) return;
-    const payoutHash = sameTx ? rawPayInHash : payinConfirmed!.payoutTxHash!;
+    const payoutHash = resolveConfirmedPayoutTxHash(
+      rawPayInHash,
+      payinConfirmed?.payoutTxHash,
+      sameTx,
+    );
+    if (!payoutHash) return;
     const payoutKey = `${payoutHash}-${rozoPaymentId}`;
     if (payoutCompletedSent.current === payoutKey) return;
     payoutCompletedSent.current = payoutKey;
     payoutCompletedRef.current = true;
     setPaymentPayoutCompleted(payoutHash, rozoPaymentId);
-    context.log("[CONFIRMATION] payout completed directly:", { sameTx, depositPayout, payoutHash });
+    context.log("[CONFIRMATION] payout completed from payin response:", {
+      sameTx,
+      payoutHash,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [done, rawPayInHash, rozoPaymentId, isStellarDirectSameTx, payinConfirmed]);
 
@@ -857,15 +874,26 @@ const Confirmation: React.FC = () => {
                     <ModalBody>
                       {payoutLoading ? (
                         <LoadingText>Processing payout...</LoadingText>
-                      ) : (computedPusherPayoutTxHashUrl && pusherPayoutTxHash) ||
+                      ) : (confirmedPayoutTxHashUrl && confirmedPayoutTxHash) ||
+                        (computedPusherPayoutTxHashUrl && pusherPayoutTxHash) ||
                         (payoutTxHashUrl && payoutTxHash) ? (
                         <Link
-                          href={computedPusherPayoutTxHashUrl || payoutTxHashUrl || "#"}
+                          href={
+                            confirmedPayoutTxHashUrl ||
+                            computedPusherPayoutTxHashUrl ||
+                            payoutTxHashUrl ||
+                            "#"
+                          }
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{ fontSize: 14, fontWeight: 400 }}
                         >
-                          {getAddressContraction(pusherPayoutTxHash || payoutTxHash || "")}
+                          {getAddressContraction(
+                            confirmedPayoutTxHash ||
+                              pusherPayoutTxHash ||
+                              payoutTxHash ||
+                              "",
+                          )}
                           <ExternalIcon />
                         </Link>
                       ) : (
