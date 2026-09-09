@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.46] - 2026-09-09
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Stop discarding the real create-payment error &nbsp;-&nbsp; by @shawnmuggle [<samp>(4c1340b8)</samp>](https://github.com/RozoAI/intent-pay/commit/4c1340b8d92b0a778e979a980366c33097521811)
+
+  The four `createPayment` call sites replaced the API's parsed failure with a
+  bare `Failed to create Rozo payment`, and `parseErrorMessage` could return a
+  non-string that callers stringified to `[object Object]`. Between them they
+  accounted for 19 of the 27 our-side payment failures observed in the
+  2026-09-03..09 checkout window — all on Stellar (chain 1500) — with no
+  recorded cause. Errors now carry the API's own message.
+
+---
+
 ## [0.1.45] - 2026-09-06
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
