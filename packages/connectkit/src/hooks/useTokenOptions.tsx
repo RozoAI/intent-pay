@@ -382,21 +382,43 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     isDepositFlow,
   ]);
 
+  // Wallet-switch glitch: on address change, the new fetch is debounced
+  // (smartRefresh, 300ms) before it even starts, so sortedOptionsList still
+  // holds the PREVIOUS wallet's stale results (or an empty list) for a beat.
+  // "sortedOptionsList.length > 0 → never loading" below trusted that stale
+  // data, flashing "no tokens" before the real list for the new address pops
+  // in. Track which address the current options actually belong to so a
+  // mismatch (address changed, fetch not caught up yet) still shows loading.
+  const { ethWalletAddress, solanaPubKey, stellarPubKey } = paymentState;
+  const currentAddressKey = `${ethWalletAddress || ""}-${solanaPubKey || ""}-${stellarPubKey || ""}`;
+  // Tracks the address the most recently SETTLED (isLoading: false) fetch
+  // belongs to — regardless of whether it came back empty. Only gating on
+  // "got a non-empty list" (previous version) meant a wallet with zero
+  // tokens never flipped this, so shouldShowLoading stayed stuck true
+  // forever instead of settling into a legitimate "no tokens" state.
+  const settledAddressKey = useRef<string>("");
+  if (!isLoading) {
+    settledAddressKey.current = currentAddressKey;
+  }
+  const optionsAreForCurrentAddress = settledAddressKey.current === currentAddressKey;
+
   const shouldShowLoading = useMemo(
     () =>
-      // Once we have options, don't show loading/skeletons (avoids extra skeleton when
-      // e.g. EVM+Solana are done but Stellar is still loading in mode "all")
-      sortedOptionsList.length > 0
+      // Once the fetch has settled for the CURRENT address, don't show
+      // loading/skeletons — regardless of whether it returned any options.
+      // Stale options (or staleness) from a previous address don't count.
+      optionsAreForCurrentAddress
         ? false
         : connectedWalletOnly && sortedOptionsList.length === 0 && !hasRelevantHooksWithValidParams
           ? false
-          : isLoading && (!hasAnyData || sortedOptionsList.length === 0),
+          : isLoading || !hasAnyData || sortedOptionsList.length === 0,
     [
       connectedWalletOnly,
       sortedOptionsList,
       hasRelevantHooksWithValidParams,
       isLoading,
       hasAnyData,
+      optionsAreForCurrentAddress,
     ],
   );
 

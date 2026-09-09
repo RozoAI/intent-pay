@@ -65,6 +65,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       ssr: true,
       // Optional: Base builder code attribution (https://docs.base.org/apps/builder-codes)
       // dataSuffix: Attribution.toDataSuffix({ codes: [process.env.NEXT_PUBLIC_BASE_BUILDER_CODE] }),
+      // Optional: your own WalletConnect Cloud project ID (https://cloud.reown.com).
+      // Desktop WalletConnect QR is available by default via Rozo's shared
+      // project ID — pass yours here to use a separate WalletConnect project.
+      // walletConnectProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
     })));
   const [qc] = useState(() => new QueryClient());
   return (
@@ -95,7 +99,7 @@ Then drop a `<RozoPayButton appId="rozoSandbox" ... />` (snippet above) anywhere
 
 ### Supported Wallets
 
-**EVM Wallets:** MetaMask, Coinbase Wallet, Trust Wallet, Rainbow Wallet, Family Wallet, Zerion, OKX, Bitget
+**EVM Wallets:** MetaMask, Coinbase Wallet, Trust Wallet, Rainbow Wallet, Family Wallet, Zerion, OKX, Bitget, WalletConnect (desktop QR only)
 
 **Solana Wallets:** Phantom, Backpack, Solflare
 

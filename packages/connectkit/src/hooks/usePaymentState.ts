@@ -86,6 +86,7 @@ import {
   derivePayIdPreferredTokens,
   resolveDepositSourceAmount,
 } from "../payment/createPaymentPayload";
+import { waitForPaymentSourceTxHash } from "../payment/waitForPaymentSourceTxHash";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
 import { useAnalytics } from "../provider/AnalyticsProvider";
 import { useStellar } from "../provider/StellarContextProvider";
@@ -277,7 +278,7 @@ export function usePaymentState({
   }, []);
 
   // Wallet state.
-  const { address: ethWalletAddress } = useAccount();
+  const { address: ethWalletAddress, connector: ethConnector } = useAccount();
   const senderEnsName = undefined;
   const { switchChainAsync } = useSwitchChain();
 
@@ -945,7 +946,8 @@ export function usePaymentState({
     const destinationAddress = hydratedOrder.intentAddr;
 
     // Execute transaction with optimized error handling
-    const paymentTxHash = await (async () => {
+    let transactionRecoveredFromApi = false;
+    const transactionPromise = (async () => {
       try {
         if (isNativeToken) {
           // dataSuffix intentionally omitted — appending data to bare ETH transfers
@@ -1008,7 +1010,7 @@ export function usePaymentState({
           });
         }
       } catch (e) {
-        if (hydratedOrder.externalId) {
+        if (hydratedOrder.externalId && !transactionRecoveredFromApi) {
           try {
             await pay.setPaymentUnpaid(hydratedOrder.externalId);
           } catch (resetErr) {
@@ -1019,6 +1021,34 @@ export function usePaymentState({
         throw e;
       }
     })();
+
+    let paymentTxHash: Hex;
+    const activePaymentId = paymentId ?? hydratedOrder.externalId ?? undefined;
+    if (ethConnector?.id === "walletConnect" && activePaymentId) {
+      // MetaMask Mobile can submit a WalletConnect transaction without ever
+      // returning the eth_sendTransaction response to the browser. The backend
+      // still detects the deposit, so race the wallet response against that
+      // server-confirmed source hash instead of leaving the UI stuck forever.
+      const pollingController = new AbortController();
+      try {
+        const result = await Promise.race([
+          transactionPromise.then((txHash) => ({ txHash, recovered: false })),
+          waitForPaymentSourceTxHash(activePaymentId, {
+            signal: pollingController.signal,
+            ignoreTxHash: hydratedOrder.sourceStartTxHash,
+          }).then((txHash) => ({ txHash, recovered: true })),
+        ]);
+        paymentTxHash = result.txHash;
+        transactionRecoveredFromApi = result.recovered;
+        if (result.recovered) {
+          log?.(`[PAY TOKEN] Recovered WalletConnect tx hash from payment API: ${paymentTxHash}`);
+        }
+      } finally {
+        pollingController.abort();
+      }
+    } else {
+      paymentTxHash = await transactionPromise;
+    }
 
     // Set transaction hash and return result
     setTxHash(paymentTxHash);
