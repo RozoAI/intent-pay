@@ -90,7 +90,10 @@ import { PaymentEvent, PayParams } from "../payment/paymentFsm";
 import { useAnalytics } from "../provider/AnalyticsProvider";
 import { useStellar } from "../provider/StellarContextProvider";
 import { Store } from "../stateStore";
-import { parseErrorMessage } from "../utils/errorParser";
+import {
+  createPaymentFailureError,
+  parseErrorMessage,
+} from "../utils/errorParser";
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
 import { WalletConfigProps } from "../wallets/walletConfigs";
@@ -862,7 +865,7 @@ export function usePaymentState({
         const res = await handleCreateRozoPayment(walletOption, store as any);
 
         if (!res) {
-          throw new Error("Failed to create Rozo payment");
+          throw createPaymentFailureError(store);
         }
 
         paymentId = res.id;
@@ -1463,7 +1466,7 @@ export function usePaymentState({
         // Superseded while awaiting: never adopt this option's payment.
         if (!isCurrent()) return null;
         if (!res) {
-          throw new Error("Failed to create Rozo payment");
+          throw createPaymentFailureError(store);
         }
 
         setRozoPaymentId(res.id);
