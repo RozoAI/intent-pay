@@ -19,10 +19,8 @@ import {
 
 /**
  * Desktop-only WalletConnect connect flow: renders our own QR + copyable URI
- * instead of WalletConnect's bundled modal (the "walletConnect" connector is
- * configured with showQrModal: false in defaultConnectors.ts — mobile uses a
- * separate "walletConnectModal" instance with showQrModal: true instead,
- * routed through the generic ConnectUsing page).
+ * instead of WalletConnect's bundled modal. The desktop-only connector is
+ * configured with showQrModal: false in defaultConnectors.ts.
  *
  * pendingConnectorId may be either the real "walletConnect" connector id, or a
  * no-extension fallback stub id ("wc-fallback-…"). The connector is always the

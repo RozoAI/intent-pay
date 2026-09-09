@@ -39,9 +39,8 @@ type DefaultConfigProps = {
   additionalConnectors?: CreateConnectorFn[];
 
   // WalletConnect Cloud project ID (https://cloud.reown.com). Defaults to
-  // Rozo's shared project ID so the WalletConnect wallet option (desktop: our
-  // own QR + copy page; mobile: WalletConnect's own bundled modal) is always
-  // available. Pass your own to use a separate WalletConnect Cloud project.
+  // Rozo's shared project ID for the desktop QR flow. Pass your own to use a
+  // separate WalletConnect Cloud project.
   walletConnectProjectId?: string;
 } & Partial<CreateConfigParameters>;
 

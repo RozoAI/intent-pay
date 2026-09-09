@@ -8,12 +8,7 @@ import {
 } from "wagmi/connectors";
 import type { Hex } from "viem";
 
-// wagmi's walletConnect() hardcodes id: 'walletConnect' inside createConnector
-// and doesn't accept an id override param — two instances (desktop custom-QR
-// page vs mobile bundled modal) would collide in config.connectors otherwise.
-// Wrap the factory to relabel the id after the fact.
-//
-// Also hardens getProvider/connect/setup: WalletConnect's EthereumProvider
+// Harden getProvider/connect/setup: WalletConnect's EthereumProvider
 // touches indexedDB/localStorage during init and can resolve without a live
 // provider in some environments (private browsing, storage quota, a stale
 // session). wagmi's own connector code calls `provider.on(...)` right after
@@ -55,15 +50,9 @@ const hardenConnector = (connector: ReturnType<CreateConnectorFn>) => {
   } as ReturnType<CreateConnectorFn>;
 };
 
-const withConnectorId = (
-  fn: CreateConnectorFn,
-  id: string
-): CreateConnectorFn => {
-  return ((config: Parameters<CreateConnectorFn>[0]) => {
-    const connector = hardenConnector(fn(config));
-    return { ...connector, id };
-  }) as CreateConnectorFn;
-};
+const hardenConnectorFactory = (fn: CreateConnectorFn): CreateConnectorFn =>
+  ((config: Parameters<CreateConnectorFn>[0]) =>
+    hardenConnector(fn(config))) as CreateConnectorFn;
 
 // ponytail: module singleton — last-write-wins, never reset, not SSR-safe.
 // Matches globalAppName/globalAppIcon pattern. Single-config assumption; if
@@ -75,10 +64,10 @@ export const getDataSuffix = () => globalDataSuffix;
 // @walletconnect/core — constructing walletConnect() connectors more than
 // once per projectId logs "Core is already initialized" (harmless but noisy,
 // happens on every dev HMR reload or if a consumer calls getDefaultConfig()
-// without memoizing). Cache the pair of CreateConnectorFn by projectId so
-// repeated defaultConnectors() calls reuse the same connector instances.
+// without memoizing). Cache the factory by projectId so repeated
+// defaultConnectors() calls reuse its provider closure.
 let cachedWalletConnectProjectId: string | undefined;
-let cachedWalletConnectConnectors: CreateConnectorFn[] | undefined;
+let cachedWalletConnectConnector: CreateConnectorFn | undefined;
 
 type DefaultConnectorsProps = {
   app: {
@@ -159,27 +148,14 @@ const defaultConnectors = ({
   if (walletConnectProjectId && typeof window !== "undefined") {
     if (cachedWalletConnectProjectId !== walletConnectProjectId) {
       cachedWalletConnectProjectId = walletConnectProjectId;
-      cachedWalletConnectConnectors = [
-        // Desktop: our own QR + copy UI (ConnectWalletConnect page), WC's modal suppressed.
-        withConnectorId(
-          walletConnect({
-            projectId: walletConnectProjectId,
-            showQrModal: false,
-          }),
-          "walletConnect"
-        ),
-        // Mobile: WalletConnect's own bundled modal (it already picks deeplink
-        // vs QR based on device, and covers wallets outside our curated list).
-        withConnectorId(
-          walletConnect({
-            projectId: walletConnectProjectId,
-            showQrModal: true,
-          }),
-          "walletConnectModal"
-        ),
-      ];
+      cachedWalletConnectConnector = hardenConnectorFactory(
+        walletConnect({
+          projectId: walletConnectProjectId,
+          showQrModal: false,
+        })
+      );
     }
-    connectors.push(...cachedWalletConnectConnectors!);
+    connectors.push(cachedWalletConnectConnector!);
   }
 
   return connectors;

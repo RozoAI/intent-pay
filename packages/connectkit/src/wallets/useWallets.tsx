@@ -66,11 +66,8 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
       }
     }
 
-    // WalletConnect is desktop-only for now (see ConnectWalletConnect /
-    // ConnectWalletConnectMobile) — routing through WC's own bundled modal
-    // on mobile didn't reliably surface, and mobile already deeplinks
-    // directly into installed wallets without needing it. Skip the
-    // "walletConnectModal" connector entirely here.
+    // WalletConnect is desktop-only. This mobile list includes injected
+    // connectors and direct wallet deeplinks, not the desktop QR connector.
 
     // Add injected wallet (if any) first, unless disabled
     if (!disableMobileInjector) {
@@ -148,11 +145,8 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
   }
 
   const filteredConnectors = connectors.filter((connector) => {
-    // Desktop uses our custom QR page for "walletConnect"; the mobile-modal
-    // instance ("walletConnectModal") is mobile-only, hide it here.
     if (
       ["phantom"].includes(connector.id) ||
-      connector.id === "walletConnectModal" ||
       (connector.id === "injected" &&
         connector.name?.toLowerCase().includes("injected") &&
         connector.type === "injected")

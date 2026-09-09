@@ -90,7 +90,7 @@ export const isInjectedConnector = (connectorId?: string) =>
   connectorId === "injected";
 
 export const isWalletConnectConnector = (connectorId?: string) =>
-  connectorId === "walletConnect" || connectorId === "walletConnectModal";
+  connectorId === "walletConnect";
 
 export function parseError(e: any) {
   return {
