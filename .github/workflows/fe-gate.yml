@@ -1,0 +1,16 @@
+name: fe-gate
+on:
+  pull_request:
+  push:
+    branches: [master]
+concurrency:
+  group: fe-gate-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  gate:
+    uses: RozoAI/fe-gate/.github/workflows/gate.yml@c83faa090649a31b6ff3d868b39b9f74a4c96ce8
+    with:
+      package-manager: pnpm
+      node-version: "22"
+      unit-command: pnpm --filter "examples/nextjs-app" run test:gate
+      e2e-command: pnpm --filter "examples/nextjs-app" run test:pages
