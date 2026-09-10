@@ -8,7 +8,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   gate:
-    uses: RozoAI/fe-gate/.github/workflows/gate.yml@v0.1.3
+    uses: RozoAI/fe-gate/.github/workflows/gate.yml@c83faa090649a31b6ff3d868b39b9f74a4c96ce8
     with:
       package-manager: pnpm
       node-version: "22"

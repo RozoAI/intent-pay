@@ -5,7 +5,7 @@ import {
   installMockEvmWallet,
   mockWalletCalls,
 } from "@rozoai/fe-gate";
-import { smokeRoute } from "./_smoke";
+import { ALLOW, smokeRoute } from "./_smoke";
 
 smokeRoute("/bridge", {
   pathname: "/bridge",
@@ -19,7 +19,7 @@ test("/bridge Pay Now reaches the wallet provider", async ({ page, isMobile }) =
   await installMockEvmWallet(page);
   await page.goto("/bridge");
   await expectHydrated(page, box, {
-    allowErrors: [/posthog/i, /net::ERR_/, /Failed to load resource/, /Failed to fetch/],
+    allowErrors: ALLOW,
     pathname: "/bridge",
   });
 

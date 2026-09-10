@@ -8,11 +8,14 @@ import {
 } from "@rozoai/fe-gate";
 
 /** Errors from third parties we tolerate on every page. Keep this list short and owned. */
-const ALLOW = [
-  /posthog/i, // analytics beacons blocked in CI — owner Yudha (2026-09-09)
-  /net::ERR_/, // blocked third-party network in CI — owner Yudha (2026-09-09)
-  /Failed to load resource/, // third-party resources in CI — owner Yudha (2026-09-09)
-  /Failed to fetch/, // analytics / third-party beacons in CI — owner Yudha (2026-09-09)
+const THIRD_PARTY_HOST = String.raw`(?:posthog|us\.i\.posthog\.com|us-assets\.i\.posthog\.com|walletconnect|relay\.walletconnect\.org|pulse\.walletconnect\.org|api\.web3modal\.org|explorer-api\.walletconnect\.com)`;
+
+export const ALLOW: NonNullable<HydratedOptions["allowErrors"]> = [
+  new RegExp(THIRD_PARTY_HOST, "i"),
+  new RegExp(
+    `(?:net::ERR_|Failed to load resource|Failed to fetch).*${THIRD_PARTY_HOST}|${THIRD_PARTY_HOST}.*(?:net::ERR_|Failed to load resource|Failed to fetch)`,
+    "i",
+  ),
 ];
 
 export interface SmokeOptions extends HydratedOptions {
