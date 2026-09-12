@@ -64,8 +64,8 @@ importers:
         specifier: 0.1.36
         version: 0.1.36(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(viem@2.56.3(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@3.25.76))
       '@rozoai/intent-pay':
-        specifier: 0.1.46-beta.2
-        version: 0.1.46-beta.2(04eb605e1f5b2b7bd6769c624f980413)
+        specifier: 0.1.46
+        version: 0.1.46(04eb605e1f5b2b7bd6769c624f980413)
       '@stellar/stellar-sdk':
         specifier: ^14.4.3
         version: 14.6.1
@@ -2766,8 +2766,8 @@ packages:
     peerDependencies:
       viem: ^2.23.2
 
-  '@rozoai/intent-pay@0.1.46-beta.2':
-    resolution: {integrity: sha512-k/evRTKKEEeegavRW89XGBe2Mfmt01QdgGGG7EEiMY8SjtoN8bw3Gtp4EKUkYm2bWBqsKz15n9XJagGWueaSyw==}
+  '@rozoai/intent-pay@0.1.46':
+    resolution: {integrity: sha512-0x/ruSchVBHYlfWi7sphiN5pSIezA7oC3NdFCF07HSvz2u91Hm6MOwjxZvkrwjUNyAz/pOsnmRsheAOoevG8iw==}
     engines: {node: '>=12.4'}
     peerDependencies:
       '@creit.tech/stellar-wallets-kit': ^1.9.5
@@ -12064,7 +12064,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@rozoai/intent-pay@0.1.46-beta.2(04eb605e1f5b2b7bd6769c624f980413)':
+  '@rozoai/intent-pay@0.1.46(04eb605e1f5b2b7bd6769c624f980413)':
     dependencies:
       '@creit.tech/stellar-wallets-kit': 1.9.5(9cefe9a0cf1871d579912eca36ef5853)
       '@reown/appkit': 1.8.23(@react-native-async-storage/async-storage@1.24.0(react-native@0.87.1(@babel/core@7.29.7)(@types/react@18.3.31)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@6.0.6)))(@types/react@18.3.31)(@x402/core@2.25.0)(@x402/evm@2.25.0(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6))(@x402/svm@2.25.0(@solana/kit@7.1.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.2)(utf-8-validate@6.0.6))(@solana/sysvars@3.0.3(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.2)))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(react@18.2.0)(typescript@5.5.2)(use-sync-external-store@1.4.0(react@18.2.0))(utf-8-validate@6.0.6)(zod@4.5.4)
