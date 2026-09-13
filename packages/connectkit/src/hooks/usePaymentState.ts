@@ -77,7 +77,7 @@ import bs58 from "bs58";
 import { waitForCallsStatus } from "viem/actions";
 import { PayButtonPaymentProps } from "../components/RozoPayButton/types";
 import { ROUTES } from "../constants/routes";
-import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
+import { DEFAULT_ROZO_APP_ID, getStellarInsufficientXlmMessage } from "../constants/rozoConfig";
 import { getDataSuffix } from "../defaultConnectors";
 import { ROZO_EVENTS } from "../lib/analytics/events";
 import {
@@ -1332,13 +1332,12 @@ export function usePaymentState({
 
       const nativeBalanceFloat = parseFloat(nativeBalance);
       const spendable = nativeBalanceFloat - minReserve;
+
       const baseFeeStroops = await stellarServer.fetchBaseFee();
       const baseFeeXlm = baseFeeStroops / 10_000_000; // stroops to XLM
 
       if (spendable < baseFeeXlm) {
-        throw new Error(
-          "Your Stellar account needs a little XLM (~0.00001) to pay the network fee. Please add a small amount of XLM and try again.",
-        );
+        throw new Error(getStellarInsufficientXlmMessage(spendable, baseFeeXlm));
       }
 
       let issuer = "";
@@ -1357,7 +1356,7 @@ export function usePaymentState({
       );
 
       const destAsset = new Asset(walletPaymentOption.required.token.symbol, issuer);
-      const fee = String(await stellarServer.fetchBaseFee());
+      const fee = String(baseFeeStroops);
 
       // Build transaction
       const transaction = new TransactionBuilder(sourceAccount, {

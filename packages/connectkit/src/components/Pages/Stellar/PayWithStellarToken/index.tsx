@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
+import { getStellarInsufficientXlmMessage, STELLAR_INSUFFICIENT_XLM_BASE } from "../../../../constants/rozoConfig";
 
 import {
   Link,
@@ -623,8 +624,7 @@ const PayWithStellarToken: React.FC = () => {
         const opResultCodes = horizonResultCodes.operations ?? [];
 
         const resultCodeMessages: Record<string, string> = {
-          tx_insufficient_balance:
-            "Your Stellar account needs a little XLM (~0.00001) to pay the network fee. Please add a small amount of XLM and try again.",
+          tx_insufficient_balance: STELLAR_INSUFFICIENT_XLM_BASE,
           op_underfunded: "Insufficient balance for this operation",
           op_no_trust: "Missing trustline for the destination asset",
           tx_bad_seq: "Transaction sequence error, please try again",
@@ -636,13 +636,25 @@ const PayWithStellarToken: React.FC = () => {
             ? resultCodeMessages[opResultCodes[0]]
             : undefined);
 
-        const rawCodes = JSON.stringify(horizonResultCodes);
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : typeof error === "object"
-              ? JSON.stringify(error)
-              : String(error);
+        let rawCodes: string;
+        try {
+          rawCodes = JSON.stringify(horizonResultCodes);
+        } catch {
+          rawCodes = "[unserializable]";
+        }
+
+        let errorMessage: string;
+        try {
+          if (error instanceof Error) {
+            errorMessage = error.message;
+          } else if (typeof error === "object") {
+            errorMessage = JSON.stringify(error);
+          } else {
+            errorMessage = String(error);
+          }
+        } catch {
+          errorMessage = String(error);
+        }
 
         const fullErrorMessage = mappedMessage
           ? `${mappedMessage} (Horizon: ${rawCodes})`
