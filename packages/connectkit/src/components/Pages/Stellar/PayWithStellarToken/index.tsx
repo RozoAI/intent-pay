@@ -616,15 +616,44 @@ const PayWithStellarToken: React.FC = () => {
           });
           setPayState(PayState.RequestFailed);
         }
-      } catch (error) {
+      } catch (error: any) {
+        const horizonResultCodes =
+          error.response?.data?.extras?.result_codes ?? {};
+        const txResultCode = horizonResultCodes.transaction;
+        const opResultCodes = horizonResultCodes.operations ?? [];
+
+        const resultCodeMessages: Record<string, string> = {
+          tx_insufficient_balance:
+            "Your Stellar account needs a little XLM (~0.00001) to pay the network fee. Please add a small amount of XLM and try again.",
+          op_underfunded: "Insufficient balance for this operation",
+          op_no_trust: "Missing trustline for the destination asset",
+          tx_bad_seq: "Transaction sequence error, please try again",
+        };
+
+        const mappedMessage =
+          resultCodeMessages[txResultCode] ??
+          (opResultCodes.length > 0
+            ? resultCodeMessages[opResultCodes[0]]
+            : undefined);
+
+        const rawCodes = JSON.stringify(horizonResultCodes);
         const errorMessage =
-          error instanceof Error ? error.message : String(error);
+          error instanceof Error
+            ? error.message
+            : typeof error === "object"
+              ? JSON.stringify(error)
+              : String(error);
+
+        const fullErrorMessage = mappedMessage
+          ? `${mappedMessage} (Horizon: ${rawCodes})`
+          : `${errorMessage} (Horizon: ${rawCodes})`;
+
         const isRejected = errorMessage.includes("rejected");
         capture(ROZO_EVENTS.PAYMENT_FAILED, {
           payment_id: rozoPaymentId,
           error_message: isRejected
             ? "user_rejected"
-            : (errorMessage ?? "unknown_error"),
+            : (fullErrorMessage ?? "unknown_error"),
           source_chain: rozoStellar.chainId,
         });
         if (isRejected) {

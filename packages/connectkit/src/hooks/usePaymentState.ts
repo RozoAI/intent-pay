@@ -1314,6 +1314,33 @@ export function usePaymentState({
       }
       const sourceAccount = await stellarServer.loadAccount(stellarPublicKey);
 
+      // Pre-submit check: verify spendable XLM balance covers network fee
+      // Minimum reserve = (2 + subentry_count - num_sponsored + num_sponsoring) * 0.5 XLM
+      const baseReserve = 0.5; // 0.5 XLM per entry
+      const subentryCount = sourceAccount.subentry_count ?? 0;
+      const numSponsored = sourceAccount.num_sponsored ?? 0;
+      const numSponsoring = sourceAccount.num_sponsoring ?? 0;
+      const minReserve = (2 + subentryCount - numSponsored + numSponsoring) * baseReserve;
+
+      const nativeBalance = sourceAccount.balances?.find(
+        (b: any) => b.asset_type === "native",
+      )?.balance;
+
+      if (nativeBalance == null) {
+        throw new Error("Could not determine XLM balance");
+      }
+
+      const nativeBalanceFloat = parseFloat(nativeBalance);
+      const spendable = nativeBalanceFloat - minReserve;
+      const baseFeeStroops = await stellarServer.fetchBaseFee();
+      const baseFeeXlm = baseFeeStroops / 10_000_000; // stroops to XLM
+
+      if (spendable < baseFeeXlm) {
+        throw new Error(
+          "Your Stellar account needs a little XLM (~0.00001) to pay the network fee. Please add a small amount of XLM and try again.",
+        );
+      }
+
       let issuer = "";
       if (walletPaymentOption.required.token.token === rozoStellarUSDC.token) {
         issuer = rozoStellarUSDC.token.split(":")[1];
