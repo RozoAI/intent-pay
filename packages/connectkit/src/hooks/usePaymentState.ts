@@ -77,7 +77,8 @@ import bs58 from "bs58";
 import { waitForCallsStatus } from "viem/actions";
 import { PayButtonPaymentProps } from "../components/RozoPayButton/types";
 import { ROUTES } from "../constants/routes";
-import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
+import { DEFAULT_ROZO_APP_ID, getStellarInsufficientXlmMessage } from "../constants/rozoConfig";
+import { calculateStellarSpendableStroops } from "../utils/stellar/spendableBalance";
 import { getDataSuffix } from "../defaultConnectors";
 import { ROZO_EVENTS } from "../lib/analytics/events";
 import {
@@ -1314,6 +1315,31 @@ export function usePaymentState({
       }
       const sourceAccount = await stellarServer.loadAccount(stellarPublicKey);
 
+      // Pre-submit check: verify spendable XLM balance covers network fee.
+      // Selling liabilities are locked in open offers and cannot pay transaction fees.
+      const nativeBalance = sourceAccount.balances?.find(
+        (balance) => balance.asset_type === "native",
+      );
+
+      if (!nativeBalance) {
+        throw new Error("Could not determine XLM balance");
+      }
+
+      const spendableStroops = calculateStellarSpendableStroops({
+        nativeBalance,
+        subentryCount: sourceAccount.subentry_count ?? 0,
+        numSponsored: sourceAccount.num_sponsored ?? 0,
+        numSponsoring: sourceAccount.num_sponsoring ?? 0,
+      });
+
+      const baseFeeStroops = await stellarServer.fetchBaseFee();
+      const baseFeeXlm = baseFeeStroops / 10_000_000; // stroops to XLM
+
+      if (spendableStroops < BigInt(baseFeeStroops)) {
+        const spendable = Number(spendableStroops) / 10_000_000;
+        throw new Error(getStellarInsufficientXlmMessage(spendable, baseFeeXlm));
+      }
+
       let issuer = "";
       if (walletPaymentOption.required.token.token === rozoStellarUSDC.token) {
         issuer = rozoStellarUSDC.token.split(":")[1];
@@ -1330,7 +1356,7 @@ export function usePaymentState({
       );
 
       const destAsset = new Asset(walletPaymentOption.required.token.symbol, issuer);
-      const fee = String(await stellarServer.fetchBaseFee());
+      const fee = String(baseFeeStroops);
 
       // Build transaction
       const transaction = new TransactionBuilder(sourceAccount, {

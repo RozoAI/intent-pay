@@ -12,5 +12,5 @@ jobs:
     with:
       package-manager: pnpm
       node-version: "22"
-      unit-command: pnpm --filter "examples/nextjs-app" run test:gate
+      unit-command: pnpm --filter "examples/nextjs-app" run test:gate && pnpm --filter @rozoai/intent-pay test
       e2e-command: pnpm --filter "examples/nextjs-app" run test:pages

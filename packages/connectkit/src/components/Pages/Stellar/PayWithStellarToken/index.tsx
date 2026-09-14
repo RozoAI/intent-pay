@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
+import { STELLAR_INSUFFICIENT_XLM_BASE } from "../../../../constants/rozoConfig";
 
 import {
   Link,
@@ -616,21 +617,68 @@ const PayWithStellarToken: React.FC = () => {
           });
           setPayState(PayState.RequestFailed);
         }
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        const isRejected = errorMessage.includes("rejected");
+      } catch (error: any) {
+        const horizonResultCodes =
+          error.response?.data?.extras?.result_codes ?? {};
+        const txResultCode = horizonResultCodes.transaction;
+        const opResultCodes = horizonResultCodes.operations ?? [];
+
+        const resultCodeMessages: Record<string, string> = {
+          tx_insufficient_balance: STELLAR_INSUFFICIENT_XLM_BASE,
+          op_underfunded: "Insufficient balance for this operation",
+          op_no_trust: "Missing trustline for the destination asset",
+          tx_bad_seq: "Transaction sequence error, please try again",
+        };
+
+        const mappedMessage =
+          resultCodeMessages[txResultCode] ??
+          (opResultCodes.length > 0
+            ? resultCodeMessages[opResultCodes[0]]
+            : undefined);
+
+        let rawCodes: string;
+        try {
+          rawCodes = JSON.stringify(horizonResultCodes);
+        } catch {
+          rawCodes = "[unserializable]";
+        }
+
+        let errorMessage: string;
+        try {
+          if (error instanceof Error) {
+            errorMessage = error.message;
+          } else if (typeof error === "object") {
+            errorMessage = JSON.stringify(error);
+          } else {
+            errorMessage = String(error);
+          }
+        } catch {
+          errorMessage = String(error);
+        }
+
+        const fullErrorMessage = mappedMessage
+          ? `${mappedMessage} (Horizon: ${rawCodes})`
+          : `${errorMessage} (Horizon: ${rawCodes})`;
+
+        // Check for rejection against the raw Error.message, not the serialized blob
+        const rawMessage = error instanceof Error ? error.message : String(error);
+        const isRejected = rawMessage.includes("rejected");
         capture(ROZO_EVENTS.PAYMENT_FAILED, {
           payment_id: rozoPaymentId,
           error_message: isRejected
             ? "user_rejected"
-            : (errorMessage ?? "unknown_error"),
+            : (fullErrorMessage ?? "unknown_error"),
           source_chain: rozoStellar.chainId,
         });
         if (isRejected) {
           setPayState(PayState.RequestCancelled);
         } else {
-          setPayState(PayState.RequestFailed);
+          // A sequence mismatch is deterministic: discard its stale XDR so any
+          // subsequent attempt rebuilds with the account's current sequence.
+          if (txResultCode === "tx_bad_seq") {
+            setSignedTx(undefined);
+          }
+          setRoute(ROUTES.ERROR, { error: mappedMessage ?? errorMessage });
         }
       } finally {
         setIsLoading(false);
