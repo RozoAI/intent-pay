@@ -4,6 +4,7 @@ import { usePayContext } from "../../../../hooks/usePayContext";
 
 import {
   Link,
+  ModalBody,
   ModalContent,
   ModalH1,
   PageContent,
@@ -37,6 +38,11 @@ import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
 import { createPaymentFailureError } from "../../../../utils/errorParser";
+import {
+  resolveWalletPaymentAmount,
+  type WalletSourceQuoteOrder,
+  withWalletSourceQuote,
+} from "../../../../payment/createPaymentPayload";
 
 enum PayState {
   PreparingTransaction = "Preparing Transaction",
@@ -46,6 +52,7 @@ enum PayState {
   RequestCancelled = "Payment Cancelled",
   RequestFailed = "Payment Failed",
   RequestSuccessful = "Payment Successful",
+  WaitingForWallet = "Wallet Confirmation Pending",
 }
 
 const PayWithSolanaToken: React.FC = () => {
@@ -60,6 +67,10 @@ const PayWithSolanaToken: React.FC = () => {
     createPayment,
     solanaPaymentOptions,
     solanaPubKey,
+    pendingPaymentAttemptId,
+    tryClaimPaymentAttempt,
+    releasePaymentAttempt,
+    clearPaymentAttempt,
   } = paymentState;
   const {
     store,
@@ -80,6 +91,7 @@ const PayWithSolanaToken: React.FC = () => {
     paymentId: string | undefined;
   }> | null>(null);
 
+  const autoTransferOrderRef = useRef<string | null>(null);
   const { capture } = useAnalytics();
   const [payState, setPayStateInner] = useState<PayState>(
     PayState.PreparingTransaction,
@@ -155,6 +167,7 @@ const PayWithSolanaToken: React.FC = () => {
       // Hoist so the catch block can reference the payment ID resolved in this
       // attempt, instead of the stale React state value captured in the closure.
       let resolvedPaymentId: string | undefined;
+      let attemptId: string | undefined;
       try {
         // Read the freshest order straight from the store instead of the React
         // closure snapshot. For payId mode this is the getPayment-derived order
@@ -165,6 +178,17 @@ const PayWithSolanaToken: React.FC = () => {
           currentState.type !== "idle" ? currentState.order : undefined;
         if (!currentOrder) {
           throw new Error("Order not initialized");
+        }
+        attemptId = currentOrder.externalId ?? String(currentOrder.id);
+        if (!tryClaimPaymentAttempt(attemptId)) {
+          log?.("[PayWithSolanaToken] wallet request already pending");
+          capture(ROZO_EVENTS.PAYMENT_WALLET_CONFIRMATION_PENDING, {
+            payment_id: currentOrder.externalId,
+            source_chain: option.required.token.chainId,
+            token_symbol: option.required.token.symbol,
+          });
+          setPayState(PayState.WaitingForWallet);
+          return;
         }
 
         const { required } = option;
@@ -279,7 +303,8 @@ const PayWithSolanaToken: React.FC = () => {
 
               return {
                 paymentId: checkoutRes.data.id,
-                hydratedOrder: formatPaymentResponseToHydratedOrder(
+                hydratedOrder: withWalletSourceQuote(
+                  formatPaymentResponseToHydratedOrder(checkoutRes.data),
                   checkoutRes.data,
                 ),
               };
@@ -332,7 +357,8 @@ const PayWithSolanaToken: React.FC = () => {
               throw new Error("Failed to checkout payment");
             }
             paymentId = checkoutRes.data.id;
-            hydratedOrder = formatPaymentResponseToHydratedOrder(
+            hydratedOrder = withWalletSourceQuote(
+              formatPaymentResponseToHydratedOrder(checkoutRes.data),
               checkoutRes.data,
             );
           } else {
@@ -353,7 +379,10 @@ const PayWithSolanaToken: React.FC = () => {
               throw createPaymentFailureError(store);
             }
             paymentId = res.id;
-            hydratedOrder = formatPaymentResponseToHydratedOrder(res);
+            hydratedOrder = withWalletSourceQuote(
+              formatPaymentResponseToHydratedOrder(res),
+              res,
+            );
           }
         } else {
           // Hydrate existing order
@@ -443,6 +472,10 @@ const PayWithSolanaToken: React.FC = () => {
         // Solana pay-in no longer requires a memo.
         const paymentData = {
           destAddress: hydratedOrder.intentAddr,
+          amount: resolveWalletPaymentAmount(
+            hydratedOrder as WalletSourceQuoteOrder,
+            option,
+          ),
         };
 
         const result = await payWithSolanaTokenRozo(
@@ -506,6 +539,8 @@ const PayWithSolanaToken: React.FC = () => {
         }
 
         console.error("Failed to pay with solana token", error);
+        // Wallet rejection must unblock a remounted pending screen immediately.
+        clearPaymentAttempt();
 
         // Clear the in-flight guard so a Retry Payment click (a genuine new
         // attempt) can re-checkout instead of forever awaiting this failed
@@ -542,6 +577,7 @@ const PayWithSolanaToken: React.FC = () => {
           setRoute(ROUTES.ERROR, { error: errorMessage });
         }
       } finally {
+        if (attemptId) releasePaymentAttempt(attemptId);
         setIsLoading(false);
       }
     },
@@ -568,7 +604,19 @@ const PayWithSolanaToken: React.FC = () => {
   );
 
   useEffect(() => {
+    if (!pendingPaymentAttemptId && payState === PayState.WaitingForWallet) {
+      setPayState(PayState.RequestCancelled);
+    }
+  }, [pendingPaymentAttemptId, payState]);
+
+  useEffect(() => {
     if (!selectedSolanaTokenOption) return;
+
+    const currentState = store.getState();
+    const currentOrder = currentState.type !== "idle" ? currentState.order : undefined;
+    const orderKey = currentOrder?.externalId ?? String(currentOrder?.id ?? "");
+    if (!orderKey || autoTransferOrderRef.current === orderKey) return;
+    autoTransferOrderRef.current = orderKey;
 
     const transferTimeout = setTimeout(
       () => handleTransfer(selectedSolanaTokenOption),
@@ -583,6 +631,19 @@ const PayWithSolanaToken: React.FC = () => {
 
   if (selectedSolanaTokenOption == null) {
     return <PageContent></PageContent>;
+  }
+
+  if (payState === PayState.WaitingForWallet) {
+    return (
+      <PageContent>
+        <TokenLogoSpinner token={selectedSolanaTokenOption.required.token} loading={true} />
+        <ModalContent style={{ paddingBottom: 0 }}>
+          <ModalBody>
+            Wallet confirmation pending. Finish or reject request in your wallet.
+          </ModalBody>
+        </ModalContent>
+      </PageContent>
+    );
   }
 
   return (

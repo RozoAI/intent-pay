@@ -33,6 +33,30 @@ export function isAbortError(error: unknown): boolean {
   );
 }
 
+/** Provider-lifetime lock for one wallet request, including page remounts. */
+export function createPaymentAttemptLock() {
+  let activeId: string | undefined;
+  return {
+    tryClaim(id: string): boolean {
+      if (activeId != null) return false;
+      activeId = id;
+      return true;
+    },
+    replace(id: string, nextId: string) {
+      if (activeId !== id) return false;
+      activeId = nextId;
+      return true;
+    },
+    release(id: string) {
+      if (activeId === id) activeId = undefined;
+    },
+    clear() {
+      activeId = undefined;
+    },
+    activeId: () => activeId,
+  };
+}
+
 /**
  * Monotonic generation counter for scoping async work to the latest
  * request (e.g. the currently selected deposit option). AbortSignals

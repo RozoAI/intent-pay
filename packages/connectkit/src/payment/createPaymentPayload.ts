@@ -10,17 +10,20 @@ import {
   getKnownToken,
   getOrderDestChainId,
   mergedMetadata,
+  PaymentResponse,
   RozoPayHydratedOrderWithOrg,
   RozoPayOrderWithOrg,
   rozoSolana,
   rozoStellar,
   rozoStellarEURC,
   rozoStellarUSDC,
+  solana,
+  stellar,
   Token,
   TokenSymbol,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits, getAddress, parseUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { convertPreferredSymbolsToTokens } from "../utils/token";
 import { PayParams } from "./paymentFsm";
@@ -337,4 +340,59 @@ export function resolveDepositSourceAmount(
     return String(quoted);
   }
   return String(fallback);
+}
+
+export type WalletSourceQuoteOrder = {
+  sourceQuote?: {
+    amount: string;
+    chainId: number;
+    tokenAddress: string;
+  };
+};
+
+/** Preserve payment/checkout's authoritative source quote on SDK-owned state. */
+export function withWalletSourceQuote<T extends RozoPayHydratedOrderWithOrg>(
+  order: T,
+  response: PaymentResponse,
+): T & WalletSourceQuoteOrder {
+  const quote = response.source;
+  return {
+    ...order,
+    sourceQuote:
+      quote?.amount != null && quote.chainId != null && quote.tokenAddress != null
+        ? {
+            amount: quote.amount,
+            chainId: Number(quote.chainId),
+            tokenAddress: quote.tokenAddress,
+          }
+        : undefined,
+  };
+}
+
+/** Amount authorized by payment/checkout, validated against selected source token. */
+export function resolveWalletPaymentAmount(
+  order: WalletSourceQuoteOrder,
+  option: Pick<WalletPaymentOption, "required">,
+): bigint {
+  const quote = order.sourceQuote;
+  if (!quote?.amount || quote.chainId == null || !quote.tokenAddress) {
+    throw new Error("[PAY TOKEN] hydrated order has no source quote");
+  }
+
+  const token = option.required.token;
+  const normalizeChainId = (chainId: number) => {
+    if (chainId === solana.chainId) return rozoSolana.chainId;
+    if (chainId === stellar.chainId) return rozoStellar.chainId;
+    return chainId;
+  };
+  const normalizeTokenAddress = (address: string) =>
+    address.startsWith("0x") ? getAddress(address) : address;
+  if (
+    normalizeChainId(quote.chainId) !== normalizeChainId(token.chainId) ||
+    normalizeTokenAddress(quote.tokenAddress) !== normalizeTokenAddress(token.token)
+  ) {
+    throw new Error("[PAY TOKEN] hydrated source quote does not match selected token");
+  }
+
+  return parseUnits(quote.amount, token.decimals);
 }
