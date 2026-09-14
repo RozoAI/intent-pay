@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  categorizeError,
   createPaymentFailureError,
+  ErrorType,
   parseErrorMessage,
 } from "../src/utils/errorParser";
 
@@ -51,6 +53,14 @@ describe("parseErrorMessage", () => {
 
   it("falls back to the raw text when the body has no message or error", () => {
     expect(parseErrorMessage(new Error('{"ok":false}'))).toBe('{"ok":false}');
+  });
+});
+
+describe("categorizeError", () => {
+  it("recognizes serialized wallet rejection", () => {
+    expect(
+      categorizeError('{"code":-4,"message":"The user rejected this request."}'),
+    ).toBe(ErrorType.REJECTED);
   });
 });
 
