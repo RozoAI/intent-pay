@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ROUTES } from "../../../../constants/routes";
 import { usePayContext } from "../../../../hooks/usePayContext";
-import { getStellarInsufficientXlmMessage, STELLAR_INSUFFICIENT_XLM_BASE } from "../../../../constants/rozoConfig";
+import { STELLAR_INSUFFICIENT_XLM_BASE } from "../../../../constants/rozoConfig";
 
 import {
   Link,
@@ -660,7 +660,9 @@ const PayWithStellarToken: React.FC = () => {
           ? `${mappedMessage} (Horizon: ${rawCodes})`
           : `${errorMessage} (Horizon: ${rawCodes})`;
 
-        const isRejected = errorMessage.includes("rejected");
+        // Check for rejection against the raw Error.message, not the serialized blob
+        const rawMessage = error instanceof Error ? error.message : String(error);
+        const isRejected = rawMessage.includes("rejected");
         capture(ROZO_EVENTS.PAYMENT_FAILED, {
           payment_id: rozoPaymentId,
           error_message: isRejected
