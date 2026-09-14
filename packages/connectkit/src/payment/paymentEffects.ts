@@ -31,6 +31,7 @@ import { TrpcClient } from "../utils/trpc";
 import {
   buildCreatePaymentPayload,
   resolveDestinationAddress,
+  withWalletSourceQuote,
 } from "./createPaymentPayload";
 import { PaymentEvent, PaymentState } from "./paymentFsm";
 import { PaymentStore } from "./paymentStore";
@@ -401,7 +402,10 @@ async function runSetPayIdEffects(
       return;
     }
 
-    const order = formatPaymentResponseToHydratedOrder(res.data);
+    const order = withWalletSourceQuote(
+      formatPaymentResponseToHydratedOrder(res.data),
+      res.data,
+    );
 
     // formatPaymentResponseToHydratedOrder comes from a potentially stale
     // published version of pay-common that omits fiatISO. Patch it here from
@@ -523,10 +527,14 @@ async function runHydratePayParamsEffects(
       throw new Error("Payment data not found");
     }
 
-    const hydratedOrder = formatPaymentResponseToHydratedOrder({
+    const response = {
       ...rozoPaymentResponse,
       externalId: rozoPaymentId,
-    });
+    };
+    const hydratedOrder = withWalletSourceQuote(
+      formatPaymentResponseToHydratedOrder(response),
+      response,
+    );
 
     store.dispatch({
       type: "order_hydrated",
@@ -558,7 +566,10 @@ async function runHydratePayIdEffects(
       throw new Error("Order not found");
     }
 
-    const hydratedOrder = formatPaymentResponseToHydratedOrder(orderData.data);
+    const hydratedOrder = withWalletSourceQuote(
+      formatPaymentResponseToHydratedOrder(orderData.data),
+      orderData.data,
+    );
 
     store.dispatch({
       type: "order_hydrated",
@@ -593,7 +604,10 @@ async function runPaySourceEffects(
       throw new Error("Order not found");
     }
 
-    const hydratedOrder = formatPaymentResponseToHydratedOrder(orderData.data);
+    const hydratedOrder = withWalletSourceQuote(
+      formatPaymentResponseToHydratedOrder(orderData.data),
+      orderData.data,
+    );
 
     store.dispatch({ type: "order_refreshed", order: hydratedOrder });
   } catch (e: any) {

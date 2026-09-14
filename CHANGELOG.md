@@ -7,10 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.1.46] - 2026-09-09
+## [0.1.46] - 2026-09-12
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Add WalletConnect wallet option (desktop QR + copy page) &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b53ee195)</samp>](https://github.com/RozoAI/intent-pay/commit/b53ee195e7d976e41ea0b4c84e9bb8baae120370)
+- **connectkit**: WalletConnect QR + desktop no-extension fallback &nbsp;-&nbsp; by @akbarsaputrait [<samp>(2d1bf75b)</samp>](https://github.com/RozoAI/intent-pay/commit/2d1bf75bbcb403a03df9561f3531bdc74b85b2d0)
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
 
+- **connectkit**: Enable MetaMask WalletConnect fallback for no-extension &nbsp;-&nbsp; by @akbarsaputrait [<samp>(3b70bae0)</samp>](https://github.com/RozoAI/intent-pay/commit/3b70bae0d348d15bb7e84410206e7a79f04a06d3)
+- **connectkit**: Route injected wallets directly, only WC stubs to QR &nbsp;-&nbsp; by @akbarsaputrait [<samp>(29f50c06)</samp>](https://github.com/RozoAI/intent-pay/commit/29f50c0649f346fd6089698c3902792261b72c77)
+- **connectkit**: Add OKX name + keep walletConnectFallback for no-extension stub &nbsp;-&nbsp; by @akbarsaputrait [<samp>(5dfcbe7a)</samp>](https://github.com/RozoAI/intent-pay/commit/5dfcbe7acb570753675cb3d2c7b2536faf6bfd19)
+- **connectkit**: Keep WalletConnect desktop-only &nbsp;-&nbsp; by @akbarsaputrait [<samp>(26723fb4)</samp>](https://github.com/RozoAI/intent-pay/commit/26723fb40b2210b1cff958513363a4c9835fbc77)
+- Fix payment state walletconnect confirmed tx &nbsp;-&nbsp; by @akbarsaputrait [<samp>(12a6d7bb)</samp>](https://github.com/RozoAI/intent-pay/commit/12a6d7bbe23d10915401a89c253d7d42a8ebce1c)
+- Fix walletconnect confirmation payout hash &nbsp;-&nbsp; by @akbarsaputrait [<samp>(adfaec89)</samp>](https://github.com/RozoAI/intent-pay/commit/adfaec8922601c92aa90826bebb2e0fda8171391)
 - Stop discarding the real create-payment error &nbsp;-&nbsp; by @shawnmuggle [<samp>(4c1340b8)</samp>](https://github.com/RozoAI/intent-pay/commit/4c1340b8d92b0a778e979a980366c33097521811)
 
   The four `createPayment` call sites replaced the API's parsed failure with a
