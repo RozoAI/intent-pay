@@ -673,7 +673,12 @@ const PayWithStellarToken: React.FC = () => {
         if (isRejected) {
           setPayState(PayState.RequestCancelled);
         } else {
-          setPayState(PayState.RequestFailed);
+          // A sequence mismatch is deterministic: discard its stale XDR so any
+          // subsequent attempt rebuilds with the account's current sequence.
+          if (txResultCode === "tx_bad_seq") {
+            setSignedTx(undefined);
+          }
+          setRoute(ROUTES.ERROR, { error: mappedMessage ?? errorMessage });
         }
       } finally {
         setIsLoading(false);

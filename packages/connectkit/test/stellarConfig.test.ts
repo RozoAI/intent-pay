@@ -8,10 +8,10 @@ import {
 describe("getStellarInsufficientXlmMessage", () => {
   const BASE_FEE_XLM = 0.00001;
 
-  it("reports shortfall when account is below reserve (negative spendable)", () => {
+  it("reports the reserve shortfall plus fee when account is below reserve", () => {
     // spendable = -0.5 → account below reserve by 0.5 XLM (e.g. USDC trustline)
     const msg = getStellarInsufficientXlmMessage(-0.5, BASE_FEE_XLM);
-    expect(msg).toContain("0.5000 XLM");
+    expect(msg).toContain("0.5000100 XLM");
     expect(msg).toContain("minimum reserve");
     expect(msg).toContain(STELLAR_INSUFFICIENT_XLM_BASE);
   });
@@ -33,7 +33,7 @@ describe("getStellarInsufficientXlmMessage", () => {
   it("handles sponsored entries correctly (large negative spendable)", () => {
     // spendable = -2.5 → heavily negative, multiple sponsored entries
     const msg = getStellarInsufficientXlmMessage(-2.5, BASE_FEE_XLM);
-    expect(msg).toContain("2.5000 XLM");
+    expect(msg).toContain("2.5000100 XLM");
     expect(msg).toContain("minimum reserve");
   });
 
@@ -43,7 +43,7 @@ describe("getStellarInsufficientXlmMessage", () => {
     const minReserve = 1.5; // (2 + 1) * 0.5
     const spendable = nativeBalance - minReserve; // -0.5
     const msg = getStellarInsufficientXlmMessage(spendable, 0.00001);
-    expect(msg).toContain("0.5000 XLM");
+    expect(msg).toContain("0.5000100 XLM");
     expect(msg).toContain("minimum reserve");
   });
 });

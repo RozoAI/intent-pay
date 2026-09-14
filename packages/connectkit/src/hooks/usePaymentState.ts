@@ -78,6 +78,7 @@ import { waitForCallsStatus } from "viem/actions";
 import { PayButtonPaymentProps } from "../components/RozoPayButton/types";
 import { ROUTES } from "../constants/routes";
 import { DEFAULT_ROZO_APP_ID, getStellarInsufficientXlmMessage } from "../constants/rozoConfig";
+import { calculateStellarSpendableStroops } from "../utils/stellar/spendableBalance";
 import { getDataSuffix } from "../defaultConnectors";
 import { ROZO_EVENTS } from "../lib/analytics/events";
 import {
@@ -1314,29 +1315,28 @@ export function usePaymentState({
       }
       const sourceAccount = await stellarServer.loadAccount(stellarPublicKey);
 
-      // Pre-submit check: verify spendable XLM balance covers network fee
-      // Minimum reserve = (2 + subentry_count - num_sponsored + num_sponsoring) * 0.5 XLM
-      const baseReserve = 0.5; // 0.5 XLM per entry
-      const subentryCount = sourceAccount.subentry_count ?? 0;
-      const numSponsored = sourceAccount.num_sponsored ?? 0;
-      const numSponsoring = sourceAccount.num_sponsoring ?? 0;
-      const minReserve = (2 + subentryCount - numSponsored + numSponsoring) * baseReserve;
-
+      // Pre-submit check: verify spendable XLM balance covers network fee.
+      // Selling liabilities are locked in open offers and cannot pay transaction fees.
       const nativeBalance = sourceAccount.balances?.find(
-        (b: any) => b.asset_type === "native",
-      )?.balance;
+        (balance) => balance.asset_type === "native",
+      );
 
-      if (nativeBalance == null) {
+      if (!nativeBalance) {
         throw new Error("Could not determine XLM balance");
       }
 
-      const nativeBalanceFloat = parseFloat(nativeBalance);
-      const spendable = nativeBalanceFloat - minReserve;
+      const spendableStroops = calculateStellarSpendableStroops({
+        nativeBalance,
+        subentryCount: sourceAccount.subentry_count ?? 0,
+        numSponsored: sourceAccount.num_sponsored ?? 0,
+        numSponsoring: sourceAccount.num_sponsoring ?? 0,
+      });
 
       const baseFeeStroops = await stellarServer.fetchBaseFee();
       const baseFeeXlm = baseFeeStroops / 10_000_000; // stroops to XLM
 
-      if (spendable < baseFeeXlm) {
+      if (spendableStroops < BigInt(baseFeeStroops)) {
+        const spendable = Number(spendableStroops) / 10_000_000;
         throw new Error(getStellarInsufficientXlmMessage(spendable, baseFeeXlm));
       }
 

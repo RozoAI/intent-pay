@@ -21,7 +21,7 @@ export const STELLAR_INSUFFICIENT_XLM_BASE =
 export function getStellarInsufficientXlmMessage(spendable: number, baseFeeXlm: number): string {
   const shortfall = baseFeeXlm - spendable;
   if (spendable < 0) {
-    return `Your Stellar account needs ~${Math.abs(spendable).toFixed(4)} XLM to meet the minimum reserve + fee. ${STELLAR_INSUFFICIENT_XLM_BASE}`;
+    return `Your Stellar account needs ~${shortfall.toFixed(7)} XLM to meet the minimum reserve and pay the network fee. ${STELLAR_INSUFFICIENT_XLM_BASE}`;
   }
   return `Your Stellar account needs ~${shortfall.toFixed(7)} XLM for the network fee. ${STELLAR_INSUFFICIENT_XLM_BASE}`;
 }
