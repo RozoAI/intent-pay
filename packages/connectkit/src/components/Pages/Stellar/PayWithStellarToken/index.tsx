@@ -39,6 +39,11 @@ import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
 import { createPaymentFailureError } from "../../../../utils/errorParser";
+import {
+  resolveWalletPaymentAmount,
+  type WalletSourceQuoteOrder,
+  withWalletSourceQuote,
+} from "../../../../payment/createPaymentPayload";
 
 enum PayState {
   PreparingTransaction = "Preparing Transaction",
@@ -231,7 +236,6 @@ const PayWithStellarToken: React.FC = () => {
           sourceChainId: option.required.token.chainId,
           sourceTokenAddress: option.required.token.token,
           toUnits,
-          feeUsd: option.fees.usd,
         }),
         { signal: request.signal },
       );
@@ -301,7 +305,8 @@ const PayWithStellarToken: React.FC = () => {
             return {
               paymentId: checkoutRes.data.id,
               settlementMode: checkoutRes.data.settlementMode,
-              hydratedOrder: formatPaymentResponseToHydratedOrder(
+              hydratedOrder: withWalletSourceQuote(
+                formatPaymentResponseToHydratedOrder(checkoutRes.data),
                 checkoutRes.data,
               ),
             };
@@ -355,7 +360,8 @@ const PayWithStellarToken: React.FC = () => {
           }
           paymentId = checkoutRes.data.id;
           settlementMode = checkoutRes.data.settlementMode;
-          hydratedOrder = formatPaymentResponseToHydratedOrder(
+          hydratedOrder = withWalletSourceQuote(
+            formatPaymentResponseToHydratedOrder(checkoutRes.data),
             checkoutRes.data,
           );
         } else {
@@ -377,7 +383,10 @@ const PayWithStellarToken: React.FC = () => {
           }
           paymentId = res.id;
           settlementMode = res.settlementMode;
-          hydratedOrder = formatPaymentResponseToHydratedOrder(res);
+          hydratedOrder = withWalletSourceQuote(
+            formatPaymentResponseToHydratedOrder(res),
+            res,
+          );
         }
       } else {
         // Hydrate existing order
@@ -477,11 +486,19 @@ const PayWithStellarToken: React.FC = () => {
         `[PayWithStellarToken] Payment setup - destAddress: ${finalDestAddress}, toChain: ${payParams?.toChain}, token chain: ${option.required.token.chainId}`,
       );
 
+      // Replace provisional getFee data with payment/checkout response values.
+      const canonicalBreakdown = (hydratedOrder as WalletSourceQuoteOrder).paymentBreakdown;
+      if (canonicalBreakdown) setFeeData(canonicalBreakdown);
+
       // For stellar_direct: source IS the destination. Use source address/amount/memo directly.
       // The hydratedOrder's intentAddr already points to the source (deposit) address,
       // and fee is "0.00", so we just pass through.
       const paymentData = {
         destAddress: finalDestAddress,
+        amount: resolveWalletPaymentAmount(
+          hydratedOrder as WalletSourceQuoteOrder,
+          option,
+        ),
       };
 
       if (hydratedOrder.memo) {

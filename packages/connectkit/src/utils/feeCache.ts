@@ -6,7 +6,6 @@ import {
   rozoStellarEURC,
   rozoStellarUSDC,
 } from "@rozoai/intent-common";
-import { formatUnits, parseUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 
 /**
@@ -133,8 +132,6 @@ export function buildFeeQuoteParams(params: {
   sourceTokenAddress: string;
   /** Amount in destination units (atomic). */
   toUnits: string;
-  /** Fee in USD for the selected wallet option — used for ExactOut adjustment. */
-  feeUsd?: number;
 }): CreateNewPaymentParams {
   const {
     order,
@@ -162,26 +159,8 @@ export function buildFeeQuoteParams(params: {
   const isStellarDirect = isStellarSameToken && isSupportedStellarToken;
   const intent = isStellarDirect ? "stellar_direct" : payParams?.intent;
 
-  // Apply ExactOut adjustment to match buildCreatePaymentPayload behavior.
-  // For ExactOut, the API expects the destination amount MINUS the fee.
-  // feeUsd is the fee for the selected wallet option (in USD).
-  // Gate on the SAME resolved feeType that gets posted below — an undefined
-  // payParams.feeType (payId mode) defaults to ExactIn, which means no adjustment.
+  // ExactOut toUnits is destination receive amount. Backend calculates source fee.
   const feeType = payParams?.feeType ?? FeeType.ExactIn;
-
-  let adjustedToUnits = toUnits;
-  if (params.feeUsd != null && feeType !== FeeType.ExactIn) {
-    // Need to know the destination token decimals to parse/adjust.
-    // The order carries the destination token info.
-    const destToken = order?.destFinalCallTokenAmount?.token;
-    if (destToken) {
-      const feeAtomic = parseUnits(params.feeUsd.toFixed(destToken.decimals), destToken.decimals);
-      const amountAtomic = parseUnits(toUnits, destToken.decimals);
-      const adjustedAtomic = amountAtomic - feeAtomic;
-      const safeAtomic = adjustedAtomic < 0n ? 0n : adjustedAtomic;
-      adjustedToUnits = formatUnits(safeAtomic, destToken.decimals);
-    }
-  }
 
   return {
     appId: resolveOrderAppId(order, payParams?.appId) ?? DEFAULT_ROZO_APP_ID,
@@ -191,7 +170,7 @@ export function buildFeeQuoteParams(params: {
     toAddress: destAddress || payParams?.toAddress || "",
     preferredChain: sourceChainId,
     preferredTokenAddress: sourceTokenAddress,
-    toUnits: adjustedToUnits,
+    toUnits,
     ...(intent ? { intent } : {}),
   };
 }

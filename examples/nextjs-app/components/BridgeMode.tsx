@@ -12,7 +12,7 @@ import { ModeDescription } from "./ModeDescription"
 import { ParamForm, type ParamFormValues } from "./ParamForm"
 import { PreviewPane } from "./PreviewPane"
 
-const APP_ID = "rozoDemo"
+const APP_ID = "rozoBridgeStellar"
 
 export function BridgeMode() {
   const [config, setConfig, hydrated] = useSharedConfig()
@@ -83,6 +83,7 @@ export function BridgeMode() {
           toToken: c.toToken,
           toAddress: c.toAddress,
           toUnits: c.toUnits,
+          feeType: c.feeType,
           intent: "Bridge",
           preferredSymbol,
         })
@@ -122,6 +123,7 @@ export function BridgeMode() {
             toToken={config.toToken}
             toAddress={config.toAddress}
             toUnits={config.toUnits}
+            feeType={config.feeType}
             preferredSymbol={preferredSymbol}
             resetOnSuccess
             showProcessingPayout
@@ -188,6 +190,7 @@ export function BridgeMode() {
             values={pending}
             onChange={setPending}
             showAmount
+            showFeeType
             hydrated={hydrated}
           />
           <Button

@@ -1,6 +1,7 @@
 import {
   getChainById,
   getKnownToken,
+  FeeType,
   TokenSymbol,
   // chains
   arbitrum,
@@ -57,6 +58,7 @@ export interface BridgeConfig {
   toToken: string
   toAddress: string
   toUnits: string
+  feeType: FeeType
 }
 
 export type CheckoutConfig = BridgeConfig
@@ -211,6 +213,7 @@ export default function BridgePayment() {
       toToken: ${tok},
       toAddress: ${addr},
       toUnits: "${config.toUnits}",
+      feeType: FeeType.${config.feeType === FeeType.ExactOut ? "ExactOut" : "ExactIn"},
     }).then(() => setReady(true));
   }, [resetPayment]);
 
@@ -220,7 +223,8 @@ export default function BridgePayment() {
       toChain={${chain}}
       toToken={${tok}}
       toAddress={${addr}}
-      toUnits="${config.toUnits}"${preferredSymbolProp}
+      toUnits="${config.toUnits}"
+      feeType={FeeType.${config.feeType === FeeType.ExactOut ? "ExactOut" : "ExactIn"}}${preferredSymbolProp}
       intent="Bridge"
       onPaymentStarted={(e) => console.log("started", e)}
       onPaymentCompleted={(e) => console.log("completed", e)}
