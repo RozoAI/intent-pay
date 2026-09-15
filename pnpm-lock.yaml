@@ -64,8 +64,8 @@ importers:
         specifier: 0.1.36
         version: 0.1.36(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(viem@2.56.5(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@3.25.76))
       '@rozoai/intent-pay':
-        specifier: 0.1.48-beta.0
-        version: 0.1.48-beta.0(adb6ad23a8a8a7570a14081882c899e9)
+        specifier: 0.1.48-beta.3
+        version: 0.1.48-beta.3(adb6ad23a8a8a7570a14081882c899e9)
       '@stellar/stellar-sdk':
         specifier: ^14.4.3
         version: 14.6.1
@@ -2766,8 +2766,8 @@ packages:
     peerDependencies:
       viem: ^2.23.2
 
-  '@rozoai/intent-pay@0.1.48-beta.0':
-    resolution: {integrity: sha512-oOsApmHlYNXCNU8GW8Kh3BABiVFoB1ha0P3sHkD3iL1rHJw+A/oCsjNIdI3SLXYmnvkhjUqL8/ZhoDYTDPGKrg==}
+  '@rozoai/intent-pay@0.1.48-beta.3':
+    resolution: {integrity: sha512-6XSRZaYKlzNcT5Ldg/f+bk55nonROZF1/KyMbDzoTFXqUbQNFMs1rmQzsgx1KhefdeMTfte1Gwxk9yWCL/Xxtg==}
     engines: {node: '>=12.4'}
     peerDependencies:
       '@creit.tech/stellar-wallets-kit': ^1.9.5
@@ -12064,7 +12064,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@rozoai/intent-pay@0.1.48-beta.0(adb6ad23a8a8a7570a14081882c899e9)':
+  '@rozoai/intent-pay@0.1.48-beta.3(adb6ad23a8a8a7570a14081882c899e9)':
     dependencies:
       '@creit.tech/stellar-wallets-kit': 1.9.5(63c97555b96b6b0c09f5a348a0a97687)
       '@reown/appkit': 1.8.23(@react-native-async-storage/async-storage@1.24.0(react-native@0.87.1(@babel/core@7.29.7)(@types/react@18.3.31)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@6.0.6)))(@types/react@18.3.31)(@x402/core@2.25.0)(@x402/evm@2.25.0(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6))(@x402/svm@2.25.0(@solana/kit@7.1.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.2)(utf-8-validate@6.0.6))(@solana/sysvars@3.0.3(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.2)))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(react@18.2.0)(typescript@5.5.2)(use-sync-external-store@1.4.0(react@18.2.0))(utf-8-validate@6.0.6)(zod@4.6.5)

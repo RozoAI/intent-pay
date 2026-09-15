@@ -308,7 +308,16 @@ export class WalletConnectModule implements ModuleInterface {
       submit?: boolean;
       submitUrl?: string;
     },
-  ): Promise<{ signedTxXdr: string; signerAddress?: string }> {
+  ): Promise<{
+    signedTxXdr: string;
+    signerAddress?: string;
+    submitted?: boolean;
+  }> {
+    if (opts?.submit) {
+      await this.signAndSubmitTransaction(xdr, opts);
+      return { signedTxXdr: xdr, submitted: true };
+    }
+
     await this.runChecks();
 
     // Find the session for the requested signer address.
@@ -344,6 +353,51 @@ export class WalletConnectModule implements ModuleInterface {
       });
 
     return { signedTxXdr: result.signedXDR };
+  }
+
+  async signAndSubmitTransaction(
+    xdr: string,
+    opts?: { networkPassphrase?: string; address?: string },
+  ): Promise<{ status: "success" | "pending" }> {
+    await this.runChecks();
+
+    const targetPath =
+      wcSessionPaths.find((p) => p.publicKey === opts?.address) ??
+      wcSessionPaths[0];
+
+    if (!targetPath) {
+      throw parseError(
+        new Error(
+          "No WalletConnect session found or it expired for the selected address.",
+        ),
+      );
+    }
+
+    const chainId =
+      opts?.networkPassphrase === PUBLIC_NETWORK_NAME
+        ? WalletConnectTargetChain.PUBLIC
+        : WalletConnectTargetChain.TESTNET;
+
+    const result = await this.signClient
+      .request<{ status: string }>({
+        topic: targetPath.topic,
+        chainId,
+        request: {
+          method: WalletConnectAllowedMethods.SIGN_AND_SUBMIT,
+          params: { xdr },
+        },
+      })
+      .catch((e: unknown) => {
+        throw parseError(e as Error);
+      });
+
+    if (result.status !== "success" && result.status !== "pending") {
+      throw parseError(
+        new Error(`Unexpected status from wallet: ${result.status}`),
+      );
+    }
+
+    return { status: result.status };
   }
 
   async signAuthEntry(): Promise<{

@@ -18,6 +18,7 @@
     "test:e2e:mocked": "SKIP_ENV_VALIDATION=1 node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=mocked",
     "test:e2e:checkout-api": "SKIP_ENV_VALIDATION=1 E2E_REAL_API=true node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=mocked --grep \"Create Payment API flow|manual Payment ID|modal \\\\(via Create Payment\\\\)\"",
     "test:e2e:evm-to-stellar": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=evm-to-stellar --no-deps",
+    "test:e2e:stellar-breakdown": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=stellar-breakdown --no-deps",
     "test:e2e:stellar-to-evm": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=stellar-to-evm --no-deps",
     "test:e2e:stellar-to-solana": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=stellar-to-solana --no-deps",
     "test:e2e:solana-to-stellar": "node_modules/.bin/playwright test --config e2e/playwright.config.ts --project=solana-to-stellar --no-deps",
@@ -44,7 +45,7 @@
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "^1.9.5",
     "@rozoai/intent-common": "0.1.36",
-    "@rozoai/intent-pay": "0.1.48-beta.0",
+    "@rozoai/intent-pay": "0.1.48-beta.3",
     "@stellar/stellar-sdk": "^14.6.1",
     "@tanstack/react-query": "^5.0.0",
     "@web3icons/react": "^4.1.19",

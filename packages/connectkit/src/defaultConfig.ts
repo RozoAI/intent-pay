@@ -16,7 +16,7 @@ import defaultConnectors from "./defaultConnectors";
 // Rozo's own WalletConnect Cloud project ID — same one used for Stellar's
 // WalletConnectModule (utils/stellar/singleton-import.ts). Consumers can
 // override via walletConnectProjectId if they want their own.
-const ROZO_WALLETCONNECT_PROJECT_ID = "7440dd8acf85933ffcc775ec6675d4a9";
+export const ROZO_WALLETCONNECT_PROJECT_ID = "7440dd8acf85933ffcc775ec6675d4a9";
 
 // TODO: Move these to a provider rather than global variable
 let globalAppName: string;
