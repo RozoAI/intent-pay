@@ -57,6 +57,12 @@ enum PayState {
   RequestSuccessful = "Payment Successful",
 }
 
+// A WalletConnect SIGN_AND_SUBMIT can report "pending" before broadcasting,
+// or the pending submission may later fail. We can't safely resubmit
+// locally (the wallet already attempted it), so we bound how long we poll
+// the backend for the observed source tx hash before surfacing a failure.
+const PENDING_SUBMISSION_TIMEOUT_MS = 60_000;
+
 const PayWithStellarToken: React.FC = () => {
   const { triggerResize, paymentState, setRoute, log } = usePayContext();
   const {
@@ -626,18 +632,26 @@ const PayWithStellarToken: React.FC = () => {
           activePaymentId
         ) {
           const pollingController = new AbortController();
+          const backendHashPromise = waitForPaymentSourceTxHash(
+            activePaymentId,
+            {
+              signal: pollingController.signal,
+              ignoreTxHash:
+                order && "sourceStartTxHash" in order
+                  ? order.sourceStartTxHash
+                  : undefined,
+              isValidTxHash: (txHash): txHash is string =>
+                /^[0-9a-f]{64}$/i.test(txHash),
+            },
+          ).then((txHash) => ({ txHash }));
           try {
             const result = await Promise.race([
-              signingPromise.then((transaction) => ({ transaction })),
-              waitForPaymentSourceTxHash(activePaymentId, {
-                signal: pollingController.signal,
-                ignoreTxHash:
-                  order && "sourceStartTxHash" in order
-                    ? order.sourceStartTxHash
-                    : undefined,
-                isValidTxHash: (txHash): txHash is string =>
-                  /^[0-9a-f]{64}$/i.test(txHash),
-              }).then((txHash) => ({ txHash })),
+              signingPromise.then((transaction) => ({
+                transaction: transaction as Awaited<typeof signingPromise> & {
+                  submitted?: boolean;
+                },
+              })),
+              backendHashPromise,
             ]);
 
             if ("txHash" in result) {
@@ -645,6 +659,36 @@ const PayWithStellarToken: React.FC = () => {
                 `[PAY STELLAR] Recovered WalletConnect tx hash from payment API: ${result.txHash}`,
               );
               finishSubmission(result.txHash);
+              return;
+            }
+
+            // The wallet's SIGN_AND_SUBMIT returned before the backend saw a
+            // hash. If it reported "success" (submitted:true), trust it.
+            // If it reported "pending" (submitted:false) or the wallet's
+            // own submission failed, do NOT fall through to local
+            // resubmission — WalletConnect already attempted the broadcast
+            // and signedTxXdr here is not a locally-resubmittable
+            // transaction. Keep polling the backend for the source tx hash,
+            // bounded by a timeout, and only then report success;
+            // otherwise surface a timeout/failure.
+            if (!result.transaction.submitted) {
+              const backendResult = await Promise.race([
+                backendHashPromise,
+                new Promise<never>((_, reject) => {
+                  setTimeout(() => {
+                    pollingController.abort();
+                    reject(
+                      new Error(
+                        "Timed out waiting for the transaction to be confirmed after a pending status from the wallet.",
+                      ),
+                    );
+                  }, PENDING_SUBMISSION_TIMEOUT_MS);
+                }),
+              ]);
+              log?.(
+                `[PAY STELLAR] Recovered WalletConnect tx hash from payment API after pending status: ${backendResult.txHash}`,
+              );
+              finishSubmission(backendResult.txHash);
               return;
             }
             signedTransaction = result.transaction;

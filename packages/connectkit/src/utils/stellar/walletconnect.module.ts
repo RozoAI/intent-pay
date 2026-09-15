@@ -314,8 +314,12 @@ export class WalletConnectModule implements ModuleInterface {
     submitted?: boolean;
   }> {
     if (opts?.submit) {
-      await this.signAndSubmitTransaction(xdr, opts);
-      return { signedTxXdr: xdr, submitted: true };
+      const { status } = await this.signAndSubmitTransaction(xdr, opts);
+      // Only "success" means the wallet confirmed broadcast. "pending" means
+      // submission is still in flight or may fail — do not claim submitted
+      // or the caller will derive a hash from the XDR and treat it as final
+      // before Horizon/the backend has actually accepted the transaction.
+      return { signedTxXdr: xdr, submitted: status === "success" };
     }
 
     await this.runChecks();
