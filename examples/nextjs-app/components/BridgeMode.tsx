@@ -12,7 +12,7 @@ import { ModeDescription } from "./ModeDescription"
 import { ParamForm, type ParamFormValues } from "./ParamForm"
 import { PreviewPane } from "./PreviewPane"
 
-const APP_ID = "rozoBridgeStellar"
+const APP_ID = "rozoDemo"
 
 export function BridgeMode() {
   const [config, setConfig, hydrated] = useSharedConfig()
