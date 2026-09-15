@@ -37,6 +37,11 @@ import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
 import { createPaymentFailureError } from "../../../../utils/errorParser";
+import {
+  resolveWalletPaymentAmount,
+  type WalletSourceQuoteOrder,
+  withWalletSourceQuote,
+} from "../../../../payment/createPaymentPayload";
 
 enum PayState {
   PreparingTransaction = "Preparing Transaction",
@@ -201,7 +206,6 @@ const PayWithSolanaToken: React.FC = () => {
             sourceChainId: option.required.token.chainId,
             sourceTokenAddress: option.required.token.token,
             toUnits,
-            feeUsd: option.fees.usd,
           }),
           { signal: request.signal },
         );
@@ -279,7 +283,8 @@ const PayWithSolanaToken: React.FC = () => {
 
               return {
                 paymentId: checkoutRes.data.id,
-                hydratedOrder: formatPaymentResponseToHydratedOrder(
+                hydratedOrder: withWalletSourceQuote(
+                  formatPaymentResponseToHydratedOrder(checkoutRes.data),
                   checkoutRes.data,
                 ),
               };
@@ -332,7 +337,8 @@ const PayWithSolanaToken: React.FC = () => {
               throw new Error("Failed to checkout payment");
             }
             paymentId = checkoutRes.data.id;
-            hydratedOrder = formatPaymentResponseToHydratedOrder(
+            hydratedOrder = withWalletSourceQuote(
+              formatPaymentResponseToHydratedOrder(checkoutRes.data),
               checkoutRes.data,
             );
           } else {
@@ -353,7 +359,10 @@ const PayWithSolanaToken: React.FC = () => {
               throw createPaymentFailureError(store);
             }
             paymentId = res.id;
-            hydratedOrder = formatPaymentResponseToHydratedOrder(res);
+            hydratedOrder = withWalletSourceQuote(
+              formatPaymentResponseToHydratedOrder(res),
+              res,
+            );
           }
         } else {
           // Hydrate existing order
@@ -440,9 +449,17 @@ const PayWithSolanaToken: React.FC = () => {
 
         setPayState(PayState.RequestingPayment);
 
+        // Replace provisional getFee data with payment/checkout response values.
+        const canonicalBreakdown = (hydratedOrder as WalletSourceQuoteOrder).paymentBreakdown;
+        if (canonicalBreakdown) setFeeData(canonicalBreakdown);
+
         // Solana pay-in no longer requires a memo.
         const paymentData = {
           destAddress: hydratedOrder.intentAddr,
+          amount: resolveWalletPaymentAmount(
+            hydratedOrder as WalletSourceQuoteOrder,
+            option,
+          ),
         };
 
         const result = await payWithSolanaTokenRozo(

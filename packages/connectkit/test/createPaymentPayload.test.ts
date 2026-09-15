@@ -33,8 +33,7 @@ describe("toUnits serialization", () => {
     expect(payload.toUnits).not.toMatch(/e/);
   });
 
-  it("ExactOut fee subtraction — no floating-point noise", () => {
-    // 0.3 - 0.1 in JS = 0.19999999999999998 without rounding
+  it("ExactOut preserves destination receive amount despite wallet-option fee", () => {
     const payload = buildCreatePaymentPayload({
       payParams: makePayParams({ toUnits: "0.3" }),
       feeTypeOverride: FeeType.ExactOut,
@@ -44,7 +43,7 @@ describe("toUnits serialization", () => {
       } as any,
     });
 
-    expect(payload.toUnits).toBe("0.2");
+    expect(payload.toUnits).toBe("0.3");
   });
 
   it("sub-decimal precision — rounds to token decimals", () => {
@@ -58,7 +57,7 @@ describe("toUnits serialization", () => {
     expect(payload.toUnits).not.toMatch(/e/);
   });
 
-  it("fee exceeds amount — clamped to zero", () => {
+  it("ExactOut does not clamp destination amount when wallet-option fee exceeds it", () => {
     const payload = buildCreatePaymentPayload({
       payParams: makePayParams({ toUnits: "0.05" }),
       feeTypeOverride: FeeType.ExactOut,
@@ -68,7 +67,7 @@ describe("toUnits serialization", () => {
       } as any,
     });
 
-    expect(payload.toUnits).toBe("0");
+    expect(payload.toUnits).toBe("0.05");
   });
 
   it("large-magnitude amount — no float precision loss", () => {

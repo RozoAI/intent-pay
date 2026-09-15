@@ -19,6 +19,7 @@ import {
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import { buildFeeQuoteParams, getCachedFee } from "../../../utils/feeCache";
+import { type WalletSourceQuoteOrder } from "../../../payment/createPaymentPayload";
 import Button from "../../Common/Button";
 import {
   Link,
@@ -184,7 +185,6 @@ const PayWithToken: React.FC = () => {
           sourceChainId: option.required.token.chainId,
           sourceTokenAddress: option.required.token.token,
           toUnits,
-          feeUsd: option.fees.usd,
         });
         const feeData = await getCachedFee(feeParams, { signal: request.signal });
         setFeeLoading(false);
@@ -226,6 +226,12 @@ const PayWithToken: React.FC = () => {
           },
           store as any,
         );
+        const completedState = store.getState();
+        const canonicalBreakdown =
+          completedState.type !== "idle"
+            ? (completedState.order as WalletSourceQuoteOrder).paymentBreakdown
+            : undefined;
+        if (canonicalBreakdown) setFeeData(canonicalBreakdown);
         setTxURL(
           getChainExplorerTxUrl(option.required.token.chainId, result.txHash),
         );

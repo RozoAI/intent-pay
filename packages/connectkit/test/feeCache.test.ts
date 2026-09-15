@@ -22,7 +22,6 @@ function build(payParams: Parameters<typeof buildFeeQuoteParams>[0]["payParams"]
     sourceChainId: BASE_CHAIN,
     sourceTokenAddress: BASE_USDC,
     toUnits: "100",
-    feeUsd: 0.3,
   });
 }
 
@@ -63,9 +62,9 @@ describe("buildFeeQuoteParams — feeType/amount consistency", () => {
     expect(params.toUnits).toBe("100");
   });
 
-  it("subtracts the fee for ExactOut", () => {
+  it("preserves ExactOut destination receive amount despite wallet-option fee", () => {
     const params = build({ feeType: FeeType.ExactOut });
     expect(params.feeType).toBe(FeeType.ExactOut);
-    expect(params.toUnits).toBe("99.7");
+    expect(params.toUnits).toBe("100");
   });
 });

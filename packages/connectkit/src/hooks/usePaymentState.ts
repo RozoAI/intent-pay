@@ -44,7 +44,7 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { erc20Abi, getAddress, Hex, hexToBytes, parseUnits, zeroAddress } from "viem";
+import { erc20Abi, formatUnits, getAddress, Hex, hexToBytes, parseUnits, zeroAddress } from "viem";
 import {
   useAccount,
   useCapabilities,
@@ -86,6 +86,9 @@ import {
   buildDepositWalletOption,
   derivePayIdPreferredTokens,
   resolveDepositSourceAmount,
+  resolveWalletPaymentAmount,
+  type WalletSourceQuoteOrder,
+  withWalletSourceQuote,
 } from "../payment/createPaymentPayload";
 import { waitForPaymentSourceTxHash } from "../payment/waitForPaymentSourceTxHash";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
@@ -188,6 +191,7 @@ export interface PaymentState {
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
+      amount: bigint;
       memo?: string;
     },
   ) => Promise<{ txHash: string; success: boolean }>;
@@ -195,6 +199,7 @@ export interface PaymentState {
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
+      amount: bigint;
       memo?: string;
     },
   ) => Promise<{ signedTx: string; success: boolean }>;
@@ -793,9 +798,8 @@ export function usePaymentState({
       );
     }
 
-    // @NOTE: Fee handled by Rozo API
-    // const paymentAmount = BigInt(required.amount) + BigInt(fees.amount);
-    const paymentAmount = parseUnits(required.usd.toString(), required.token.decimals);
+    // Payment amount comes from the hydrated backend source quote below.
+    let paymentAmount: bigint;
 
     // Read the freshest order straight from the store instead of the `pay`
     // closure snapshot. `payWithToken` is a plain (non-useCallback) function
@@ -871,7 +875,10 @@ export function usePaymentState({
         }
 
         paymentId = res.id;
-        hydratedOrder = formatPaymentResponseToHydratedOrder(res);
+        hydratedOrder = withWalletSourceQuote(
+          formatPaymentResponseToHydratedOrder(res),
+          res,
+        );
       } else if (pay.paymentState === "payment_unpaid" || pay.paymentState === "payment_started") {
         // Order is already hydrated for same chain, use it directly
         hydratedOrder = pay.order;
@@ -945,6 +952,10 @@ export function usePaymentState({
     }
 
     const destinationAddress = hydratedOrder.intentAddr;
+    paymentAmount = resolveWalletPaymentAmount(
+      hydratedOrder as WalletSourceQuoteOrder,
+      walletOption,
+    );
 
     // Execute transaction with optimized error handling
     let transactionRecoveredFromApi = false;
@@ -1122,6 +1133,7 @@ export function usePaymentState({
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
+      amount: bigint;
       memo?: string;
     },
   ): Promise<{ txHash: string; success: boolean }> => {
@@ -1188,7 +1200,7 @@ export function usePaymentState({
         tokenMint: mintAddress.toString(),
         fromKey: fromKey.toString(),
         toKey: toKey.toString(),
-        amount: walletPaymentOption.required.usd,
+        amount: rozoPayment.amount.toString(),
         memo: rozoPayment.memo,
       });
 
@@ -1219,8 +1231,8 @@ export function usePaymentState({
 
       // Add transfer instruction
       log("[PAY SOLANA] Adding transfer instruction...");
-      const transferAmount = parseFloat(walletPaymentOption.required.usd.toString()) * 1_000_000;
-      log("[PAY SOLANA] Transfer amount (with decimals):", transferAmount);
+      const transferAmount = rozoPayment.amount;
+      log("[PAY SOLANA] Transfer amount (atomic):", transferAmount.toString());
 
       instructions.push(
         createTransferCheckedInstruction(
@@ -1281,6 +1293,7 @@ export function usePaymentState({
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
+      amount: bigint;
       memo?: string;
     },
   ): Promise<{ signedTx: string; success: boolean }> => {
@@ -1367,7 +1380,7 @@ export function usePaymentState({
           Operation.payment({
             destination: destinationAddress,
             asset: destAsset,
-            amount: String(walletPaymentOption.required.usd),
+            amount: formatUnits(rozoPayment.amount, walletPaymentOption.required.token.decimals),
           }),
         )
         .setTimeout(180);
