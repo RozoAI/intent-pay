@@ -1,7 +1,5 @@
 import type { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
 import { WalletConnectModule } from ".";
-import { ROZO_WALLETCONNECT_PROJECT_ID } from "../../defaultConfig";
-
 // Global singleton to ensure only one instance exists across the entire app
 declare global {
   let __ROZO_STELLAR_KIT_INSTANCE__: StellarWalletsKit | undefined;
@@ -9,6 +7,7 @@ declare global {
 }
 
 const ROZO_WC_METADATA_URL = "https://rozo.ai";
+const STELLAR_WALLETCONNECT_PROJECT_ID = "7440dd8acf85933ffcc775ec6675d4a9";
 
 /**
  * WalletConnect flags a mismatch between `metadata.url` and the actual page
@@ -88,7 +87,7 @@ export async function getStellarKitInstance(config?: {
           ...allowAllModules(),
           new WalletConnectModule({
             url: resolveWalletConnectMetadataUrl(),
-            projectId: ROZO_WALLETCONNECT_PROJECT_ID,
+            projectId: STELLAR_WALLETCONNECT_PROJECT_ID,
             description: `Visa Layer for Stablecoins`,
             name: "Rozo",
             icons: ["https://rozo.ai/rozo-logo.png"],

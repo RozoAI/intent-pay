@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Breaking Changes
+
+- Remove SDK-provided EVM WalletConnect. Consumers that need EVM WalletConnect must provide their own wagmi connector via `connectors`; Stellar WalletConnect remains supported.
+
 ## [0.1.46] - 2026-09-12
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
