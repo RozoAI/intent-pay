@@ -83,6 +83,7 @@ export function BridgeMode() {
           toToken: c.toToken,
           toAddress: c.toAddress,
           toUnits: c.toUnits,
+          feeType: c.feeType,
           intent: "Bridge",
           preferredSymbol,
         })
@@ -122,6 +123,7 @@ export function BridgeMode() {
             toToken={config.toToken}
             toAddress={config.toAddress}
             toUnits={config.toUnits}
+            feeType={config.feeType}
             preferredSymbol={preferredSymbol}
             resetOnSuccess
             showProcessingPayout
@@ -188,6 +190,7 @@ export function BridgeMode() {
             values={pending}
             onChange={setPending}
             showAmount
+            showFeeType
             hydrated={hydrated}
           />
           <Button

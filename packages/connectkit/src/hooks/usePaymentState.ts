@@ -44,7 +44,7 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { erc20Abi, getAddress, Hex, hexToBytes, parseUnits, zeroAddress } from "viem";
+import { erc20Abi, formatUnits, getAddress, Hex, hexToBytes, parseUnits, zeroAddress } from "viem";
 import {
   useAccount,
   useCapabilities,
@@ -88,9 +88,10 @@ import {
   derivePayIdPreferredTokens,
   resolveDepositSourceAmount,
   resolveWalletPaymentAmount,
-  withWalletSourceQuote,
   type WalletSourceQuoteOrder,
+  withWalletSourceQuote,
 } from "../payment/createPaymentPayload";
+import { shouldRecoverEvmWalletConnectTx } from "../payment/shouldRecoverEvmWalletConnectTx";
 import { waitForPaymentSourceTxHash } from "../payment/waitForPaymentSourceTxHash";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
 import { useAnalytics } from "../provider/AnalyticsProvider";
@@ -200,7 +201,7 @@ export interface PaymentState {
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
-      amount: string;
+      amount: bigint;
       memo?: string;
     },
   ) => Promise<{ signedTx: string; success: boolean }>;
@@ -806,6 +807,9 @@ export function usePaymentState({
       );
     }
 
+    // Payment amount comes from the hydrated backend source quote below.
+    let paymentAmount: bigint;
+
     // Read the freshest order straight from the store instead of the `pay`
     // closure snapshot. `payWithToken` is a plain (non-useCallback) function
     // recreated on every usePaymentState render, but the component calling
@@ -957,6 +961,10 @@ export function usePaymentState({
     }
 
     const destinationAddress = hydratedOrder.intentAddr;
+    paymentAmount = resolveWalletPaymentAmount(
+      hydratedOrder as WalletSourceQuoteOrder,
+      walletOption,
+    );
 
     // Execute transaction with optimized error handling
     let transactionRecoveredFromApi = false;
@@ -1049,11 +1057,10 @@ export function usePaymentState({
 
     let paymentTxHash: Hex;
     const activePaymentId = paymentId ?? hydratedOrder.externalId ?? undefined;
-    if (ethConnector?.id === "walletConnect" && activePaymentId) {
-      // MetaMask Mobile can submit a WalletConnect transaction without ever
-      // returning the eth_sendTransaction response to the browser. The backend
-      // still detects the deposit, so race the wallet response against that
-      // server-confirmed source hash instead of leaving the UI stuck forever.
+    if (shouldRecoverEvmWalletConnectTx(ethConnector?.id, activePaymentId)) {
+      // External EVM WalletConnect connectors can submit without returning a
+      // tx response. Keep recovery for consumers who bring their own connector,
+      // while defaultConfig no longer constructs one.
       const pollingController = new AbortController();
       try {
         const result = await Promise.race([
@@ -1067,7 +1074,7 @@ export function usePaymentState({
         transactionRecoveredFromApi = result.recovered;
         if (result.recovered) {
           clearPaymentAttempt();
-          log?.(`[PAY TOKEN] Recovered WalletConnect tx hash from payment API: ${paymentTxHash}`);
+          log?.(`[PAY TOKEN] Recovered external WalletConnect tx hash from payment API: ${paymentTxHash}`);
         }
       } finally {
         pollingController.abort();
@@ -1308,7 +1315,7 @@ export function usePaymentState({
     walletPaymentOption: WalletPaymentOption,
     rozoPayment: {
       destAddress: string;
-      amount: string;
+      amount: bigint;
       memo?: string;
     },
   ): Promise<{ signedTx: string; success: boolean }> => {
@@ -1395,7 +1402,7 @@ export function usePaymentState({
           Operation.payment({
             destination: destinationAddress,
             asset: destAsset,
-            amount: rozoPayment.amount,
+            amount: formatUnits(rozoPayment.amount, walletPaymentOption.required.token.decimals),
           }),
         )
         .setTimeout(180);

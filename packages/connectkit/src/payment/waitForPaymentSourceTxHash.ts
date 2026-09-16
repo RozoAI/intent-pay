@@ -1,10 +1,11 @@
 import { getPayment } from "@rozoai/intent-common";
 import { type Hex, isHex } from "viem";
 
-type Options = {
+type Options<TxHash extends string> = {
   signal?: AbortSignal;
   intervalMs?: number;
   ignoreTxHash?: string | null;
+  isValidTxHash?: (txHash: string) => txHash is TxHash;
   fetchSourceTxHash?: (
     paymentId: string,
     signal?: AbortSignal,
@@ -39,15 +40,16 @@ const wait = (ms: number, signal?: AbortSignal) =>
     }, ms);
   });
 
-/** Recovers an EVM tx hash when a WalletConnect wallet submits but never returns the RPC response. */
-export async function waitForPaymentSourceTxHash(
+/** Recovers a tx hash when a wallet submits but never returns its response. */
+export async function waitForPaymentSourceTxHash<TxHash extends string = Hex>(
   paymentId: string,
-  options: Options = {},
-): Promise<Hex> {
+  options: Options<TxHash> = {},
+): Promise<TxHash> {
   const {
     signal,
     intervalMs = 1_000,
     ignoreTxHash,
+    isValidTxHash = isHex as (txHash: string) => txHash is TxHash,
     fetchSourceTxHash: fetchHash = fetchSourceTxHash,
   } = options;
 
@@ -57,7 +59,7 @@ export async function waitForPaymentSourceTxHash(
       if (
         typeof txHash === "string" &&
         txHash !== ignoreTxHash &&
-        isHex(txHash)
+        isValidTxHash(txHash)
       ) {
         return txHash;
       }

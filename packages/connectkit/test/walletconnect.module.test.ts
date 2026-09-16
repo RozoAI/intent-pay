@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const initMock = vi.fn();
 const createAppKitMock = vi.fn();
+const requestMock = vi.fn();
 
 vi.mock("@walletconnect/universal-provider", () => ({
   UniversalProvider: { init: initMock },
@@ -19,8 +20,10 @@ vi.mock("@reown/appkit/networks", () => ({
 describe("WalletConnectModule", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    requestMock.mockResolvedValue({ status: "success" });
     const fakeClient = {
       on: vi.fn(),
+      request: requestMock,
       session: { values: [] },
     };
     const fakeProvider = { client: fakeClient };
@@ -52,7 +55,11 @@ describe("WalletConnectModule", () => {
       "../src/utils/stellar/walletconnect.module.js"
     );
 
-    const fakeClient = { on: vi.fn(), session: { values: [] } };
+    const fakeClient = {
+      on: vi.fn(),
+      request: requestMock,
+      session: { values: [] },
+    };
     const fakeProvider = { client: fakeClient };
     initMock.mockResolvedValue(fakeProvider);
 
@@ -71,5 +78,44 @@ describe("WalletConnectModule", () => {
 
     const callArgs = createAppKitMock.mock.calls[0][0];
     expect(callArgs.universalProvider).toBe(fakeProvider);
+  });
+
+  it("uses sign-and-submit when signTransaction receives submit", async () => {
+    const {
+      WalletConnectAllowedMethods,
+      WalletConnectModule,
+      WalletConnectTargetChain,
+    } = await import("../src/utils/stellar/walletconnect.module.js");
+
+    const module = new WalletConnectModule({
+      projectId: "test-project-id",
+      name: "Test",
+      description: "Test",
+      url: "https://test.example",
+      icons: [],
+      network: "Public Global Stellar Network ; September 2015",
+    });
+
+    await vi.waitFor(() => expect(createAppKitMock).toHaveBeenCalledTimes(1));
+    module.setSession("test-topic");
+
+    await expect(
+      module.signTransaction("transaction-xdr", {
+        networkPassphrase:
+          "Public Global Stellar Network ; September 2015",
+        submit: true,
+      }),
+    ).resolves.toEqual({
+      signedTxXdr: "transaction-xdr",
+      submitted: true,
+    });
+    expect(requestMock).toHaveBeenCalledWith({
+      topic: "test-topic",
+      chainId: WalletConnectTargetChain.PUBLIC,
+      request: {
+        method: WalletConnectAllowedMethods.SIGN_AND_SUBMIT,
+        params: { xdr: "transaction-xdr" },
+      },
+    });
   });
 });

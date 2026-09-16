@@ -2,7 +2,7 @@ import { assertNotNull } from "@rozoai/intent-common";
 import { Connector } from "wagmi";
 
 import { useWallet as useSolanaWalletAdapter } from "@solana/wallet-adapter-react";
-import Logos, { SquircleIcon, WalletConnect } from "../assets/logos";
+import Logos, { SquircleIcon } from "../assets/logos";
 import { useConnectors } from "../hooks/useConnectors";
 import { usePayContext } from "../hooks/usePayContext";
 import { SolanaWalletName } from "../provider/SolanaContextProvider";
@@ -10,7 +10,6 @@ import {
   isCoinbaseWalletConnector,
   isInjectedConnector,
   isPhantomConnector,
-  isWalletConnectConnector,
 } from "../utils";
 import { WalletConfigProps, walletConfigs } from "./walletConfigs";
 
@@ -66,18 +65,12 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
       }
     }
 
-    // WalletConnect is desktop-only. This mobile list includes injected
-    // connectors and direct wallet deeplinks, not the desktop QR connector.
-
     // Add injected wallet (if any) first, unless disabled
     if (!disableMobileInjector) {
       connectors.forEach((connector) => {
         if (isCoinbaseWalletConnector(connector.id)) return;
         if (isPhantomConnector(connector.id)) return;
         if (!isInjectedConnector(connector.type)) return;
-        // Skip any connectors that mention WalletConnect
-        if (connector.name?.toLowerCase().includes("walletconnect")) return;
-
         // In-app browsers that inject both window.ethereum and a Solana
         // wallet-standard provider (e.g. Phantom) surface as one generic
         // "injected" EVM connector here. Match it to its Solana adapter by
@@ -157,19 +150,6 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
   });
 
   const wallets = filteredConnectors.map((connector): WalletProps => {
-    // WalletConnect: dedicated tile, our own QR + copy page (see
-    // ConnectWalletConnect) instead of matching against walletConfigs.
-    if (isWalletConnectConnector(connector.id)) {
-      return {
-        id: connector.id,
-        name: "WalletConnect",
-        connector,
-        iconConnector: <WalletConnect />,
-        iconShape: "squircle",
-        isInstalled: true,
-      };
-    }
-
     // First, attempt to find a config by matching connector.id (existing logic).
     let walletConfigKey: string | undefined = Object.keys(walletConfigs).find(
       (id) =>
@@ -228,40 +208,6 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
 
     return c;
   });
-
-  // Desktop, no injected EVM provider (e.g. incognito / no extension): the
-  // only live connector is Coinbase's SDK, so the curated tiles vanish.
-  // Surface major wallets as stubs that route through the WalletConnect QR —
-  // any WC wallet can scan it, no extension needed. Desktop-only: this whole
-  // branch runs after the mobile early-return above.
-  // Check window.ethereum, not the connector list — defaultConnectors() never
-  // adds an injected() connector, so wagmi's list is empty even when a wallet
-  // extension IS installed (then it arrives via EIP-6963 / additionalConnectors).
-  const hasInjectedProvider =
-    typeof window !== "undefined" && window.ethereum != null;
-  const hasWalletConnect = wallets.some((w) => isWalletConnectConnector(w.id));
-  // ponytail: name-fuzzy dedupe vs live injected wallets; exact-id matching if
-  // collisions ever show duplicates.
-  if (!hasInjectedProvider && hasWalletConnect) {
-    Object.entries(walletConfigs).forEach(([key, cfg]) => {
-      if (!cfg.walletConnectFallback) return;
-      const cfgName = (cfg.name ?? "").toLowerCase();
-      if (wallets.some((w) => {
-        const n = (w.name ?? "").toLowerCase();
-        return n && cfgName && (n.includes(cfgName) || cfgName.includes(n));
-      })) return;
-      wallets.push({
-        id: `wc-fallback-${key}`,
-        name: cfg.name,
-        shortName: cfg.shortName,
-        icon: cfg.icon,
-        iconConnector: cfg.iconConnector,
-        iconShape: cfg.iconShape,
-        iconShouldShrink: cfg.iconShouldShrink,
-        walletConnectFallback: true,
-      });
-    });
-  }
 
   // wallets.push({
   //   id: WALLET_ID_MOBILE_WALLETS,

@@ -225,7 +225,6 @@ const PayWithSolanaToken: React.FC = () => {
             sourceChainId: option.required.token.chainId,
             sourceTokenAddress: option.required.token.token,
             toUnits,
-            feeUsd: option.fees.usd,
           }),
           { signal: request.signal },
         );
@@ -468,6 +467,10 @@ const PayWithSolanaToken: React.FC = () => {
         }
 
         setPayState(PayState.RequestingPayment);
+
+        // Replace provisional getFee data with payment/checkout response values.
+        const canonicalBreakdown = (hydratedOrder as WalletSourceQuoteOrder).paymentBreakdown;
+        if (canonicalBreakdown) setFeeData(canonicalBreakdown);
 
         // Solana pay-in no longer requires a memo.
         const paymentData = {

@@ -9,11 +9,7 @@ const BSC_USDT = "0x55d398326f99059fF775485246999027B3197955";
 
 const walletOption = {
   required: {
-    token: {
-      chainId: 56,
-      token: BSC_USDT,
-      decimals: 6,
-    },
+    token: { chainId: 56, token: BSC_USDT, decimals: 6 },
     // Stale pre-checkout quote from Order A.
     usd: 49.52,
   },
@@ -23,46 +19,19 @@ describe("resolveWalletPaymentAmount", () => {
   it("uses hydrated API source amount, not stale wallet quote", () => {
     const hydratedOrder = withWalletSourceQuote(
       {} as any,
-      {
-        source: {
-          amount: "49.95",
-          chainId: 56,
-          tokenAddress: BSC_USDT,
-        },
-      } as any,
+      { source: { amount: "49.95", chainId: 56, tokenAddress: BSC_USDT } } as any,
     );
 
     expect(resolveWalletPaymentAmount(hydratedOrder, walletOption)).toBe(parseUnits("49.95", 6));
   });
 
-  it("accepts the API's canonical Solana chain ID", () => {
-    const option = {
+  it("accepts canonical Solana and Stellar chain aliases", () => {
+    const solanaOption = {
       required: {
-        token: {
-          chainId: 501,
-          token: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-          decimals: 6,
-        },
+        token: { chainId: 501, token: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6 },
       },
     } as any;
-    const hydratedOrder = withWalletSourceQuote(
-      {} as any,
-      {
-        source: {
-          amount: "49.95",
-          chainId: 900,
-          tokenAddress: option.required.token.token,
-        },
-      } as any,
-    );
-
-    expect(resolveWalletPaymentAmount(hydratedOrder, option)).toBe(
-      parseUnits("49.95", 6),
-    );
-  });
-
-  it("accepts the API's canonical Stellar chain ID", () => {
-    const option = {
+    const stellarOption = {
       required: {
         token: {
           chainId: 10001,
@@ -71,24 +40,17 @@ describe("resolveWalletPaymentAmount", () => {
         },
       },
     } as any;
-    const hydratedOrder = withWalletSourceQuote(
-      {} as any,
-      {
-        source: {
-          amount: "49.1234567",
-          chainId: 1500,
-          tokenAddress: option.required.token.token,
-        },
-      } as any,
-    );
 
-    expect(resolveWalletPaymentAmount(hydratedOrder, option)).toBe(
-      parseUnits("49.1234567", 7),
-    );
+    expect(resolveWalletPaymentAmount(withWalletSourceQuote({} as any, {
+      source: { amount: "49.95", chainId: 900, tokenAddress: solanaOption.required.token.token },
+    } as any), solanaOption)).toBe(parseUnits("49.95", 6));
+    expect(resolveWalletPaymentAmount(withWalletSourceQuote({} as any, {
+      source: { amount: "49.1234567", chainId: 1500, tokenAddress: stellarOption.required.token.token },
+    } as any), stellarOption)).toBe(parseUnits("49.1234567", 7));
   });
 
-  it("preserves Stellar token precision from the hydrated quote", () => {
-    const option = {
+  it("preserves hydrated source precision", () => {
+    const stellarOption = {
       required: {
         token: {
           chainId: 1500,
@@ -97,33 +59,19 @@ describe("resolveWalletPaymentAmount", () => {
         },
       },
     } as any;
-    const hydratedOrder = withWalletSourceQuote(
-      {} as any,
-      {
-        source: {
-          amount: "49.1234567",
-          chainId: 1500,
-          tokenAddress: option.required.token.token,
-        },
-      } as any,
-    );
 
-    expect(resolveWalletPaymentAmount(hydratedOrder, option)).toBe(
-      parseUnits("49.1234567", 7),
-    );
+    expect(resolveWalletPaymentAmount(withWalletSourceQuote({} as any, {
+      source: { amount: "49.1234567", chainId: 1500, tokenAddress: stellarOption.required.token.token },
+    } as any), stellarOption)).toBe(parseUnits("49.1234567", 7));
+    expect(resolveWalletPaymentAmount(withWalletSourceQuote({} as any, {
+      source: { amount: "1001.000001", chainId: 56, tokenAddress: BSC_USDT },
+    } as any), walletOption)).toBe(parseUnits("1001.000001", 6));
   });
 
-  it("rejects a hydrated quote for another source token", () => {
-    const hydratedOrder = {
-      sourceQuote: {
-        amount: "49.95",
-        chainId: 56,
-        tokenAddress: "0x0000000000000000000000000000000000000001",
-      },
-    } as any;
-
-    expect(() => resolveWalletPaymentAmount(hydratedOrder, walletOption)).toThrow(
-      "does not match selected token",
-    );
+  it("rejects missing or mismatched hydrated source quotes", () => {
+    expect(() => resolveWalletPaymentAmount({} as any, walletOption)).toThrow("has no source quote");
+    expect(() => resolveWalletPaymentAmount({ sourceQuote: {
+      amount: "49.95", chainId: 56, tokenAddress: "0x0000000000000000000000000000000000000001",
+    } } as any, walletOption)).toThrow("does not match selected token");
   });
 });

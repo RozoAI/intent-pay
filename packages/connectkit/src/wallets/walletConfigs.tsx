@@ -76,9 +76,6 @@ export type WalletConfigProps = {
   // Used to filter wallets that only support solana in mobile mode to not show in the connector options when the payID doesn't support solana
   isSolanaOnly?: boolean;
   // Used to filter wallets that only support stellar in mobile mode to not show in the connector options when the payID doesn't support stellar
-  // Desktop no-extension fallback: tile routes through the WalletConnect QR
-  // (any WC wallet can scan it) instead of requiring an injected connector.
-  walletConnectFallback?: boolean;
   isStellarOnly?: boolean;
 };
 
@@ -206,7 +203,6 @@ export const walletConfigs: {
         customDeeplink ?? getRozoPayUrl(payId, appId)
       }`;
     },
-    walletConnectFallback: true,
   },
   "metaMask, metaMask-io, io.metamask, io.metamask.mobile, metaMaskSDK": {
     name: "MetaMask",
@@ -245,7 +241,6 @@ export const walletConfigs: {
         ""
       )}`;
     },
-    walletConnectFallback: true,
   },
   "app.phantom": {
     name: "Phantom",
@@ -318,7 +313,6 @@ export const walletConfigs: {
       chrome: "https://rainbow.me/extension?utm_source=rozopay",
       edge: "https://rainbow.me/extension?utm_source=rozopay",
     },
-    walletConnectFallback: true,
     showInMobileConnectors: true,
     deeplinkScheme: "rainbow://",
     getRozoPayDeeplink: ({
@@ -359,7 +353,6 @@ export const walletConfigs: {
       android:
         "https://play.google.com/store/apps/details?id=com.wallet.crypto.trustapp",
     },
-    walletConnectFallback: true,
     showInMobileConnectors: true,
     deeplinkScheme: "trust://",
     getRozoPayDeeplink: ({
@@ -380,7 +373,6 @@ export const walletConfigs: {
   },
   okx: {
     name: "OKX",
-    walletConnectFallback: true,
     icon: <Logos.OKX />,
     showInMobileConnectors: true,
     deeplinkScheme: "okx://",

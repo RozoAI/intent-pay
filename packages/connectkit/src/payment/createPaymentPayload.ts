@@ -197,18 +197,8 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     preferredTokenAddress = isNonUSDToken ? baseEURC.token : baseUSDC.token;
   }
 
-  // --------------------------------------------------
-  // Fee handling
-  // --------------------------------------------------
-  // Fee comes from the wallet quote as a float USD value; it's not the
-  // backend-critical amount, so precision only needs to hold to the
-  // token's atomic-unit resolution.
-  const feeUsd = walletOption?.fees.usd ?? 0;
-  const feeAtomic = feeType === FeeType.ExactIn ? 0n : parseUnits(feeUsd.toFixed(tokenDecimals), tokenDecimals);
-  const calculatedAtomic = rawAmountAtomic - feeAtomic;
-
-  // Clamp to zero to avoid negative amounts when fees exceed amount
-  const safeAtomic = calculatedAtomic < 0n ? 0n : calculatedAtomic;
+  // ExactOut toUnits is recipient receive amount. Backend calculates the
+  // fee-inclusive source amount; wallet-option fees are only preliminary UI data.
 
   // --------------------------------------------------
   // Address & metadata
@@ -265,7 +255,7 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     toAddress,
     preferredChain,
     preferredTokenAddress,
-    toUnits: formatUnits(safeAtomic, tokenDecimals),
+    toUnits: formatUnits(rawAmountAtomic, tokenDecimals),
     ...(isAbleToIncludeReceiverMemo && payParams.receiverMemo
       ? { receiverMemo: payParams.receiverMemo }
       : {}),
@@ -348,6 +338,7 @@ export type WalletSourceQuoteOrder = {
     chainId: number;
     tokenAddress: string;
   };
+  paymentBreakdown?: FeeResponseData;
 };
 
 /** Preserve payment/checkout's authoritative source quote on SDK-owned state. */
@@ -365,6 +356,10 @@ export function withWalletSourceQuote<T extends RozoPayHydratedOrderWithOrg>(
             chainId: Number(quote.chainId),
             tokenAddress: quote.tokenAddress,
           }
+        : undefined,
+    paymentBreakdown:
+      quote && response.destination
+        ? ({ source: quote, destination: response.destination } as unknown as FeeResponseData)
         : undefined,
   };
 }

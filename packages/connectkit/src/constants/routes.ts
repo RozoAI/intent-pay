@@ -29,7 +29,6 @@ export enum ROUTES {
   CONNECTORS = "connectors",
   MOBILECONNECTORS = "mobileConnectors",
   CONNECT = "connect",
-  CONNECT_WALLETCONNECT = "rozoPayConnectWalletConnect",
   DOWNLOAD = "download",
   SWITCHNETWORKS = "switchNetworks",
 }

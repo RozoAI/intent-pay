@@ -49,6 +49,8 @@ import {
   type WalletSourceQuoteOrder,
   withWalletSourceQuote,
 } from "../../../../payment/createPaymentPayload";
+import { waitForPaymentSourceTxHash } from "../../../../payment/waitForPaymentSourceTxHash";
+import { WALLET_CONNECT_ID } from "../../../../utils/stellar/walletconnect.module";
 
 enum PayState {
   PreparingTransaction = "Preparing Transaction",
@@ -60,6 +62,12 @@ enum PayState {
   RequestSuccessful = "Payment Successful",
   WaitingForWallet = "Wallet Confirmation Pending",
 }
+
+// A WalletConnect SIGN_AND_SUBMIT can report "pending" before broadcasting,
+// or the pending submission may later fail. We can't safely resubmit
+// locally (the wallet already attempted it), so we bound how long we poll
+// the backend for the observed source tx hash before surfacing a failure.
+const PENDING_SUBMISSION_TIMEOUT_MS = 60_000;
 
 const PayWithStellarToken: React.FC = () => {
   const { triggerResize, paymentState, setRoute, log } = usePayContext();
@@ -93,6 +101,7 @@ const PayWithStellarToken: React.FC = () => {
     server: stellarServer,
     publicKey: stellarPublicKey,
     kit: stellarKit,
+    connector: stellarConnector,
   } = useStellar();
   const submitButtonRef = useRef<HTMLButtonElement>(null);
   const paymentAttemptIdRef = useRef<string | undefined>();
@@ -263,7 +272,6 @@ const PayWithStellarToken: React.FC = () => {
           sourceChainId: option.required.token.chainId,
           sourceTokenAddress: option.required.token.token,
           toUnits,
-          feeUsd: option.fees.usd,
         }),
         { signal: request.signal },
       );
@@ -516,17 +524,18 @@ const PayWithStellarToken: React.FC = () => {
         `[PayWithStellarToken] Payment setup - destAddress: ${finalDestAddress}, toChain: ${payParams?.toChain}, token chain: ${option.required.token.chainId}`,
       );
 
+      // Replace provisional getFee data with payment/checkout response values.
+      const canonicalBreakdown = (hydratedOrder as WalletSourceQuoteOrder).paymentBreakdown;
+      if (canonicalBreakdown) setFeeData(canonicalBreakdown);
+
       // For stellar_direct: source IS the destination. Use source address/amount/memo directly.
       // The hydratedOrder's intentAddr already points to the source (deposit) address,
       // and fee is "0.00", so we just pass through.
       const paymentData = {
         destAddress: finalDestAddress,
-        amount: formatUnits(
-          resolveWalletPaymentAmount(
-            hydratedOrder as WalletSourceQuoteOrder,
-            option,
-          ),
-          option.required.token.decimals,
+        amount: resolveWalletPaymentAmount(
+          hydratedOrder as WalletSourceQuoteOrder,
+          option,
         ),
       };
 
@@ -627,12 +636,126 @@ const PayWithStellarToken: React.FC = () => {
         // @stellar/stellar-sdk is ~14M — load it only when actually
         // submitting a Stellar transaction, not on every modal mount.
         const { Networks, TransactionBuilder } = await import("@stellar/stellar-sdk");
+        const activePaymentId = rozoPaymentId ?? order?.externalId;
+        const finishSubmission = (txHash: string) => {
+          capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
+            payment_id: activePaymentId,
+            tx_hash: txHash,
+            source_chain: rozoStellar.chainId,
+            token_symbol: selectedStellarTokenOption?.required.token.symbol,
+          });
+          try {
+            sessionStorage.setItem(
+              `rozo_submitted_at:${activePaymentId}`,
+              String(Date.now()),
+            );
+          } catch {}
+          setPayState(PayState.RequestSuccessful);
+          setTxHash(txHash);
+          setTxURL(getChainExplorerTxUrl(rozoStellar.chainId, txHash));
+          // Do NOT mark the payment completed here: transaction submission is
+          // not the API confirming the deposit for this order.
+          setTimeout(() => {
+            setSignedTx(undefined);
+            setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
+          }, 200);
+          setTimeout(() => {
+            stellarPaymentOptions.refreshOptions();
+          }, 1000);
+        };
 
-        // Sign and submit transaction
-        const signedTransaction = await stellarKit.signTransaction(signedTx, {
+        const signingPromise = stellarKit.signTransaction(signedTx, {
           address: stellarPublicKey,
           networkPassphrase: Networks.PUBLIC,
+          submit: stellarConnector?.id === WALLET_CONNECT_ID,
         });
+        let signedTransaction: Awaited<typeof signingPromise> & {
+          submitted?: boolean;
+        };
+
+        if (
+          stellarConnector?.id === WALLET_CONNECT_ID &&
+          activePaymentId
+        ) {
+          const pollingController = new AbortController();
+          const backendHashPromise = waitForPaymentSourceTxHash(
+            activePaymentId,
+            {
+              signal: pollingController.signal,
+              ignoreTxHash:
+                order && "sourceStartTxHash" in order
+                  ? order.sourceStartTxHash
+                  : undefined,
+              isValidTxHash: (txHash): txHash is string =>
+                /^[0-9a-f]{64}$/i.test(txHash),
+            },
+          ).then((txHash) => ({ txHash }));
+          try {
+            const result = await Promise.race([
+              signingPromise.then((transaction) => ({
+                transaction: transaction as Awaited<typeof signingPromise> & {
+                  submitted?: boolean;
+                },
+              })),
+              backendHashPromise,
+            ]);
+
+            if ("txHash" in result) {
+              log?.(
+                `[PAY STELLAR] Recovered WalletConnect tx hash from payment API: ${result.txHash}`,
+              );
+              finishSubmission(result.txHash);
+              return;
+            }
+
+            // The wallet's SIGN_AND_SUBMIT returned before the backend saw a
+            // hash. If it reported "success" (submitted:true), trust it.
+            // If it reported "pending" (submitted:false) or the wallet's
+            // own submission failed, do NOT fall through to local
+            // resubmission — WalletConnect already attempted the broadcast
+            // and signedTxXdr here is not a locally-resubmittable
+            // transaction. Keep polling the backend for the source tx hash,
+            // bounded by a timeout, and only then report success;
+            // otherwise surface a timeout/failure.
+            if (!result.transaction.submitted) {
+              const backendResult = await Promise.race([
+                backendHashPromise,
+                new Promise<never>((_, reject) => {
+                  setTimeout(() => {
+                    pollingController.abort();
+                    reject(
+                      new Error(
+                        "Timed out waiting for the transaction to be confirmed after a pending status from the wallet.",
+                      ),
+                    );
+                  }, PENDING_SUBMISSION_TIMEOUT_MS);
+                }),
+              ]);
+              log?.(
+                `[PAY STELLAR] Recovered WalletConnect tx hash from payment API after pending status: ${backendResult.txHash}`,
+              );
+              finishSubmission(backendResult.txHash);
+              return;
+            }
+            signedTransaction = result.transaction;
+          } finally {
+            pollingController.abort();
+          }
+        } else {
+          signedTransaction = await signingPromise;
+        }
+
+        if (signedTransaction.submitted) {
+          const submittedTx = TransactionBuilder.fromXDR(
+            signedTx,
+            Networks.PUBLIC,
+          );
+          const txHash = Array.from(submittedTx.hash())
+            .map((byte) => byte.toString(16).padStart(2, "0"))
+            .join("");
+          finishSubmission(txHash);
+          return;
+        }
 
         setIsLoading(true);
         setPayState(PayState.ProcessingPayment);
@@ -647,31 +770,7 @@ const PayWithStellarToken: React.FC = () => {
         );
 
         if (response.successful) {
-          capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
-            payment_id: attemptId,
-            tx_hash: response.hash,
-            source_chain: rozoStellar.chainId,
-            token_symbol: selectedStellarTokenOption?.required.token.symbol,
-          });
-          try {
-            sessionStorage.setItem(
-              `rozo_submitted_at:${attemptId}`,
-              String(Date.now()),
-            );
-          } catch {}
-          setPayState(PayState.RequestSuccessful);
-          setTxHash(response.hash);
-          setTxURL(getChainExplorerTxUrl(rozoStellar.chainId, response.hash));
-          // Do NOT mark the payment completed here: Horizon accepting the
-          // submission is not the API confirming the deposit for this order.
-          // The Confirmation page reports the hash and waits for that.
-          setTimeout(() => {
-            setSignedTx(undefined);
-            setRoute(ROUTES.CONFIRMATION, { event: "wait-pay-with-stellar" });
-          }, 200);
-          setTimeout(() => {
-            stellarPaymentOptions.refreshOptions();
-          }, 1000);
+          finishSubmission(response.hash);
         } else {
           capture(ROZO_EVENTS.PAYMENT_FAILED, {
             payment_id: attemptId,
