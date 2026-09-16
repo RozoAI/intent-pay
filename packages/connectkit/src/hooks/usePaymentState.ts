@@ -90,6 +90,7 @@ import {
   type WalletSourceQuoteOrder,
   withWalletSourceQuote,
 } from "../payment/createPaymentPayload";
+import { shouldRecoverEvmWalletConnectTx } from "../payment/shouldRecoverEvmWalletConnectTx";
 import { waitForPaymentSourceTxHash } from "../payment/waitForPaymentSourceTxHash";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
 import { useAnalytics } from "../provider/AnalyticsProvider";
@@ -1036,11 +1037,10 @@ export function usePaymentState({
 
     let paymentTxHash: Hex;
     const activePaymentId = paymentId ?? hydratedOrder.externalId ?? undefined;
-    if (ethConnector?.id === "walletConnect" && activePaymentId) {
-      // MetaMask Mobile can submit a WalletConnect transaction without ever
-      // returning the eth_sendTransaction response to the browser. The backend
-      // still detects the deposit, so race the wallet response against that
-      // server-confirmed source hash instead of leaving the UI stuck forever.
+    if (shouldRecoverEvmWalletConnectTx(ethConnector?.id, activePaymentId)) {
+      // External EVM WalletConnect connectors can submit without returning a
+      // tx response. Keep recovery for consumers who bring their own connector,
+      // while defaultConfig no longer constructs one.
       const pollingController = new AbortController();
       try {
         const result = await Promise.race([
@@ -1053,7 +1053,7 @@ export function usePaymentState({
         paymentTxHash = result.txHash;
         transactionRecoveredFromApi = result.recovered;
         if (result.recovered) {
-          log?.(`[PAY TOKEN] Recovered WalletConnect tx hash from payment API: ${paymentTxHash}`);
+          log?.(`[PAY TOKEN] Recovered external WalletConnect tx hash from payment API: ${paymentTxHash}`);
         }
       } finally {
         pollingController.abort();
