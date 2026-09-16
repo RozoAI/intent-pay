@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
-
 ## [0.1.48] - 2026-09-16
 
 ### ⚠ BREAKING CHANGES
@@ -162,7 +160,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.37] - 2026-07-17
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
@@ -191,7 +188,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.36] - 2026-07-14
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
@@ -217,7 +213,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.34] - 2026-07-07
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
@@ -226,7 +221,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.33] - 2026-07-07
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
@@ -234,7 +228,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **connectkit**: Ensure fresh order state is used in payment flows and fee calculations &nbsp;-&nbsp; by @akbarsaputrait [<samp>(43466)</samp>](https://github.com/RozoAI/intent-pay/commit/434666ea)
 
 ---
-
 
 ## [0.1.32] - 2026-07-05
 
@@ -255,7 +248,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.31] - 2026-07-01
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
@@ -272,7 +264,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.30] - 2026-06-29
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
@@ -283,7 +274,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.29] - 2026-06-11
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
@@ -291,7 +281,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Revert see receipt button should appear by default &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b54e4)</samp>](https://github.com/RozoAI/intent-pay/commit/b54e4f34)
 
 ---
-
 
 ## [0.1.28] - 2026-06-11
 
@@ -302,7 +291,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - E2E USDC Solana to Base/stellar &nbsp;-&nbsp; by @akbarsaputrait [<samp>(93c76)</samp>](https://github.com/RozoAI/intent-pay/commit/93c76d42)
 
 ---
-
 
 ## [0.1.27] - 2026-06-10
 
@@ -327,7 +315,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **e2e**: Pay Now not rendered before config confirmed, assert not visible &nbsp;-&nbsp; by @akbarsaputrait [<samp>(8c13e)</samp>](https://github.com/RozoAI/intent-pay/commit/8c13e47f)
 
 ---
-
 
 ## [0.1.26] - 2026-06-02
 
