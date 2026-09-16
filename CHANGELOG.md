@@ -9,9 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Breaking Changes
+## [0.1.48] - 2026-09-16
 
-- Remove SDK-provided EVM WalletConnect. Consumers that need EVM WalletConnect must provide their own wagmi connector via `connectors`; Stellar WalletConnect remains supported.
+### ⚠ BREAKING CHANGES
+
+- **connectkit**: Remove SDK-provided EVM WalletConnect. Consumers that need EVM WalletConnect must provide their own wagmi connector via `connectors`; Stellar WalletConnect remains supported. &nbsp;-&nbsp; by @akbarsaputrait [<samp>(42bf9d81)</samp>](https://github.com/RozoAI/intent-pay/commit/42bf9d81)
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Add Stellar WalletConnect source tx-hash fallback while waiting for payment confirmation &nbsp;-&nbsp; by @akbarsaputrait [<samp>(cb0a7aa2)</samp>](https://github.com/RozoAI/intent-pay/commit/cb0a7aa2)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **stellar**: Pre-check XLM spendable balance and surface Horizon `result_codes` &nbsp;-&nbsp; by @akbarsaputrait [<samp>(8b66df91)</samp>](https://github.com/RozoAI/intent-pay/commit/8b66df91)
+- **stellar**: Harden XLM fee guard &nbsp;-&nbsp; by @akbarsaputrait [<samp>(8b853bbf)</samp>](https://github.com/RozoAI/intent-pay/commit/8b853bbf)
+- **payment**: Derive wallet payment amount from backend source quote &nbsp;-&nbsp; by @akbarsaputrait [<samp>(be08d397)</samp>](https://github.com/RozoAI/intent-pay/commit/be08d397)
+- Revert appId change &nbsp;-&nbsp; by @akbarsaputrait [<samp>(a1d9c4e0)</samp>](https://github.com/RozoAI/intent-pay/commit/a1d9c4e0)
+- Don't treat WalletConnect pending status as confirmed submission &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e44d9a99)</samp>](https://github.com/RozoAI/intent-pay/commit/e44d9a99)
+- **connectkit**: Preserve external EVM WalletConnect tx-hash recovery &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b7abf4ca)</samp>](https://github.com/RozoAI/intent-pay/commit/b7abf4ca)
+
+---
 
 ## [0.1.46] - 2026-09-12
 
