@@ -141,6 +141,8 @@ export interface PaymentState {
   paymentWaitingMessage: string | undefined;
   depositAddressState: "idle" | "creating" | "ready";
   setDepositAddressState: (state: "idle" | "creating" | "ready") => void;
+  walletPaymentState: "idle" | "waiting" | "processing";
+  setWalletPaymentState: (state: "idle" | "waiting" | "processing") => void;
   /// External payment options, loaded from server and filtered by EITHER
   /// 1. the RozoPayButton paymentOptions, or 2. those of rozoPayOrder
   externalPaymentOptions: ReturnType<typeof useExternalPaymentOptions>;
@@ -369,6 +371,7 @@ export function usePaymentState({
   const [depositAddressState, setDepositAddressState] = useState<"idle" | "creating" | "ready">(
     "idle",
   );
+  const [walletPaymentState, setWalletPaymentState] = useState<"idle" | "waiting" | "processing">("idle");
 
   const [tokenMode, setTokenModeRaw] = useState<"evm" | "solana" | "stellar" | "all">("evm");
   // Tracks whether tokenMode was set by an explicit user action (e.g. clicking a wallet in SelectMethod).
@@ -1976,6 +1979,8 @@ export function usePaymentState({
     paymentWaitingMessage,
     depositAddressState,
     setDepositAddressState,
+    walletPaymentState,
+    setWalletPaymentState,
     selectedExternalOption,
     selectedTokenOption,
     selectedSolanaTokenOption,

@@ -51,6 +51,13 @@ import WaitingDepositAddress from "../Pages/WaitingDepositAddress";
 import WaitingExternal from "../Pages/WaitingExternal";
 import WaitingWallet from "../Pages/WaitingWallet";
 import ConnectUsing from "./ConnectUsing";
+import {
+  isCloseable,
+  isWalletProcessing,
+  isWalletWaiting,
+  showsBackButton,
+  WALLET_REQUEST_MESSAGE,
+} from "./guards";
 
 export const RozoPayModal: React.FC<{
   mode: Mode;
@@ -87,6 +94,7 @@ export const RozoPayModal: React.FC<{
     setSelectedDepositAddressOption,
     setSelectedWallet,
     depositAddressState,
+    walletPaymentState,
   } = paymentState;
   const { paymentState: paymentFsmState } = useRozoPay();
   const autoConnectGate = useAutoConnectGate();
@@ -103,33 +111,41 @@ export const RozoPayModal: React.FC<{
   const chainIsSupported = useChainIsSupported(chain?.id);
   const isDepositAddressReady =
     context.route === ROUTES.WAITING_DEPOSIT_ADDRESS && depositAddressState === "ready";
-  const isConfirmationPending =
-    context.route === ROUTES.CONFIRMATION && paymentFsmState === "payment_started";
-  const isActionLockedRoute =
-    context.route === ROUTES.PAY_WITH_TOKEN ||
-    context.route === ROUTES.WAITING_WALLET ||
-    context.route === ROUTES.WAITING_EXTERNAL ||
-    isConfirmationPending;
+  const isWalletPaymentWaiting = isWalletWaiting(walletPaymentState);
+  const isWalletPaymentProcessing = isWalletProcessing(walletPaymentState);
 
   //if chain is unsupported we enforce a "switch chain" prompt
-  const closeable = !(
-    context.options?.enforceSupportedChains &&
-    isEthConnected &&
-    !chainIsSupported
-  ) &&
-    !isActionLockedRoute &&
-    !isDepositAddressReady;
+  const closeable = isCloseable({
+    route: context.route,
+    walletPaymentState,
+    paymentFsmState,
+    isDepositAddressReady,
+    enforceSupportedChains: context.options?.enforceSupportedChains,
+    isEthConnected,
+    chainIsSupported,
+  });
 
-  const showBackButton =
-    context.route === ROUTES.WAITING_DEPOSIT_ADDRESS ||
-    (context.route !== ROUTES.SELECT_METHOD &&
-      context.route !== ROUTES.CONFIRMATION &&
-      context.route !== ROUTES.SELECT_TOKEN &&
-      context.route !== ROUTES.ERROR &&
-      paymentFsmState !== "error");
+  const showBackButton = showsBackButton({
+    route: context.route,
+    walletPaymentState,
+    paymentFsmState,
+  });
 
-  const onBack = () => {
+  const onBack = (confirmed: boolean | React.MouseEvent = false) => {
     const meta = { event: "click-back" };
+    if (isWalletPaymentWaiting && confirmed !== true) {
+      setConfirmState({
+        show: true,
+        message: WALLET_REQUEST_MESSAGE,
+        cancelLabel: "Stay",
+        confirmLabel: "Go Back",
+        onConfirm: () => {
+          cancelRequestScope(PAYMENT_REQUEST_SCOPE);
+          onBack(true);
+        },
+      });
+      return;
+    }
     if (context.route === ROUTES.DOWNLOAD) {
       context.setRoute(ROUTES.CONNECT, meta);
     } else if (context.route === ROUTES.CONNECTORS) {
@@ -284,6 +300,20 @@ export const RozoPayModal: React.FC<{
     cancelRequestScope(PAYMENT_REQUEST_SCOPE);
     context.setOpen(false, { event: "click-close" });
   }
+
+  function onClose() {
+    if (isWalletPaymentWaiting) {
+      setConfirmState({
+        show: true,
+        message: WALLET_REQUEST_MESSAGE,
+        cancelLabel: "Stay",
+        confirmLabel: "Close",
+        onConfirm: hide,
+      });
+      return;
+    }
+    hide();
+  }
   const { isMobile } = useIsMobile();
   const { connect } = useConnect();
   const connectors = useConnectors();
@@ -291,6 +321,8 @@ export const RozoPayModal: React.FC<{
   const [confirmState, setConfirmState] = useState<{
     show: boolean;
     message: string;
+    cancelLabel?: string;
+    confirmLabel?: string;
     onConfirm: () => void;
   }>({ show: false, message: "", onConfirm: () => {} });
 
@@ -532,7 +564,7 @@ export const RozoPayModal: React.FC<{
         open={context.open}
         pages={pages}
         pageId={context.route}
-        onClose={closeable ? hide : undefined}
+        onClose={closeable ? onClose : undefined}
         onInfo={undefined}
         onBack={showBackButton ? onBack : undefined}
       />
@@ -585,7 +617,7 @@ export const RozoPayModal: React.FC<{
                     <ConfirmMessage>{confirmState.message}</ConfirmMessage>
                     <ConfirmButtons>
                       <ConfirmButton $variant="secondary" onClick={closeConfirm}>
-                        Go Back
+                        {confirmState.cancelLabel ?? "Go Back"}
                       </ConfirmButton>
                       <ConfirmButton
                         $variant="primary"
@@ -598,7 +630,7 @@ export const RozoPayModal: React.FC<{
                           });
                         }}
                       >
-                        Switch Anyway
+                        {confirmState.confirmLabel ?? "Switch Anyway"}
                       </ConfirmButton>
                     </ConfirmButtons>
                   </ConfirmBox>

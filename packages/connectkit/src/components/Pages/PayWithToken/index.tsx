@@ -32,7 +32,7 @@ import PaymentBreakdown from "../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../Spinners/TokenLogoSpinner";
 
 enum PayState {
-  WaitingForPayment = "Waiting for Payment",
+  WaitingForConfirmation = "Waiting for Confirmation",
   PreparingTransaction = "Preparing Transaction",
   RequestCancelled = "Payment Cancelled",
   RequestSuccessful = "Payment Successful",
@@ -51,6 +51,7 @@ const PayWithToken: React.FC = () => {
     pendingPaymentAttemptId,
     tryClaimPaymentAttempt,
     releasePaymentAttempt,
+    setWalletPaymentState,
   } = paymentState;
   const { switchChainAsync } = useSwitchChain();
   const { address } = useAccount();
@@ -233,7 +234,7 @@ const PayWithToken: React.FC = () => {
         }
 
         setFeeData(feeData.data);
-        setPayState(PayState.WaitingForPayment);
+        setPayState(PayState.WaitingForConfirmation);
 
         const result = await payWithToken(
           {
@@ -390,6 +391,13 @@ const PayWithToken: React.FC = () => {
 
   useEffect(() => {
     triggerResize();
+    setWalletPaymentState(
+      payState === PayState.WaitingForConfirmation ||
+        payState === PayState.WaitingForWallet
+        ? "waiting"
+        : "idle",
+    );
+    return () => setWalletPaymentState("idle");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payState]);
 
@@ -403,7 +411,7 @@ const PayWithToken: React.FC = () => {
         <TokenLogoSpinner token={selectedTokenOption.required.token} />
         <ModalContent style={{ paddingBottom: 0 }} $preserveDisplay={true}>
           <ModalBody>
-            Wallet confirmation pending. Finish or reject request in your wallet.
+            Wallet confirmation pending
           </ModalBody>
         </ModalContent>
       </PageContent>
