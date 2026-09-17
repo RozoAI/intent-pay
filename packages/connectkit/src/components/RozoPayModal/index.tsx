@@ -51,6 +51,13 @@ import WaitingDepositAddress from "../Pages/WaitingDepositAddress";
 import WaitingExternal from "../Pages/WaitingExternal";
 import WaitingWallet from "../Pages/WaitingWallet";
 import ConnectUsing from "./ConnectUsing";
+import {
+  isCloseable,
+  isWalletProcessing,
+  isWalletWaiting,
+  showsBackButton,
+  WALLET_REQUEST_MESSAGE,
+} from "./guards";
 
 export const RozoPayModal: React.FC<{
   mode: Mode;
@@ -104,42 +111,32 @@ export const RozoPayModal: React.FC<{
   const chainIsSupported = useChainIsSupported(chain?.id);
   const isDepositAddressReady =
     context.route === ROUTES.WAITING_DEPOSIT_ADDRESS && depositAddressState === "ready";
-  const isConfirmationPending =
-    context.route === ROUTES.CONFIRMATION && paymentFsmState === "payment_started";
-  const isWalletPaymentWaiting = walletPaymentState === "waiting";
-  const isWalletPaymentProcessing = walletPaymentState === "processing";
-  const isActionLockedRoute =
-    (context.route === ROUTES.PAY_WITH_TOKEN && !isWalletPaymentWaiting) ||
-    context.route === ROUTES.WAITING_WALLET ||
-    context.route === ROUTES.WAITING_EXTERNAL ||
-    isWalletPaymentProcessing ||
-    isConfirmationPending;
+  const isWalletPaymentWaiting = isWalletWaiting(walletPaymentState);
+  const isWalletPaymentProcessing = isWalletProcessing(walletPaymentState);
 
   //if chain is unsupported we enforce a "switch chain" prompt
-  const closeable = !(
-    context.options?.enforceSupportedChains &&
-    isEthConnected &&
-    !chainIsSupported
-  ) &&
-    !isActionLockedRoute &&
-    !isDepositAddressReady;
+  const closeable = isCloseable({
+    route: context.route,
+    walletPaymentState,
+    paymentFsmState,
+    isDepositAddressReady,
+    enforceSupportedChains: context.options?.enforceSupportedChains,
+    isEthConnected,
+    chainIsSupported,
+  });
 
-  const showBackButton =
-    context.route === ROUTES.WAITING_DEPOSIT_ADDRESS ||
-    (context.route !== ROUTES.SELECT_METHOD &&
-      context.route !== ROUTES.CONFIRMATION &&
-      context.route !== ROUTES.SELECT_TOKEN &&
-      context.route !== ROUTES.ERROR &&
-      paymentFsmState !== "error" &&
-      !isWalletPaymentProcessing);
+  const showBackButton = showsBackButton({
+    route: context.route,
+    walletPaymentState,
+    paymentFsmState,
+  });
 
   const onBack = (confirmed: boolean | React.MouseEvent = false) => {
     const meta = { event: "click-back" };
     if (isWalletPaymentWaiting && confirmed !== true) {
       setConfirmState({
         show: true,
-        message:
-          "Wallet still needs your action. Reject or close it in your wallet first.",
+        message: WALLET_REQUEST_MESSAGE,
         cancelLabel: "Stay",
         confirmLabel: "Go Back",
         onConfirm: () => {
@@ -308,8 +305,7 @@ export const RozoPayModal: React.FC<{
     if (isWalletPaymentWaiting) {
       setConfirmState({
         show: true,
-        message:
-          "Wallet still needs your action. Reject or close it in your wallet first.",
+        message: WALLET_REQUEST_MESSAGE,
         cancelLabel: "Stay",
         confirmLabel: "Close",
         onConfirm: hide,
