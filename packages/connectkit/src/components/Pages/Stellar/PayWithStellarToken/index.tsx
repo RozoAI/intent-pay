@@ -54,7 +54,6 @@ import { WALLET_CONNECT_ID } from "../../../../utils/stellar/walletconnect.modul
 
 enum PayState {
   PreparingTransaction = "Preparing Transaction",
-  RequestingPayment = "Waiting for Payment",
   WaitingForConfirmation = "Waiting for Confirmation",
   ProcessingPayment = "Processing Payment",
   RequestCancelled = "Payment Cancelled",
@@ -85,6 +84,7 @@ const PayWithStellarToken: React.FC = () => {
     replacePaymentAttempt,
     releasePaymentAttempt,
     clearPaymentAttempt,
+    setWalletPaymentState,
   } = paymentState;
   const {
     store,
@@ -511,7 +511,7 @@ const PayWithStellarToken: React.FC = () => {
         }
       }
 
-      setPayState(PayState.RequestingPayment);
+      setPayState(PayState.WaitingForConfirmation);
 
       // Double-check destination address matches the payment direction
       const finalDestAddress = hydratedOrder.intentAddr || destinationAddress;
@@ -898,6 +898,15 @@ const PayWithStellarToken: React.FC = () => {
 
   useEffect(() => {
     triggerResize();
+    setWalletPaymentState(
+      payState === PayState.WaitingForConfirmation ||
+        payState === PayState.WaitingForWallet
+        ? "waiting"
+        : payState === PayState.ProcessingPayment
+          ? "processing"
+          : "idle",
+    );
+    return () => setWalletPaymentState("idle");
   }, [payState]);
 
   if (selectedStellarTokenOption == null) {
@@ -910,7 +919,7 @@ const PayWithStellarToken: React.FC = () => {
         <TokenLogoSpinner token={selectedStellarTokenOption.required.token} loading={true} />
         <ModalContent style={{ paddingBottom: 0 }}>
           <ModalBody>
-            Wallet confirmation pending. Finish or reject request in your wallet.
+            Confirm payment in your wallet. If no wallet popup appears, open your wallet app.
           </ModalBody>
         </ModalContent>
       </PageContent>
@@ -956,7 +965,7 @@ const PayWithStellarToken: React.FC = () => {
         />
         {payState === PayState.WaitingForConfirmation && signedTx && (
           <Button variant="primary" onClick={handleSubmitTx}>
-            Confirm Payment
+            Open Wallet
           </Button>
         )}
         {payState === PayState.RequestCancelled && (

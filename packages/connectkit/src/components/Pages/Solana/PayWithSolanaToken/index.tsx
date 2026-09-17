@@ -46,8 +46,7 @@ import {
 
 enum PayState {
   PreparingTransaction = "Preparing Transaction",
-  RequestingPayment = "Waiting for Payment",
-  WaitingForConfirmation = "Waiting for Confirmation",
+  RequestingPayment = "Waiting for Confirmation",
   ProcessingPayment = "Processing Payment",
   RequestCancelled = "Payment Cancelled",
   RequestFailed = "Payment Failed",
@@ -71,6 +70,7 @@ const PayWithSolanaToken: React.FC = () => {
     tryClaimPaymentAttempt,
     releasePaymentAttempt,
     clearPaymentAttempt,
+    setWalletPaymentState,
   } = paymentState;
   const {
     store,
@@ -630,6 +630,15 @@ const PayWithSolanaToken: React.FC = () => {
 
   useEffect(() => {
     triggerResize();
+    setWalletPaymentState(
+      payState === PayState.RequestingPayment ||
+        payState === PayState.WaitingForWallet
+        ? "waiting"
+        : payState === PayState.ProcessingPayment
+          ? "processing"
+          : "idle",
+    );
+    return () => setWalletPaymentState("idle");
   }, [payState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (selectedSolanaTokenOption == null) {
@@ -642,7 +651,7 @@ const PayWithSolanaToken: React.FC = () => {
         <TokenLogoSpinner token={selectedSolanaTokenOption.required.token} loading={true} />
         <ModalContent style={{ paddingBottom: 0 }}>
           <ModalBody>
-            Wallet confirmation pending. Finish or reject request in your wallet.
+            Wallet confirmation pending
           </ModalBody>
         </ModalContent>
       </PageContent>
