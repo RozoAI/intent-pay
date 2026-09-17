@@ -10,6 +10,7 @@ const BSC_USDT = "0x55d398326f99059fF775485246999027B3197955";
 const walletOption = {
   required: {
     token: { chainId: 56, token: BSC_USDT, decimals: 6 },
+    // Stale pre-checkout quote from Order A.
     usd: 49.52,
   },
 } as any;
@@ -48,13 +49,23 @@ describe("resolveWalletPaymentAmount", () => {
     } as any), stellarOption)).toBe(parseUnits("49.1234567", 7));
   });
 
-  it("preserves six-decimal hydrated source precision", () => {
-    const hydratedOrder = withWalletSourceQuote(
-      {} as any,
-      { source: { amount: "1001.000001", chainId: 56, tokenAddress: BSC_USDT } } as any,
-    );
+  it("preserves hydrated source precision", () => {
+    const stellarOption = {
+      required: {
+        token: {
+          chainId: 1500,
+          token: "USDC:GBBD47IFOB2C2ILJV6OZVYIIQBUQZ3VSAZJLF5CV3MELN4VYOK4ZYUZN",
+          decimals: 7,
+        },
+      },
+    } as any;
 
-    expect(resolveWalletPaymentAmount(hydratedOrder, walletOption)).toBe(parseUnits("1001.000001", 6));
+    expect(resolveWalletPaymentAmount(withWalletSourceQuote({} as any, {
+      source: { amount: "49.1234567", chainId: 1500, tokenAddress: stellarOption.required.token.token },
+    } as any), stellarOption)).toBe(parseUnits("49.1234567", 7));
+    expect(resolveWalletPaymentAmount(withWalletSourceQuote({} as any, {
+      source: { amount: "1001.000001", chainId: 56, tokenAddress: BSC_USDT },
+    } as any), walletOption)).toBe(parseUnits("1001.000001", 6));
   });
 
   it("rejects missing or mismatched hydrated source quotes", () => {

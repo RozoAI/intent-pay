@@ -14,6 +14,7 @@ export const PAYMENT_EVENTS = {
   PAYMENT_QUOTE_RECEIVED: "payment_quote_received",
   PAYMENT_QUOTE_FAILED: "payment_quote_failed",
   PAYMENT_CONFIRMED: "payment_confirmed",
+  PAYMENT_WALLET_CONFIRMATION_PENDING: "payment_wallet_confirmation_pending",
   PAYMENT_SUBMITTED: "payment_submitted",
   PAYMENT_COMPLETED: "payment_completed",
   PAYMENT_FAILED: "payment_failed",

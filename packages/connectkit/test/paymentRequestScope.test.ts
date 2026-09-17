@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { createRequestGeneration } from "../src/utils/paymentRequestScope.js";
+import {
+  createPaymentAttemptLock,
+  createRequestGeneration,
+} from "../src/utils/paymentRequestScope.js";
+
+describe("createPaymentAttemptLock", () => {
+  it("keeps a wallet request locked across page remounts", () => {
+    const lock = createPaymentAttemptLock();
+
+    expect(lock.tryClaim("order-a")).toBe(true);
+    expect(lock.tryClaim("order-a")).toBe(false);
+    expect(lock.tryClaim("order-b")).toBe(false);
+
+    lock.release("order-a");
+    expect(lock.tryClaim("order-b")).toBe(true);
+    lock.clear();
+    expect(lock.activeId()).toBeUndefined();
+  });
+});
 
 describe("createRequestGeneration", () => {
   it("latest generation is current, older ones are stale", () => {

@@ -58,6 +58,7 @@ import { convertPreferredSymbolsToTokens } from "../utils/token";
 import {
   beginRequestScope,
   cancelRequestScope,
+  createPaymentAttemptLock,
   createRequestGeneration,
   isAbortError,
   PAYMENT_REQUEST_SCOPE,
@@ -220,6 +221,11 @@ export interface PaymentState {
   rozoPaymentId: string | undefined;
   setSenderAddress: (address: string | undefined) => void;
   senderAddress: string | undefined;
+  pendingPaymentAttemptId: string | undefined;
+  tryClaimPaymentAttempt: (orderId: string) => boolean;
+  replacePaymentAttempt: (orderId: string, nextOrderId: string) => boolean;
+  releasePaymentAttempt: (orderId: string) => void;
+  clearPaymentAttempt: () => void;
 
   // Wallet addresses for refresh coordination
   ethWalletAddress: string | undefined;
@@ -275,6 +281,8 @@ export function usePaymentState({
   const rozoPaymentCheckoutInFlightRef = useRef<
     Map<string, Promise<PaymentResponse>>
   >(new Map());
+  const paymentAttemptLockRef = useRef(createPaymentAttemptLock());
+  const [pendingPaymentAttemptId, setPendingPaymentAttemptId] = useState<string>();
 
   // Browser state.
   const [platform, setPlatform] = useState<PlatformType>();
@@ -965,6 +973,10 @@ export function usePaymentState({
         if (isNativeToken) {
           // dataSuffix intentionally omitted — appending data to bare ETH transfers
           // changes wallet UI display; builder-code attribution targets contract calls.
+          const paymentAmount = resolveWalletPaymentAmount(
+            hydratedOrder as WalletSourceQuoteOrder,
+            walletOption,
+          );
           return await sendTransactionAsync({
             to: getAddress(destinationAddress),
             value: paymentAmount,
@@ -979,6 +991,10 @@ export function usePaymentState({
           const chainCapabilities = walletCapabilities?.[required.token.chainId];
           const supportsDataSuffix =
             !capabilitiesPending && resolvedDataSuffix != null && !!chainCapabilities?.dataSuffix;
+          const paymentAmount = resolveWalletPaymentAmount(
+            hydratedOrder as WalletSourceQuoteOrder,
+            walletOption,
+          );
 
           if (supportsDataSuffix) {
             if (!walletClient) throw new Error("No walletClient available");
@@ -1023,6 +1039,9 @@ export function usePaymentState({
           });
         }
       } catch (e) {
+        // Wallet rejections must release the UI lock before FSM recovery,
+        // which can wait on a stale order after the modal was closed.
+        clearPaymentAttempt();
         if (hydratedOrder.externalId && !transactionRecoveredFromApi) {
           try {
             await pay.setPaymentUnpaid(hydratedOrder.externalId);
@@ -1034,6 +1053,7 @@ export function usePaymentState({
         throw e;
       }
     })();
+    void transactionPromise.then(clearPaymentAttempt, clearPaymentAttempt);
 
     let paymentTxHash: Hex;
     const activePaymentId = paymentId ?? hydratedOrder.externalId ?? undefined;
@@ -1053,6 +1073,7 @@ export function usePaymentState({
         paymentTxHash = result.txHash;
         transactionRecoveredFromApi = result.recovered;
         if (result.recovered) {
+          clearPaymentAttempt();
           log?.(`[PAY TOKEN] Recovered external WalletConnect tx hash from payment API: ${paymentTxHash}`);
         }
       } finally {
@@ -1138,9 +1159,10 @@ export function usePaymentState({
     },
   ): Promise<{ txHash: string; success: boolean }> => {
     try {
-      log?.(
-        `[PAY SOLANA] Starting Solana payment transaction: ${JSON.stringify(rozoPayment, null, 2)}`,
-      );
+      log?.("[PAY SOLANA] Starting Solana payment transaction", {
+        ...rozoPayment,
+        amount: rozoPayment.amount.toString(),
+      });
 
       const payerPublicKey = solanaWallet.publicKey;
 
@@ -1160,9 +1182,9 @@ export function usePaymentState({
         throw new Error("Solana services not initialized");
       }
 
-      log("[PAY SOLANA] Starting Solana payment transaction", {
-        pay,
-        rozoPayment,
+      log("[PAY SOLANA] Preparing transaction", {
+        destination: rozoPayment.destAddress,
+        amount: rozoPayment.amount.toString(),
       });
 
       log("[PAY SOLANA] Setting up transaction...");
@@ -1655,6 +1677,27 @@ export function usePaymentState({
     }
   };
 
+  const tryClaimPaymentAttempt = useCallback((orderId: string) => {
+    const claimed = paymentAttemptLockRef.current.tryClaim(orderId);
+    if (claimed) setPendingPaymentAttemptId(orderId);
+    return claimed;
+  }, []);
+  const replacePaymentAttempt = useCallback((orderId: string, nextOrderId: string) => {
+    const replaced = paymentAttemptLockRef.current.replace(orderId, nextOrderId);
+    if (replaced) setPendingPaymentAttemptId(nextOrderId);
+    return replaced;
+  }, []);
+  const releasePaymentAttempt = useCallback((orderId: string) => {
+    paymentAttemptLockRef.current.release(orderId);
+    if (paymentAttemptLockRef.current.activeId() == null) {
+      setPendingPaymentAttemptId(undefined);
+    }
+  }, []);
+  const clearPaymentAttempt = useCallback(() => {
+    paymentAttemptLockRef.current.clear();
+    setPendingPaymentAttemptId(undefined);
+  }, []);
+
   const { isIOS } = useIsMobile();
 
   const openInWalletBrowser = ({
@@ -1976,6 +2019,11 @@ export function usePaymentState({
     rozoPaymentId,
     setSenderAddress,
     senderAddress,
+    pendingPaymentAttemptId,
+    tryClaimPaymentAttempt,
+    replacePaymentAttempt,
+    releasePaymentAttempt,
+    clearPaymentAttempt,
     ethWalletAddress,
     solanaPubKey,
     stellarPubKey,

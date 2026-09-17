@@ -10,6 +10,7 @@ import {
   getKnownToken,
   getOrderDestChainId,
   mergedMetadata,
+  PaymentResponse,
   RozoPayHydratedOrderWithOrg,
   RozoPayOrderWithOrg,
   rozoSolana,
@@ -343,21 +344,22 @@ export type WalletSourceQuoteOrder = {
 /** Preserve payment/checkout's authoritative source quote on SDK-owned state. */
 export function withWalletSourceQuote<T extends RozoPayHydratedOrderWithOrg>(
   order: T,
-  response: {
-    source?: { amount?: string; chainId?: number | string; tokenAddress?: string };
-    destination?: unknown;
-  },
+  response: PaymentResponse,
 ): T & WalletSourceQuoteOrder {
   const quote = response.source;
   return {
     ...order,
     sourceQuote:
       quote?.amount != null && quote.chainId != null && quote.tokenAddress != null
-        ? { amount: quote.amount, chainId: Number(quote.chainId), tokenAddress: quote.tokenAddress }
+        ? {
+            amount: quote.amount,
+            chainId: Number(quote.chainId),
+            tokenAddress: quote.tokenAddress,
+          }
         : undefined,
     paymentBreakdown:
       quote && response.destination
-        ? ({ source: quote, destination: response.destination } as FeeResponseData)
+        ? ({ source: quote, destination: response.destination } as unknown as FeeResponseData)
         : undefined,
   };
 }
@@ -372,6 +374,7 @@ export function resolveWalletPaymentAmount(
     throw new Error("[PAY TOKEN] hydrated order has no source quote");
   }
 
+  const token = option.required.token;
   const normalizeChainId = (chainId: number) => {
     if (chainId === solana.chainId) return rozoSolana.chainId;
     if (chainId === stellar.chainId) return rozoStellar.chainId;
@@ -379,7 +382,6 @@ export function resolveWalletPaymentAmount(
   };
   const normalizeTokenAddress = (address: string) =>
     address.startsWith("0x") ? getAddress(address) : address;
-  const token = option.required.token;
   if (
     normalizeChainId(quote.chainId) !== normalizeChainId(token.chainId) ||
     normalizeTokenAddress(quote.tokenAddress) !== normalizeTokenAddress(token.token)

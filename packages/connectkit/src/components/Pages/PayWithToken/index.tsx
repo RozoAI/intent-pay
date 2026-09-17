@@ -23,6 +23,7 @@ import { type WalletSourceQuoteOrder } from "../../../payment/createPaymentPaylo
 import Button from "../../Common/Button";
 import {
   Link,
+  ModalBody,
   ModalContent,
   ModalH1,
   PageContent,
@@ -35,6 +36,7 @@ enum PayState {
   PreparingTransaction = "Preparing Transaction",
   RequestCancelled = "Payment Cancelled",
   RequestSuccessful = "Payment Successful",
+  WaitingForWallet = "Wallet Confirmation Pending",
   RequestFailed = "Payment Failed",
 }
 
@@ -46,6 +48,9 @@ const PayWithToken: React.FC = () => {
     setSenderAddress,
     selectedTokenOption,
     walletPaymentOptions,
+    pendingPaymentAttemptId,
+    tryClaimPaymentAttempt,
+    releasePaymentAttempt,
   } = paymentState;
   const { switchChainAsync } = useSwitchChain();
   const { address } = useAccount();
@@ -84,12 +89,11 @@ const PayWithToken: React.FC = () => {
   };
 
   const switchChainErrorRef = useRef<string | null>(null);
+  const transferInFlightRef = useRef(false);
+  const autoTransferOrderRef = useRef<string | null>(null);
 
-  const trySwitchingChain = async (
-    option: WalletPaymentOption,
-    forceSwitch: boolean = false,
-  ): Promise<boolean> => {
-    if (walletChainId !== option.required.token.chainId || forceSwitch) {
+  const trySwitchingChain = async (option: WalletPaymentOption): Promise<boolean> => {
+    if (walletChainId !== option.required.token.chainId) {
       const resultChain = await (async () => {
         try {
           return await switchChainAsync({
@@ -118,7 +122,14 @@ const PayWithToken: React.FC = () => {
 
   const handleTransfer = useCallback(
     async (option: WalletPaymentOption) => {
-      // Read the freshest order straight from the store instead of the React
+      if (transferInFlightRef.current) {
+        log("[PayWithToken] transfer already in flight");
+        return;
+      }
+      transferInFlightRef.current = true;
+      let attemptId: string | undefined;
+      try {
+        // Read the freshest order straight from the store instead of the React
       // closure snapshot. For payId mode this is the getPayment-derived order
       // loaded by runSetPayIdEffects, so getFee below runs against the latest
       // payment response (correct appId, amount, destination, etc.).
@@ -127,6 +138,17 @@ const PayWithToken: React.FC = () => {
         currentState.type !== "idle" ? currentState.order : undefined;
       if (!currentOrder) {
         throw new Error("Order not initialized");
+      }
+      attemptId = currentOrder.externalId ?? String(currentOrder.id);
+      if (!tryClaimPaymentAttempt(attemptId)) {
+        log("[PayWithToken] wallet request already pending");
+        capture(ROZO_EVENTS.PAYMENT_WALLET_CONFIRMATION_PENDING, {
+          payment_id: currentOrder.externalId,
+          source_chain: option.required.token.chainId,
+          token_symbol: option.required.token.symbol,
+        });
+        setPayState(PayState.WaitingForWallet);
+        return;
       }
 
       capture(ROZO_EVENTS.PAYMENT_CONFIRMED, {
@@ -273,7 +295,7 @@ const PayWithToken: React.FC = () => {
           // Workaround for Rainbow wallet bug -- user is able to switch chain without
           // the wallet updating the chain ID for wagmi.
           log("Chain mismatch detected, attempting to switch and retry");
-          const switchSuccessful = await trySwitchingChain(option, true);
+          const switchSuccessful = await trySwitchingChain(option);
           if (switchSuccessful) {
             try {
               const retryResult = await payWithToken(option, store as any);
@@ -333,13 +355,29 @@ const PayWithToken: React.FC = () => {
         setPayState(PayState.RequestCancelled);
         console.error("Failed to pay with token", e);
       }
+      } finally {
+        if (attemptId) releasePaymentAttempt(attemptId);
+        transferInFlightRef.current = false;
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [walletPaymentOptions, rozoPaymentId, order, rozoPaymentState],
   );
 
   useEffect(() => {
+    if (!pendingPaymentAttemptId && payState === PayState.WaitingForWallet) {
+      setPayState(PayState.RequestCancelled);
+    }
+  }, [pendingPaymentAttemptId, payState]);
+
+  useEffect(() => {
     if (!selectedTokenOption) return;
+
+    const currentState = store.getState();
+    const currentOrder = currentState.type !== "idle" ? currentState.order : undefined;
+    const orderKey = currentOrder?.externalId ?? String(currentOrder?.id ?? "");
+    if (!orderKey || autoTransferOrderRef.current === orderKey) return;
+    autoTransferOrderRef.current = orderKey;
 
     const transferTimeout = setTimeout(() => {
       handleTransfer(selectedTokenOption);
@@ -359,6 +397,19 @@ const PayWithToken: React.FC = () => {
     return <PageContent></PageContent>;
   }
 
+  if (payState === PayState.WaitingForWallet) {
+    return (
+      <PageContent>
+        <TokenLogoSpinner token={selectedTokenOption.required.token} />
+        <ModalContent style={{ paddingBottom: 0 }} $preserveDisplay={true}>
+          <ModalBody>
+            Wallet confirmation pending. Finish or reject request in your wallet.
+          </ModalBody>
+        </ModalContent>
+      </PageContent>
+    );
+  }
+
   return (
     <PageContent>
       <TokenLogoSpinner token={selectedTokenOption.required.token} />
@@ -372,20 +423,22 @@ const PayWithToken: React.FC = () => {
         ) : (
           <ModalH1>{payState}</ModalH1>
         )}
-        <PaymentBreakdown
-          paymentOption={{
-            ...selectedTokenOption,
-            fees: {
-              ...selectedTokenOption.fees,
-              usd:
-                feeData?.source.fee != null
-                  ? Number(feeData.source.fee)
-                  : selectedTokenOption.fees.usd,
-            },
-          }}
-          feeData={feeData}
-          feeLoading={feeLoading}
-        />
+        {(payState !== PayState.RequestCancelled || (feeData && !feeLoading)) && (
+          <PaymentBreakdown
+            paymentOption={{
+              ...selectedTokenOption,
+              fees: {
+                ...selectedTokenOption.fees,
+                usd:
+                  feeData?.source.fee != null
+                    ? Number(feeData.source.fee)
+                    : selectedTokenOption.fees.usd,
+              },
+            }}
+            feeData={feeData}
+            feeLoading={feeLoading}
+          />
+        )}
         {payState === PayState.RequestCancelled && (
           <Button onClick={() => handleTransfer(selectedTokenOption)}>
             Retry Payment

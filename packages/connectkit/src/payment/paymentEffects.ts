@@ -402,7 +402,10 @@ async function runSetPayIdEffects(
       return;
     }
 
-    const order = formatPaymentResponseToHydratedOrder(res.data);
+    const order = withWalletSourceQuote(
+      formatPaymentResponseToHydratedOrder(res.data),
+      res.data,
+    );
 
     // formatPaymentResponseToHydratedOrder comes from a potentially stale
     // published version of pay-common that omits fiatISO. Patch it here from
@@ -524,12 +527,13 @@ async function runHydratePayParamsEffects(
       throw new Error("Payment data not found");
     }
 
+    const response = {
+      ...rozoPaymentResponse,
+      externalId: rozoPaymentId,
+    };
     const hydratedOrder = withWalletSourceQuote(
-      formatPaymentResponseToHydratedOrder({
-        ...rozoPaymentResponse,
-        externalId: rozoPaymentId,
-      }),
-      rozoPaymentResponse,
+      formatPaymentResponseToHydratedOrder(response),
+      response,
     );
 
     store.dispatch({
