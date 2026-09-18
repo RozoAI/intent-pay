@@ -67,6 +67,7 @@ export enum TokenLogo {
   cUSD = "https://imagedelivery.net/AKLvTMvIg6yc9W08fHl1Tg/55fba2cb-ba84-4d6e-2bc7-8f0122412100/public",
   XLM = "https://imagedelivery.net/AKLvTMvIg6yc9W08fHl1Tg/839e9764-9a82-4ffc-cadb-a0968a451100/public",
   HYPE = "https://imagedelivery.net/AKLvTMvIg6yc9W08fHl1Tg/643544f5-b0bf-48a8-0289-2becb8224100/public",
+  USDT0 = "https://dcdn.rozo.ai/coins/usdt0.png",
 }
 
 export enum TokenSymbol {
@@ -84,6 +85,7 @@ export enum TokenSymbol {
   USDbC = "USDbC",
   USDCe = "USDCe",
   USDT = "USDT",
+  USDT0 = "USDT0",
   WBNB = "WBNB",
   WBTC = "WBTC",
   WETH = "WETH",
@@ -808,7 +810,17 @@ export const rozoStellarEURC: Token = token({
   logoURI: TokenLogo.EURC,
 });
 
-const stellarTokens: Token[] = [stellarXLM, stellarUSDC, rozoStellarUSDC, rozoStellarEURC];
+export const rozoStellarUSDT0: Token = token({
+  chainId: rozoStellar.chainId,
+  token: "USDT0:GATISXX6BZ6NC7IKQBY37CJD4SOZL3CYZJWXEDG6JVIY4WBS6KXJHN6Q",
+  decimals: 6,
+  fiatISO: "USD",
+  name: "USDT0",
+  symbol: TokenSymbol.USDT0,
+  logoURI: TokenLogo.USDT0,
+});
+
+const stellarTokens: Token[] = [stellarXLM, stellarUSDC, rozoStellarUSDC, rozoStellarEURC, rozoStellarUSDT0];
 
 //
 // Worldchain
@@ -954,7 +966,7 @@ export const supportedTokens: Map<number, Token[]> = new Map([
 
   [solana.chainId, [solanaUSDC, solanaUSDT]],
   [rozoSolana.chainId, [rozoSolanaUSDC, rozoSolanaUSDT]],
-  [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC]],
+  [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC, rozoStellarUSDT0]],
 ]);
 
 export const supportedPayoutTokens: Map<number, Token[]> = new Map([
@@ -965,7 +977,7 @@ export const supportedPayoutTokens: Map<number, Token[]> = new Map([
   [polygon.chainId, [polygonUSDC]],
   [hyperEVM.chainId, [hyperEVMUSDC]],
   [rozoSolana.chainId, [rozoSolanaUSDC]],
-  [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC]],
+  [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC, rozoStellarUSDT0]],
 ]);
 
 /**
@@ -1021,6 +1033,7 @@ enum TokenType {
   NATIVE_USDC = "NATIVE_USDC",
   BRIDGED_USDC = "BRIDGED_USDC",
   NATIVE_EURC = "NATIVE_EURC",
+  NATIVE_USDT0 = "NATIVE_USDT0",
   AXL_USDC = "AXL_USDC",
   DAI = "DAI",
 }
@@ -1146,6 +1159,7 @@ const tokensByChainAndType: Map<number, Partial<Record<TokenType, Token>>> = new
       [TokenType.NATIVE]: stellarXLM,
       [TokenType.NATIVE_USDC]: rozoStellarUSDC,
       [TokenType.NATIVE_EURC]: rozoStellarEURC,
+      [TokenType.NATIVE_USDT0]: rozoStellarUSDT0,
     },
   ],
   [
