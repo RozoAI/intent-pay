@@ -813,7 +813,7 @@ export const rozoStellarEURC: Token = token({
 export const rozoStellarUSDT0: Token = token({
   chainId: rozoStellar.chainId,
   token: "USDT0:GATISXX6BZ6NC7IKQBY37CJD4SOZL3CYZJWXEDG6JVIY4WBS6KXJHN6Q",
-  decimals: 6,
+  decimals: 7,
   fiatISO: "USD",
   name: "USDT0",
   symbol: TokenSymbol.USDT0,
