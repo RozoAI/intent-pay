@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
-import { POSTHOG_HOST, POSTHOG_KEY } from "../constants/rozoConfig";
+import { POSTHOG_APP_NAME, POSTHOG_HOST, POSTHOG_KEY, POSTHOG_UI_HOST } from "../constants/rozoConfig";
 import type { RozoEventName } from "../lib/analytics/events";
 import { isDNTEnabled } from "../utils/isDNTEnabled";
 import { sanitizeProperties } from "../utils/sanitize";
@@ -21,12 +21,14 @@ interface PostHogFull extends PostHogCapture {
     key: string,
     options: {
       api_host: string;
-      person_profiles: string;
-      capture_pageview: boolean;
-      capture_pageleave: boolean;
-      autocapture: boolean;
-      disable_session_recording: boolean;
-      persistence: string;
+      ui_host: string;
+      defaults?: string;
+      person_profiles?: string;
+      capture_pageview?: boolean;
+      capture_pageleave?: boolean;
+      autocapture?: boolean;
+      disable_session_recording?: boolean;
+      persistence?: string;
     },
     // Named-instance form: posthog-js keys instances by `name` off its
     // internal registry instead of mutating the shared default singleton.
@@ -51,8 +53,6 @@ const AnalyticsContext = createContext<AnalyticsContextValue>({
 // the console warning is still spurious noise for host apps. Reusing the
 // cached instance across remounts avoids the duplicate init call entirely.
 let cachedBuiltin: unknown = null;
-
-const SDK_APP_NAME = "rozo-intent-sdk";
 
 /** Properties stripped from built-in telemetry — host app receives them unchanged. */
 const BUILTIN_STRIP_KEYS: ReadonlySet<string> = new Set([
@@ -118,12 +118,9 @@ export function AnalyticsProvider({
           POSTHOG_KEY,
           {
             api_host: POSTHOG_HOST,
-            person_profiles: "identified_only",
-            capture_pageview: false,
-            capture_pageleave: false,
-            autocapture: false,
-            disable_session_recording: true,
-            persistence: "memory",
+            ui_host: POSTHOG_UI_HOST,
+            defaults: '2026-05-30',
+            person_profiles: 'identified_only',
           },
           "rozo-sdk-telemetry",
         );
@@ -141,7 +138,7 @@ export function AnalyticsProvider({
 
   const value: AnalyticsContextValue = {
     capture: (event, props = {}) => {
-      const safe = sanitizeProperties({ app_name: SDK_APP_NAME, ...props });
+      const safe = sanitizeProperties({ app_name: POSTHOG_APP_NAME, ...props });
 
       // Built-in SDK telemetry — strip identifying fields
       if (telemetryEnabled && builtinRef.current?.__loaded) {
