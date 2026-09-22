@@ -52,5 +52,5 @@
       "pnpm run lint"
     ]
   },
-  "packageManager": "pnpm@11.10.0"
+  "packageManager": "pnpm@12.5.1"
 }
