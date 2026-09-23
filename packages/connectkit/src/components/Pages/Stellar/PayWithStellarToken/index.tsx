@@ -43,6 +43,7 @@ import {
   categorizeError,
   createPaymentFailureError,
   ErrorType,
+  parseErrorMessage,
 } from "../../../../utils/errorParser";
 import {
   resolveWalletPaymentAmount,
@@ -593,7 +594,7 @@ const PayWithStellarToken: React.FC = () => {
       }
 
       const errorMessage =
-        error instanceof Error ? error.message : String(error);
+        parseErrorMessage(error);
       const isRejected = errorMessage.includes("rejected");
       capture(ROZO_EVENTS.PAYMENT_FAILED, {
         payment_id: resolvedPaymentId ?? rozoPaymentId,

@@ -10,6 +10,7 @@ import {
 import { useWallet } from "@solana/wallet-adapter-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ROUTES } from "../../../../constants/routes";
+import { parseErrorMessage } from "../../../../utils/errorParser";
 import { usePayContext } from "../../../../hooks/usePayContext";
 import styled from "../../../../styles/styled";
 import Button from "../../../Common/Button";
@@ -61,7 +62,7 @@ const ConnectSolana: React.FC = () => {
     const adapter = solanaWallets.wallet?.adapter;
     if (!adapter) return;
     const handleError = (error: unknown) => {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = parseErrorMessage(error);
       setConnectionError(msg || "Connection failed");
     };
     adapter.on("error", handleError);

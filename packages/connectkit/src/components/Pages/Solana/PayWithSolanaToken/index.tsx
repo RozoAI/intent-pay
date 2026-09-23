@@ -37,7 +37,10 @@ import { buildFeeQuoteParams, getCachedFee } from "../../../../utils/feeCache";
 import Button from "../../../Common/Button";
 import PaymentBreakdown from "../../../Common/PaymentBreakdown";
 import TokenLogoSpinner from "../../../Spinners/TokenLogoSpinner";
-import { createPaymentFailureError } from "../../../../utils/errorParser";
+import {
+  createPaymentFailureError,
+  parseErrorMessage,
+} from "../../../../utils/errorParser";
 import {
   resolveWalletPaymentAmount,
   type WalletSourceQuoteOrder,
@@ -561,7 +564,7 @@ const PayWithSolanaToken: React.FC = () => {
           }
         }
         const errorMessage =
-          error instanceof Error ? error.message : String(error);
+          parseErrorMessage(error);
         const isRejected = errorMessage.includes("rejected");
         capture(ROZO_EVENTS.PAYMENT_FAILED, {
           payment_id: resolvedPaymentId ?? rozoPaymentId,
