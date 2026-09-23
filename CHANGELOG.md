@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.51] - 2026-09-23
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**: Preserve wallet rejection object messages instead of displaying or reporting `[object Object]` &nbsp;-&nbsp; by @shawnmuggle [<samp>(3613e87f)</samp>](https://github.com/RozoAI/intent-pay/commit/3613e87f)
+
+---
+
+## [0.1.49] - 2026-09-17
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**: Prevent stale and duplicate wallet payment requests &nbsp;-&nbsp; by @akbarsaputrait [<samp>(fbc65ffe)</samp>](https://github.com/RozoAI/intent-pay/commit/fbc65ffe)
+- **connectkit**: Harden wallet-confirmation modal guards &nbsp;-&nbsp; by @akbarsaputrait [<samp>(2990541b)</samp>](https://github.com/RozoAI/intent-pay/commit/2990541b)
+
+---
+
 ## [0.1.48] - 2026-09-16
 
 ### ⚠ BREAKING CHANGES
