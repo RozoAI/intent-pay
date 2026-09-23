@@ -11,6 +11,18 @@ export function parseErrorMessage(error: unknown): string {
     message = error.message;
   } else if (typeof error === "string") {
     message = error;
+  } else if (
+    error !== null &&
+    typeof error === "object" &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    // Wallet adapters reject with bare `{ code, message }` objects that are
+    // not Error instances: Stellar Wallets Kit, our own WalletConnect module
+    // (utils/stellar/walletconnect.module.ts throws `{ code: -3, message }`),
+    // and the Solana adapters all do this on user rejection. Without this
+    // branch the caller falls through to String(error) and reports the
+    // literal "[object Object]".
+    message = (error as { message: string }).message;
   }
 
   // Try to parse JSON error messages.
