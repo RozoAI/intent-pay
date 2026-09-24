@@ -1,19 +1,25 @@
 name: Security scan
 
 # Pre-merge security gate. Runs scripts/security.sh (one file: code-injection +
-# secret-leak checks) on every push and PR. See scripts/SECURITY.md.
+# secret-leak checks) on every PR and on pushes to the default branch.
+# Feature-branch pushes are already covered by the pull_request event.
+# See scripts/SECURITY.md.
 #
 # A finding fails the job. If/when you want to soften it while cleaning up known
 # pre-existing findings, add `continue-on-error: true` to the job.
 
 on:
   push:
-    branches: ['**']
+    branches: [master]
   pull_request:
     branches: ['**']
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   security-scan:

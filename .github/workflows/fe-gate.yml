@@ -1,8 +1,13 @@
 name: fe-gate
+# fe-gate is the every-PR frontend gate, so pull_request has no path filter.
+# Only the post-merge run on the default branch skips docs-only changes.
 on:
   pull_request:
   push:
     branches: [master]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
 concurrency:
   group: fe-gate-${{ github.ref }}
   cancel-in-progress: true
