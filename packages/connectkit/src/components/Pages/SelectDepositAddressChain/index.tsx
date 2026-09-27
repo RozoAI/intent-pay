@@ -11,6 +11,7 @@ import { OrderHeader } from "../../Common/OrderHeader";
 import PoweredByFooter from "../../Common/PoweredByFooter";
 import SelectAnotherMethodButton from "../../Common/SelectAnotherMethodButton";
 import TokenChainLogo from "../../Common/TokenChainLogo";
+import { suggestedSourceRank } from "../../../utils/suggestedSource";
 
 const SelectDepositAddressChain: React.FC = () => {
   const { setRoute, paymentState } = usePayContext();
@@ -21,6 +22,14 @@ const SelectDepositAddressChain: React.FC = () => {
     setSelectedDepositAddressOption,
     depositAddressOptions,
   } = paymentState;
+  const suggested = paymentState.payParams?.suggestedSource;
+  // Ordering hint only (see RozoPayButton's suggestedSource): never filters.
+  const rankById = new Map(
+    (depositAddressOptions.options ?? []).map((o) => [
+      o.id,
+      suggestedSourceRank(o.token.chainId, o.token.token, suggested),
+    ]),
+  );
 
   return (
     <PageContent>
@@ -101,8 +110,13 @@ const SelectDepositAddressChain: React.FC = () => {
                 },
               };
             })
-            // sort: enabled (disabled: false) appear first, then disabled (disabled: true) after
-            .sort((a, b) => Number(a.disabled) - Number(b.disabled)) ?? []
+            // sort: enabled (disabled: false) appear first, then disabled (disabled: true) after;
+            // within each group the payer's suggested source comes first
+            .sort(
+              (a, b) =>
+                Number(a.disabled) - Number(b.disabled) ||
+                (rankById.get(a.id) ?? 2) - (rankById.get(b.id) ?? 2),
+            ) ?? []
         }
       />
       <PoweredByFooter />

@@ -11,6 +11,7 @@ import {
 import { ReactElement } from "react";
 import { Address } from "viem";
 import { CustomTheme, Mode, Theme } from "../../types";
+import type { SuggestedSource } from "../../utils/suggestedSource";
 
 /** Chain-specific props for EVM chains (Base, Ethereum, Polygon) */
 type EvmChainProps = {
@@ -144,6 +145,13 @@ export type PayButtonPaymentProps =
        * symbol(s) implied by the order's destination token.
        */
       preferredSymbol?: TokenSymbol[];
+      /**
+       * A chain (and optionally token) the payer is likely to use again, e.g.
+       * from their last payment. Unlike `preferredChains`, this only reorders:
+       * matching deposit-address chains and wallet balances are listed first,
+       * and every other option stays visible and selectable.
+       */
+      suggestedSource?: SuggestedSource;
     };
 
 type PayButtonCommonProps = PayButtonPaymentProps & {

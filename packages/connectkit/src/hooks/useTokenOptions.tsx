@@ -12,6 +12,7 @@ import { ROUTES } from "../constants/routes";
 import { ROZO_EVENTS, RozoEventName } from "../lib/analytics/events";
 import { useAnalytics } from "../provider/AnalyticsProvider";
 import { formatUsd, roundTokenAmount } from "../utils/format";
+import { suggestedSourceRank } from "../utils/suggestedSource";
 import { usePayContext } from "./usePayContext";
 
 type CaptureFn = (event: RozoEventName, properties?: Record<string, unknown>) => void;
@@ -39,6 +40,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
 
   // Get preferredTokens from payParams for prioritization
   const preferredTokens = paymentState.payParams?.preferredTokens;
+  const suggestedSource = paymentState.payParams?.suggestedSource;
 
   const optionsList: Option[] = [];
   let isLoading = true;
@@ -164,6 +166,15 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     );
   };
 
+  // Option ids are "chainId-tokenAddress" (see isTokenPreferred above).
+  const optionSuggestedRank = (option: Option): number => {
+    const dashIndex = option.id.indexOf("-");
+    if (dashIndex === -1) return 2;
+    const chainId = parseInt(option.id.substring(0, dashIndex), 10);
+    if (isNaN(chainId)) return 2;
+    return suggestedSourceRank(chainId, option.id.substring(dashIndex + 1), suggestedSource);
+  };
+
   // Memoize the sorted optionsList and reassign to optionsList to preserve invariant
   const sortedOptionsList = useMemo(() => {
     return [...optionsList].sort((a, b) => {
@@ -177,12 +188,16 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
       const dPreferred = (bIsPreferred ? 1 : 0) - (aIsPreferred ? 1 : 0);
       if (dPreferred !== 0) return dPreferred;
 
-      // Third: sort by balance USD (highest first) within each group
+      // Third: the payer's suggested source (ordering hint only, never filters)
+      const dSuggested = optionSuggestedRank(a) - optionSuggestedRank(b);
+      if (dSuggested !== 0) return dSuggested;
+
+      // Fourth: sort by balance USD (highest first) within each group
       const dSort = (b.sortValue ?? 0) - (a.sortValue ?? 0);
       return dSort;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [optionsList, preferredTokens]);
+  }, [optionsList, preferredTokens, suggestedSource]);
 
   // Smart refresh function that only refreshes hooks that need it
   const refreshOptions = useCallback(async () => {
