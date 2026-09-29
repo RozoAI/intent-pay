@@ -22,7 +22,7 @@ const SelectDepositAddressChain: React.FC = () => {
     setSelectedDepositAddressOption,
     depositAddressOptions,
   } = paymentState;
-  const suggested = paymentState.payParams?.suggestedSource;
+  const suggested = paymentState.suggestedSource;
   // Ordering hint only (see RozoPayButton's suggestedSource): never filters.
   const rankById = new Map(
     (depositAddressOptions.options ?? []).map((o) => [
