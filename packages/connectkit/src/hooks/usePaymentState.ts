@@ -545,6 +545,8 @@ export function usePaymentState({
         preferredChains,
         appId: stableAppId,
         preferredSymbol,
+        suggestedSource:
+          buttonProps && "suggestedSource" in buttonProps ? buttonProps.suggestedSource : undefined,
       } as PayParams;
     }
 
