@@ -135,6 +135,7 @@ export interface PaymentState {
   /// Pay params for creating an order on the fly,
   setPayParams: (payParams: PayParams | undefined) => Promise<void>;
   payParams: PayParams | undefined;
+  suggestedSource: PayParams["suggestedSource"];
 
   /// True if the user is entering an amount (deposit) vs preset (checkout).
   isDepositFlow: boolean;
@@ -1973,6 +1974,7 @@ export function usePaymentState({
     setPayId,
     setPayParams,
     payParams: currPayParams,
+    suggestedSource: stablePayParams?.suggestedSource,
     tokenMode,
     tokenModeExplicit,
     setTokenMode,

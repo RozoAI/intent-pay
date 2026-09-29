@@ -40,7 +40,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
 
   // Get preferredTokens from payParams for prioritization
   const preferredTokens = paymentState.payParams?.preferredTokens;
-  const suggestedSource = paymentState.payParams?.suggestedSource;
+  const suggestedSource = paymentState.suggestedSource;
 
   const optionsList: Option[] = [];
   let isLoading = true;
