@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.54] - 2026-09-30
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- **connectkit**: Rank native suggested sources and mark the last-used payment option &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b2e7d859)</samp>](https://github.com/RozoAI/intent-pay/commit/b2e7d859)
+
+---
+
+## [0.1.53] - 2026-09-29
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**: Expose the suggested source when listing payId payment tokens &nbsp;-&nbsp; by @akbarsaputrait [<samp>(d3d3f477)</samp>](https://github.com/RozoAI/intent-pay/commit/d3d3f477)
+
+---
+
+## [0.1.52] - 2026-09-29
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- **connectkit**: Add a `suggestedSource` ordering hint for payId payment flows &nbsp;-&nbsp; by @shawnmuggle [<samp>(5a6a91ac)</samp>](https://github.com/RozoAI/intent-pay/commit/5a6a91ac)
+
+---
+
 ## [0.1.51] - 2026-09-23
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes

@@ -209,7 +209,6 @@ export function CheckoutMode() {
           <RozoPayButton.Custom
             payId={paymentId}
             intent="Checkout"
-            suggestedSource={{ chainId: 1, symbol: "USDC" }}
             onPaymentStarted={(e) => addLog("started", e)}
             onPaymentCompleted={(e) => addLog("completed", e)}
             onPayoutCompleted={(e) => addLog("payout", e)}
