@@ -12,6 +12,7 @@ import {
   OptionLabel,
   OptionSubtitle,
   OptionTitle,
+  FloatingOptionBadge,
   OptionsContainer,
 } from "./styles";
 
@@ -20,6 +21,7 @@ export interface Option {
   sortValue?: number;
   title: string;
   subtitle?: string;
+  badge?: string;
   loading?: boolean;
   icons: (React.ReactNode | string)[];
   rightIcons?: (React.ReactNode | string)[];
@@ -182,7 +184,11 @@ const OptionItem = ({ option }: { option: Option }) => {
       data-testid={`rozopay-option-${option.id}`}
       onClick={option.onClick}
       disabled={option.disabled}
+      $hasBadge={Boolean(option.badge)}
     >
+      {option.badge && (
+        <FloatingOptionBadge><span>{option.badge}</span></FloatingOptionBadge>
+      )}
       <OptionLabel
         $hasRightIcons={hydratedRightIcons.length > 0}
         $iconsPosition={iconsPosition}
