@@ -95,7 +95,24 @@ pnpm start
 
 # Lint
 pnpm lint
+
+# Frontend gate (no funds, mock wallet)
+pnpm test:gate
+pnpm test:pages
 ```
+
+## Frontend gate (required CI check — every PR)
+
+`.github/workflows/fe-gate.yml` calls the shared `RozoAI/fe-gate` workflow. It runs on every PR and blocks merge when red.
+
+- **Consistency checks** (`pnpm test:gate` in `examples/nextjs-app`): every `app/**/page.tsx` must have a spec at `e2e/pages/<route>.spec.ts` (root page → `e2e/pages/index.spec.ts`; dynamic segments keep brackets). A new page without a spec fails CI.
+- **Page gate** (`pnpm test:pages` in `examples/nextjs-app`): each spec calls `smokeRoute(path, …)` from `e2e/pages/_smoke.ts` — loads desktop + iPhone Chromium with a mock EIP-1193 wallet, waits for hydration, fails on hydration/console errors, asserts every `<a>` has a real href, and checks title/h1/pathname after hydration. Extend with `extra` for route-specific assertions.
+- **Real-funds bridge suite** (`pnpm test:e2e`, `e2e/playwright.config.ts`) is separate and never runs in the frontend gate.
+
+Rules for new work:
+1. New page → new spec file (copy the nearest one). Bug fix → commit the failing test before the fix. Feature flag → test both states in one spec. Removed copy → assert with `expectBodyExcludes`.
+2. Known third-party console errors go in the `ALLOW` list in `_smoke.ts` with an owner and date; nothing else is silenced.
+3. Local run: `pnpm test:pages` from `examples/nextjs-app`. On Macs where `playwright install` hangs, set `FE_GATE_CHROMIUM=<path to chrome-headless-shell>`.
 
 ### Smart Contracts (packages/contract)
 

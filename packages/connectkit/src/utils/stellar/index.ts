@@ -1,6 +1,11 @@
 // Export all Stellar-related utilities and types
 export * from "./types";
 export * from "./walletconnect.module";
+export {
+  calculateStellarSpendableStroops,
+  calculateStellarSpendableXlm,
+} from "./spendableBalance";
+export type { StellarNativeBalance } from "./spendableBalance";
 
 // Re-export commonly used types for convenience
 export { defineStellarChain, isStellarChain, STELLAR_NETWORKS } from "./types";

@@ -35,6 +35,16 @@ overrides:
   "@walletconnect/sign-client": "2.23.10"
   "@walletconnect/universal-provider": "2.23.10"
   "@walletconnect/ethereum-provider": "2.23.10"
+  # Force single @reown/appkit version to avoid custom element collision
+  "@reown/appkit": "1.8.23"
+  "@reown/appkit-common": "1.8.23"
+  "@reown/appkit-controllers": "1.8.23"
+  "@reown/appkit-pay": "1.8.23"
+  "@reown/appkit-polyfills": "1.8.23"
+  "@reown/appkit-scaffold-ui": "1.8.23"
+  "@reown/appkit-ui": "1.8.23"
+  "@reown/appkit-utils": "1.8.23"
+  "@reown/appkit-wallet": "1.8.23"
 
 dedupePeerDependents: true
 

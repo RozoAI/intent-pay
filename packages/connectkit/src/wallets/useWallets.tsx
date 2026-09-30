@@ -71,9 +71,6 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
         if (isCoinbaseWalletConnector(connector.id)) return;
         if (isPhantomConnector(connector.id)) return;
         if (!isInjectedConnector(connector.type)) return;
-        // Skip any connectors that mention WalletConnect
-        if (connector.name?.toLowerCase().includes("walletconnect")) return;
-
         // In-app browsers that inject both window.ethereum and a Solana
         // wallet-standard provider (e.g. Phantom) surface as one generic
         // "injected" EVM connector here. Match it to its Solana adapter by
@@ -141,13 +138,11 @@ export const useWallets = (isMobile?: boolean): WalletProps[] => {
   }
 
   const filteredConnectors = connectors.filter((connector) => {
-    // Skip if id === "phantom" or "injected" and connector name does NOT include "walletconnect"
     if (
       ["phantom"].includes(connector.id) ||
       (connector.id === "injected" &&
         connector.name?.toLowerCase().includes("injected") &&
-        connector.type === "injected") ||
-      connector.name?.toLowerCase().includes("walletconnect")
+        connector.type === "injected")
     ) {
       return false;
     }

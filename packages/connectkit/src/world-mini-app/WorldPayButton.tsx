@@ -25,6 +25,11 @@ import ThemedButton, {
 import { RozoPayButtonInner } from "../components/RozoPayButton";
 import { ROUTES } from "../constants/routes";
 import { useRozoPay } from "../hooks/useRozoPay";
+import {
+  beginRequestScope,
+  cancelRequestScope,
+  PAYMENT_REQUEST_SCOPE,
+} from "../utils/paymentRequestScope";
 import { usePayContext } from "../hooks/usePayContext";
 import { ResetContainer } from "../styles";
 import { CustomTheme, Mode, Theme } from "../types";
@@ -192,7 +197,15 @@ function WorldPayButtonCustom(props: WorldPayButtonCustomProps) {
 
   useEffect(() => {
     log("[WORLD] Creating preview order");
-    pay.createPreviewOrder(stablePaymentParams);
+    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+    void pay.createPreviewOrder(stablePaymentParams, { signal: request.signal }).catch(
+      (error) => {
+        if ((error as Error)?.name !== "AbortError") {
+          log("[WORLD] createPreviewOrder failed", error);
+        }
+      },
+    );
+    return () => cancelRequestScope(PAYMENT_REQUEST_SCOPE);
   }, [pay, stablePaymentParams]);
 
   // Emit onPaymentStart handler when payment state changes to payment_started
@@ -285,7 +298,14 @@ function WorldPayButtonCustom(props: WorldPayButtonCustomProps) {
     }
 
     log(`[WORLD] hydrating order ${pay.order?.id}`);
-    const { order } = await pay.hydrateOrder();
+    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+    const { order } = await pay.hydrateOrder(undefined, undefined, {
+      signal: request.signal,
+    }).catch((error) => {
+      if ((error as Error)?.name === "AbortError") return { order: null };
+      throw error;
+    });
+    if (!order) return;
     log(
       `[WORLD] hydrated order ${pay.order?.id}. Prompting payment with MiniKit`,
     );

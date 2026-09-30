@@ -18,7 +18,7 @@ export interface ParamFormValues {
   toToken: string
   toAddress: string
   toUnits: string
-  feeType?: FeeType
+  feeType: FeeType
 }
 
 interface ParamFormProps {
@@ -207,15 +207,17 @@ export function ParamForm({
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Fee Type</Label>
           <Select
-            value={values.feeType ?? FeeType.ExactIn}
-            onValueChange={(v) => onChange({ ...values, feeType: v as FeeType })}
+            value={values.feeType}
+            onValueChange={(feeType) =>
+              onChange({ ...values, feeType: feeType as FeeType })
+            }
           >
             <SelectTrigger className="w-full border-border bg-secondary">
-              <SelectValue placeholder="Select fee type" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={FeeType.ExactIn}>Exact In</SelectItem>
-              <SelectItem value={FeeType.ExactOut}>Exact Out</SelectItem>
+              <SelectItem value={FeeType.ExactIn}>Exact input</SelectItem>
+              <SelectItem value={FeeType.ExactOut}>Exact output</SelectItem>
             </SelectContent>
           </Select>
         </div>

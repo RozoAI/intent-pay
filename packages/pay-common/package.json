@@ -1,6 +1,6 @@
 {
   "name": "@rozoai/intent-common",
-  "version": "0.1.27-beta.1",
+  "version": "0.1.38",
   "description": "Intent Pay shared types and utilities",
   "homepage": "https://github.com/RozoAI/intent-pay",
   "license": "BSD-2-Clause",
@@ -18,7 +18,7 @@
     "build": "pnpm run test && tsc",
     "dev": "tsc --watch",
     "prepublishOnly": "pnpm run build",
-    "test": "tape -r ts-node/register/transpile-only test/**/*.test.ts",
+    "test": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' tape -r ts-node/register/transpile-only test/**/*.test.ts",
     "lint": "pnpm run lint:deps && pnpm run lint:style",
     "lint:deps": "npx depcheck --ignores @tsconfig/node20,@types/tape,ts-node",
     "lint:style": "oxlint src/",
@@ -31,7 +31,6 @@
     "@scure/base": "^1.2.4",
     "@solana/web3.js": "^1.98.4",
     "@stellar/stellar-sdk": "^14.4.3",
-    "viem": "^2.23.2",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -42,6 +41,10 @@
     "oxlint": "latest",
     "tape": "^5.6.3",
     "ts-node": "^10.9.2",
-    "typescript": "5.5.2"
+    "typescript": "5.5.2",
+    "viem": "^2.23.2"
+  },
+  "peerDependencies": {
+    "viem": "^2.52.0"
   }
 }

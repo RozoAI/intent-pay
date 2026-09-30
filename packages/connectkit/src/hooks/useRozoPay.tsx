@@ -1,6 +1,5 @@
 // hooks/useRozoPay.ts
 import {
-  FeeType,
   PaymentStatus,
   RozoPayHydratedOrderWithOrg,
   RozoPayIntentStatus,
@@ -21,12 +20,7 @@ import {
 } from "react";
 import { Address, Hex } from "viem";
 import { usePaymentEvents } from "../payment/paymentEventContext";
-import {
-  HydrateWalletOption,
-  PaymentEvent,
-  PaymentState,
-  PayParams,
-} from "../payment/paymentFsm";
+import { PaymentEvent, PaymentState, PayParams } from "../payment/paymentFsm";
 import { waitForPaymentState } from "../payment/paymentStore";
 import { PaymentContext } from "../provider/PaymentProvider";
 import { Store } from "../stateStore";
@@ -40,6 +34,7 @@ type RozoPayFunctions = {
    */
   createPreviewOrder: (
     params: PayParams,
+    options?: { signal?: AbortSignal },
   ) => Promise<Extract<PaymentState, { type: "preview" }>>;
 
   /**
@@ -48,7 +43,7 @@ type RozoPayFunctions = {
    *
    * @param id - The Rozo Pay order ID to set.
    */
-  setPayId: (id: RozoPayOrderID | string) => Promise<
+  setPayId: (id: RozoPayOrderID | string, options?: { signal?: AbortSignal }) => Promise<
     Extract<
       PaymentState,
       {
@@ -68,8 +63,8 @@ type RozoPayFunctions = {
    */
   hydrateOrder: (
     refundAddress?: string,
-    walletPaymentOption?: WalletPaymentOption | HydrateWalletOption,
-    feeType?: FeeType,
+    walletPaymentOption?: WalletPaymentOption,
+    options?: { signal?: AbortSignal },
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
   /**
@@ -78,8 +73,8 @@ type RozoPayFunctions = {
    */
   hydrateOrderRozo: (
     refundAddress?: string,
-    walletPaymentOption?: WalletPaymentOption | HydrateWalletOption,
-    feeType?: FeeType,
+    walletPaymentOption?: WalletPaymentOption,
+    options?: { signal?: AbortSignal },
   ) => Promise<Extract<PaymentState, { type: "payment_unpaid" }>>;
 
   /** Trigger search for payment on the current order. */
@@ -263,19 +258,19 @@ export function useRozoPay(): UseRozoPay {
   const dispatch = useCallback((e: PaymentEvent) => store.dispatch(e), [store]);
 
   const createPreviewOrder = useCallback(
-    async (payParams: PayParams) => {
+    async (payParams: PayParams, options?: { signal?: AbortSignal }) => {
       dispatch({ type: "set_pay_params", payParams });
 
       // Wait for the order to enter the "preview" state, which means it
       // has been successfully created.
-      const previewOrderState = await waitForPaymentState(store, "preview");
+      const previewOrderState = await waitForPaymentState(store, "preview", options);
       return previewOrderState;
     },
     [dispatch, store],
   );
 
   const setPayId = useCallback(
-    async (payId: RozoPayOrderID | string) => {
+    async (payId: RozoPayOrderID | string, options?: { signal?: AbortSignal }) => {
       dispatch({ type: "set_pay_id", payId });
 
       // Wait for the order to be queried from the API. Using payId could
@@ -287,6 +282,7 @@ export function useRozoPay(): UseRozoPay {
         "payment_started",
         "payment_completed",
         "payment_bounced",
+        options,
       );
 
       return previewOrderState;
@@ -297,18 +293,21 @@ export function useRozoPay(): UseRozoPay {
   const hydrateOrder = useCallback(
     async (
       refundAddress?: Address,
-      walletPaymentOption?: WalletPaymentOption | HydrateWalletOption,
-      feeType?: FeeType,
+      walletPaymentOption?: WalletPaymentOption,
+      _options?: { signal?: AbortSignal },
     ) => {
       dispatch({
         type: "hydrate_order",
         refundAddress,
         walletPaymentOption,
-        feeType,
       });
 
       // Wait for the order to enter the "payment_unpaid" state, which means it
       // has been successfully hydrated.
+      // NOTE: Do NOT pass the caller's signal to waitForPaymentState.
+      // The effect handler calls beginRequestScope() which cancels the caller's
+      // controller, causing waitForPaymentState to reject with AbortError
+      // even though the API call succeeds on the effect's own controller.
       const hydratedOrderState = await waitForPaymentState(
         store,
         "payment_unpaid",
@@ -322,16 +321,18 @@ export function useRozoPay(): UseRozoPay {
   const hydrateOrderRozo = useCallback(
     async (
       refundAddress?: Address,
-      walletPaymentOption?: WalletPaymentOption | HydrateWalletOption,
-      feeType?: FeeType,
+      walletPaymentOption?: WalletPaymentOption,
+      _options?: { signal?: AbortSignal },
     ) => {
       dispatch({
         type: "hydrate_order",
         refundAddress,
         walletPaymentOption,
-        feeType,
       });
 
+      // NOTE: Do NOT pass the caller's signal to waitForPaymentState.
+      // Same race as hydrateOrder — effect handler calls beginRequestScope()
+      // which cancels the caller's controller.
       const hydratedOrderState = await waitForPaymentState(
         store,
         "payment_unpaid",

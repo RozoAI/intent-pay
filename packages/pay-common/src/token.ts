@@ -67,6 +67,7 @@ export enum TokenLogo {
   cUSD = "https://imagedelivery.net/AKLvTMvIg6yc9W08fHl1Tg/55fba2cb-ba84-4d6e-2bc7-8f0122412100/public",
   XLM = "https://imagedelivery.net/AKLvTMvIg6yc9W08fHl1Tg/839e9764-9a82-4ffc-cadb-a0968a451100/public",
   HYPE = "https://imagedelivery.net/AKLvTMvIg6yc9W08fHl1Tg/643544f5-b0bf-48a8-0289-2becb8224100/public",
+  USDT0 = "https://dcdn.rozo.ai/coins/usdt0.png",
 }
 
 export enum TokenSymbol {
@@ -85,6 +86,7 @@ export enum TokenSymbol {
   USDbC = "USDbC",
   USDCe = "USDCe",
   USDT = "USDT",
+  USDT0 = "USDT0",
   WBNB = "WBNB",
   WBTC = "WBTC",
   WETH = "WETH",
@@ -700,11 +702,11 @@ const polygonTokens: Token[] = [
 //
 
 export const solanaSOL = nativeToken({
-  chainId: rozoSolana.chainId,
+  chainId: solana.chainId,
   name: "Solana",
   symbol: TokenSymbol.SOL,
   logoURI: TokenLogo.SOL,
-  token: "11111111111111111111111111111112",
+  token: "11111111111111111111111111111111",
   decimals: 9,
 });
 
@@ -728,7 +730,7 @@ export const solanaUSDC: Token = token({
 });
 
 export const solanaUSDT: Token = token({
-  chainId: rozoSolana.chainId,
+  chainId: solana.chainId,
   token: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
   decimals: 6,
   fiatISO: "USD",
@@ -771,11 +773,12 @@ const solanaTokens: Token[] = [
 //
 
 export const stellarXLM = nativeToken({
-  chainId: rozoStellar.chainId,
+  chainId: stellar.chainId,
   name: "Stellar",
   symbol: TokenSymbol.XLM,
   logoURI: TokenLogo.XLM,
-  token: "XLM",
+  token: "11111111111111111111111111111111",
+  // Stellar's native unit is a stroop (10^-7 XLM).
   decimals: 7,
 });
 
@@ -809,7 +812,17 @@ export const rozoStellarEURC: Token = token({
   logoURI: TokenLogo.EURC,
 });
 
-const stellarTokens: Token[] = [stellarXLM, stellarUSDC, rozoStellarUSDC, rozoStellarEURC];
+export const rozoStellarUSDT0: Token = token({
+  chainId: rozoStellar.chainId,
+  token: "USDT0:GATISXX6BZ6NC7IKQBY37CJD4SOZL3CYZJWXEDG6JVIY4WBS6KXJHN6Q",
+  decimals: 7,
+  fiatISO: "USD",
+  name: "USDT0",
+  symbol: TokenSymbol.USDT0,
+  logoURI: TokenLogo.USDT0,
+});
+
+const stellarTokens: Token[] = [stellarXLM, stellarUSDC, rozoStellarUSDC, rozoStellarEURC, rozoStellarUSDT0];
 
 //
 // Worldchain
@@ -946,16 +959,16 @@ const avalancheTokens: Token[] = [avalancheAVAX, avalancheUSDC, avalancheUSDT];
 
 /** Support tokens for Rozo Pay */
 export const supportedTokens: Map<number, Token[]> = new Map([
-  [arbitrum.chainId, [arbitrumETH, arbitrumUSDC, arbitrumUSDT]],
-  [base.chainId, [baseETH, baseUSDC, baseEURC]],
-  [bsc.chainId, [bscBNB, bscUSDC, bscUSDT]],
-  [ethereum.chainId, [ethereumETH, ethereumUSDC, ethereumUSDT]],
-  [polygon.chainId, [polygonPOL, polygonUSDC, polygonUSDT]],
+  [arbitrum.chainId, [arbitrumUSDC, arbitrumUSDT]],
+  [base.chainId, [baseUSDC, baseEURC]],
+  [bsc.chainId, [bscUSDC, bscUSDT]],
+  [ethereum.chainId, [ethereumUSDC, ethereumUSDT]],
+  [polygon.chainId, [polygonUSDC, polygonUSDT]],
   [hyperEVM.chainId, [hyperEVMUSDC]],
 
   [solana.chainId, [solanaSOL, solanaUSDC, solanaUSDT]],
   [rozoSolana.chainId, [solanaSOL, rozoSolanaUSDC, rozoSolanaUSDT]],
-  [rozoStellar.chainId, [stellarXLM, rozoStellarUSDC, rozoStellarEURC]],
+  [rozoStellar.chainId, [stellarXLM, rozoStellarUSDC, rozoStellarEURC, rozoStellarUSDT0]],
 ]);
 
 export const supportedPayoutTokens: Map<number, Token[]> = new Map([
@@ -966,7 +979,7 @@ export const supportedPayoutTokens: Map<number, Token[]> = new Map([
   [polygon.chainId, [polygonUSDC]],
   [hyperEVM.chainId, [hyperEVMUSDC]],
   [rozoSolana.chainId, [rozoSolanaUSDC]],
-  [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC]],
+  [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC, rozoStellarUSDT0]],
 ]);
 
 /**
@@ -978,19 +991,6 @@ export const supportedPayoutTokens: Map<number, Token[]> = new Map([
 export const knownTokens: Token[] = Array.from(supportedTokens.values()).flat();
 export const knownChains: number[] = Array.from(supportedTokens.keys());
 /* --------------------- Tokens By Address --------------------- */
-
-// Token lookup index. Addresses are lower-cased in the key so lookups are
-// case-insensitive: EVM natives are stored with the lowercase `ethAddress`
-// placeholder while the API returns them EIP-55 checksummed, and a
-// case-sensitive key would miss (breaking getKnownToken / isTokenSupported /
-// createPaymentBridgeConfig for native ETH/BNB/POL). Solana/Stellar addresses
-// are lower-cased on both sides consistently, so they still resolve uniquely.
-const tokensByChainAddr = new Map<string, Token>(
-  knownTokens.map((t) => [
-    `${t.chainId}-${normalizeTokenAddress(t.chainId, t.token) ?? t.token}`,
-    t,
-  ]),
-);
 
 /**
  * Chain-aware address normalizer. EVM addresses are case-insensitive (EIP-55),
@@ -1013,9 +1013,18 @@ export function normalizeTokenAddress(
   return type === "evm" ? address.toLowerCase() : address;
 }
 
+const tokensByChainAddr = new Map<string, Token>(
+  knownTokens.map((t) => [
+    `${t.chainId}-${normalizeTokenAddress(t.chainId, t.token) ?? t.token}`,
+    t,
+  ]),
+);
+
 export function getKnownToken(chainId: number, tokenAddress: string): Token | undefined {
   if (tokenAddress == null) return undefined;
-  return tokensByChainAddr.get(`${chainId}-${normalizeTokenAddress(chainId, tokenAddress) ?? ""}`);
+  return tokensByChainAddr.get(
+    `${chainId}-${normalizeTokenAddress(chainId, tokenAddress) ?? tokenAddress}`,
+  );
 }
 
 /* --------------------- Tokens By Type --------------------- */
@@ -1026,6 +1035,7 @@ enum TokenType {
   NATIVE_USDC = "NATIVE_USDC",
   BRIDGED_USDC = "BRIDGED_USDC",
   NATIVE_EURC = "NATIVE_EURC",
+  NATIVE_USDT0 = "NATIVE_USDT0",
   AXL_USDC = "AXL_USDC",
   DAI = "DAI",
 }
@@ -1151,6 +1161,7 @@ const tokensByChainAndType: Map<number, Partial<Record<TokenType, Token>>> = new
       [TokenType.NATIVE]: stellarXLM,
       [TokenType.NATIVE_USDC]: rozoStellarUSDC,
       [TokenType.NATIVE_EURC]: rozoStellarEURC,
+      [TokenType.NATIVE_USDT0]: rozoStellarUSDT0,
     },
   ],
   [
@@ -1218,7 +1229,7 @@ function nativeETH(chainId: number): Token {
   return nativeToken({
     chainId,
     name: "Ether",
-    symbol: TokenSymbol.ETH,
+    symbol: "ETH",
     logoURI: TokenLogo.ETH,
   });
 }
@@ -1228,7 +1239,7 @@ function nativeToken({
   name,
   symbol,
   logoURI,
-  token = ethAddress,
+  token = zeroAddress,
   decimals = 18,
 }: {
   chainId: number;
@@ -1248,6 +1259,17 @@ function nativeToken({
     logoURI,
     logoSourceURI: logoURI,
   };
+}
+
+/** Native token sentinels used by the supported EVM, Solana, and Stellar sources. */
+export const NATIVE_TOKEN_ADDRESSES = new Set(
+  [ethAddress, zeroAddress, "11111111111111111111111111111111", "XLM"].map((address) =>
+    address.toLowerCase(),
+  ),
+);
+
+export function isNativeToken(tokenAddress: string | null | undefined): boolean {
+  return tokenAddress != null && NATIVE_TOKEN_ADDRESSES.has(tokenAddress.toLowerCase());
 }
 
 export function token({
@@ -1280,20 +1302,4 @@ export function token({
     logoURI,
     logoSourceURI: logoURI,
   };
-}
-
-/**
- * Native-token address sentinels across supported ecosystems:
- * - EVM natives (ETH/BNB/POL/MNT/etc) use ethAddress (EIP-7528) or zeroAddress.
- * - Solana native SOL uses the system program address.
- * - Stellar native XLM uses the "XLM" sentinel.
- */
-export const NATIVE_TOKEN_ADDRESSES = new Set(
-  [ethAddress, zeroAddress, "11111111111111111111111111111112", "XLM"].map((a) => a.toLowerCase()),
-);
-
-/** Returns true if the given token address is a chain-native token (ETH/BNB/POL/SOL/XLM, etc.). */
-export function isNativeToken(tokenAddress: string | null | undefined): boolean {
-  if (!tokenAddress) return false;
-  return NATIVE_TOKEN_ADDRESSES.has(tokenAddress.toLowerCase());
 }

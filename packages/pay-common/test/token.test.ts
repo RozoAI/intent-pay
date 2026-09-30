@@ -1,68 +1,37 @@
 import test from "tape";
+import { rozoStellar, solana } from "../src/chain";
 import {
-  arbitrum,
-  base,
-  bsc,
-  ethereum,
-  polygon,
-  rozoSolana,
-  rozoStellar,
-} from "../src/chain";
-import {
-  arbitrumETH,
-  baseETH,
-  bscBNB,
-  ethereumETH,
-  polygonPOL,
+  getKnownToken,
+  isNativeToken,
+  rozoStellarUSDT0,
   solanaSOL,
+  solanaUSDT,
   stellarXLM,
-  supportedTokens,
 } from "../src/token";
 
-test("supportedTokens includes native ETH for arbitrum, base, ethereum", (t) => {
-  t.ok(
-    supportedTokens.get(arbitrum.chainId)?.includes(arbitrumETH),
-    "arbitrum supportedTokens includes arbitrumETH"
-  );
-  t.ok(
-    supportedTokens.get(base.chainId)?.includes(baseETH),
-    "base supportedTokens includes baseETH"
-  );
-  t.ok(
-    supportedTokens.get(ethereum.chainId)?.includes(ethereumETH),
-    "ethereum supportedTokens includes ethereumETH"
+test("finds Solana USDT by its native chain ID", (t) => {
+  t.equal(solanaUSDT.chainId, solana.chainId, "Solana USDT belongs to Solana");
+  t.equal(
+    getKnownToken(solana.chainId, solanaUSDT.token)?.fiatISO,
+    "USD",
+    "Solana USDT resolves with its fiat currency",
   );
   t.end();
 });
 
-test("supportedTokens includes native BNB for bsc", (t) => {
-  t.ok(
-    supportedTokens.get(bsc.chainId)?.includes(bscBNB),
-    "bsc supportedTokens includes bscBNB"
+test("finds Stellar USDT0 by its Rozo Stellar chain ID", (t) => {
+  t.equal(rozoStellarUSDT0.chainId, rozoStellar.chainId, "USDT0 belongs to Rozo Stellar");
+  t.equal(
+    getKnownToken(rozoStellar.chainId, rozoStellarUSDT0.token)?.symbol,
+    "USDT0",
+    "Stellar USDT0 resolves by CODE:ISSUER address",
   );
   t.end();
 });
 
-test("supportedTokens includes native POL for polygon", (t) => {
-  t.ok(
-    supportedTokens.get(polygon.chainId)?.includes(polygonPOL),
-    "polygon supportedTokens includes polygonPOL"
-  );
-  t.end();
-});
-
-test("supportedTokens includes native SOL for rozoSolana", (t) => {
-  t.ok(
-    supportedTokens.get(rozoSolana.chainId)?.includes(solanaSOL),
-    "rozoSolana supportedTokens includes solanaSOL"
-  );
-  t.end();
-});
-
-test("supportedTokens includes native XLM for rozoStellar", (t) => {
-  t.ok(
-    supportedTokens.get(rozoStellar.chainId)?.includes(stellarXLM),
-    "rozoStellar supportedTokens includes stellarXLM"
-  );
+test("models native SOL and XLM with their transfer units", (t) => {
+  t.ok(isNativeToken(solanaSOL.token), "SOL sentinel is native");
+  t.ok(isNativeToken(stellarXLM.token), "XLM sentinel is native");
+  t.equal(stellarXLM.decimals, 7, "XLM uses stroops");
   t.end();
 });

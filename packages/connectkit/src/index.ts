@@ -13,6 +13,7 @@ export type {
   RozoPayButtonCustomProps,
   RozoPayButtonProps,
 } from "./components/RozoPayButton/types";
+export type { SuggestedSource } from "./utils/suggestedSource";
 
 // Hooks to track payment status + UI status.
 export { useRozoPay } from "./hooks/useRozoPay";

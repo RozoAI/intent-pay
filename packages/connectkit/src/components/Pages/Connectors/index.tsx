@@ -19,6 +19,11 @@ import {
 
 import { RozoPayOrderMode } from "@rozoai/intent-common";
 import { useRozoPay } from "../../../hooks/useRozoPay";
+import {
+  beginRequestScope,
+  cancelRequestScope,
+  PAYMENT_REQUEST_SCOPE,
+} from "../../../utils/paymentRequestScope";
 import useIsMobile from "../../../hooks/useIsMobile";
 import useLocales from "../../../hooks/useLocales";
 import Button from "../../Common/Button";
@@ -58,12 +63,19 @@ const Wallets: React.FC = () => {
     ) {
       context.log("HYDRATING ORDER", order, context);
       hasHydratedRef.current = true;
-      hydrateOrder();
+      const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+      void hydrateOrder(undefined, undefined, { signal: request.signal }).catch((error) => {
+        if ((error as Error)?.name !== "AbortError") {
+          context.log("[CONNECTORS] hydrateOrder failed", error);
+        }
+      });
     }
 
     if (hasCustomDeeplink) {
       hasHydratedRef.current = true;
     }
+
+    return () => cancelRequestScope(PAYMENT_REQUEST_SCOPE);
   }, [context.paymentState.isDepositFlow, order, isMobile, hasCustomDeeplink]);
 
   useEffect(() => {

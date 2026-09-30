@@ -11,34 +11,56 @@ import { OrderHeader } from "../../Common/OrderHeader";
 import PoweredByFooter from "../../Common/PoweredByFooter";
 import SelectAnotherMethodButton from "../../Common/SelectAnotherMethodButton";
 import TokenChainLogo from "../../Common/TokenChainLogo";
+import { suggestedSourceRank } from "../../../utils/suggestedSource";
 
 const SelectDepositAddressChain: React.FC = () => {
   const { setRoute, paymentState } = usePayContext();
   const pay = useRozoPay();
   const { order } = pay;
-  const { isDepositFlow, setSelectedDepositAddressOption, depositAddressOptions } = paymentState;
+  const {
+    isDepositFlow,
+    setSelectedDepositAddressOption,
+    depositAddressOptions,
+  } = paymentState;
+  const suggested = paymentState.suggestedSource;
+  // Ordering hint only (see RozoPayButton's suggestedSource): never filters.
+  const rankById = new Map(
+    (depositAddressOptions.options ?? []).map((o) => [
+      o.id,
+      suggestedSourceRank(o.token.chainId, o.token.token, suggested),
+    ]),
+  );
 
   return (
     <PageContent>
       <OrderHeader
         minified
-        excludeLogos={["tron", "arbitrum", "optimism", "stellar", "polygon", "worldchain", "bsc"]}
+        excludeLogos={[
+          "tron",
+          "arbitrum",
+          "optimism",
+          "stellar",
+          "polygon",
+          "worldchain",
+          "bsc",
+        ]}
       />
 
-      {!depositAddressOptions.loading && depositAddressOptions.options?.length === 0 && (
-        <ModalContent
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            paddingTop: 16,
-            paddingBottom: 16,
-          }}
-        >
-          <ModalH1>Chains unavailable.</ModalH1>
-          <SelectAnotherMethodButton />
-        </ModalContent>
-      )}
+      {!depositAddressOptions.loading &&
+        depositAddressOptions.options?.length === 0 && (
+          <ModalContent
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              paddingTop: 16,
+              paddingBottom: 16,
+            }}
+          >
+            <ModalH1>Chains unavailable.</ModalH1>
+            <SelectAnotherMethodButton />
+          </ModalContent>
+        )}
 
       <OptionsList
         requiredSkeletons={4}
@@ -49,15 +71,17 @@ const SelectDepositAddressChain: React.FC = () => {
             .map((option) => {
               const isDisabledByMinimum =
                 option.minimumUsd <= 0 ||
-                (order?.mode === RozoPayOrderMode.HYDRATED && order.usdValue < option.minimumUsd) ||
+                (order?.mode === RozoPayOrderMode.HYDRATED &&
+                  order.usdValue < option.minimumUsd) ||
                 (order?.mode === RozoPayOrderMode.SALE &&
                   order.destFinalCallTokenAmount.usd < option.minimumUsd);
 
               let disabledReason: string | undefined;
               if (isDisabledByMinimum) {
-                const destinationFiatISO =
-                  getKnownToken(option.token.chainId, option.token.token)?.fiatISO ??
-                  option.token.symbol;
+                const destinationFiatISO = getKnownToken(
+                  option.token.chainId,
+                  option.token.token,
+                )?.fiatISO;
                 if (option.minimumUsd <= 0) {
                   disabledReason = "Minimum amount not available";
                 } else if (order?.mode === RozoPayOrderMode.HYDRATED) {
@@ -71,7 +95,9 @@ const SelectDepositAddressChain: React.FC = () => {
                 id: option.id,
                 title: option.id,
                 subtitle: disabledReason,
-                icons: [<TokenChainLogo key={option.id} token={option.token} nativeAsChainIcon />],
+                icons: [
+                  <TokenChainLogo key={option.id} token={option.token} />,
+                ],
                 disabled: isDisabledByMinimum,
                 onClick: () => {
                   setSelectedDepositAddressOption(option);
@@ -84,8 +110,13 @@ const SelectDepositAddressChain: React.FC = () => {
                 },
               };
             })
-            // sort: enabled (disabled: false) appear first, then disabled (disabled: true) after
-            .sort((a, b) => Number(a.disabled) - Number(b.disabled)) ?? []
+            // sort: enabled (disabled: false) appear first, then disabled (disabled: true) after;
+            // within each group the payer's suggested source comes first
+            .sort(
+              (a, b) =>
+                Number(a.disabled) - Number(b.disabled) ||
+                (rankById.get(a.id) ?? 2) - (rankById.get(b.id) ?? 2),
+            ) ?? []
         }
       />
       <PoweredByFooter />

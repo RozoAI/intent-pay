@@ -74,6 +74,16 @@ export default defineConfig({
       timeout: 60_000,
     },
 
+    // ── Stellar breakdown (mocked balance and fee quote; no submission) ───────
+    {
+      name: "stellar-breakdown",
+      testMatch: "**/payment-flows/bridge/stellar-breakdown.spec.ts",
+      dependencies: ["mocked"],
+      use: { ...realFundsUse, headless: true },
+      retries: 0,
+      timeout: 90_000,
+    },
+
     // ── EVM → Stellar (real funds) ────────────────────────────────────────────
     // Headed — the MetaMask extension can't load headless. Skipped unless
     // E2E_EVM_SEED_PHRASE is set. Depends on `mocked` so the fast mocked suite

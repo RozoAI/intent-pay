@@ -3,25 +3,67 @@ import {
   baseEURC,
   baseUSDC,
   CreateNewPaymentParams,
+  DepositAddressPaymentOptionMetadata,
+  FeeResponseData,
   FeeType,
   generateIntentTitle,
   getKnownToken,
   getOrderDestChainId,
   mergedMetadata,
+  PaymentResponse,
   RozoPayHydratedOrderWithOrg,
   RozoPayOrderWithOrg,
   rozoSolana,
   rozoStellar,
   rozoStellarEURC,
   rozoStellarUSDC,
+  solana,
+  stellar,
   Token,
   TokenSymbol,
+  WalletPaymentOption,
 } from "@rozoai/intent-common";
-import { formatUnits } from "viem";
+import { formatUnits, getAddress, parseUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { tokenBaseAmountToDecimalString } from "../utils/format";
 import { convertPreferredSymbolsToTokens } from "../utils/token";
 import { HydrateWalletOption, PayParams } from "./paymentFsm";
+
+/**
+ * Round a decimal amount string to `decimals` fraction digits, string-only
+ * (no `Number()` round-trip), so large-magnitude amounts don't lose
+ * precision before being scaled to atomic units via `parseUnits`.
+ */
+function roundDecimalString(value: string, decimals: number): string {
+  const [wholeRaw, fracRaw = ""] = value.split(".");
+  const whole = wholeRaw || "0";
+  if (fracRaw.length <= decimals) {
+    return decimals === 0 ? whole : `${whole}.${fracRaw.padEnd(decimals, "0")}`;
+  }
+
+  const kept = fracRaw.slice(0, decimals);
+  const roundUp = fracRaw.charCodeAt(decimals) >= "5".charCodeAt(0);
+  if (!roundUp) {
+    return decimals === 0 ? whole : `${whole}.${kept}`;
+  }
+
+  // Propagate the carry through `whole.kept` as a single integer string.
+  const digits = (whole + kept).split("");
+  let i = digits.length - 1;
+  while (i >= 0) {
+    if (digits[i] === "9") {
+      digits[i] = "0";
+      i--;
+    } else {
+      digits[i] = String(Number(digits[i]) + 1);
+      break;
+    }
+  }
+  const carried = i < 0 ? "1" + digits.join("") : digits.join("");
+  const newWhole = carried.slice(0, carried.length - decimals) || "0";
+  const newFrac = carried.slice(carried.length - decimals);
+  return decimals === 0 ? newWhole : `${newWhole}.${newFrac}`;
+}
 
 type OrderLike = RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg;
 
@@ -101,60 +143,46 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
   const feeType = feeTypeOverride ?? payParams.feeType ?? FeeType.ExactIn;
 
   // --------------------------------------------------
-  // Destination token / amount + source (preferred) amount
+  // Destination token / amount
   // --------------------------------------------------
-  // Two distinct amounts flow through here:
-  //  - `rawAmountUnitsStr` (destination payout): what the recipient receives,
-  //    always in destination-token units (e.g. 1.3 USDC).
-  //  - `sourceAmountUnitsStr` (source amount): what the user actually pays, in
-  //    source-token units (e.g. 0.016885 SOL). For 1:1-USD sources this equals
-  //    the destination amount, but for native tokens it differs.
   let toChain: number;
   let toTokenAddress: string;
   let rawAmountUnitsStr: string;
-  let sourceAmountUnitsStr: string | undefined;
+  let tokenDecimals: number;
+
   if (order) {
-    // Use the order as the authoritative destination. Preview/hydrated orders
-    // sometimes omit token.chainId/token.token, so fall back to PayParams.
-    toChain = getOrderDestChainId(order) ?? payParams.toChain;
-    toTokenAddress = order.destFinalCallTokenAmount.token.token ?? payParams.toToken;
+    toChain = getOrderDestChainId(order);
+    toTokenAddress = order.destFinalCallTokenAmount.token.token;
 
     const token = getKnownToken(toChain, toTokenAddress);
     if (!token) {
       throw new Error(`Token not found for chain ${toChain} and token ${toTokenAddress}`);
     }
 
-    // Destination payout: derive from the order's destination token amount
-    // (NOT the source wallet amount, which is a different token entirely for
-    // cross-token bridges like SOL -> USDC).
-    rawAmountUnitsStr = formatUnits(
-      BigInt(order.destFinalCallTokenAmount.amount),
-      order.destFinalCallTokenAmount.token.decimals,
-    );
+    tokenDecimals = token.decimals;
+    rawAmountUnitsStr = formatUnits(BigInt(order.destFinalCallTokenAmount.amount), tokenDecimals);
   } else {
     toChain = payParams.toChain;
     toTokenAddress = payParams.toToken;
+    const token = getKnownToken(toChain, toTokenAddress);
+    tokenDecimals = token?.decimals ?? 18;
     rawAmountUnitsStr = payParams.toUnits ?? "0";
   }
 
-  // Source amount: what the user actually pays, in source-token units. This
-  // depends ONLY on the selected wallet option, not on whether we have a
-  // hydrated order — so compute it independently of the branch above (an order
-  // lacking `org` is narrowed to undefined by callers, which must NOT drop the
-  // source amount and silently fall back to the destination amount).
-  //
-  // required.amount is normally integer base units, but some endpoints return a
-  // human-readable decimal string, so use the decimal-tolerant converter. Keep
-  // full precision — do NOT round to 2 dp (that would corrupt native-token
-  // amounts, e.g. 0.016885 SOL -> 0.02 SOL).
-  if (walletOption) {
-    sourceAmountUnitsStr = tokenBaseAmountToDecimalString(
-      walletOption.required.amount,
-      walletOption.required.token.decimals,
-    );
-  }
-
-  const rawAmountNumber = Number(rawAmountUnitsStr);
+  const rawAmountAtomic = parseUnits(
+    roundDecimalString(rawAmountUnitsStr, tokenDecimals),
+    tokenDecimals,
+  );
+  // Source amount is token-denominated and differs from the destination for
+  // native/cross-chain payments. Preserve the API quote without Number()
+  // coercion so a payment is never silently rounded.
+  const sourceAmountUnitsStr =
+    walletOption?.required.amount != null
+      ? tokenBaseAmountToDecimalString(
+          walletOption.required.amount,
+          walletOption.required.token.decimals,
+        )
+      : undefined;
 
   // --------------------------------------------------
   // Preferred payment method (what user will pay with)
@@ -180,15 +208,8 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     preferredTokenAddress = isNonUSDToken ? baseEURC.token : baseUSDC.token;
   }
 
-  // --------------------------------------------------
-  // Fee handling
-  // --------------------------------------------------
-  // Destination amount is always `rawAmountNumber` — the fee is on the source
-  // side, not the destination. Previously the ExactOut branch subtracted the
-  // fee from toUnits, which produced a wrong destination (e.g. $10 - $0.01
-  // fee = $9.99 destination when the user asked for $10). The source amount
-  // is the one that grows to cover the fee, regardless of feeType.
-  const safeToUnits = Math.max(rawAmountNumber, 0);
+  // ExactOut toUnits is recipient receive amount. Backend calculates the
+  // fee-inclusive source amount; wallet-option fees are only preliminary UI data.
 
   // --------------------------------------------------
   // Address & metadata
@@ -245,7 +266,7 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     toAddress,
     preferredChain,
     preferredTokenAddress,
-    toUnits: String(safeToUnits),
+    toUnits: formatUnits(rawAmountAtomic, tokenDecimals),
     ...(sourceAmountUnitsStr ? { preferredAmountUnits: sourceAmountUnitsStr } : {}),
     ...(isAbleToIncludeReceiverMemo && payParams.receiverMemo
       ? { receiverMemo: payParams.receiverMemo }
@@ -259,4 +280,126 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
   };
 
   return payload;
+}
+
+/**
+ * Minimal wallet-option shape the deposit-address flow fabricates from the
+ * selected source option + its fee quote. Only the fields
+ * `handleCreateRozoPayment` actually reads (create: required.token +
+ * fees.usd; checkout: required.token + required.usd) — balance/minimumRequired
+ * are meaningless for deposits (no wallet connected yet) and stay unset.
+ */
+export interface DepositWalletOption {
+  required: {
+    token: { chainId: number; token: string; symbol: string };
+    usd: number;
+  };
+  fees: { usd: number };
+}
+
+export function buildDepositWalletOption(
+  option: DepositAddressPaymentOptionMetadata,
+  fees: FeeResponseData | null | undefined,
+  fallbackUsd: number,
+): DepositWalletOption {
+  return {
+    required: {
+      token: {
+        chainId: option.token.chainId,
+        token: option.token.token,
+        symbol: option.token.symbol,
+      },
+      usd:
+        fees?.source?.amount != null
+          ? parseFloat(fees.source.amount)
+          : fallbackUsd,
+    },
+    fees: {
+      usd: fees?.source?.fee != null ? parseFloat(fees.source.fee) : 0,
+    },
+  };
+}
+
+/**
+ * Authoritative pay-in quantity (human-readable source-token units,
+ * fee-inclusive) for deposit QR/deeplinks and "Send Exactly".
+ *
+ * Preference: payment/checkout response `source.amount` (what the payer
+ * must actually send) > fee-quote `source.amount` > fallback (destination
+ * USD value). The fallback underpays when fees are nonzero or the source
+ * asset isn't $1-pegged — pass a real quote whenever one exists.
+ */
+export function resolveDepositSourceAmount(
+  responseAmount: string | null | undefined,
+  fees: FeeResponseData | null | undefined,
+  fallback: number | string,
+): string {
+  if (responseAmount != null && responseAmount !== "") {
+    return String(responseAmount);
+  }
+  const quoted = fees?.source?.amount;
+  if (quoted != null && quoted !== "") {
+    return String(quoted);
+  }
+  return String(fallback);
+}
+
+export type WalletSourceQuoteOrder = {
+  sourceQuote?: {
+    amount: string;
+    chainId: number;
+    tokenAddress: string;
+  };
+  paymentBreakdown?: FeeResponseData;
+};
+
+/** Preserve payment/checkout's authoritative source quote on SDK-owned state. */
+export function withWalletSourceQuote<T extends RozoPayHydratedOrderWithOrg>(
+  order: T,
+  response: PaymentResponse,
+): T & WalletSourceQuoteOrder {
+  const quote = response.source;
+  return {
+    ...order,
+    sourceQuote:
+      quote?.amount != null && quote.chainId != null && quote.tokenAddress != null
+        ? {
+            amount: quote.amount,
+            chainId: Number(quote.chainId),
+            tokenAddress: quote.tokenAddress,
+          }
+        : undefined,
+    paymentBreakdown:
+      quote && response.destination
+        ? ({ source: quote, destination: response.destination } as unknown as FeeResponseData)
+        : undefined,
+  };
+}
+
+/** Amount authorized by payment/checkout, validated against selected source token. */
+export function resolveWalletPaymentAmount(
+  order: WalletSourceQuoteOrder,
+  option: Pick<WalletPaymentOption, "required">,
+): bigint {
+  const quote = order.sourceQuote;
+  if (!quote?.amount || quote.chainId == null || !quote.tokenAddress) {
+    throw new Error("[PAY TOKEN] hydrated order has no source quote");
+  }
+
+  const token = option.required.token;
+  const normalizeChainId = (chainId: number) => {
+    if (chainId === solana.chainId) return rozoSolana.chainId;
+    if (chainId === stellar.chainId) return rozoStellar.chainId;
+    return chainId;
+  };
+  const normalizeTokenAddress = (address: string) =>
+    address.startsWith("0x") ? getAddress(address) : address;
+  if (
+    normalizeChainId(quote.chainId) !== normalizeChainId(token.chainId) ||
+    normalizeTokenAddress(quote.tokenAddress) !== normalizeTokenAddress(token.token)
+  ) {
+    throw new Error("[PAY TOKEN] hydrated source quote does not match selected token");
+  }
+
+  return parseUnits(quote.amount, token.decimals);
 }

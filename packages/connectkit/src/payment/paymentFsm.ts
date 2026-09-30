@@ -17,6 +17,7 @@ import {
   WalletPaymentOption,
 } from "@rozoai/intent-common";
 import { Address, Hex, parseUnits } from "viem";
+import type { SuggestedSource } from "../utils/suggestedSource";
 
 /** Payment parameters. The payment is created only after user taps pay. */
 export interface PayParams {
@@ -49,6 +50,8 @@ export interface PayParams {
   preferredTokens?: Token[];
   /** Preferred token symbols to filter. Only tokens with these symbols will be shown. Default: ["USDC", "USDT"] */
   preferredSymbol?: TokenSymbol[];
+  /** Ordering hint only. See RozoPayButton's `suggestedSource`. */
+  suggestedSource?: SuggestedSource;
   /** Only allow payments on these EVM chains. */
   evmChains?: number[];
   /** External ID. E.g. a correlation ID. */
@@ -185,6 +188,8 @@ type PayParamsData = {
   toAddress?: string;
   metadata?: RozoPayUserMetadata;
   receiverMemo?: string;
+  /** Top-level API intent flag (e.g. "stellarsponsor", "stellar_direct") — distinct from metadata.intent (display title). */
+  intent?: string;
 };
 
 /**

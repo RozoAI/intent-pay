@@ -8,7 +8,7 @@ export interface SharedConfig {
   toToken: string;
   toAddress: string;
   toUnits: string;
-  feeType?: FeeType;
+  feeType: FeeType;
 }
 
 const STORAGE_KEY = "playground-config";

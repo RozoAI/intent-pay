@@ -9,8 +9,13 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Option } from "../components/Common/OptionsList";
 import TokenChainLogo from "../components/Common/TokenChainLogo";
 import { ROUTES } from "../constants/routes";
+import { ROZO_EVENTS, RozoEventName } from "../lib/analytics/events";
+import { useAnalytics } from "../provider/AnalyticsProvider";
 import { formatUsd, roundTokenAmount } from "../utils/format";
+import { suggestedSourceRank } from "../utils/suggestedSource";
 import { usePayContext } from "./usePayContext";
+
+type CaptureFn = (event: RozoEventName, properties?: Record<string, unknown>) => void;
 
 /// Gets token options when paying from a connected wallet. Supports both EVM
 /// and Solana tokens. See OptionsList.
@@ -20,6 +25,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   refreshOptions: () => Promise<void>;
 } {
   const { setRoute, paymentState } = usePayContext();
+  const { capture } = useAnalytics();
   const {
     isDepositFlow,
     connectedWalletOnly,
@@ -34,6 +40,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
 
   // Get preferredTokens from payParams for prioritization
   const preferredTokens = paymentState.payParams?.preferredTokens;
+  const suggestedSource = paymentState.suggestedSource;
 
   const optionsList: Option[] = [];
   let isLoading = true;
@@ -94,6 +101,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
           isDepositFlow,
           setSelectedTokenOption,
           setRoute,
+          capture,
           preferredTokens,
         );
     optionsList.push(...evmOptions);
@@ -110,6 +118,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
       isDepositFlow,
       setSelectedSolanaTokenOption,
       setRoute,
+      capture,
       preferredTokens,
     );
     optionsList.push(...solanaOptions);
@@ -127,6 +136,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
           isDepositFlow,
           setSelectedStellarTokenOption,
           setRoute,
+          capture,
           preferredTokens,
         );
     optionsList.push(...stellarOptions);
@@ -156,6 +166,15 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     );
   };
 
+  // Option ids are "chainId-tokenAddress" (see isTokenPreferred above).
+  const optionSuggestedRank = (option: Option): number => {
+    const dashIndex = option.id.indexOf("-");
+    if (dashIndex === -1) return 2;
+    const chainId = parseInt(option.id.substring(0, dashIndex), 10);
+    if (isNaN(chainId)) return 2;
+    return suggestedSourceRank(chainId, option.id.substring(dashIndex + 1), suggestedSource);
+  };
+
   // Memoize the sorted optionsList and reassign to optionsList to preserve invariant
   const sortedOptionsList = useMemo(() => {
     return [...optionsList].sort((a, b) => {
@@ -169,17 +188,21 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
       const dPreferred = (bIsPreferred ? 1 : 0) - (aIsPreferred ? 1 : 0);
       if (dPreferred !== 0) return dPreferred;
 
-      // Third: sort by balance USD (highest first) within each group
+      // Third: the payer's suggested source (ordering hint only, never filters)
+      const dSuggested = optionSuggestedRank(a) - optionSuggestedRank(b);
+      if (dSuggested !== 0) return dSuggested;
+
+      // Fourth: sort by balance USD (highest first) within each group
       const dSort = (b.sortValue ?? 0) - (a.sortValue ?? 0);
       return dSort;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [optionsList, preferredTokens]);
+  }, [optionsList, preferredTokens, suggestedSource]);
 
   // Smart refresh function that only refreshes hooks that need it
   const refreshOptions = useCallback(async () => {
     const { ethWalletAddress, solanaPubKey, stellarPubKey } = paymentState;
-    const refreshPromises: Promise<void>[] = [];
+    const refreshPromises: Promise<unknown>[] = [];
 
     // Only refresh EVM options if we have EVM address and need EVM data
     if (
@@ -303,7 +326,7 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   // Manual refresh function for user-triggered refreshes (like clicking refresh button)
   const manualRefresh = useCallback(async () => {
     // Force refresh all relevant payment options regardless of current state
-    const refreshPromises: Promise<void>[] = [];
+    const refreshPromises: Promise<unknown>[] = [];
 
     if (["evm", "all"].includes(mode) && walletPaymentOptions.refreshOptions) {
       refreshPromises.push(walletPaymentOptions.refreshOptions());
@@ -376,21 +399,43 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
     isDepositFlow,
   ]);
 
+  // Wallet-switch glitch: on address change, the new fetch is debounced
+  // (smartRefresh, 300ms) before it even starts, so sortedOptionsList still
+  // holds the PREVIOUS wallet's stale results (or an empty list) for a beat.
+  // "sortedOptionsList.length > 0 → never loading" below trusted that stale
+  // data, flashing "no tokens" before the real list for the new address pops
+  // in. Track which address the current options actually belong to so a
+  // mismatch (address changed, fetch not caught up yet) still shows loading.
+  const { ethWalletAddress, solanaPubKey, stellarPubKey } = paymentState;
+  const currentAddressKey = `${ethWalletAddress || ""}-${solanaPubKey || ""}-${stellarPubKey || ""}`;
+  // Tracks the address the most recently SETTLED (isLoading: false) fetch
+  // belongs to — regardless of whether it came back empty. Only gating on
+  // "got a non-empty list" (previous version) meant a wallet with zero
+  // tokens never flipped this, so shouldShowLoading stayed stuck true
+  // forever instead of settling into a legitimate "no tokens" state.
+  const settledAddressKey = useRef<string>("");
+  if (!isLoading) {
+    settledAddressKey.current = currentAddressKey;
+  }
+  const optionsAreForCurrentAddress = settledAddressKey.current === currentAddressKey;
+
   const shouldShowLoading = useMemo(
     () =>
-      // Once we have options, don't show loading/skeletons (avoids extra skeleton when
-      // e.g. EVM+Solana are done but Stellar is still loading in mode "all")
-      sortedOptionsList.length > 0
+      // Once the fetch has settled for the CURRENT address, don't show
+      // loading/skeletons — regardless of whether it returned any options.
+      // Stale options (or staleness) from a previous address don't count.
+      optionsAreForCurrentAddress
         ? false
         : connectedWalletOnly && sortedOptionsList.length === 0 && !hasRelevantHooksWithValidParams
           ? false
-          : isLoading && (!hasAnyData || sortedOptionsList.length === 0),
+          : isLoading || !hasAnyData || sortedOptionsList.length === 0,
     [
       connectedWalletOnly,
       sortedOptionsList,
       hasRelevantHooksWithValidParams,
       isLoading,
       hasAnyData,
+      optionsAreForCurrentAddress,
     ],
   );
 
@@ -406,6 +451,7 @@ function getEvmTokenOptions(
   isDepositFlow: boolean,
   setSelectedTokenOption: (option: WalletPaymentOption) => void,
   setRoute: (route: ROUTES, meta?: any) => void,
+  capture: CaptureFn,
   _preferredTokens?: Token[],
 ) {
   return options.map((option) => {
@@ -435,6 +481,12 @@ function getEvmTokenOptions(
         />,
       ],
       onClick: () => {
+        capture(ROZO_EVENTS.CHAIN_SELECTED, {
+          chain_id: option.balance.token.chainId,
+          chain_name: getChainName(option.balance.token.chainId),
+          token_symbol: option.balance.token.symbol,
+          is_default: false,
+        });
         setSelectedTokenOption(option);
         const meta = {
           event: "click-token",
@@ -457,6 +509,7 @@ function getSolanaTokenOptions(
   isDepositFlow: boolean,
   setSelectedSolanaTokenOption: (option: WalletPaymentOption) => void,
   setRoute: (route: ROUTES, meta?: any) => void,
+  capture: CaptureFn,
   _preferredTokens?: Token[],
 ) {
   return options.map((option) => {
@@ -484,6 +537,12 @@ function getSolanaTokenOptions(
         />,
       ],
       onClick: () => {
+        capture(ROZO_EVENTS.CHAIN_SELECTED, {
+          chain_id: option.balance.token.chainId,
+          chain_name: "Solana",
+          token_symbol: option.balance.token.symbol,
+          is_default: false,
+        });
         setSelectedSolanaTokenOption(option);
         const meta = {
           event: "click-solana-token",
@@ -506,6 +565,7 @@ function getStellarTokenOptions(
   isDepositFlow: boolean,
   setSelectedStellarTokenOption: (option: WalletPaymentOption) => void,
   setRoute: (route: ROUTES, meta?: any) => void,
+  capture: CaptureFn,
   _preferredTokens?: Token[],
 ) {
   return options.map((option) => {
@@ -533,6 +593,12 @@ function getStellarTokenOptions(
         />,
       ],
       onClick: () => {
+        capture(ROZO_EVENTS.CHAIN_SELECTED, {
+          chain_id: option.balance.token.chainId,
+          chain_name: "Stellar",
+          token_symbol: option.balance.token.symbol,
+          is_default: false,
+        });
         setSelectedStellarTokenOption(option);
         const meta = {
           event: "click-stellar-token",

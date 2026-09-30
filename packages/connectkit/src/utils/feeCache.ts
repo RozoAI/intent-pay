@@ -1,4 +1,12 @@
-import { getFee, GetFeeParams } from "@rozoai/intent-common";
+import {
+  CreateNewPaymentParams,
+  FeeType,
+  getFee,
+  rozoStellar,
+  rozoStellarEURC,
+  rozoStellarUSDC,
+} from "@rozoai/intent-common";
+import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 
 /**
  * Module-level cache for getFee results, keyed by a stable JSON representation
@@ -23,17 +31,21 @@ const TTL_MS = 60_000;
 
 const cache = new Map<string, CacheEntry>();
 
-export function getCachedFee(params: GetFeeParams): Promise<FeeResult> {
-  const key = JSON.stringify({
-    appId: params.appId ?? null,
-    type: params.type,
-    sourceChainId: params.sourceChainId,
-    sourceTokenSymbol: params.sourceTokenSymbol,
-    amount: params.amount,
-    destChainId: params.destChainId,
-    destReceiverAddress: params.destReceiverAddress,
-    destTokenSymbol: params.destTokenSymbol,
-  });
+export function getCachedFee(
+  params: CreateNewPaymentParams,
+  options?: { signal?: AbortSignal },
+): Promise<FeeResult> {
+  if (options?.signal?.aborted) {
+    const error = new Error("Aborted");
+    error.name = "AbortError";
+    return Promise.resolve({
+      data: null,
+      error,
+      status: null,
+    });
+  }
+
+  const key = JSON.stringify(params);
 
   const existing = cache.get(key);
 
@@ -49,20 +61,27 @@ export function getCachedFee(params: GetFeeParams): Promise<FeeResult> {
     }
   }
 
-  const promise = getFee(params).then((result) => {
-    // Only cache successful responses; errors should be retryable
-    if (!result.error) {
-      cache.set(key, {
-        status: "resolved",
-        value: result,
-        expiresAt: Date.now() + TTL_MS,
-      });
-    } else {
-      // Remove the pending entry so a subsequent call can retry
+  const promise = getFee(params, { signal: options?.signal })
+    .then((result) => {
+      // Only cache successful responses; errors should be retryable
+      if (!result.error) {
+        cache.set(key, {
+          status: "resolved",
+          value: result,
+          expiresAt: Date.now() + TTL_MS,
+        });
+      } else {
+        // Remove the pending entry so a subsequent call can retry
+        cache.delete(key);
+      }
+      return result;
+    })
+    .catch((e: unknown) => {
+      // Rejection poisons the pending entry forever — delete it so a retry
+      // can make a fresh request (e.g. after a bad token/address resolves).
       cache.delete(key);
-    }
-    return result;
-  });
+      throw e;
+    });
 
   cache.set(key, { status: "pending", promise });
   return promise;
@@ -86,4 +105,72 @@ export function resolveOrderAppId(
   return typeof metaAppId === "string" && metaAppId.length > 0
     ? metaAppId
     : payParamsAppId;
+}
+
+/**
+ * Builds the CreateNewPaymentParams payload shared by every fee-quote call
+ * site (PayWithToken, PayWithSolanaToken, PayWithStellarToken,
+ * WaitingDepositAddress). Centralizing this means a new field on
+ * CreateNewPaymentParams (or a change to how appId/intent are resolved)
+ * only needs to be wired here once instead of at every call site.
+ */
+export function buildFeeQuoteParams(params: {
+  order: { metadata?: unknown; destFinalCallTokenAmount?: { amount: string; token: { decimals: number } } } | undefined | null;
+  payParams?: {
+    appId?: string;
+    feeType?: CreateNewPaymentParams["feeType"];
+    toAddress?: string;
+    intent?: string;
+  } | null;
+  /** Destination chain/token — normally the order's destFinalCallTokenAmount.token. */
+  destChainId: number;
+  destTokenAddress: string;
+  /** Destination address — normally getCanonicalDestination(order).finalDestinationAddress. */
+  destAddress: string;
+  /** Source (what the payer sends) chain/token. */
+  sourceChainId: number;
+  sourceTokenAddress: string;
+  /** Amount in destination units (atomic). */
+  toUnits: string;
+}): CreateNewPaymentParams {
+  const {
+    order,
+    payParams,
+    destChainId,
+    destTokenAddress,
+    destAddress,
+    sourceChainId,
+    sourceTokenAddress,
+    toUnits,
+  } = params;
+
+  // Stellar Direct Settlement: same derivation as buildCreatePaymentPayload
+  // (createPaymentPayload.ts). When both source and destination are Stellar
+  // with the same supported token (USDC or EURC), force intent to
+  // "stellar_direct" so getFee quotes the zero-fee direct-settlement path
+  // instead of the bridge/hub route.
+  const isStellarSameToken =
+    destChainId === rozoStellar.chainId &&
+    sourceChainId === rozoStellar.chainId &&
+    destTokenAddress.toLowerCase() === sourceTokenAddress.toLowerCase();
+  const isSupportedStellarToken =
+    destTokenAddress.toLowerCase() === rozoStellarUSDC.token.toLowerCase() ||
+    destTokenAddress.toLowerCase() === rozoStellarEURC.token.toLowerCase();
+  const isStellarDirect = isStellarSameToken && isSupportedStellarToken;
+  const intent = isStellarDirect ? "stellar_direct" : payParams?.intent;
+
+  // ExactOut toUnits is destination receive amount. Backend calculates source fee.
+  const feeType = payParams?.feeType ?? FeeType.ExactIn;
+
+  return {
+    appId: resolveOrderAppId(order, payParams?.appId) ?? DEFAULT_ROZO_APP_ID,
+    feeType,
+    toChain: destChainId,
+    toToken: destTokenAddress,
+    toAddress: destAddress || payParams?.toAddress || "",
+    preferredChain: sourceChainId,
+    preferredTokenAddress: sourceTokenAddress,
+    toUnits,
+    ...(intent ? { intent } : {}),
+  };
 }

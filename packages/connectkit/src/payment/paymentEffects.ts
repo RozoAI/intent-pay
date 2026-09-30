@@ -19,10 +19,20 @@ import {
 } from "@rozoai/intent-common";
 import { Address, parseUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
+import {
+  beginRequestScope,
+  cancelRequestScope,
+  isAbortError,
+  PAYMENT_REQUEST_SCOPE,
+} from "../utils/paymentRequestScope";
 import { parseErrorMessage } from "../utils/errorParser";
 import { PollHandle, startPolling } from "../utils/polling";
 import { TrpcClient } from "../utils/trpc";
-import { buildCreatePaymentPayload, resolveDestinationAddress } from "./createPaymentPayload";
+import {
+  buildCreatePaymentPayload,
+  resolveDestinationAddress,
+  withWalletSourceQuote,
+} from "./createPaymentPayload";
 import { PaymentEvent, PaymentState } from "./paymentFsm";
 import { PaymentStore } from "./paymentStore";
 
@@ -90,7 +100,11 @@ export function attachPaymentEffectHandlers(
       }
 
       // Stop all pollers when the payment flow is completed or reset
-      if (["payment_completed", "payment_bounced", "error", "idle"].includes(next.type)) {
+      if (
+        ["payment_completed", "payment_bounced", "error", "idle"].includes(
+          next.type,
+        )
+      ) {
         if ("order" in prev && prev.order) {
           stopPoller(`${PollerType.FIND_SOURCE_PAYMENT}:${prev.order.id}`);
           stopPoller(`${PollerType.REFRESH_ORDER}:${prev.order.id}`);
@@ -115,6 +129,7 @@ export function attachPaymentEffectHandlers(
       case "reset":
         latestSetPayParamsRequestId = null;
         latestSetPayIdRequestId = null;
+        cancelRequestScope(PAYMENT_REQUEST_SCOPE);
         log("[EFFECT] reset – invalidating in-flight preview and payId requests");
         break;
       case "set_pay_id": {
@@ -132,7 +147,9 @@ export function attachPaymentEffectHandlers(
         } else if (prev.type === "payment_started") {
           // Order is already hydrated in payment_started state, no effect needed
           // This can happen when user goes back and selects the same payment method again
-          log(`[EFFECT] skipping ${event.type} on state ${prev.type} - order already hydrated`);
+          log(
+            `[EFFECT] skipping ${event.type} on state ${prev.type} - order already hydrated`,
+          );
         } else {
           log(`[EFFECT] invalid event ${event.type} on state ${prev.type}`);
         }
@@ -182,7 +199,11 @@ export function attachPaymentEffectHandlers(
   return cleanup;
 }
 
-async function pollFindPayments(store: PaymentStore, trpc: TrpcClient, orderId: bigint) {
+async function pollFindPayments(
+  store: PaymentStore,
+  trpc: TrpcClient,
+  orderId: bigint,
+) {
   const key = `${PollerType.FIND_SOURCE_PAYMENT}:${orderId}`;
 
   const stopPolling = startPolling({
@@ -203,7 +224,11 @@ async function pollFindPayments(store: PaymentStore, trpc: TrpcClient, orderId: 
   pollers.set(key, stopPolling);
 }
 
-async function pollRefreshOrder(store: PaymentStore, trpc: TrpcClient, orderId: bigint) {
+async function pollRefreshOrder(
+  store: PaymentStore,
+  trpc: TrpcClient,
+  orderId: bigint,
+) {
   const key = `${PollerType.REFRESH_ORDER}:${orderId}`;
 
   const stopPolling = startPolling({
@@ -257,9 +282,10 @@ async function runSetPayParamsEffects(
         "organization-live-" +
         segments
           .map((len) =>
-            Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join(
-              "",
-            ),
+            Array.from(
+              { length: len },
+              () => chars[Math.floor(Math.random() * chars.length)],
+            ).join(""),
           )
           .join("-")
       );
@@ -279,7 +305,7 @@ async function runSetPayParamsEffects(
           token: payParams.toToken,
           symbol: token?.symbol ?? "USDC",
           usd: 1,
-          // priceFromUsd: 1,
+          priceFromUsd: 1,
           decimals: token?.decimals ?? 18,
           displayDecimals: token?.displayDecimals ?? 6,
           logoSourceURI: token?.logoSourceURI ?? TokenLogo.USDC,
@@ -314,7 +340,9 @@ async function runSetPayParamsEffects(
     };
 
     if (!isLatest()) {
-      log(`[EFFECT] preview_generated skipped (stale set_pay_params, toUnits=${toUnits})`);
+      log(
+        `[EFFECT] preview_generated skipped (stale set_pay_params, toUnits=${toUnits})`,
+      );
       return;
     }
 
@@ -330,6 +358,7 @@ async function runSetPayParamsEffects(
         feeType: payParams.feeType,
         receiverMemo: payParams.receiverMemo,
         metadata: payParams.metadata,
+        intent: payParams.intent,
       },
     });
   } catch (e: any) {
@@ -350,9 +379,13 @@ async function runSetPayIdEffects(
 ) {
   try {
     const payId = resolveOrderId(event.payId);
-    const res = await getPayment(payId);
+    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+    const res = await getPayment(payId, undefined, { signal: request.signal });
 
     if (!isLatest()) return;
+    if (res.error) {
+      throw res.error;
+    }
 
     if (!res?.data) {
       throw new Error("Payment not found");
@@ -369,7 +402,10 @@ async function runSetPayIdEffects(
       return;
     }
 
-    const order = formatPaymentResponseToHydratedOrder(res.data);
+    const order = withWalletSourceQuote(
+      formatPaymentResponseToHydratedOrder(res.data),
+      res.data,
+    );
 
     // formatPaymentResponseToHydratedOrder comes from a potentially stale
     // published version of pay-common that omits fiatISO. Patch it here from
@@ -387,13 +423,43 @@ async function runSetPayIdEffects(
       order,
     });
   } catch (e: any) {
-    if (!isLatest()) return;
+    if (isAbortError(e) || !isLatest()) return;
     store.dispatch({
       type: "error",
       order: undefined,
       message: parseErrorMessage(e),
     });
   }
+}
+
+/**
+ * Builds the createPayment payload for the hydrate_order effect.
+ *
+ * Exported for testing: `prev.payParamsData` is a narrowed PayParamsData,
+ * not the full PayParams the button originally set — any field this
+ * function's caller needs (e.g. `intent`) must be present on that narrowed
+ * type, or it's silently lost between preview and the actual createPayment
+ * call. See paymentFsm.ts's PayParamsData for the source of truth on what
+ * that narrowing carries.
+ */
+export function buildHydratePayParamsPayload(
+  prev: Extract<PaymentState, { type: "preview" }>,
+  event: Extract<PaymentEvent, { type: "hydrate_order" }>,
+  apiVersion: ApiVersion = "v2",
+) {
+  const payParams = prev.payParamsData;
+  return buildCreatePaymentPayload({
+    // payParamsData only carries a subset; normalise to full PayParams
+    payParams: {
+      ...payParams,
+      appId: payParams.appId ?? DEFAULT_ROZO_APP_ID,
+    } as any,
+    order: prev.order,
+    walletOption: event.walletPaymentOption,
+    apiVersion,
+    feeTypeOverride: payParams.feeType,
+    includeOrderMetadata: true,
+  });
 }
 
 async function runHydratePayParamsEffects(
@@ -416,32 +482,31 @@ async function runHydratePayParamsEffects(
   let rozoPaymentResponse: PaymentResponse | undefined = undefined;
 
   try {
-    log?.(`[Payment Effect]: createRozoPayment: ${JSON.stringify(payParams, null, 2)}`);
-    const payload = buildCreatePaymentPayload({
-      // payParamsData only carries a subset; normalise to full PayParams
-      payParams: {
-        ...payParams,
-        appId: payParams.appId ?? DEFAULT_ROZO_APP_ID,
-      } as any,
-      order,
-      walletOption,
-      apiVersion,
-      feeTypeOverride: event.feeType ?? payParams.feeType,
-      includeOrderMetadata: true,
-    });
+    log?.(
+      `[Payment Effect]: createRozoPayment: ${JSON.stringify(
+        payParams,
+        null,
+        2,
+      )}`,
+    );
+    const payload = buildHydratePayParamsPayload(prev, event, apiVersion);
     log?.(`[Payment Effect]: payload: ${JSON.stringify(payload, null, 2)}`);
 
-    const rozoPayment = await createPayment(payload);
+    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+    const rozoPayment = await createPayment(payload, { signal: request.signal });
 
     if (!rozoPayment?.id) {
       throw new Error("Payment creation failed");
     }
 
-    log?.(`[Payment Effect]: rozoPayment: ${JSON.stringify(rozoPayment, null, 2)}`);
+    log?.(
+      `[Payment Effect]: rozoPayment: ${JSON.stringify(rozoPayment, null, 2)}`,
+    );
 
     rozoPaymentResponse = rozoPayment;
     rozoPaymentId = rozoPayment.id;
   } catch (error) {
+    if (isAbortError(error)) return;
     console.error(error);
     const message = parseErrorMessage(error);
     store.dispatch({
@@ -455,14 +520,21 @@ async function runHydratePayParamsEffects(
   // END ROZO API CALL
 
   try {
-    if (typeof rozoPaymentResponse === "undefined" || rozoPaymentResponse === null) {
+    if (
+      typeof rozoPaymentResponse === "undefined" ||
+      rozoPaymentResponse === null
+    ) {
       throw new Error("Payment data not found");
     }
 
-    const hydratedOrder = formatPaymentResponseToHydratedOrder({
+    const response = {
       ...rozoPaymentResponse,
       externalId: rozoPaymentId,
-    });
+    };
+    const hydratedOrder = withWalletSourceQuote(
+      formatPaymentResponseToHydratedOrder(response),
+      response,
+    );
 
     store.dispatch({
       type: "order_hydrated",
@@ -483,18 +555,28 @@ async function runHydratePayIdEffects(
   const order = prev.order;
 
   try {
-    const orderData = await getPayment(order.id.toString(), apiVersion);
+    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+    const orderData = await getPayment(order.id.toString(), apiVersion, {
+      signal: request.signal,
+    });
+    if (orderData.error) {
+      throw orderData.error;
+    }
     if (!orderData?.data) {
       throw new Error("Order not found");
     }
 
-    const hydratedOrder = formatPaymentResponseToHydratedOrder(orderData.data);
+    const hydratedOrder = withWalletSourceQuote(
+      formatPaymentResponseToHydratedOrder(orderData.data),
+      orderData.data,
+    );
 
     store.dispatch({
       type: "order_hydrated",
       order: hydratedOrder,
     });
   } catch (e: any) {
+    if (isAbortError(e)) return;
     store.dispatch({
       type: "error",
       order: prev.order,
@@ -511,15 +593,25 @@ async function runPaySourceEffects(
   const order = prev.order;
 
   try {
-    const orderData = await getPayment(order.id.toString());
+    const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
+    const orderData = await getPayment(order.id.toString(), undefined, {
+      signal: request.signal,
+    });
+    if (orderData.error) {
+      throw orderData.error;
+    }
     if (!orderData?.data) {
       throw new Error("Order not found");
     }
 
-    const hydratedOrder = formatPaymentResponseToHydratedOrder(orderData.data);
+    const hydratedOrder = withWalletSourceQuote(
+      formatPaymentResponseToHydratedOrder(orderData.data),
+      orderData.data,
+    );
 
     store.dispatch({ type: "order_refreshed", order: hydratedOrder });
   } catch (e: any) {
+    if (isAbortError(e)) return;
     store.dispatch({
       type: "error",
       order: prev.order,

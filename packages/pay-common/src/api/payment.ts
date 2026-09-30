@@ -15,34 +15,47 @@ import {
   PaymentResponse,
 } from "./types";
 
+export interface FeeResponseData {
+  status: string;
+  type: string;
+  source: {
+    chainId: string;
+    tokenSymbol: string;
+    amount: string;
+    fee: string;
+  };
+  destination: {
+    chainId: string;
+    tokenSymbol: string;
+    amount: string;
+  };
+  feeInfo: {
+    feePercentage: string;
+    minimumFee: string;
+  };
+}
+
+export interface FeeErrorData {
+  error: {
+    code: string;
+    message: string;
+  };
+  requestId?: string;
+  data?: {
+    errorCode: string;
+    maxAmount?: number;
+  };
+}
+
 /**
- * Creates a payment using the new backend interface
- *
- * This function creates a payment using the new backend API structure with
- * separate source and destination objects, enum-based chain IDs and token symbols.
- *
- * @param params - Payment creation parameters
- * @returns Promise resolving to the payment response data
- * @throws Error if payment creation fails or required parameters are missing
- *
- * @example
- * ```typescript
- * // Simple same-chain payment
- * const payment = await createPayment({
- *   toChain: 8453, // Base
- *   toToken: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base USDC
- *   toAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
- *   preferredChain: 8453, // User pays from Base
- *   preferredTokenAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base USDC
- *   toUnits: "1", // 1 USDC
- *   appId: "my-app-id",
- *   title: "Payment",
- * });
- * ```
+ * Builds the backend request body shared by createPayment and getFee.
+ * getFee posts the exact same shape with a dryrun query flag, so a
+ * fee quote always reflects what createPayment will actually charge
+ * (fee type, intent, stellar_direct routing, etc.).
  */
-export async function createPayment(
+function buildPaymentRequestBody(
   params: CreateNewPaymentParams,
-): Promise<PaymentResponse> {
+): CreatePaymentRequest {
   const {
     toChain,
     toToken,
@@ -62,13 +75,8 @@ export async function createPayment(
     receiverMemo,
     apiVersion,
     intent,
+    extraFields
   } = params;
-
-  // Set API version if provided
-  if (apiVersion) {
-    setApiConfig({ version: apiVersion });
-  }
-
   // Create payment bridge configuration
   const { preferred, destination } = createPaymentBridgeConfig({
     toChain,
@@ -136,6 +144,7 @@ export async function createPayment(
     ...(webhookUrl ? { webhookUrl } : {}),
     ...(webhookSecret ? { webhookSecret } : {}),
     ...(intent ? { intent } : {}),
+    ...(extraFields ?? {}),
   };
 
   if (apiVersion === "v1") {
@@ -147,18 +156,123 @@ export async function createPayment(
     paymentData.preferredTokenAddress = preferred.preferredTokenAddress;
   }
 
+  return paymentData;
+}
+
+/**
+ * Creates a payment using the new backend interface
+ *
+ * This function creates a payment using the new backend API structure with
+ * separate source and destination objects, enum-based chain IDs and token symbols.
+ *
+ * @param params - Payment creation parameters
+ * @returns Promise resolving to the payment response data
+ * @throws Error if payment creation fails or required parameters are missing
+ *
+ * @example
+ * ```typescript
+ * // Simple same-chain payment
+ * const payment = await createPayment({
+ *   toChain: 8453, // Base
+ *   toToken: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base USDC
+ *   toAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+ *   preferredChain: 8453, // User pays from Base
+ *   preferredTokenAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base USDC
+ *   toUnits: "1", // 1 USDC
+ *   appId: "my-app-id",
+ *   title: "Payment",
+ * });
+ * ```
+ */
+export async function createPayment(
+  params: CreateNewPaymentParams,
+  options?: { signal?: AbortSignal },
+): Promise<PaymentResponse> {
+  // Set API version if provided
+  if (params.apiVersion) {
+    setApiConfig({ version: params.apiVersion });
+  }
+
+  const paymentData = buildPaymentRequestBody(params);
+
   // Create payment via API
   const response = await apiClient.post<PaymentResponse>(
     "/payment-api",
     paymentData,
+    { signal: options?.signal },
   );
 
+  if (response.error) {
+    throw response.error;
+  }
+
   if (!response?.data?.id) {
-    throw new Error(response?.error?.message ?? "Payment creation failed");
+    throw new Error("Payment creation failed");
   }
 
   return response.data;
 }
+
+/**
+ * Gets a fee/settlement quote for a payment without creating it.
+ *
+ * Sends the exact same request body createPayment would send (same
+ * source/destination/type/intent resolution), with a dryrun flag, so the
+ * quote always matches what createPayment will actually charge.
+ *
+ * @param params - Same shape as createPayment's params
+ * @returns Promise resolving to the fee quote or an error
+ */
+export const getFee = async (
+  params: CreateNewPaymentParams,
+  options?: { signal?: AbortSignal },
+): Promise<ApiResponse<FeeResponseData>> => {
+  if (params.apiVersion) {
+    setApiConfig({ version: params.apiVersion });
+  }
+
+  let paymentData: CreatePaymentRequest;
+  try {
+    paymentData = buildPaymentRequestBody(params);
+  } catch (e) {
+    // buildPaymentRequestBody throws if source/destination tokens are not
+    // in the known token registry (e.g. exotic tokens, deposit addresses).
+    // Return a structured error instead of throwing, so callers can handle
+    // gracefully (show "fee unknown" instead of hard error).
+    const message =
+      e instanceof Error ? e.message : "Fee calculation failed: token not found";
+    return {
+      data: null,
+      error: new Error(message),
+      status: 400,
+    };
+  }
+
+  const result = await apiClient.post<FeeResponseData | FeeErrorData>(
+    "payment-api/payments",
+    paymentData,
+    { params: { dryrun: "true" }, signal: options?.signal },
+  );
+
+  if (result.error) {
+    return { data: null, error: result.error, status: result.status };
+  }
+
+  if (result.data && "error" in result.data) {
+    const errData = result.data as FeeErrorData;
+    return {
+      data: null,
+      error: new Error(errData.error?.message ?? "Fee calculation failed"),
+      status: result.status,
+    };
+  }
+
+  return {
+    data: result.data as FeeResponseData,
+    error: null,
+    status: result.status,
+  };
+};
 
 /**
  * Gets payment details by ID using the new backend API
@@ -169,6 +283,7 @@ export async function createPayment(
 export const getPayment = (
   paymentId: string,
   apiVersion?: ApiVersion,
+  options?: { signal?: AbortSignal },
 ): Promise<ApiResponse<PaymentResponse>> => {
   // Set API version if provided
   if (apiVersion) {
@@ -180,10 +295,12 @@ export const getPayment = (
     const endpoint = isMugglePay
       ? `/payment-api/${paymentId}`
       : `/payment/id/${paymentId}`;
-    return apiClient.get<PaymentResponse>(endpoint);
+    return apiClient.get<PaymentResponse>(endpoint, { signal: options?.signal });
   }
 
-  return apiClient.get<PaymentResponse>(`/payment-api/payments/${paymentId}`);
+  return apiClient.get<PaymentResponse>(`/payment-api/payments/${paymentId}`, {
+    signal: options?.signal,
+  });
 };
 
 /**
@@ -209,11 +326,13 @@ export const updatePaymentPayInTxHash = async ({
   txHash,
   apiVersion,
   senderAddress,
+  signal,
 }: {
   paymentId: string;
   txHash: string;
   senderAddress: string | undefined;
   apiVersion?: ApiVersion;
+  signal?: AbortSignal;
 }): Promise<ApiResponse<PaymentResponse>> => {
   // Set API version if provided
   if (apiVersion) {
@@ -236,7 +355,7 @@ export const updatePaymentPayInTxHash = async ({
     payload.senderAddress = senderAddress;
   }
 
-  return apiClient.post<PaymentResponse>(endpoint, payload);
+  return apiClient.post<PaymentResponse>(endpoint, payload, { signal });
 };
 
 /**
@@ -343,13 +462,16 @@ export const checkoutPayment = async (
   paymentId: string,
   params: CheckoutPaymentParams,
   apiVersion?: ApiVersion,
+  options?: { signal?: AbortSignal },
 ): Promise<ApiResponse<PaymentResponse>> => {
   if (apiVersion) {
     setApiConfig({ version: apiVersion });
   }
 
   const endpoint = `/payment-api/payments/${paymentId}/checkout`;
-  return apiClient.post<PaymentResponse>(endpoint, params);
+  return apiClient.post<PaymentResponse>(endpoint, params, {
+    signal: options?.signal,
+  });
 };
 
 /**

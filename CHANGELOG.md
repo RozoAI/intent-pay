@@ -7,6 +7,141 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.51] - 2026-09-23
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**: Preserve wallet rejection object messages instead of displaying or reporting `[object Object]` &nbsp;-&nbsp; by @shawnmuggle [<samp>(3613e87f)</samp>](https://github.com/RozoAI/intent-pay/commit/3613e87f)
+
+---
+
+## [0.1.49] - 2026-09-17
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**: Prevent stale and duplicate wallet payment requests &nbsp;-&nbsp; by @akbarsaputrait [<samp>(fbc65ffe)</samp>](https://github.com/RozoAI/intent-pay/commit/fbc65ffe)
+- **connectkit**: Harden wallet-confirmation modal guards &nbsp;-&nbsp; by @akbarsaputrait [<samp>(2990541b)</samp>](https://github.com/RozoAI/intent-pay/commit/2990541b)
+
+---
+
+## [0.1.48] - 2026-09-16
+
+### ⚠ BREAKING CHANGES
+
+- **connectkit**: Remove SDK-provided EVM WalletConnect. Consumers that need EVM WalletConnect must provide their own wagmi connector via `connectors`; Stellar WalletConnect remains supported. &nbsp;-&nbsp; by @akbarsaputrait [<samp>(42bf9d81)</samp>](https://github.com/RozoAI/intent-pay/commit/42bf9d81)
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Add Stellar WalletConnect source tx-hash fallback while waiting for payment confirmation &nbsp;-&nbsp; by @akbarsaputrait [<samp>(cb0a7aa2)</samp>](https://github.com/RozoAI/intent-pay/commit/cb0a7aa2)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **stellar**: Pre-check XLM spendable balance and surface Horizon `result_codes` &nbsp;-&nbsp; by @akbarsaputrait [<samp>(8b66df91)</samp>](https://github.com/RozoAI/intent-pay/commit/8b66df91)
+- **stellar**: Harden XLM fee guard &nbsp;-&nbsp; by @akbarsaputrait [<samp>(8b853bbf)</samp>](https://github.com/RozoAI/intent-pay/commit/8b853bbf)
+- **payment**: Derive wallet payment amount from backend source quote &nbsp;-&nbsp; by @akbarsaputrait [<samp>(be08d397)</samp>](https://github.com/RozoAI/intent-pay/commit/be08d397)
+- Revert appId change &nbsp;-&nbsp; by @akbarsaputrait [<samp>(a1d9c4e0)</samp>](https://github.com/RozoAI/intent-pay/commit/a1d9c4e0)
+- Don't treat WalletConnect pending status as confirmed submission &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e44d9a99)</samp>](https://github.com/RozoAI/intent-pay/commit/e44d9a99)
+- **connectkit**: Preserve external EVM WalletConnect tx-hash recovery &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b7abf4ca)</samp>](https://github.com/RozoAI/intent-pay/commit/b7abf4ca)
+
+---
+
+## [0.1.46] - 2026-09-12
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Add WalletConnect wallet option (desktop QR + copy page) &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b53ee195)</samp>](https://github.com/RozoAI/intent-pay/commit/b53ee195e7d976e41ea0b4c84e9bb8baae120370)
+- **connectkit**: WalletConnect QR + desktop no-extension fallback &nbsp;-&nbsp; by @akbarsaputrait [<samp>(2d1bf75b)</samp>](https://github.com/RozoAI/intent-pay/commit/2d1bf75bbcb403a03df9561f3531bdc74b85b2d0)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**: Enable MetaMask WalletConnect fallback for no-extension &nbsp;-&nbsp; by @akbarsaputrait [<samp>(3b70bae0)</samp>](https://github.com/RozoAI/intent-pay/commit/3b70bae0d348d15bb7e84410206e7a79f04a06d3)
+- **connectkit**: Route injected wallets directly, only WC stubs to QR &nbsp;-&nbsp; by @akbarsaputrait [<samp>(29f50c06)</samp>](https://github.com/RozoAI/intent-pay/commit/29f50c0649f346fd6089698c3902792261b72c77)
+- **connectkit**: Add OKX name + keep walletConnectFallback for no-extension stub &nbsp;-&nbsp; by @akbarsaputrait [<samp>(5dfcbe7a)</samp>](https://github.com/RozoAI/intent-pay/commit/5dfcbe7acb570753675cb3d2c7b2536faf6bfd19)
+- **connectkit**: Keep WalletConnect desktop-only &nbsp;-&nbsp; by @akbarsaputrait [<samp>(26723fb4)</samp>](https://github.com/RozoAI/intent-pay/commit/26723fb40b2210b1cff958513363a4c9835fbc77)
+- Fix payment state walletconnect confirmed tx &nbsp;-&nbsp; by @akbarsaputrait [<samp>(12a6d7bb)</samp>](https://github.com/RozoAI/intent-pay/commit/12a6d7bbe23d10915401a89c253d7d42a8ebce1c)
+- Fix walletconnect confirmation payout hash &nbsp;-&nbsp; by @akbarsaputrait [<samp>(adfaec89)</samp>](https://github.com/RozoAI/intent-pay/commit/adfaec8922601c92aa90826bebb2e0fda8171391)
+- Stop discarding the real create-payment error &nbsp;-&nbsp; by @shawnmuggle [<samp>(4c1340b8)</samp>](https://github.com/RozoAI/intent-pay/commit/4c1340b8d92b0a778e979a980366c33097521811)
+
+  The four `createPayment` call sites replaced the API's parsed failure with a
+  bare `Failed to create Rozo payment`, and `parseErrorMessage` could return a
+  non-string that callers stringified to `[object Object]`. Between them they
+  accounted for 19 of the 27 our-side payment failures observed in the
+  2026-09-03..09 checkout window — all on Stellar (chain 1500) — with no
+  recorded cause. Errors now carry the API's own message.
+
+---
+
+## [0.1.45] - 2026-09-06
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Expose Stellar deeplink generation in pay-common &nbsp;-&nbsp; by @akbarsaputrait [<samp>(90623fe2)</samp>](https://github.com/RozoAI/intent-pay/commit/90623fe28a43c895e4e5c9f149e3453fb7e1682a)
+- Adjust fee info and memo guard in connectkit &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e976f5a5)</samp>](https://github.com/RozoAI/intent-pay/commit/e976f5a505fa2fcc53765970030b7432cf555f7f)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Prevent nullable memo and tighten warning text &nbsp;-&nbsp; by @akbarsaputrait [<samp>(ff6242f4)</samp>](https://github.com/RozoAI/intent-pay/commit/ff6242f493fdcdbbe8eeea3acaf2a9defbd31605)
+- Harden XLM deeplink and deposit payload handling &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e3fb14c7)</samp>](https://github.com/RozoAI/intent-pay/commit/e3fb14c727c2d3ddf487e7a813be74c9e85caaed)
+- Fix memo warning text &nbsp;-&nbsp; by @akbarsaputrait [<samp>(56f47102)</samp>](https://github.com/RozoAI/intent-pay/commit/56f47102351935e922f9528320f3fb5d7f3a93a0)
+
+---
+
+## [0.1.44] - 2026-09-04
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Trigger resize and remove extra '+' on fees &nbsp;-&nbsp; by @akbarsaputrait [<samp>(297ed)</samp>](https://github.com/RozoAI/intent-pay/commit/297ed980)
+
+---
+
+## [0.1.43] - 2026-09-04
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Add confirm dialog on waiting for deposit, and fix close/back button visibility &nbsp;-&nbsp; by @akbarsaputrait [<samp>(2e512)</samp>](https://github.com/RozoAI/intent-pay/commit/2e51297a)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Undefined balance too low fiatISO &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e7937)</samp>](https://github.com/RozoAI/intent-pay/commit/e793752f)
+- Use extraFields instead &nbsp;-&nbsp; by @akbarsaputrait [<samp>(1f62f)</samp>](https://github.com/RozoAI/intent-pay/commit/1f62f04d)
+- Workspaced deps wrong version &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b3ab5)</samp>](https://github.com/RozoAI/intent-pay/commit/b3ab5623)
+- Isolate payment request scopes and harden deposit-address flow &nbsp;-&nbsp; by @akbarsaputrait [<samp>(8cd6e)</samp>](https://github.com/RozoAI/intent-pay/commit/8cd6e4b5)
+
+---
+
+## [0.1.42] - 2026-09-02
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **pay-common**: Use `extraFields` instead &nbsp;-&nbsp; by @akbarsaputrait [<samp>(1f62f)</samp>](https://github.com/RozoAI/intent-pay/commit/1f62f04d)
+
+---
+
+## [0.1.40] - 2026-08-11
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- Propagate intent to getFee and carry settlementMode through payId hydration &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e2d5c)</samp>](https://github.com/RozoAI/intent-pay/commit/e2d5cc69)
+- **connectkit**: Add preferred chain/tokens property on RozoPayButton payId mode &nbsp;-&nbsp; by @akbarsaputrait [<samp>(5a88d)</samp>](https://github.com/RozoAI/intent-pay/commit/5a88dd95)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**: Forward top-level intent through the hydrate_order effect &nbsp;-&nbsp; by @akbarsaputrait [<samp>(3f66c)</samp>](https://github.com/RozoAI/intent-pay/commit/3f66c4a8)
+- Dedupe REQUIRED_CHAINS by chain.id, not object identity &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e80e1)</samp>](https://github.com/RozoAI/intent-pay/commit/e80e168b)
+- Chain: undefined (id: 8453) — pass explicit chain object, tighten viem peer range &nbsp;-&nbsp; by @akbarsaputrait [<samp>(6b3cd)</samp>](https://github.com/RozoAI/intent-pay/commit/6b3cde10)
+- Bad state &nbsp;-&nbsp; by @akbarsaputrait [<samp>(99e77)</samp>](https://github.com/RozoAI/intent-pay/commit/99e77d96)
+- Address code review — stellar_direct in getFee, cache poison, legacy export, workspace:* dep, buttonProps cleanup &nbsp;-&nbsp; by @akbarsaputrait [<samp>(93c00)</samp>](https://github.com/RozoAI/intent-pay/commit/93c00cd1)
+
+### &nbsp;&nbsp;&nbsp;🔨 Refactor
+
+- Extract shared buildFeeQuoteParams helper &nbsp;-&nbsp; by @akbarsaputrait [<samp>(2ec6c)</samp>](https://github.com/RozoAI/intent-pay/commit/2ec6c011)
+
+### &nbsp;&nbsp;&nbsp;🧪 Tests
+
+- **pay-common**: Add getFee/createPayment body-identity invariant test &nbsp;-&nbsp; by @akbarsaputrait [<samp>(6586e)</samp>](https://github.com/RozoAI/intent-pay/commit/6586e9e7)
+
+---
+
 ## [0.1.39] - 2026-07-26
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
@@ -42,7 +177,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.37] - 2026-07-17
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
@@ -71,7 +205,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.36] - 2026-07-14
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
@@ -97,7 +230,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.34] - 2026-07-07
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
@@ -106,7 +238,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.33] - 2026-07-07
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
@@ -114,7 +245,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **connectkit**: Ensure fresh order state is used in payment flows and fee calculations &nbsp;-&nbsp; by @akbarsaputrait [<samp>(43466)</samp>](https://github.com/RozoAI/intent-pay/commit/434666ea)
 
 ---
-
 
 ## [0.1.32] - 2026-07-05
 
@@ -135,7 +265,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.31] - 2026-07-01
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
@@ -152,7 +281,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.30] - 2026-06-29
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
@@ -163,7 +291,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-
 ## [0.1.29] - 2026-06-11
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
@@ -171,7 +298,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Revert see receipt button should appear by default &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b54e4)</samp>](https://github.com/RozoAI/intent-pay/commit/b54e4f34)
 
 ---
-
 
 ## [0.1.28] - 2026-06-11
 
@@ -182,7 +308,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - E2E USDC Solana to Base/stellar &nbsp;-&nbsp; by @akbarsaputrait [<samp>(93c76)</samp>](https://github.com/RozoAI/intent-pay/commit/93c76d42)
 
 ---
-
 
 ## [0.1.27] - 2026-06-10
 
@@ -207,7 +332,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **e2e**: Pay Now not rendered before config confirmed, assert not visible &nbsp;-&nbsp; by @akbarsaputrait [<samp>(8c13e)</samp>](https://github.com/RozoAI/intent-pay/commit/8c13e47f)
 
 ---
-
 
 ## [0.1.26] - 2026-06-02
 

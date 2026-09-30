@@ -1,13 +1,12 @@
 import {
-  DepositAddressPaymentOptions,
-  FeeType,
   generateEVMDeepLink,
   generateSolanaDeepLink,
+  generateStellarDeepLink,
   getAddressContraction,
   getCanonicalDestination,
   getChainName,
+  getFee,
   getKnownToken,
-  getTokenPrices,
   isHydrated,
   rozoSolana,
   rozoStellar,
@@ -15,7 +14,8 @@ import {
   stellar,
   type FeeErrorData,
   type FeeResponseData,
-  type RozoPayToken,
+  type DepositAddressPaymentOptionMetadata,
+  type Token,
 } from "@rozoai/intent-common";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { keyframes } from "styled-components";
@@ -24,13 +24,18 @@ import { AlertIcon, WarningIcon } from "../../../assets/icons";
 import { ROUTES } from "../../../constants/routes";
 import useIsMobile from "../../../hooks/useIsMobile";
 import { usePayContext } from "../../../hooks/usePayContext";
+import {
+  beginRequestScope,
+  cancelRequestScope,
+  PAYMENT_REQUEST_SCOPE,
+} from "../../../utils/paymentRequestScope";
 import { usePayinPolling } from "../../../hooks/usePayinPolling";
 import { usePusherPayout } from "../../../hooks/usePusherPayout";
 import { useRozoPay } from "../../../hooks/useRozoPay";
 import styled from "../../../styles/styled";
-import { getCachedFee, resolveOrderAppId } from "../../../utils/feeCache";
-import { formatUsd, generateStellarDeepLink, trimTokenAmount } from "../../../utils/format";
-import { isNativeToken } from "../../../utils/token";
+import { buildFeeQuoteParams, resolveOrderAppId } from "../../../utils/feeCache";
+import { resolveDepositSourceAmount } from "../../../payment/createPaymentPayload";
+import { formatUsd, roundUsd, trimTokenAmount } from "../../../utils/format";
 import Button from "../../Common/Button";
 import CircleTimer from "../../Common/CircleTimer";
 import CopyToClipboardIcon from "../../Common/CopyToClipboard/CopyToClipboardIcon";
@@ -49,7 +54,7 @@ const CenterContainer = styled.div`
 `;
 
 type DepositAddr = {
-  displayToken: RozoPayToken | null;
+  displayToken: Token | null;
   logoURI: string;
   expirationS?: number;
   uri?: string;
@@ -59,12 +64,31 @@ type DepositAddr = {
   underpayment?: Underpayment;
   externalId?: string;
   memo?: string;
+  // Stellar Classic (G-address + memo) pay-in: memo is required, losing it
+  // loses the payment. Gates the REQUIRED warning and the missing-memo error.
+  isStellarClassic?: boolean;
 };
 
 type Underpayment = {
   unitsPaid: string;
   coin: string;
 };
+
+// Single source of truth for tokenMode from the selected deposit option.
+// ChainId-based so per-token option ids (STELLAR_USDC, STELLAR_EURC,
+// SOLANA_USDT, SOLANA_USDC, ...) all resolve correctly — id-equality checks
+// against SOLANA/STELLAR do not.
+function tokenModeForDepositOption(
+  option: DepositAddressPaymentOptionMetadata | undefined,
+): "evm" | "solana" | "stellar" {
+  if (option && [rozoStellar.chainId, stellar.chainId].includes(option.chainId)) {
+    return "stellar";
+  }
+  if (option && [rozoSolana.chainId, solana.chainId].includes(option.chainId)) {
+    return "solana";
+  }
+  return "evm";
+}
 
 export default function WaitingDepositAddress() {
   const context = usePayContext();
@@ -84,8 +108,6 @@ export default function WaitingDepositAddress() {
     paymentState: rozoPaymentState,
     reset,
     createPreviewOrder,
-    setPaymentCompleted,
-    setPaymentPayoutCompleted,
   } = useRozoPay();
 
   // Detect Optimism USDT0 under-payment: the order has received some funds
@@ -101,6 +123,7 @@ export default function WaitingDepositAddress() {
   const [depAddr, setDepAddr] = useState<DepositAddr>();
   const [failed, setFailed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [depoChain, setDepoChain] = useState<string>();
   const [hasExecutedDepositCall, setHasExecutedDepositCall] = useState(false);
   const [feeData, setFeeData] = useState<FeeResponseData | null>(null);
   const [feeError, setFeeError] = useState<FeeErrorData | null>(null);
@@ -114,32 +137,22 @@ export default function WaitingDepositAddress() {
   const payinDetectedRef = useRef(false);
   const prevActivePaymentIdRef = useRef<string | undefined>(undefined);
 
-  const isNativeSource = useMemo(() => {
-    return (
-      selectedDepositAddressOption != null && isNativeToken(selectedDepositAddressOption.token.token)
-    );
-  }, [selectedDepositAddressOption]);
-
   // The active deposit payment id (same expression the Pusher block uses).
   const activePaymentId = rozoPaymentId || depAddr?.externalId;
 
-  const handlePayinDetected = (txHash: string, paymentId?: string) => {
+  const handlePayinDetected = (txHash: string, _paymentId?: string) => {
     if (payinDetectedRef.current) return; // run once
     if (!selectedDepositAddressOption) return;
     payinDetectedRef.current = true;
 
     context.log("[PAYIN DETECTED] Payment received:", txHash);
 
-    setPaymentCompleted(txHash, paymentId, null);
-    setPaymentPayoutCompleted(txHash, paymentId);
+    // Detection (source.txHash seen) is not confirmation (source.confirmedAt).
+    // Do not complete here: hand the hash to Confirmation, whose payin gate
+    // polls the API until the deposit is confirmed and then emits
+    // PaymentCompleted / PaymentPayoutCompleted.
 
-    const tokenMode =
-      selectedDepositAddressOption.id === DepositAddressPaymentOptions.SOLANA
-        ? "solana"
-        : selectedDepositAddressOption.id === DepositAddressPaymentOptions.STELLAR
-          ? "stellar"
-          : "evm";
-    setTokenMode(tokenMode);
+    setTokenMode(tokenModeForDepositOption(selectedDepositAddressOption));
     setTxHash(txHash);
 
     // Clear the fallback timer — detection done.
@@ -280,50 +293,44 @@ export default function WaitingDepositAddress() {
         throw new Error("Preferred token not found");
       }
 
-      // Amount to send, in source-token units. Prefer the backend source.amount
-      // (surfaced via metadata) over usdValue so native sources (SOL/ETH/XLM)
-      // show the correct token amount rather than the USD/destination value.
-      // For native sources we MUST have the backend-computed value — usdValue
-      // is the destination payout (e.g. "1" USDC) not the native amount
-      // (e.g. "0.016885" SOL), so falling back to it would show the user the
-      // wrong amount.
-      const metaSourceAmount = order.metadata?.sourceAmountUnits;
-      if (isNativeSource && metaSourceAmount == null) {
-        throw new Error(
-          "sourceAmountUnits missing on hydrated order for native deposit source",
-        );
-      }
-      const sourceAmountUnits =
-        metaSourceAmount != null ? String(metaSourceAmount) : String(order.usdValue);
-
       let uriDeeplink: string | null = null;
 
-      const isStellarChain = [stellar.chainId, rozoStellar.chainId].includes(
-        preferredToken.chainId,
+      // Prefer the fee-quote source amount (fee-inclusive source-token units)
+      // over the destination USD value — same underpay class as the live
+      // payWithDepositAddress path (nonzero fees, non-$1-pegged sources).
+      const sourceAmount = resolveDepositSourceAmount(
+        null,
+        feeData,
+        order.destFinalCallTokenAmount.usd,
       );
 
       // Use Solana deep link if it's a Solana chain
       if ([solana.chainId, rozoSolana.chainId].includes(preferredToken.chainId)) {
         uriDeeplink = generateSolanaDeepLink({
-          amountUnits: sourceAmountUnits,
+          amountUnits: sourceAmount,
           recipientAddress: order.intentAddr,
           tokenAddress: preferredToken.token,
+          memo: order.memo || undefined,
         });
       }
-      // Stellar pay URI (SEP-0007)
-      else if (isStellarChain) {
-        const memo = order.memo || order.metadata?.memo || undefined;
+      // Stellar Classic (G-address + memo): SEP-0007 pay URI so wallets
+      // prefill destination, amount, asset and memo from the QR.
+      else if ([stellar.chainId, rozoStellar.chainId].includes(preferredToken.chainId)) {
         uriDeeplink = generateStellarDeepLink({
-          amountUnits: sourceAmountUnits,
-          recipientAddress: order.intentAddr,
-          token: preferredToken,
-          memo,
+          destination: order.intentAddr,
+          amount: sourceAmount,
+          tokenAddress: preferredToken.token,
+          tokenSymbol: preferredToken.symbol,
+          memo: order.memo || undefined,
         });
       }
       // Otherwise use EVM deep link
       else {
         uriDeeplink = generateEVMDeepLink({
-          amountUnits: parseUnits(sourceAmountUnits, preferredToken.decimals).toString(),
+          amountUnits: parseUnits(
+            sourceAmount,
+            preferredToken.decimals,
+          ).toString(),
           chainId: preferredToken.chainId,
           recipientAddress: order.intentAddr,
           tokenAddress: preferredToken.token,
@@ -332,7 +339,7 @@ export default function WaitingDepositAddress() {
 
       setDepAddr({
         address: order.intentAddr,
-        amount: sourceAmountUnits,
+        amount: String(order.usdValue),
         underpayment: {
           unitsPaid: order.destFinalCallTokenAmount.amount,
           coin: order.destFinalCallTokenAmount.token.symbol,
@@ -342,11 +349,18 @@ export default function WaitingDepositAddress() {
         uri: uriDeeplink ?? undefined,
         displayToken: order.destFinalCallTokenAmount.token,
         logoURI: "", // Not needed for underpaid orders
-        memo: isStellarChain ? order.memo || order.metadata?.memo || undefined : undefined,
+        memo: order.memo || undefined,
+        isStellarClassic:
+          [stellar.chainId, rozoStellar.chainId].includes(preferredToken.chainId) &&
+          order.intentAddr.startsWith("G"),
       });
     } else {
       // Prevent multiple executions for the same deposit option
       if (isLoading || hasExecutedDepositCall) return;
+      // Mark as processing only after passing guards — marking before an
+      // early return deadlocks option switches (ref stuck on new id while
+      // isLoading from the previous option blocks the retry).
+      processingOptionRef.current = selectedDepositAddressOption.id;
 
       const displayToken = getKnownToken(
         selectedDepositAddressOption.token.chainId,
@@ -366,18 +380,10 @@ export default function WaitingDepositAddress() {
         amount = order?.destFinalCallTokenAmount.usd ?? null;
       }
 
-      // For native source tokens the "Send Exactly" amount is the backend-computed
-      // source.amount (native units), which is only known after the payment is
-      // created/checked out below. usdValue is the USD/destination value — NOT the
-      // native amount — so seeding it here would flash a wrong figure (e.g. "1.00
-      // SOL" for a $1 payout). Leave it unset so the row shows its skeleton until
-      // payWithDepositAddress resolves the real source.amount. Stablecoin sources
-      // (USDC/USDT) coincide with usdValue, so we still seed those for a snappy render.
-
       setDepAddr({
-        displayToken: (displayToken as RozoPayToken | undefined) ?? null,
+        displayToken: displayToken ?? null,
         logoURI,
-        amount: undefined,
+        amount: amount?.toString() ?? undefined,
       });
 
       try {
@@ -394,83 +400,28 @@ export default function WaitingDepositAddress() {
           try {
             // @TODO: Handle fee calculation for other currencies
             const destToken = currentOrder?.destFinalCallTokenAmount?.token;
-
-            const feeQuoteType = payParams?.feeType ?? FeeType.ExactIn;
-            let feeAmount = amount.toString();
-
-            // Native source: convert USD → source-token units via the live price
-            // feed, then call getFee with the actual feeType (no ExactOut
-            // override). Without the conversion the BE would interpret the USD
-            // value as a native amount (e.g. "1 SOL" for a $1 payout).
-            if (isNativeSource) {
-              const { data: priceData } = await getTokenPrices({
-                symbols: [selectedDepositAddressOption.token.symbol],
-              });
-              const priceEntry = priceData?.data?.[0];
-              const usdPrice = Number(priceEntry?.prices?.[0]?.value);
-              if (!Number.isFinite(usdPrice) || usdPrice <= 0) {
-                setFeeError({
-                  error: {
-                    code: "PRICE_FETCH_FAILED",
-                    message: `Unable to fetch price for ${selectedDepositAddressOption.token.symbol}`,
-                  },
-                });
-                setFeeData(null);
-                setIsLoading(false);
-                setHasExecutedDepositCall(false);
-                return;
-              }
-              if (priceEntry?.stale) {
-                context.log(
-                  `[WAITING_DEPOSIT] token price for ${selectedDepositAddressOption.token.symbol} is stale, proceeding with caution`,
-                );
-              }
-              const decimals = selectedDepositAddressOption.token.decimals;
-              // BE expects a human-readable decimal string (e.g. "0.126919660"
-              // for 0.1269 SOL), not base units. PayWithToken does the same via
-              // tokenBaseAmountToDecimalString for the same reason.
-              feeAmount = (amount / usdPrice).toFixed(decimals);
-            }
-
-            const feeResponse = await getCachedFee({
-              type: feeQuoteType,
-              appId: resolvedAppId,
-              sourceChainId: selectedDepositAddressOption.token.chainId.toString(),
-              sourceTokenSymbol: selectedDepositAddressOption.token.symbol,
-              amount: isNativeSource
-                ? feeQuoteType === FeeType.ExactIn
-                  ? feeAmount
-                  : String(amount)
-                : feeAmount,
-              destChainId: (
-                destToken?.chainId ?? selectedDepositAddressOption.token.chainId
-              ).toString(),
-              destReceiverAddress:
-                (currentOrder
-                  ? getCanonicalDestination(currentOrder).finalDestinationAddress
-                  : undefined) ??
-                payParams?.toAddress ??
-                "",
-              destTokenSymbol: destToken?.symbol ?? selectedDepositAddressOption.token.symbol,
-            });
+            const destAddress = currentOrder
+              ? getCanonicalDestination(currentOrder).finalDestinationAddress
+              : undefined;
+            const feeResponse = await getFee(
+              buildFeeQuoteParams({
+                order: currentOrder,
+                payParams,
+                destChainId:
+                  destToken?.chainId ?? selectedDepositAddressOption.token.chainId,
+                destTokenAddress:
+                  destToken?.token ?? selectedDepositAddressOption.token.token,
+                destAddress: destAddress ?? "",
+                sourceChainId: selectedDepositAddressOption.token.chainId,
+                sourceTokenAddress: selectedDepositAddressOption.token.token,
+                toUnits: amount.toString(),
+              }),
+            );
 
             if (feeResponse.data) {
               feeData = feeResponse.data;
               setFeeData(feeResponse.data);
               setFeeError(null);
-              // Native source: surface the backend-computed source.amount (native
-              // units) as the "Send Exactly" amount right away, instead of waiting
-              // for the create/checkout below.
-              if (isNativeSource && feeResponse.data.source?.amount != null) {
-                setDepAddr((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        amount: String(feeResponse.data!.source.amount),
-                      }
-                    : prev,
-                );
-              }
             } else if (feeResponse.error) {
               const errorMessage = feeResponse.error.message;
               // Check if it's an "Amount too high" error
@@ -501,38 +452,33 @@ export default function WaitingDepositAddress() {
 
         const details = await payWithDepositAddress(
           selectedDepositAddressOption,
-          store,
+          store as any,
           feeData,
           context.log,
         );
+        // Drop stale responses: user switched option while this request
+        // was in flight (option-change reset clears processingOptionRef).
+        if (processingOptionRef.current !== selectedDepositAddressOption.id) {
+          return;
+        }
         if (details) {
-          const isStellar = [stellar.chainId, rozoStellar.chainId].includes(
-            selectedDepositAddressOption.token.chainId,
-          );
-
-          // Only Stellar/rozoStellar needs a memo (destination tag) to route the pay-in.
-          const memo = isStellar ? details.memo || undefined : undefined;
-
           setDepAddr({
             address: details.address,
             amount: details.amount,
             coins: details.suffix,
             expirationS: details.expirationS,
-            uri:
-              isStellar && details.amount
-                ? generateStellarDeepLink({
-                    amountUnits: details.amount,
-                    recipientAddress: details.address,
-                    token: selectedDepositAddressOption.token,
-                    memo,
-                  })
-                : details.uri,
-            displayToken: (displayToken as RozoPayToken | undefined) ?? null,
+            uri: details.uri,
+            displayToken: displayToken ?? null,
             logoURI,
             externalId: details.externalId,
-            memo,
+            memo: details.memo || undefined,
+            isStellarClassic:
+              [stellar.chainId, rozoStellar.chainId].includes(
+                selectedDepositAddressOption.token.chainId,
+              ) && details.address.startsWith("G"),
           });
           setRozoPaymentId(details.externalId);
+          setDepoChain(selectedDepositAddressOption.id);
         } else if (details === null) {
           // Duplicate call was prevented - reset loading states
           setIsLoading(false);
@@ -559,15 +505,25 @@ export default function WaitingDepositAddress() {
     if (selectedDepositAddressOption) {
       setHasExecutedDepositCall(false);
       setFailed(false);
+      setDepAddr(undefined); // Clear stale address/memo from previous option
+      setDepoChain(undefined);
       setFeeData(null); // Reset fee when deposit option changes
       setFeeError(null); // Reset fee error when deposit option changes
       processingOptionRef.current = null; // Reset processing flag
     }
   }, [selectedDepositAddressOption]);
 
-  // Reset payment state when selectedDepositAddressOption changes and we're not in preview
+  // Reset payment state when selectedDepositAddressOption changes and we're not in preview.
+  // IMPORTANT: only reset when the deposit option ACTUALLY changes — not on
+  // rozoPaymentState transitions (e.g. preview → payment_started), which are
+  // valid forward transitions the Confirmation page needs to observe.
+  const prevDepositOptionRef = useRef(selectedDepositAddressOption);
   useEffect(() => {
+    const optionChanged = prevDepositOptionRef.current !== selectedDepositAddressOption;
+    prevDepositOptionRef.current = selectedDepositAddressOption;
+
     if (
+      optionChanged &&
       selectedDepositAddressOption &&
       rozoPaymentState !== "preview" &&
       rozoPaymentState !== "idle" &&
@@ -581,9 +537,17 @@ export default function WaitingDepositAddress() {
       context.log(
         `Resetting payment state from ${rozoPaymentState} to preview for new deposit option`,
       );
+      const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
       reset();
-      createPreviewOrder(payParams);
+      void createPreviewOrder(payParams, { signal: request.signal }).catch((error) => {
+        if ((error as Error)?.name !== "AbortError") {
+          context.log("[WAITING_DEPOSIT] createPreviewOrder failed", error);
+        }
+      });
     }
+
+    return () => cancelRequestScope(PAYMENT_REQUEST_SCOPE);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDepositAddressOption, rozoPaymentState, payParams]);
 
   // Generate deposit address when conditions are met
@@ -595,7 +559,6 @@ export default function WaitingDepositAddress() {
       processingOptionRef.current !== selectedDepositAddressOption.id
     ) {
       context.log("About to generate deposit address for:", selectedDepositAddressOption.id);
-      processingOptionRef.current = selectedDepositAddressOption.id; // Mark as processing
       generateDepositAddress();
     }
   }, [selectedDepositAddressOption, rozoPaymentState, hasExecutedDepositCall, isLoading]);
@@ -612,13 +575,7 @@ export default function WaitingDepositAddress() {
       isHydrated(order)
     ) {
       context.log("[PAYMENT] Payment state changed, navigating to confirmation");
-      const tokenMode =
-        selectedDepositAddressOption?.id === DepositAddressPaymentOptions.SOLANA
-          ? "solana"
-          : selectedDepositAddressOption?.id === DepositAddressPaymentOptions.STELLAR
-            ? "stellar"
-            : "evm";
-      setTokenMode(tokenMode);
+      setTokenMode(tokenModeForDepositOption(selectedDepositAddressOption));
 
       // Extract transaction hash from order if available
       const txHash = order.sourceStartTxHash || order.sourceInitiateTxHash;
@@ -707,7 +664,7 @@ function FeeErrorContent({ feeError, fiatISO }: { feeError: FeeErrorData; fiatIS
     >
       <CenterContainer style={{ width: "100%" }}>
         <FailIcon />
-        <ModalH1 style={{ textAlign: "center", marginTop: 16 }}>Amount Too High</ModalH1>
+        <ModalH1 style={{ textAlign: "center", marginTop: 16 }}>Failed to Fetch Fee</ModalH1>
         <div style={{ height: 16 }} />
         <ModalBody style={{ textAlign: "center" }}>
           {feeError.error.message}
@@ -742,14 +699,42 @@ function DepositAddressInfo({
   const isExpired = depAddr?.expirationS != null && remainingS === 0;
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(triggerResize, [isExpired]);
+  useEffect(triggerResize, [isExpired, depAddr.uri]);
 
   const logoOffset = isMobile ? 4 : 0;
   const logoElement = depAddr.displayToken ? (
-    <TokenChainLogo token={depAddr.displayToken} size={64} offset={logoOffset} nativeAsChainIcon />
+    <TokenChainLogo token={depAddr.displayToken} size={64} offset={logoOffset} />
   ) : (
     <img src={depAddr.logoURI} width="64px" height="64px" />
   );
+
+  // Stellar Classic without a memo cannot be paid safely — a payment sent
+  // without the memo does not reach the order. Block instead of rendering
+  // a payable-looking screen.
+  if (depAddr.isStellarClassic && !depAddr.memo) {
+    return (
+      <ModalContent
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          paddingBottom: 0,
+          position: "relative",
+        }}
+      >
+        <CenterContainer style={{ width: "100%" }}>
+          <FailIcon />
+          <ModalH1 style={{ textAlign: "center", marginTop: 16 }}>Memo Missing</ModalH1>
+          <div style={{ height: 16 }} />
+          <ModalBody style={{ textAlign: "center" }}>
+            This Stellar payment needs a memo, but none was provided. Payments sent without the
+            memo may be lost. Please select another payment method.
+          </ModalBody>
+          <SelectAnotherMethodButton />
+        </CenterContainer>
+      </ModalContent>
+    );
+  }
 
   return (
     <ModalContent>
@@ -761,7 +746,8 @@ function DepositAddressInfo({
         </LogoRow>
       ) : (
         <QRWrap>
-          <CustomQRCode value={depAddr?.uri} contentPadding={24} size={200} image={logoElement} />
+          <CustomQRCode value={depAddr.uri} contentPadding={24} size={200} image={logoElement} />
+          <AutoDetectHint>Auto-detected after confirmation</AutoDetectHint>
         </QRWrap>
       )}
       <CopyableInfo depAddr={depAddr} feeData={feeData} remainingS={remainingS} totalS={totalS} />
@@ -783,6 +769,14 @@ const QRWrap = styled.div`
   width: 280px;
 `;
 
+const AutoDetectHint = styled.p`
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--ck-body-color-muted);
+`;
+
 function CopyableInfo({
   depAddr,
   feeData,
@@ -794,56 +788,77 @@ function CopyableInfo({
   remainingS: number;
   totalS: number;
 }) {
+  const sourceAmount = depAddr?.amount ?? feeData?.source.amount ?? "0";
   const underpayment = depAddr?.underpayment;
   const isExpired = depAddr?.expirationS != null && remainingS === 0;
-  const sourceTokenSymbol = depAddr?.displayToken?.symbol;
+
+  // TEMP-HIDDEN: Merchant payments hide fee info — fee borne by merchant, not
+  // shown to payer. Whole Fee section hidden for now ("Send Exactly" is enough
+  // info). Uncomment below to restore.
+  // const { order } = useRozoPay();
+  // const isMerchant = (order?.metadata as any)?.isMerchant === true;
 
   return (
     <CopyableInfoWrapper>
       {underpayment && <UnderpaymentInfo underpayment={underpayment} />}
-      {feeData !== null && (
-        <FeeDisplayRow
+      {/* TEMP-HIDDEN Fee row — uncomment to restore:
+      {feeData !== null && !isMerchant && (
+        <DisplayRowOrThrobber
           title="Fee"
           value={
             parseFloat(feeData.source.fee) === 0
               ? "Free"
-              : `${trimTokenAmount(feeData.source.fee)} ${feeData.source.tokenSymbol} (${feeData.feeInfo.feePercentage})`
+              : `${trimTokenAmount(feeData.source.fee)}`
           }
+          smallText={parseFloat(feeData.source.fee) === 0 ? `${feeData.feeInfo.feePercentage} (${feeData.source.tokenSymbol})` : undefined}
+          disabled={isExpired}
         />
       )}
+      */}
       <CopyRowOrThrobber
-        dataTestId="rozopay-send-exactly"
         title="Send Exactly"
-        value={depAddr?.amount}
+        value={depAddr?.address ? sourceAmount : undefined}
         valueText={
-          depAddr?.amount
-            ? `${trimTokenAmount(depAddr.amount)} ${sourceTokenSymbol ?? ""}`.trim()
+          depAddr?.address && sourceAmount
+            ? `${trimTokenAmount(sourceAmount)}`.trim()
             : undefined
         }
         smallText={depAddr?.coins}
         disabled={isExpired}
       />
       <CopyRowOrThrobber
-        dataTestId="rozopay-receiving-address"
         title="Receiving Address"
         value={depAddr?.address}
         valueText={depAddr?.address && getAddressContraction(depAddr.address)}
         disabled={isExpired}
       />
+
       {depAddr?.memo && (
-        <CopyRowOrThrobber
-          dataTestId="rozopay-memo"
-          title="Memo"
-          value={depAddr.memo}
-          valueText={depAddr.memo}
-          disabled={isExpired}
-        />
+        <>
+          <CopyRowOrThrobber
+            title="Memo (Required)"
+            value={depAddr.memo}
+            valueText={depAddr.memo}
+            disabled={isExpired}
+          />
+          <MemoRequiredBox>
+            <MemoRequiredText>
+              Include the memo or funds may be lost.
+            </MemoRequiredText>
+          </MemoRequiredBox>
+        </>
       )}
       <CountdownWrap>
         <CountdownTimer remainingS={remainingS} totalS={totalS} />
       </CountdownWrap>
     </CopyableInfoWrapper>
   );
+}
+
+function formatAmountWithTokenSymbol(amount: number, tokenSymbol?: string) {
+  const roundedAmount = roundUsd(amount, "nearest");
+  if (!tokenSymbol) return roundedAmount;
+  return `${roundedAmount} ${tokenSymbol}`;
 }
 
 function UnderpaymentInfo({ underpayment }: { underpayment: Underpayment }) {
@@ -884,6 +899,24 @@ const CopyableInfoWrapper = styled.div`
   justify-content: stretch;
   gap: 0;
   margin-top: 8px;
+`;
+
+const MemoRequiredBox = styled.div`
+  border: 1px solid var(--ck-body-color-alert);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 0 0 8px 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  color: var(--ck-body-color-alert);
+`;
+
+const MemoRequiredText = styled.span`
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
 `;
 
 const CountdownWrap = styled.div`
@@ -1045,14 +1078,12 @@ const Skeleton = styled.div`
 `;
 
 function CopyRowOrThrobber({
-  dataTestId,
   title,
   value,
   valueText,
   smallText,
   disabled,
 }: {
-  dataTestId?: string;
   title: string;
   value?: string;
   valueText?: string;
@@ -1074,7 +1105,7 @@ function CopyRowOrThrobber({
 
   if (!value) {
     return (
-      <CopyRow data-testid={dataTestId}>
+      <CopyRow>
         <LabelRow>
           <LabelText>{title}</LabelText>
         </LabelRow>
@@ -1088,13 +1119,7 @@ function CopyRowOrThrobber({
   const displayValue = valueText || value;
 
   return (
-    <CopyRow
-      as="button"
-      onClick={handleCopy}
-      disabled={disabled}
-      data-testid={dataTestId}
-      data-value={value}
-    >
+    <CopyRow as="button" onClick={handleCopy} disabled={disabled}>
       <div>
         <LabelRow>
           <LabelText>{title}</LabelText>
@@ -1128,19 +1153,46 @@ const DisplayRow = styled.div`
   justify-content: space-between;
 `;
 
-function FeeDisplayRow({ title, value }: { title: string; value: string }) {
-  return (
-    <DisplayRow>
-      <div>
-        <LabelRow>
-          <LabelText>{title}</LabelText>
-        </LabelRow>
-        <MainRow>
-          <ValueContainer>
-            <ValueText>{value}</ValueText>
-          </ValueContainer>
-        </MainRow>
-      </div>
-    </DisplayRow>
-  );
-}
+/** Uncomment to use the DisplayRowOrThrobber component */
+// function DisplayRowOrThrobber({
+//   title,
+//   value,
+//   smallText,
+//   disabled,
+// }: {
+//   title: string;
+//   value?: string;
+//   smallText?: string;
+//   disabled?: boolean;
+// }) {
+//   if (!value) {
+//     return (
+//       <DisplayRow>
+//         <div>
+//           <LabelRow>
+//             <LabelText>{title}</LabelText>
+//           </LabelRow>
+//           <MainRow>
+//             <Skeleton />
+//           </MainRow>
+//         </div>
+//       </DisplayRow>
+//     );
+//   }
+
+//   return (
+//     <DisplayRow style={disabled ? { opacity: 0.5 } : undefined}>
+//       <div>
+//         <LabelRow>
+//           <LabelText>{title}</LabelText>
+//         </LabelRow>
+//         <MainRow>
+//           <ValueContainer>
+//             <ValueText>{value}</ValueText>
+//             {smallText && <SmallText>{smallText}</SmallText>}
+//           </ValueContainer>
+//         </MainRow>
+//       </div>
+//     </DisplayRow>
+//   );
+// }

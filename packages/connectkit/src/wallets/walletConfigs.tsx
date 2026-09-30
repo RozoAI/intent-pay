@@ -203,7 +203,6 @@ export const walletConfigs: {
         customDeeplink ?? getRozoPayUrl(payId, appId)
       }`;
     },
-    showInMobileConnectors: true,
   },
   "metaMask, metaMask-io, io.metamask, io.metamask.mobile, metaMaskSDK": {
     name: "MetaMask",
@@ -313,7 +312,6 @@ export const walletConfigs: {
       ios: "https://apps.apple.com/app/rainbow-ethereum-wallet/id1457119021?pt=119997837&ct=rozopay&mt=8",
       chrome: "https://rainbow.me/extension?utm_source=rozopay",
       edge: "https://rainbow.me/extension?utm_source=rozopay",
-      brave: "https://rainbow.me/extension?utm_source=rozopay",
     },
     showInMobileConnectors: true,
     deeplinkScheme: "rainbow://",
@@ -354,7 +352,6 @@ export const walletConfigs: {
       download: "https://connect.family.co/v0/download/trust",
       android:
         "https://play.google.com/store/apps/details?id=com.wallet.crypto.trustapp",
-      ios: "https://apps.apple.com/app/trust-crypto-bitcoin-wallet/id1288339409",
     },
     showInMobileConnectors: true,
     deeplinkScheme: "trust://",

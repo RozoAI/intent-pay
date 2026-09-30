@@ -7,4 +7,6 @@ dist/
 config.bat
 .impeccable
 .github/skills/
-docs/superpowers/
+
+graphify-out/
+bundle-analysis.html

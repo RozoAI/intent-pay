@@ -80,6 +80,7 @@ export function BridgeMode() {
           toToken: c.toToken,
           toAddress: c.toAddress,
           toUnits: c.toUnits,
+          feeType: c.feeType,
           intent: "Bridge",
           preferredSymbol,
           feeType: c.feeType,
@@ -120,6 +121,7 @@ export function BridgeMode() {
             toToken={config.toToken}
             toAddress={config.toAddress}
             toUnits={config.toUnits}
+            feeType={config.feeType}
             preferredSymbol={preferredSymbol}
             feeType={config.feeType}
             resetOnSuccess
