@@ -1,9 +1,11 @@
 import { css } from "styled-components";
 import styled from "../../../styles/styled";
+import { RecentlyUsedTag } from "../ConnectorList/styles";
 
 import { motion } from "framer-motion";
 
-export const OptionButton = styled(motion.button)`
+export const OptionButton = styled(motion.button)<{ $hasBadge?: boolean }>`
+  margin-top: ${(props) => props.$hasBadge ? "10px" : "0"};
   display: block;
   text-decoration: none;
   cursor: ${(props) => (props.disabled ? "default" : "pointer")};
@@ -124,6 +126,13 @@ export const OptionTitle = styled(motion.span)`
   overflow: hidden;
   text-wrap: balance;
   width: 100%;
+`;
+
+export const FloatingOptionBadge = styled(RecentlyUsedTag)`
+  position: absolute;
+  top: -10px;
+  right: 20px;
+  background: var(--ck-recent-badge-background, var(--bg));
 `;
 
 export const OptionSubtitle = styled(motion.span)`

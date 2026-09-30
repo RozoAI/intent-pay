@@ -177,7 +177,10 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
 
   // Memoize the sorted optionsList and reassign to optionsList to preserve invariant
   const sortedOptionsList = useMemo(() => {
-    return [...optionsList].sort((a, b) => {
+    return optionsList.map((option) => ({
+      ...option,
+      badge: optionSuggestedRank(option) === 0 ? "Last used" : undefined,
+    })).sort((a, b) => {
       // First: sort by disabled state (enabled tokens first)
       const dDisabled = (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0);
       if (dDisabled !== 0) return dDisabled;

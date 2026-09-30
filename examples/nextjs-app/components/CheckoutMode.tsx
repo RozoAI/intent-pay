@@ -209,6 +209,7 @@ export function CheckoutMode() {
           <RozoPayButton.Custom
             payId={paymentId}
             intent="Checkout"
+            suggestedSource={{ chainId: 1, symbol: "USDC" }}
             onPaymentStarted={(e) => addLog("started", e)}
             onPaymentCompleted={(e) => addLog("completed", e)}
             onPayoutCompleted={(e) => addLog("payout", e)}
@@ -268,9 +269,9 @@ export function CheckoutMode() {
                         href={w.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+                        className="flex flex-col items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
                       >
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl overflow-hidden">
+                        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl">
                           {w.icon}
                         </div>
                         <span className="text-[10px]">{w.name}</span>
