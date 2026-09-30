@@ -1,5 +1,7 @@
 import {
+  getChainNativeToken,
   getKnownToken,
+  normalizeTokenAddress,
   rozoSolana,
   rozoStellar,
   solana,
@@ -13,7 +15,7 @@ import {
  */
 export type SuggestedSource = {
   chainId: number;
-  /** Token symbol, e.g. "USDC". Compared case-insensitively. */
+  /** Token symbol, e.g. "USDC", or "Native" for the chain's native asset. Case-insensitive. */
   symbol?: string;
 };
 
@@ -41,6 +43,16 @@ export function suggestedSourceRank(
 ): number {
   if (!suggested || !sameChain(chainId, suggested.chainId)) return 2;
   if (!suggested.symbol) return 1;
+  if (suggested.symbol.toUpperCase() === "NATIVE") {
+    try {
+      const native = getChainNativeToken(chainId);
+      return normalizeTokenAddress(chainId, tokenAddress) ===
+        normalizeTokenAddress(chainId, native.token) ? 0 : 1;
+    } catch {
+      // Unknown chains have no registered native asset; retain chain-only ranking.
+      return 1;
+    }
+  }
   const symbol = getKnownToken(chainId, tokenAddress)?.symbol;
   return symbol && symbol.toUpperCase() === suggested.symbol.toUpperCase() ? 0 : 1;
 }

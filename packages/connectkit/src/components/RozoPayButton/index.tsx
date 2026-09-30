@@ -301,6 +301,7 @@ function RozoPayButtonCustom(props: RozoPayButtonCustomProps): JSX.Element {
   const { setButtonProps, removeButtonProps } = paymentState;
   const buttonKey = payId ?? `appId-${propsJson}`;
   useEffect(() => {
+    context.log("[PAY BUTTON] Props", props);
     setButtonProps(buttonKey, props);
     return () => removeButtonProps(buttonKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
