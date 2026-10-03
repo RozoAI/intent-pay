@@ -2,6 +2,7 @@ import { parseUnits } from "viem";
 import {
   getChainById,
   getKnownToken,
+  getKnownSourceToken,
   isChainSupported,
   isTokenSupported,
   PaymentResponse,
@@ -178,7 +179,9 @@ export function createPaymentBridgeConfig({
   const preferredChainData = getChainById(preferredChain);
   const correctedPreferredChain =
     preferredChainData.chainId === solana.chainId ? rozoSolana.chainId : preferredChain;
-  const preferredToken = getKnownToken(correctedPreferredChain, preferredTokenAddress);
+  const knownPreferredToken = getKnownToken(correctedPreferredChain, preferredTokenAddress);
+  const preferredToken =
+    knownPreferredToken ?? getKnownSourceToken(correctedPreferredChain, preferredTokenAddress);
   if (!preferredToken) {
     throw new Error(
       `Unknown token ${preferredTokenAddress} for chain ${preferredChainData.name} (${preferredChain})`,
@@ -202,9 +205,9 @@ export function createPaymentBridgeConfig({
   }
 
   let preferred: PreferredPaymentConfig = {
-    preferredChain: String(preferredToken.chainId),
+    preferredChain: String(correctedPreferredChain),
     preferredToken: preferredToken.symbol,
-    preferredTokenAddress: preferredToken.token,
+    preferredTokenAddress: knownPreferredToken?.token ?? preferredTokenAddress,
   };
 
   let destination: DestinationConfig = {
@@ -217,11 +220,9 @@ export function createPaymentBridgeConfig({
 
   if (isChainSupported(toChain) && isTokenSupported(toChain, toToken)) {
     preferred = {
-      preferredChain: String(
-        preferredToken.chainId === solana.chainId ? rozoSolana.chainId : preferredToken.chainId,
-      ),
+      preferredChain: String(correctedPreferredChain),
       preferredToken: preferredToken.symbol,
-      preferredTokenAddress: preferredToken.token,
+      preferredTokenAddress: knownPreferredToken?.token ?? preferredTokenAddress,
     };
 
     // Determine destination based on special address types

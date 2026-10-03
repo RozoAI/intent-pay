@@ -83,6 +83,27 @@ Then drop a `<RozoPayButton appId="rozoSandbox" ... />` (snippet above) anywhere
 
 > **Result truth lives on the backend.** Treat `onPaymentCompleted` as a UI hint and confirm settlement server-side (webhook or `getPayment`) before fulfilling.
 
+### Native source tokens (ETH / BNB / POL / SOL / XLM)
+
+Native gas tokens are **payment sources**, not native destination payouts. Your merchant `appId` must have that source chain's native asset enabled by Rozo (`ETH@8453`, `BNB@56`, `POL@137`, `SOL@900`); an unsupported or unavailable route stays hidden. XLM uses a separate backend policy. A native option also needs a nonzero wallet balance and a usable price. The deposit-address picker asks for the same merchant `appId` independently of wallet options.
+
+`preferredTokens` is a hard allowlist: if you supply only USDC/USDT, native sources will not show even when available. Omit it to use SDK defaults, or include native source tokens explicitly:
+
+```tsx
+import { baseETH, baseUSDC, solanaSOL } from "@rozoai/intent-common";
+
+<RozoPayButton
+  appId="your-opted-in-app-id"
+  toChain={8453}
+  toToken={baseUSDC.token}
+  toAddress="0xRecipient..."
+  toUnits="1"
+  preferredTokens={[baseUSDC, baseETH, solanaSOL]}
+/>
+```
+
+`baseETH.token` is common's zero-address native marker; the SDK matches it against the proxy's EVM `0xEeee…` source sentinel. `solanaSOL.token` is the System Program (`11111111111111111111111111111111`), **not** wrapped SOL (`So111…12`). Token options remain subject to merchant opt-in and backend quote support; showing an option does not guarantee a route can settle. See [native-token rollout plan](../../docs/native-token-payments-plan.md) for staging checks.
+
 ## Features
 
 - 🌱 Cross-chain payments from 1000+ tokens in under 1 minute.

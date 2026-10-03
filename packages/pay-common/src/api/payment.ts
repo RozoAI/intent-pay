@@ -1,3 +1,4 @@
+import { zeroAddress } from "viem";
 import { createPaymentBridgeConfig } from "../bridge-utils";
 import {
   getChainById,
@@ -6,7 +7,7 @@ import {
   solana,
   stellar,
 } from "../chain";
-import { getKnownToken } from "../token";
+import { getKnownSourceToken, getKnownToken, solanaSOL } from "../token";
 import { apiClient, ApiResponse, ApiVersion, setApiConfig } from "./base";
 import {
   CreateNewPaymentParams,
@@ -89,7 +90,7 @@ function buildPaymentRequestBody(
   });
 
   const sourceChain = getChainById(Number(preferred.preferredChain));
-  const sourceToken = getKnownToken(
+  const sourceToken = getKnownSourceToken(
     Number(preferred.preferredChain),
     preferred.preferredTokenAddress,
   );
@@ -105,6 +106,15 @@ function buildPaymentRequestBody(
     throw new Error("Source or destination token not found");
   }
 
+  // The proxy/UI use Eeee and the Solana System Program as native sentinels;
+  // Intents API expects zero address on EVM and "native" on Solana.
+  const sourceTokenAddress =
+    sourceChain.type === "evm" && sourceToken.token === zeroAddress
+      ? zeroAddress
+      : sourceChain.type === "solana" && sourceToken.token === solanaSOL.token
+        ? "native"
+        : preferred.preferredTokenAddress;
+
   // Build payment request data matching new backend interface
   const paymentData: CreatePaymentRequest = {
     appId,
@@ -118,18 +128,14 @@ function buildPaymentRequestBody(
       // tokens (SOL/ETH/etc) it differs, so prefer the explicit source amount
       // when provided and only fall back to the destination amount otherwise.
       amount: preferredAmountUnits ?? destination.amountUnits,
-      ...(preferred.preferredTokenAddress
-        ? { tokenAddress: preferred.preferredTokenAddress }
-        : {}),
+      tokenAddress: sourceTokenAddress,
     },
     destination: {
       chainId: destinationChain.chainId,
       receiverAddress: destinationAddress,
       tokenSymbol: destinationToken.symbol,
       amount: destination.amountUnits,
-      ...(destination.tokenAddress
-        ? { tokenAddress: destination.tokenAddress }
-        : {}),
+      tokenAddress: destination.tokenAddress,
       ...(receiverMemo ? { receiverMemo } : {}),
     },
     display: {
@@ -153,7 +159,7 @@ function buildPaymentRequestBody(
     paymentData.destination.destinationAddress = destinationAddress;
     paymentData.preferredToken = sourceToken.symbol;
     paymentData.preferredChain = preferred.preferredChain;
-    paymentData.preferredTokenAddress = preferred.preferredTokenAddress;
+    paymentData.preferredTokenAddress = sourceTokenAddress;
   }
 
   return paymentData;

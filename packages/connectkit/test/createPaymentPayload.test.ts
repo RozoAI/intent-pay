@@ -82,6 +82,30 @@ describe("toUnits serialization", () => {
   });
 });
 
+describe("native source serialization", () => {
+  it("uses public Solana chain and System Program sentinel for legacy proxy SOL", () => {
+    const payload = buildCreatePaymentPayload({
+      payParams: makePayParams(),
+      walletOption: {
+        required: {
+          token: {
+            chainId: 501,
+            token: "11111111111111111111111111111112",
+            symbol: "SOL",
+            decimals: 9,
+          },
+          amount: "125000000",
+          usd: 20,
+        },
+        fees: { usd: 0.1 },
+      } as any,
+    });
+    expect(payload.preferredChain).toBe(900);
+    expect(payload.preferredTokenAddress).toBe("11111111111111111111111111111111");
+    expect(payload.preferredAmountUnits).toBe("0.125");
+  });
+});
+
 describe("resolveDestinationAddress", () => {
   it("Solana takes precedence", () => {
     const payload = buildCreatePaymentPayload({
@@ -179,7 +203,9 @@ describe("hydrate_order effect — PayParamsData narrowing", () => {
   // payload buildHydratePayParamsPayload produces for hydrate_order still
   // carries the top-level intent flag.
   function makePreviewState(
-    payParamsDataOverrides: Partial<Extract<PaymentState, { type: "preview" }>["payParamsData"]> = {},
+    payParamsDataOverrides: Partial<
+      Extract<PaymentState, { type: "preview" }>["payParamsData"]
+    > = {},
   ): Extract<PaymentState, { type: "preview" }> {
     return {
       type: "preview",

@@ -25,7 +25,7 @@ import {
 const test = testWithChainwright(metamaskFixture())
 
 // ponytail: Native token sentinel address (EIP-7528) on Polygon.
-const POL_SOURCE_OPTION_ID = "137-0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEE9E"
+const POL_SOURCE_OPTION_ID = "137-0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 
 test.describe("Merchant (payId): Polygon POL → merchant (mainnet, real funds)", () => {
   test.skip(

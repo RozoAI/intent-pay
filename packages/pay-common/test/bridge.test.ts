@@ -1,12 +1,50 @@
 import test from "tape";
 import { createPaymentBridgeConfig, PaymentBridgeConfig } from "../src/bridge-utils";
-import { base, polygon, rozoSolana, rozoStellar } from "../src/chain";
-import { baseUSDC, polygonUSDC, rozoSolanaUSDC, rozoStellarUSDC } from "../src/token";
+import { base, bsc, polygon, rozoSolana, rozoStellar } from "../src/chain";
+import {
+  baseUSDC,
+  polygonUSDC,
+  rozoSolanaUSDC,
+  rozoStellarUSDC,
+  solanaSOL,
+  stellarXLM,
+} from "../src/token";
 
 // Valid addresses for testing
 const VALID_EVM_ADDRESS = "0x1a5FdBc891c5D4E6aD68064Ae45D43146D4F9f3a";
 const VALID_SOLANA_ADDRESS = "E35325pbtxCRsA4uVoC3cyBDZy8BMpmxvsvGcHNUa18k";
 const VALID_STELLAR_ADDRESS = "GDATMUNQEPN4TPETV47LAKGJELK4DUHHDRPMGD3K5LOHUPXX2DI623KY";
+
+test("createPaymentBridgeConfig - native deposit sources reach the fee request builder", (t) => {
+  const sources = [
+    { chain: base.chainId, address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", symbol: "ETH" },
+    { chain: bsc.chainId, address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", symbol: "BNB" },
+    {
+      chain: polygon.chainId,
+      address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+      symbol: "POL",
+    },
+    { chain: rozoSolana.chainId, address: solanaSOL.token, symbol: "SOL" },
+    { chain: rozoStellar.chainId, address: "XLM", symbol: "XLM" },
+    { chain: rozoStellar.chainId, address: stellarXLM.token, symbol: "XLM" },
+  ];
+  for (const source of sources) {
+    const config = createPaymentBridgeConfig({
+      toChain: base.chainId,
+      toToken: baseUSDC.token,
+      toAddress: VALID_EVM_ADDRESS,
+      toUnits: "1",
+      preferredChain: source.chain,
+      preferredTokenAddress: source.address,
+    });
+    t.equal(
+      config.preferred.preferredToken,
+      source.symbol,
+      `${source.symbol} source is recognized`,
+    );
+  }
+  t.end();
+});
 
 test("createPaymentBridgeConfig - Cross-chain payment (Polygon USDC to Base USDC)", (t) => {
   const config: PaymentBridgeConfig = {
@@ -200,6 +238,27 @@ test("createPaymentBridgeConfig - Error: Invalid address for chain", (t) => {
     "Should throw error for invalid address",
   );
 
+  t.end();
+});
+
+test("createPaymentBridgeConfig - native deposit sources preserve their chain and address", (t) => {
+  for (const [chainId, address, expectedChain, symbol] of [
+    [8453, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", 8453, "ETH"],
+    [501, "11111111111111111111111111111111", 900, "SOL"],
+    [1500, "XLM", 1500, "XLM"],
+  ] as const) {
+    const config = createPaymentBridgeConfig({
+      toChain: base.chainId,
+      toToken: baseUSDC.token,
+      toAddress: VALID_EVM_ADDRESS,
+      toUnits: "5",
+      preferredChain: chainId,
+      preferredTokenAddress: address,
+    });
+    t.equal(config.preferred.preferredChain, String(expectedChain), `${symbol} source chain`);
+    t.equal(config.preferred.preferredToken, symbol, `${symbol} source symbol`);
+    t.equal(config.preferred.preferredTokenAddress, address, `${symbol} source address`);
+  }
   t.end();
 });
 

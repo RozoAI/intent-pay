@@ -26,8 +26,8 @@ import {
 
 const test = testWithChainwright(phantomFixture())
 
-// ponytail: WSOL mint from pay-common/src/token.ts solanaSOL.
-const SOL_SOURCE_OPTION_ID = "501-So11111111111111111111111111111111111111112"
+// Native SOL is the System Program, never the WSOL mint.
+const SOL_SOURCE_OPTION_ID = "501-11111111111111111111111111111111"
 
 test.describe("Deposit: Solana SOL → EVM (Base) (mainnet, real funds)", () => {
   test.skip(

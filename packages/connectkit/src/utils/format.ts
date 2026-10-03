@@ -1,4 +1,9 @@
-import { BigIntStr, RozoPayToken, type Token } from "@rozoai/intent-common";
+import {
+  BigIntStr,
+  RozoPayToken,
+  type Token,
+  type WalletPaymentOption,
+} from "@rozoai/intent-common";
 import { formatUnits, parseUnits } from "viem";
 
 export const USD_DECIMALS = 2;
@@ -30,7 +35,6 @@ export function formatTokenAmount(amount: number, decimals: number): string {
   }
   return stripTrailingZeros(amount.toFixed(decimals));
 }
-
 
 /**
  * Round a number to a given number of decimal places
@@ -241,14 +245,15 @@ export function generateStellarDeepLink({
  * - Contains a "." → already a decimal token amount, pass through as-is.
  * - Otherwise → integer base units, convert via `formatUnits`.
  */
-export function tokenBaseAmountToDecimalString(
-  amount: bigint | string,
-  decimals: number,
-): string {
+export function tokenBaseAmountToDecimalString(amount: bigint | string, decimals: number): string {
   if (typeof amount === "string" && amount.includes(".")) {
     return amount;
   }
   return formatUnits(BigInt(amount), decimals);
+}
+
+export function formatNativeInsufficientBalance(balance: WalletPaymentOption["balance"]): string {
+  return `Balance too low: ${tokenBaseAmountToDecimalString(balance.amount, balance.token.decimals)} ${balance.token.symbol} (~$${formatTokenAmount(balance.usd, USD_DECIMALS)})`;
 }
 
 /**

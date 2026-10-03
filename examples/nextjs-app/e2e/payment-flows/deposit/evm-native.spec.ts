@@ -25,7 +25,7 @@ import {
 const test = testWithChainwright(metamaskFixture())
 
 // ponytail: ETH sentinel address from viem/ethAddress (EIP-7528).
-const ETH_SOURCE_OPTION_ID = "8453-0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEE9E"
+const ETH_SOURCE_OPTION_ID = "8453-0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 
 test.describe("Deposit: EVM ETH → Stellar (mainnet, real funds)", () => {
   test.skip(

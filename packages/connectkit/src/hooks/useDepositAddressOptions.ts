@@ -7,14 +7,15 @@ import {
   ethereum,
   ethereumUSDC,
   ethereumUSDT,
-  normalizeTokenAddress,
   RozoPayOrderMode,
   rozoSolanaUSDC,
   rozoSolanaUSDT,
+  solanaSOL,
 } from "@rozoai/intent-common";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { PayParams } from "../payment/paymentFsm";
+import { normalizeSourceTokenAddress, sourceTokenChainId } from "../utils/token";
 import { TrpcClient } from "../utils/trpc";
 
 export interface UseDepositAddressOptionsParams {
@@ -98,12 +99,13 @@ export function useDepositAddressOptions({
 }: UseDepositAddressOptionsParams): UseDepositAddressOptionsReturn {
   const { data, isLoading, error } = useQuery<DepositAddressPaymentOptionMetadata[]>({
     enabled: usdRequired != null && usdRequired > 0 && mode != null,
-    queryKey: ["depositAddressOptions", usdRequired, mode],
+    queryKey: ["depositAddressOptions", usdRequired, mode, payParams?.appId],
     queryFn: async () => {
       try {
         return await trpc.getDepositAddressOptions.query({
           usdRequired,
           mode,
+          appId: payParams?.appId,
         });
       } catch (err) {
         // Fallback to static options on error so the UI never goes blank.
@@ -118,22 +120,20 @@ export function useDepositAddressOptions({
 
   // Memoized configuration for deposit address options
   const filteredOptions = useMemo(() => {
-    const options = data ?? [];
+    const options = (data ?? []).map((option) =>
+      option.token.symbol === "SOL" &&
+      normalizeSourceTokenAddress(option.token.chainId, option.token.token) === solanaSOL.token
+        ? { ...option, token: { ...option.token, token: solanaSOL.token } }
+        : option,
+    );
     if (payParams?.preferredTokens && payParams?.preferredTokens.length > 0) {
-      // Address match: token addresses can differ in casing between the SDK
-      // token registry (EVM natives stored lowercase) and the API response
-      // (EIP-55 checksummed), so a strict `===` drops native ETH/POL/BNB
-      // deposit options. Normalize per-chain: EVM lowercase, Solana/Stellar
-      // case-sensitive.
-      const normalize = (chainId: number, addr: string) =>
-        normalizeTokenAddress(chainId, addr) ?? addr;
+      const sourceKey = (chainId: number, address: string) =>
+        `${sourceTokenChainId(chainId)}:${normalizeSourceTokenAddress(chainId, address)}`;
       const preferred = new Set(
-        payParams.preferredTokens.map((pt) => `${pt.chainId}:${normalize(pt.chainId, pt.token)}`),
+        payParams.preferredTokens.map((pt) => sourceKey(pt.chainId, pt.token)),
       );
       return options.filter((option) =>
-        preferred.has(
-          `${option.token.chainId}:${normalize(option.token.chainId, option.token.token)}`,
-        ),
+        preferred.has(sourceKey(option.token.chainId, option.token.token)),
       );
     }
 

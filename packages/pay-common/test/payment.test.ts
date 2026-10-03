@@ -72,6 +72,56 @@ test("getFee and createPayment use identical request body", (t) => {
     });
 });
 
+test("getFee and createPayment send backend-native source and destination addresses", (t) => {
+  const sources = [
+    { chain: 8453, address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", symbol: "ETH", backendAddress: "0x0000000000000000000000000000000000000000" },
+    { chain: 56, address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", symbol: "BNB", backendAddress: "0x0000000000000000000000000000000000000000" },
+    { chain: 137, address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", symbol: "POL", backendAddress: "0x0000000000000000000000000000000000000000" },
+    { chain: 501, address: "11111111111111111111111111111111", symbol: "SOL", backendAddress: "native" },
+    { chain: 1500, address: "XLM", symbol: "XLM", backendAddress: "XLM" },
+  ];
+  type Body = { source: { chainId: number; tokenSymbol: string; tokenAddress: string }; destination: { tokenAddress: string } };
+  const originalPost = apiClient.post;
+  const requests: Array<{ body: Body; dryrun?: string }> = [];
+  apiClient.post = function <T>(url: string, body: unknown, opts?: Record<string, unknown>) {
+    const dryrun = (opts?.params as { dryrun?: string })?.dryrun;
+    requests.push({ body: body as Body, dryrun });
+    return Promise.resolve({ data: dryrun ? { status: "ok" } : { id: "mock-id" }, error: null, status: 200 });
+  };
+  Promise.all(sources.map(async (source) => {
+    const params = {
+      appId: "test-app",
+      toChain: base.chainId,
+      toToken: baseUSDC.token,
+      toAddress: VALID_EVM_ADDRESS,
+      preferredChain: source.chain,
+      preferredTokenAddress: source.address,
+      toUnits: "5",
+    };
+    await createPayment(params);
+    return getFee(params);
+  }))
+    .then((responses) => {
+      t.ok(responses.every((response) => !response.error), "native quotes reached API transport");
+      t.equal(requests.length, sources.length * 2, "one create and one dryrun per source");
+      for (const source of sources) {
+        const create = requests.find((request) => request.body.source.tokenSymbol === source.symbol && !request.dryrun);
+        const quote = requests.find((request) => request.body.source.tokenSymbol === source.symbol && request.dryrun === "true");
+        t.ok(create && quote, `${source.symbol} create and quote both posted`);
+        if (!create || !quote) continue;
+        t.deepEqual(create.body, quote.body, `${source.symbol} getFee/createPayment body matches`);
+        t.equal(quote.body.source.chainId, source.chain === 501 ? 900 : source.chain, `${source.symbol} source chain`);
+        t.equal(quote.body.source.tokenAddress, source.backendAddress, `${source.symbol} backend source address`);
+        t.equal(quote.body.destination.tokenAddress, baseUSDC.token, `${source.symbol} destination tokenAddress`);
+      }
+    })
+    .catch((error: Error) => t.fail(error.message))
+    .finally(() => {
+      apiClient.post = originalPost;
+      t.end();
+    });
+});
+
 test("getFee and createPayment — body matches for cross-chain payment with intent", (t) => {
   const params = {
     appId: "test-app",
@@ -96,7 +146,17 @@ test("getFee and createPayment — body matches for cross-chain payment with int
     return Promise.resolve(
       bodies.length === 1
         ? { data: { id: "mock-id" }, error: null, status: 200 }
-        : { data: { status: "ok", type: "EXACT_IN", source: { chainId: "137", tokenSymbol: "USDC", amount: "1", fee: "0.01" }, destination: { chainId: "8453", tokenSymbol: "USDC", amount: "1" }, feeInfo: { feePercentage: "1", minimumFee: "0" } }, error: null, status: 200 },
+        : {
+            data: {
+              status: "ok",
+              type: "EXACT_IN",
+              source: { chainId: "137", tokenSymbol: "USDC", amount: "1", fee: "0.01" },
+              destination: { chainId: "8453", tokenSymbol: "USDC", amount: "1" },
+              feeInfo: { feePercentage: "1", minimumFee: "0" },
+            },
+            error: null,
+            status: 200,
+          },
     );
   };
 
@@ -106,11 +166,7 @@ test("getFee and createPayment — body matches for cross-chain payment with int
       apiClient.post = originalPost;
 
       t.equal(bodies.length, 2, "both functions made one call each");
-      t.deepEqual(
-        bodies[0],
-        bodies[1],
-        "cross-chain payment with intent: body is identical",
-      );
+      t.deepEqual(bodies[0], bodies[1], "cross-chain payment with intent: body is identical");
 
       t.end();
     })

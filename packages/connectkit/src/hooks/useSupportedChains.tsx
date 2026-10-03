@@ -1,4 +1,5 @@
-import { supportedChains, supportedTokens, Token } from "@rozoai/intent-common";
+import { supportedChains, Token } from "@rozoai/intent-common";
+import { sourcePaymentTokens } from "../utils/token";
 
 export function useSupportedChains(): {
   chains: Array<{ chainId: number; [k: string]: any }>;
@@ -12,6 +13,6 @@ export function useSupportedChains(): {
     /**
      * Array of supported tokens for payment widget.
      */
-    tokens: Array.from(supportedTokens.values()).flat().filter(Boolean),
+    tokens: sourcePaymentTokens,
   };
 }

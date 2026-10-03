@@ -83,7 +83,6 @@ export function BridgeMode() {
           feeType: c.feeType,
           intent: "Bridge",
           preferredSymbol,
-          feeType: c.feeType,
         })
         setReady(true)
       } catch (err) {
@@ -123,7 +122,6 @@ export function BridgeMode() {
             toUnits={config.toUnits}
             feeType={config.feeType}
             preferredSymbol={preferredSymbol}
-            feeType={config.feeType}
             resetOnSuccess
             showProcessingPayout
             intent="Bridge"

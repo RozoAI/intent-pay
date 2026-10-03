@@ -41,12 +41,71 @@ describe("resolveWalletPaymentAmount", () => {
       },
     } as any;
 
-    expect(resolveWalletPaymentAmount(withWalletSourceQuote({} as any, {
-      source: { amount: "49.95", chainId: 900, tokenAddress: solanaOption.required.token.token },
-    } as any), solanaOption)).toBe(parseUnits("49.95", 6));
-    expect(resolveWalletPaymentAmount(withWalletSourceQuote({} as any, {
-      source: { amount: "49.1234567", chainId: 1500, tokenAddress: stellarOption.required.token.token },
-    } as any), stellarOption)).toBe(parseUnits("49.1234567", 7));
+    expect(
+      resolveWalletPaymentAmount(
+        withWalletSourceQuote(
+          {} as any,
+          {
+            source: {
+              amount: "49.95",
+              chainId: 900,
+              tokenAddress: solanaOption.required.token.token,
+            },
+          } as any,
+        ),
+        solanaOption,
+      ),
+    ).toBe(parseUnits("49.95", 6));
+    expect(
+      resolveWalletPaymentAmount(
+        withWalletSourceQuote(
+          {} as any,
+          {
+            source: {
+              amount: "49.1234567",
+              chainId: 1500,
+              tokenAddress: stellarOption.required.token.token,
+            },
+          } as any,
+        ),
+        stellarOption,
+      ),
+    ).toBe(parseUnits("49.1234567", 7));
+  });
+
+  it("accepts native source aliases but never WSOL as SOL", () => {
+    const evm = {
+      required: {
+        token: { chainId: 8453, token: "0x0000000000000000000000000000000000000000", decimals: 18 },
+      },
+    } as any;
+    const sol = {
+      required: { token: { chainId: 501, token: "11111111111111111111111111111111", decimals: 9 } },
+    } as any;
+    const quote = (chainId: number, tokenAddress: string, amount = "0.125") => ({
+      sourceQuote: { chainId, tokenAddress, amount },
+    });
+    expect(
+      resolveWalletPaymentAmount(quote(8453, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"), evm),
+    ).toBe(parseUnits("0.125", 18));
+    expect(resolveWalletPaymentAmount(quote(900, "11111111111111111111111111111112"), sol)).toBe(
+      parseUnits("0.125", 9),
+    );
+    expect(resolveWalletPaymentAmount(quote(900, "native"), sol)).toBe(parseUnits("0.125", 9));
+    const xlm = {
+      required: {
+        token: { chainId: 10001, token: "11111111111111111111111111111111", decimals: 7 },
+      },
+    } as any;
+    expect(resolveWalletPaymentAmount(quote(1500, "XLM"), xlm)).toBe(parseUnits("0.125", 7));
+    expect(() =>
+      resolveWalletPaymentAmount(quote(900, "So11111111111111111111111111111111111111112"), sol),
+    ).toThrow("does not match selected token");
+    for (const amount of ["0", "-1"]) {
+      expect(() =>
+        resolveWalletPaymentAmount(quote(501, sol.required.token.token, amount), sol),
+      ).toThrow("must be positive");
+    }
   });
 
   it("preserves hydrated source precision", () => {
@@ -60,18 +119,49 @@ describe("resolveWalletPaymentAmount", () => {
       },
     } as any;
 
-    expect(resolveWalletPaymentAmount(withWalletSourceQuote({} as any, {
-      source: { amount: "49.1234567", chainId: 1500, tokenAddress: stellarOption.required.token.token },
-    } as any), stellarOption)).toBe(parseUnits("49.1234567", 7));
-    expect(resolveWalletPaymentAmount(withWalletSourceQuote({} as any, {
-      source: { amount: "1001.000001", chainId: 56, tokenAddress: BSC_USDT },
-    } as any), walletOption)).toBe(parseUnits("1001.000001", 6));
+    expect(
+      resolveWalletPaymentAmount(
+        withWalletSourceQuote(
+          {} as any,
+          {
+            source: {
+              amount: "49.1234567",
+              chainId: 1500,
+              tokenAddress: stellarOption.required.token.token,
+            },
+          } as any,
+        ),
+        stellarOption,
+      ),
+    ).toBe(parseUnits("49.1234567", 7));
+    expect(
+      resolveWalletPaymentAmount(
+        withWalletSourceQuote(
+          {} as any,
+          {
+            source: { amount: "1001.000001", chainId: 56, tokenAddress: BSC_USDT },
+          } as any,
+        ),
+        walletOption,
+      ),
+    ).toBe(parseUnits("1001.000001", 6));
   });
 
   it("rejects missing or mismatched hydrated source quotes", () => {
-    expect(() => resolveWalletPaymentAmount({} as any, walletOption)).toThrow("has no source quote");
-    expect(() => resolveWalletPaymentAmount({ sourceQuote: {
-      amount: "49.95", chainId: 56, tokenAddress: "0x0000000000000000000000000000000000000001",
-    } } as any, walletOption)).toThrow("does not match selected token");
+    expect(() => resolveWalletPaymentAmount({} as any, walletOption)).toThrow(
+      "has no source quote",
+    );
+    expect(() =>
+      resolveWalletPaymentAmount(
+        {
+          sourceQuote: {
+            amount: "49.95",
+            chainId: 56,
+            tokenAddress: "0x0000000000000000000000000000000000000001",
+          },
+        } as any,
+        walletOption,
+      ),
+    ).toThrow("does not match selected token");
   });
 });

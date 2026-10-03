@@ -1,10 +1,12 @@
-import { getKnownToken, normalizeTokenAddress, WalletPaymentOption } from "@rozoai/intent-common";
+import { WalletPaymentOption } from "@rozoai/intent-common";
+import { ethAddress } from "viem";
+import { isNativeToken, normalizeSourceTokenAddress } from "../utils/token";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
-import { formatTokenAmount } from "../utils/format";
+import { formatNativeInsufficientBalance, formatTokenAmount } from "../utils/format";
 import { useSupportedChains } from "./useSupportedChains";
 
 /**
@@ -69,10 +71,7 @@ export function useWalletPaymentOptions({
   );
 
   const { data, isLoading, refetch } = useQuery<WalletPaymentOption[] | null>({
-    enabled:
-      address != null &&
-      usdRequired != null &&
-      destChainId != null,
+    enabled: address != null && usdRequired != null && destChainId != null,
     queryKey: [
       "walletPaymentOptions",
       address,
@@ -87,7 +86,10 @@ export function useWalletPaymentOptions({
       // Source of truth for Intent API calls: chain + token pairing.
       const evmPreferredTokens = (memoizedPreferredTokens ?? [])
         .filter((t) => evmChainIds.has(t.chainId))
-        .map((t) => ({ chain: t.chainId, address: t.token }));
+        .map((t) => ({
+          chain: t.chainId,
+          address: isNativeToken(t.token) ? ethAddress : t.token,
+        }));
       // Backward-compat for local proxy implementations that still read this field.
       const evmPreferredTokenAddresses = evmPreferredTokens.map((t) => t.address);
 
@@ -113,7 +115,12 @@ export function useWalletPaymentOptions({
       chains.some(
         (c) =>
           c.chainId === o.balance.token.chainId &&
-          tokens.some((t) => t.token === o.balance.token.token),
+          tokens.some(
+            (t) =>
+              t.chainId === c.chainId &&
+              normalizeSourceTokenAddress(c.chainId, t.token) ===
+                normalizeSourceTokenAddress(c.chainId, o.balance.token.token),
+          ),
       );
 
     // Hard filter, not a ranking hint: any balance not matching a
@@ -128,8 +135,8 @@ export function useWalletPaymentOptions({
       return memoizedPreferredTokens.some(
         (pt) =>
           pt.chainId === o.balance.token.chainId &&
-          normalizeTokenAddress(pt.chainId, pt.token) ===
-            normalizeTokenAddress(o.balance.token.chainId, o.balance.token.token),
+          normalizeSourceTokenAddress(pt.chainId, pt.token) ===
+            normalizeSourceTokenAddress(o.balance.token.chainId, o.balance.token.token),
       );
     };
 
@@ -142,12 +149,16 @@ export function useWalletPaymentOptions({
           ...item,
           required: { ...item.required, usd },
         };
-        const destinationFiatISO = getKnownToken(
-          item.balance.token.chainId,
-          item.balance.token.token,
-        )?.fiatISO;
         if (item.balance.usd < usd) {
-          value.disabledReason = `Balance too low: ${formatTokenAmount(item.balance.usd, 6)} ${destinationFiatISO}`;
+          const usdBalance = `$${formatTokenAmount(item.balance.usd, 2)}`;
+          if (
+            isNativeToken(item.balance.token.token) &&
+            (!value.disabledReason || value.disabledReason.startsWith("Balance too low:"))
+          ) {
+            value.disabledReason = formatNativeInsufficientBalance(item.balance);
+          } else if (!value.disabledReason) {
+            value.disabledReason = `Balance too low: ${usdBalance}`;
+          }
         }
         return value;
       }) as WalletPaymentOption[];

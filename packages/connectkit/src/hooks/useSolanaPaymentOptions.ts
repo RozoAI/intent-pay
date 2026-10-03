@@ -1,19 +1,16 @@
-import {
-  getKnownToken,
-  normalizeTokenAddress,
-  rozoSolana,
-  solana,
-  WalletPaymentOption,
-} from "@rozoai/intent-common";
+import { getKnownToken, solana, solanaSOL, WalletPaymentOption } from "@rozoai/intent-common";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
-import { roundTokenAmount } from "../utils/format";
+import {
+  formatNativeInsufficientBalance,
+  formatTokenAmount,
+  roundTokenAmount,
+} from "../utils/format";
 import { TrpcClient } from "../utils/trpc";
-import { formatTokenAmount } from "../utils/format";
 import { useSupportedChains } from "./useSupportedChains";
-import { isNativeToken } from "../utils/token";
+import { isNativeToken, normalizeSourceTokenAddress, sourceTokenChainId } from "../utils/token";
 
 /** Wallet payment options. User picks one. */
 export function useSolanaPaymentOptions({
@@ -85,28 +82,41 @@ export function useSolanaPaymentOptions({
     const preferredTokens = payParams?.preferredTokens;
 
     return data
+      .map((option) => {
+        // Older proxy deployments used a different SOL sentinel. Normalize
+        // only native SOL; keep stablecoin mints and chain 501 unchanged.
+        if (
+          option.required.token.symbol !== "SOL" ||
+          normalizeSourceTokenAddress(
+            option.required.token.chainId,
+            option.required.token.token,
+          ) !== solanaSOL.token
+        ) {
+          return option;
+        }
+        const canonical = (value: typeof option.required) => ({
+          ...value,
+          token: { ...value.token, token: solanaSOL.token },
+        });
+        return {
+          ...option,
+          required: canonical(option.required),
+          balance: canonical(option.balance),
+          minimumRequired: canonical(option.minimumRequired),
+          fees: canonical(option.fees),
+        };
+      })
       .filter((option) => {
         // If preferredTokens is not provided or empty, show all options
         if (!preferredTokens || preferredTokens.length === 0) {
           return true;
         }
 
-        const filteredPreferredTokens = preferredTokens.map((pt) => {
-          if (pt.chainId === rozoSolana.chainId) {
-            return {
-              ...pt,
-              chainId: solana.chainId,
-            };
-          }
-          return pt;
-        });
-
-        // Filter by matching chainId and token address
-        return filteredPreferredTokens.some(
+        return preferredTokens.some(
           (pt) =>
-            pt.chainId === option.balance.token.chainId &&
-            normalizeTokenAddress(option.balance.token.chainId, pt.token) ===
-              normalizeTokenAddress(option.balance.token.chainId, option.balance.token.token),
+            sourceTokenChainId(pt.chainId) === sourceTokenChainId(option.balance.token.chainId) &&
+            normalizeSourceTokenAddress(pt.chainId, pt.token) ===
+              normalizeSourceTokenAddress(option.balance.token.chainId, option.balance.token.token),
         );
       })
       .map((item) => {
@@ -127,10 +137,9 @@ export function useSolanaPaymentOptions({
 
         if (item.balance.usd < usd) {
           if (isNative) {
-            value.disabledReason = `Balance too low: ${roundTokenAmount(
-              item.balance.amount,
-              item.balance.token,
-            )} ${item.balance.token.symbol}`;
+            if (!value.disabledReason || value.disabledReason.startsWith("Balance too low:")) {
+              value.disabledReason = formatNativeInsufficientBalance(item.balance);
+            }
           } else if (fiatISO) {
             value.disabledReason = `Balance too low: ${formatTokenAmount(item.balance.usd, 6)} ${fiatISO}`;
           } else {

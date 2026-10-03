@@ -1193,6 +1193,28 @@ export function getChainNativeToken(chainId: number): Token {
   );
 }
 
+/** Resolve a payment source without adding native assets to payout/deposit registries. */
+export function getKnownSourceToken(chainId: number, address: string): Token | undefined {
+  const known = getKnownToken(chainId, address);
+  if (known) return known;
+
+  const native = tokensByChainAndType.get(chainId)?.[TokenType.NATIVE];
+  if (!native) return undefined;
+  if (chainId === solana.chainId || chainId === rozoSolana.chainId) {
+    return address === "native" || address === solanaSOL.token || address === "11111111111111111111111111111112"
+      ? native
+      : undefined;
+  }
+  if (chainId === stellar.chainId || chainId === rozoStellar.chainId) {
+    return address === "XLM" || address === stellarXLM.token ? native : undefined;
+  }
+  const normalized = address.toLowerCase();
+  return native.token === zeroAddress &&
+    (normalized === zeroAddress || normalized === ethAddress.toLowerCase())
+    ? native
+    : undefined;
+}
+
 export function getChainWrappedNativeToken(chainId: number): Token {
   return assertNotNull(
     tokensByChainAndType.get(chainId)?.[TokenType.WRAPPED_NATIVE],

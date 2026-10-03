@@ -1,18 +1,16 @@
-import {
-  getKnownToken,
-  normalizeTokenAddress,
-  rozoStellar,
-  WalletPaymentOption,
-} from "@rozoai/intent-common";
+import { getKnownToken, WalletPaymentOption } from "@rozoai/intent-common";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
-import { roundTokenAmount } from "../utils/format";
+import {
+  formatNativeInsufficientBalance,
+  formatTokenAmount,
+  roundTokenAmount,
+} from "../utils/format";
 import { TrpcClient } from "../utils/trpc";
-import { formatTokenAmount } from "../utils/format";
 import { useSupportedChains } from "./useSupportedChains";
-import { isNativeToken } from "../utils/token";
+import { isNativeToken, normalizeSourceTokenAddress, sourceTokenChainId } from "../utils/token";
 
 /** Wallet payment options. User picks one. */
 export function useStellarPaymentOptions({
@@ -61,15 +59,11 @@ export function useStellarPaymentOptions({
     ],
     queryFn: () => {
       const stellarPreferredTokenAddresses = (memoizedPreferredTokens ?? [])
-        .filter((t) => stellarChainIds.has(t.chainId))
-        .map((t) => t.token);
+        .filter((t) => stellarChainIds.has(sourceTokenChainId(t.chainId)))
+        .map((t) => (t.symbol === "XLM" && isNativeToken(t.token) ? "XLM" : t.token));
 
-      // Only send preferredTokenAddress when the filter actively restricts
-      // tokens (i.e. XLM is absent from the list — e.g. EURC-only or
-      // consumer-provided USDC-only list). When XLM is present (default wide
-      // list or consumer explicitly including it), omit the filter so the
-      // backend returns all available Stellar tokens. This prevents the
-      // default stablecoin-derived preference from hiding native XLM options.
+      // Preserve the existing hint behavior for non-XLM lists. The local
+      // proxy ranks these addresses; explicit restrictions stay in the SDK.
       const isRestrictive =
         stellarPreferredTokenAddresses.length > 0 &&
         !stellarPreferredTokenAddresses.includes("XLM");
@@ -101,18 +95,18 @@ export function useStellarPaymentOptions({
         if (preferredTokens && preferredTokens.length > 0) {
           return preferredTokens.some(
             (pt) =>
-              pt.chainId === tokenChainId &&
-              normalizeTokenAddress(tokenChainId, pt.token) ===
-                normalizeTokenAddress(tokenChainId, tokenAddress),
+              sourceTokenChainId(pt.chainId) === sourceTokenChainId(tokenChainId) &&
+              normalizeSourceTokenAddress(pt.chainId, pt.token) ===
+                normalizeSourceTokenAddress(tokenChainId, tokenAddress),
           );
         }
 
         // Otherwise, check against supported tokens
         return tokens.some(
           (t) =>
-            normalizeTokenAddress(t.chainId, t.token) ===
-              normalizeTokenAddress(tokenChainId, tokenAddress) &&
-            t.chainId === rozoStellar.chainId,
+            normalizeSourceTokenAddress(t.chainId, t.token) ===
+              normalizeSourceTokenAddress(tokenChainId, tokenAddress) &&
+            sourceTokenChainId(t.chainId) === sourceTokenChainId(tokenChainId),
         );
       })
       .map((item) => {
@@ -133,10 +127,9 @@ export function useStellarPaymentOptions({
 
         if (item.balance.usd < usd) {
           if (isNative) {
-            value.disabledReason = `Balance too low: ${roundTokenAmount(
-              item.balance.amount,
-              item.balance.token,
-            )} ${item.balance.token.symbol}`;
+            if (!value.disabledReason || value.disabledReason.startsWith("Balance too low:")) {
+              value.disabledReason = formatNativeInsufficientBalance(item.balance);
+            }
           } else if (fiatISO) {
             value.disabledReason = `Balance too low: ${formatTokenAmount(item.balance.usd, 6)} ${fiatISO}`;
           } else {

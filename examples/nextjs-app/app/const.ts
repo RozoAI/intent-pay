@@ -1,1 +1,1 @@
-export const APP_ID = "rozoBridgeStellar";
+export const APP_ID = "rozoDemo"

@@ -18,15 +18,20 @@ import {
   rozoStellarEURC,
   rozoStellarUSDC,
   solana,
+  solanaSOL,
   stellar,
   Token,
   TokenSymbol,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
-import { formatUnits, getAddress, parseUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { tokenBaseAmountToDecimalString } from "../utils/format";
-import { convertPreferredSymbolsToTokens } from "../utils/token";
+import {
+  convertPreferredSymbolsToTokens,
+  normalizeSourceTokenAddress,
+  sourceTokenChainId,
+} from "../utils/token";
 import { HydrateWalletOption, PayParams } from "./paymentFsm";
 
 /**
@@ -113,7 +118,9 @@ export function derivePayIdPreferredTokens(destTokenSymbol: string): {
   preferredTokens: Token[] | undefined;
 } {
   const preferredSymbol =
-    destTokenSymbol === TokenSymbol.EURC ? [TokenSymbol.EURC] : [TokenSymbol.USDC, TokenSymbol.USDT];
+    destTokenSymbol === TokenSymbol.EURC
+      ? [TokenSymbol.EURC]
+      : [TokenSymbol.USDC, TokenSymbol.USDT];
   return {
     preferredSymbol,
     preferredTokens: convertPreferredSymbolsToTokens(preferredSymbol, undefined),
@@ -194,9 +201,14 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     preferredChain = walletOption.required.token.chainId;
     preferredTokenAddress = walletOption.required.token.token;
 
-    // Special-case: Solana wallet should pay into Rozo Solana bridge chain
-    if (preferredChain === rozoSolana.chainId) {
+    // The proxy uses 501 locally; Intents quotes native SOL on 900.
+    if (
+      preferredChain === solana.chainId &&
+      walletOption.required.token.symbol === "SOL" &&
+      normalizeSourceTokenAddress(preferredChain, preferredTokenAddress) === solanaSOL.token
+    ) {
       preferredChain = rozoSolana.chainId;
+      preferredTokenAddress = solanaSOL.token;
     }
   } else {
     // When no explicit wallet option is given, default preferred chain/token
@@ -309,10 +321,7 @@ export function buildDepositWalletOption(
         token: option.token.token,
         symbol: option.token.symbol,
       },
-      usd:
-        fees?.source?.amount != null
-          ? parseFloat(fees.source.amount)
-          : fallbackUsd,
+      usd: fees?.source?.amount != null ? parseFloat(fees.source.amount) : fallbackUsd,
     },
     fees: {
       usd: fees?.source?.fee != null ? parseFloat(fees.source.fee) : 0,
@@ -387,19 +396,17 @@ export function resolveWalletPaymentAmount(
   }
 
   const token = option.required.token;
-  const normalizeChainId = (chainId: number) => {
-    if (chainId === solana.chainId) return rozoSolana.chainId;
-    if (chainId === stellar.chainId) return rozoStellar.chainId;
-    return chainId;
-  };
-  const normalizeTokenAddress = (address: string) =>
-    address.startsWith("0x") ? getAddress(address) : address;
+  const normalizeChainId = (chainId: number) =>
+    chainId === stellar.chainId ? rozoStellar.chainId : sourceTokenChainId(chainId);
   if (
     normalizeChainId(quote.chainId) !== normalizeChainId(token.chainId) ||
-    normalizeTokenAddress(quote.tokenAddress) !== normalizeTokenAddress(token.token)
+    normalizeSourceTokenAddress(quote.chainId, quote.tokenAddress) !==
+      normalizeSourceTokenAddress(token.chainId, token.token)
   ) {
     throw new Error("[PAY TOKEN] hydrated source quote does not match selected token");
   }
 
-  return parseUnits(quote.amount, token.decimals);
+  const amount = parseUnits(quote.amount, token.decimals);
+  if (amount <= 0n) throw new Error("[PAY TOKEN] hydrated source quote amount must be positive");
+  return amount;
 }
