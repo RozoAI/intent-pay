@@ -9,6 +9,7 @@ import {
   polygonUSDC,
   rozoSolanaUSDC,
   rozoStellarUSDC,
+  rozoStellarUSDT0,
 } from "../src/token";
 
 // Valid addresses for testing
@@ -165,6 +166,21 @@ test("createPaymentBridgeConfig - Payment to Stellar destination", (t) => {
     "Should be an intent payment (Base to Stellar)"
   );
 
+  t.end();
+});
+
+test("createPaymentBridgeConfig - Stellar USDT0 payout retains requested asset", (t) => {
+  const result = createPaymentBridgeConfig({
+    toChain: rozoStellar.chainId,
+    toToken: rozoStellarUSDT0.token,
+    toAddress: VALID_STELLAR_ADDRESS,
+    toUnits: "1",
+    preferredChain: base.chainId,
+    preferredTokenAddress: baseUSDC.token,
+  });
+
+  t.equal(result.destination.tokenSymbol, "USDT0");
+  t.equal(result.destination.tokenAddress, rozoStellarUSDT0.token);
   t.end();
 });
 
