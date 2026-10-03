@@ -235,8 +235,11 @@ export function createPaymentBridgeConfig({
     };
 
     // Determine destination based on special address types
-    if (isChainSupported(toChain, "stellar")) {
-      // Use EURC token if destination is EURC, otherwise use USDC
+    if (
+      isChainSupported(toChain, "stellar") &&
+      destinationToken.symbol !== TokenSymbol.USDT0
+    ) {
+      // Keep USDT0's selected asset; normalize legacy USDC/EURC destinations.
       const stellarToken = isDestinationEURC
         ? rozoStellarEURC
         : rozoStellarUSDC;
