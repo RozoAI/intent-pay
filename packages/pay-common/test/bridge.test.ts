@@ -115,6 +115,27 @@ test("createPaymentBridgeConfig - Same-chain payment (Base USDC to Base USDC)", 
   t.end();
 });
 
+test("createPaymentBridgeConfig - EVM token casing does not create intent", (t) => {
+  for (const toToken of [
+    baseUSDC.token.toLowerCase(),
+    baseUSDC.token.toUpperCase().replace("0X", "0x"),
+    baseUSDC.token,
+  ]) {
+    const result = createPaymentBridgeConfig({
+      toChain: base.chainId,
+      toToken,
+      toAddress: VALID_EVM_ADDRESS,
+      toUnits: "1",
+      preferredChain: base.chainId,
+      preferredTokenAddress: baseUSDC.token,
+    });
+
+    t.equal(result.isIntentPayment, false, "same EVM token should not require intent");
+    t.equal(result.destination.tokenAddress, toToken, "destination preserves input casing");
+  }
+  t.end();
+});
+
 test("createPaymentBridgeConfig - Payment to Stellar destination", (t) => {
   const config: PaymentBridgeConfig = {
     toChain: rozoStellar.chainId,

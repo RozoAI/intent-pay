@@ -4,6 +4,7 @@ import {
   getKnownToken,
   isChainSupported,
   isTokenSupported,
+  normalizeTokenAddress,
   PaymentResponse,
   RozoPayHydratedOrderWithOrg,
   RozoPayIntentStatus,
@@ -266,7 +267,10 @@ export function createPaymentBridgeConfig({
   // Any chain or token change requires an intent payment (including same-chain swaps).
   const isIntentPayment =
     preferred.preferredChain !== destination.chainId ||
-    preferred.preferredTokenAddress !== destination.tokenAddress;
+    normalizeTokenAddress(
+      Number(preferred.preferredChain),
+      preferred.preferredTokenAddress,
+    ) !== normalizeTokenAddress(Number(destination.chainId), destination.tokenAddress);
 
   return { preferred, destination, isIntentPayment };
 }
