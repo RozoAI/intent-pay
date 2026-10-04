@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FeeType } from "@rozoai/intent-common";
+import { FeeType, rozoStellar, rozoStellarUSDC, rozoStellarUSDT0 } from "@rozoai/intent-common";
 import { buildFeeQuoteParams, getCachedFee } from "../src/utils/feeCache.js";
 
 const BASE_CHAIN = 8453;
@@ -24,6 +24,36 @@ function build(payParams: Parameters<typeof buildFeeQuoteParams>[0]["payParams"]
     toUnits: "100",
   });
 }
+
+describe("Stellar direct fee quotes", () => {
+  function quote(sourceTokenAddress: string, destTokenAddress: string, intent?: string) {
+    return buildFeeQuoteParams({
+      order: ORDER,
+      payParams: { intent },
+      destChainId: rozoStellar.chainId,
+      destTokenAddress,
+      destAddress: "GDATMUNQEPN4TPETV47LAKGJELK4DUHHDRPMGD3K5LOHUPXX2DI623KY",
+      sourceChainId: rozoStellar.chainId,
+      sourceTokenAddress,
+      toUnits: "100",
+    });
+  }
+
+  it("quotes identical USDC and USDT0 as direct", () => {
+    expect(quote(rozoStellarUSDC.token, rozoStellarUSDC.token).intent).toBe("stellar_direct");
+    expect(quote(rozoStellarUSDT0.token, rozoStellarUSDT0.token).intent).toBe("stellar_direct");
+  });
+
+  it("quotes USDT0 ↔ USDC as non-direct, even with explicit direct intent", () => {
+    for (const [source, dest] of [
+      [rozoStellarUSDT0.token, rozoStellarUSDC.token],
+      [rozoStellarUSDC.token, rozoStellarUSDT0.token],
+    ]) {
+      expect(quote(source, dest).intent).toBeUndefined();
+      expect(quote(source, dest, "stellar_direct").intent).toBeUndefined();
+    }
+  });
+});
 
 describe("getCachedFee abort", () => {
   it("returns AbortError when signal already aborted", async () => {

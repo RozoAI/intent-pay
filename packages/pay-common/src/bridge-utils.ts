@@ -263,10 +263,10 @@ export function createPaymentBridgeConfig({
     );
   }
 
-  // If the preferred chain and token are not the same as the toChain and toToken, then it is an intent payment
+  // Any chain or token change requires an intent payment (including same-chain swaps).
   const isIntentPayment =
-    preferred.preferredChain !== String(toChain) &&
-    preferred.preferredTokenAddress !== toToken;
+    preferred.preferredChain !== destination.chainId ||
+    preferred.preferredTokenAddress !== destination.tokenAddress;
 
   return { preferred, destination, isIntentPayment };
 }
