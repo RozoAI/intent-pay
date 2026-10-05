@@ -107,12 +107,16 @@ export function resolveDestinationAddress(payParams: PayParams): string {
  * Non-stablecoin source options (native tokens etc.) are unaffected — this
  * filter only ever narrows within [USDC, USDT, EURC].
  */
-export function derivePayIdPreferredTokens(destTokenSymbol: string): {
+export function derivePayIdPreferredTokens(
+  destTokenSymbol: string,
+  preferredSymbolOverride?: TokenSymbol[],
+): {
   preferredSymbol: TokenSymbol[];
   preferredTokens: Token[] | undefined;
 } {
   const preferredSymbol =
-    destTokenSymbol === TokenSymbol.EURC ? [TokenSymbol.EURC] : [TokenSymbol.USDC, TokenSymbol.USDT];
+    preferredSymbolOverride ??
+    (destTokenSymbol === TokenSymbol.EURC ? [TokenSymbol.EURC] : [TokenSymbol.USDC, TokenSymbol.USDT]);
   return {
     preferredSymbol,
     preferredTokens: convertPreferredSymbolsToTokens(preferredSymbol, undefined),
