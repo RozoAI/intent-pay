@@ -2,11 +2,9 @@ import {
   CreateNewPaymentParams,
   FeeType,
   getFee,
-  rozoStellar,
-  rozoStellarEURC,
-  rozoStellarUSDC,
 } from "@rozoai/intent-common";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
+import { resolveStellarDirectIntent } from "../payment/createPaymentPayload";
 
 /**
  * Module-level cache for getFee results, keyed by a stable JSON representation
@@ -144,20 +142,13 @@ export function buildFeeQuoteParams(params: {
     toUnits,
   } = params;
 
-  // Stellar Direct Settlement: same derivation as buildCreatePaymentPayload
-  // (createPaymentPayload.ts). When both source and destination are Stellar
-  // with the same supported token (USDC or EURC), force intent to
-  // "stellar_direct" so getFee quotes the zero-fee direct-settlement path
-  // instead of the bridge/hub route.
-  const isStellarSameToken =
-    destChainId === rozoStellar.chainId &&
-    sourceChainId === rozoStellar.chainId &&
-    destTokenAddress.toLowerCase() === sourceTokenAddress.toLowerCase();
-  const isSupportedStellarToken =
-    destTokenAddress.toLowerCase() === rozoStellarUSDC.token.toLowerCase() ||
-    destTokenAddress.toLowerCase() === rozoStellarEURC.token.toLowerCase();
-  const isStellarDirect = isStellarSameToken && isSupportedStellarToken;
-  const intent = isStellarDirect ? "stellar_direct" : payParams?.intent;
+  const intent = resolveStellarDirectIntent(
+    destChainId,
+    destTokenAddress,
+    sourceChainId,
+    sourceTokenAddress,
+    payParams?.intent,
+  );
 
   // ExactOut toUnits is destination receive amount. Backend calculates source fee.
   const feeType = payParams?.feeType ?? FeeType.ExactIn;

@@ -29,8 +29,6 @@ import {
   rozoSolana,
   rozoSolanaUSDC,
   rozoStellar,
-  rozoStellarEURC,
-  rozoStellarUSDC,
   solana,
   stellar,
   WalletPaymentOption,
@@ -54,7 +52,7 @@ import {
   useWriteContract,
 } from "wagmi";
 import { useWriteContracts } from "wagmi/experimental";
-import { convertPreferredSymbolsToTokens } from "../utils/token";
+import { convertPreferredSymbolsToTokens, getStellarPaymentAsset } from "../utils/token";
 import {
   beginRequestScope,
   cancelRequestScope,
@@ -1348,7 +1346,6 @@ export function usePaymentState({
       }
 
       const destinationAddress = rozoPayment.destAddress;
-      // const issuer = rozoStellarUSDC.token.split(":")[1];
 
       // Ensure kit is on the correct wallet (idempotent — no second prompt if already connected).
       if (stellarConnector) {
@@ -1381,14 +1378,7 @@ export function usePaymentState({
         throw new Error(getStellarInsufficientXlmMessage(spendable, baseFeeXlm));
       }
 
-      let issuer = "";
-      if (walletPaymentOption.required.token.token === rozoStellarUSDC.token) {
-        issuer = rozoStellarUSDC.token.split(":")[1];
-      } else if (walletPaymentOption.required.token.token === rozoStellarEURC.token) {
-        issuer = rozoStellarEURC.token.split(":")[1];
-      } else {
-        throw new Error("Unsupported token");
-      }
+      const { code, issuer } = getStellarPaymentAsset(walletPaymentOption.required.token.token);
 
       // @stellar/stellar-sdk is ~14M — load it only when actually building a
       // Stellar transaction, not on every SDK mount.
@@ -1396,7 +1386,7 @@ export function usePaymentState({
         "@stellar/stellar-sdk"
       );
 
-      const destAsset = new Asset(walletPaymentOption.required.token.symbol, issuer);
+      const destAsset = new Asset(code, issuer);
       const fee = String(baseFeeStroops);
 
       // Build transaction

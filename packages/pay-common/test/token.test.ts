@@ -1,6 +1,6 @@
 import test from "tape";
 import { rozoStellar, solana } from "../src/chain";
-import { getKnownToken, rozoStellarUSDT0, solanaUSDT } from "../src/token";
+import { getKnownToken, rozoStellarUSDT0, solanaUSDT, supportedPayoutTokens, supportedTokens } from "../src/token";
 
 test("finds Solana USDT by its native chain ID", (t) => {
   t.equal(solanaUSDT.chainId, solana.chainId, "Solana USDT belongs to Solana");
@@ -14,6 +14,8 @@ test("finds Solana USDT by its native chain ID", (t) => {
 
 test("finds Stellar USDT0 by its Rozo Stellar chain ID", (t) => {
   t.equal(rozoStellarUSDT0.chainId, rozoStellar.chainId, "USDT0 belongs to Rozo Stellar");
+  t.ok(supportedTokens.get(rozoStellar.chainId)?.includes(rozoStellarUSDT0), "USDT0 is available for pay-in");
+  t.ok(supportedPayoutTokens.get(rozoStellar.chainId)?.includes(rozoStellarUSDT0), "USDT0 is available for payout");
   t.equal(
     getKnownToken(rozoStellar.chainId, rozoStellarUSDT0.token)?.symbol,
     "USDT0",

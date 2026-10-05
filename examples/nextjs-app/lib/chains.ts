@@ -58,6 +58,7 @@ const TOKEN_LOGO_MAP: Record<string, string> = {
   cUSD: TokenLogo.cUSD,
   XLM: TokenLogo.XLM,
   HYPE: TokenLogo.HYPE,
+  USDT0: TokenLogo.USDT0,
 }
 
 export interface ChainOption {
