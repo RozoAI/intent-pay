@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateCheckoutSnippet } from "@/lib/snippets"
-import { createPayment } from "@rozoai/intent-common"
+import { baseUSDC, createPayment } from "@rozoai/intent-common"
 import { RozoPayButton } from "@rozoai/intent-pay"
 import {
   WalletMetamask,
@@ -128,8 +128,8 @@ export function CheckoutMode() {
         toToken: config.toToken,
         toAddress: config.toAddress,
         toUnits: config.toUnits,
-        preferredChain: config.toChain,
-        preferredTokenAddress: config.toToken,
+        preferredChain: baseUSDC.chainId,
+        preferredTokenAddress: baseUSDC.token,
       })
       setPaymentId(result.id)
     } catch (err) {

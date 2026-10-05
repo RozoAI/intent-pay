@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FeeType } from "@rozoai/intent-common";
+import { FeeType, rozoStellar, rozoStellarUSDC, rozoStellarUSDT0 } from "@rozoai/intent-common";
 import { buildCreatePaymentPayload } from "../src/payment/createPaymentPayload.js";
 import { PayParams, PaymentState, PaymentEvent } from "../src/payment/paymentFsm.js";
 import { buildHydratePayParamsPayload } from "../src/payment/paymentEffects.js";
@@ -164,6 +164,42 @@ describe("intent field", () => {
 
     expect(payload.intent).toBe("stellarsponsor");
     expect(payload.metadata?.intent).toBe("Bridge USDC to Stellar");
+  });
+});
+
+describe("Stellar direct settlement", () => {
+  const stellarAddress = "GDATMUNQEPN4TPETV47LAKGJELK4DUHHDRPMGD3K5LOHUPXX2DI623KY";
+
+  function build(sourceToken: typeof rozoStellarUSDC, destToken: typeof rozoStellarUSDC, intent?: string) {
+    return buildCreatePaymentPayload({
+      payParams: makePayParams({
+        toChain: rozoStellar.chainId,
+        toToken: destToken.token,
+        toStellarAddress: stellarAddress,
+        intent,
+      }),
+      walletOption: { required: { token: sourceToken } } as NonNullable<
+        Parameters<typeof buildCreatePaymentPayload>[0]["walletOption"]
+      >,
+    });
+  }
+
+  it("marks identical USDC as direct, even with another requested intent", () => {
+    expect(build(rozoStellarUSDC, rozoStellarUSDC, "other").intent).toBe("stellar_direct");
+  });
+
+  it("never marks different Stellar tokens as direct, even when requested", () => {
+    for (const [source, dest] of [
+      [rozoStellarUSDT0, rozoStellarUSDC],
+      [rozoStellarUSDC, rozoStellarUSDT0],
+    ]) {
+      expect(build(source, dest).intent).toBeUndefined();
+      expect(build(source, dest, "stellar_direct").intent).toBeUndefined();
+    }
+  });
+
+  it("marks identical USDT0 as direct", () => {
+    expect(build(rozoStellarUSDT0, rozoStellarUSDT0).intent).toBe("stellar_direct");
   });
 });
 

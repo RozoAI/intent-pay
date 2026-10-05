@@ -53,10 +53,7 @@ export function BridgeMode() {
     : false
 
   const preferredSymbol = useMemo(
-    () =>
-      isDestinationEURC
-        ? [TokenSymbol.EURC]
-        : [TokenSymbol.USDC, TokenSymbol.USDT],
+    () => (isDestinationEURC ? [TokenSymbol.EURC] : undefined),
     [isDestinationEURC]
   )
 
