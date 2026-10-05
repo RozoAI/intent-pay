@@ -16,6 +16,13 @@ describe("derivePayIdPreferredTokens", () => {
     },
   );
 
+  it("payId preferredSymbol overrides destination-derived source tokens", () => {
+    const result = derivePayIdPreferredTokens(TokenSymbol.USDC, [TokenSymbol.USDT]);
+    expect(result.preferredSymbol).toEqual([TokenSymbol.USDT]);
+    expect(result.preferredTokens).toBeDefined();
+    expect(result.preferredTokens!.every((token) => token.symbol === TokenSymbol.USDT)).toBe(true);
+  });
+
   it("EURC destination — forces EURC-only source filter", () => {
     const result = derivePayIdPreferredTokens(TokenSymbol.EURC);
 
