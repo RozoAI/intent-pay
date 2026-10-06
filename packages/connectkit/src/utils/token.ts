@@ -77,11 +77,14 @@ export function getSourcePaymentToken(chainId: number, address: string): Token |
 
 /**
  * Converts preferredSymbol array to preferredTokens array.
- * Explicit preferredSymbol values are respected as given (USDC, USDT, EURC,
- * or native ETH/BNB/POL/SOL/XLM). When neither preferredSymbol nor
- * preferredTokens is provided, defaults to stablecoins plus native tokens
- * so native options aren't silently filtered out of the default request.
- * Finds tokens matching the symbols across supported chains (Base, Polygon, Ethereum, Solana, Stellar).
+ *
+ * Explicit preferredSymbol values are respected as given: stablecoins
+ * (USDC, USDT, USDT0, EURC) or native (ETH/BNB/POL/SOL/XLM). When neither
+ * preferredSymbol nor preferredTokens is provided, defaults to stablecoins
+ * plus native tokens so native options aren't silently filtered out of the
+ * default request. Matches tokens across supported chains (Base, Polygon,
+ * Ethereum, Solana, Stellar) via sourcePaymentTokens, which includes the
+ * source-only EVM natives kept outside supportedTokens.
  */
 export function convertPreferredSymbolsToTokens(
   symbols: TokenSymbol[] | undefined,

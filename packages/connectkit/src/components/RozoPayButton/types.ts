@@ -100,7 +100,8 @@ type CommonPaymentProps = {
   preferredTokens?: Token[];
   /**
    * Preferred token symbols. These will be converted to preferredTokens internally.
-   * Only USDC, USDT, and EURC are allowed. Defaults to [USDC, USDT].
+   * Allows USDC, USDT, USDT0, EURC, or native (ETH/BNB/POL/SOL/XLM).
+   * Defaults to [USDC, USDT, USDT0, ...native tokens].
    */
   preferredSymbol?: TokenSymbol[];
   /**
@@ -141,8 +142,9 @@ export type PayButtonPaymentProps =
       preferredTokens?: Token[];
       /**
        * Preferred token symbols. These will be converted to preferredTokens
-       * internally. Only USDC, USDT, and EURC are allowed. Defaults to the
-       * symbol(s) implied by the order's destination token.
+       * internally. Allows USDC, USDT, USDT0, EURC, or native
+       * (ETH/BNB/POL/SOL/XLM). Defaults to the symbol(s) implied by the
+       * order's destination token.
        */
       preferredSymbol?: TokenSymbol[];
       /**

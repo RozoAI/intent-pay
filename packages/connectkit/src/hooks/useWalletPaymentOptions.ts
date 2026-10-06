@@ -1,6 +1,6 @@
 import { WalletPaymentOption } from "@rozoai/intent-common";
 import { ethAddress } from "viem";
-import { isNativeToken, normalizeSourceTokenAddress } from "../utils/token";
+import { isNativeToken, normalizeSourceTokenAddress, sourceTokenChainId } from "../utils/token";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
@@ -17,12 +17,17 @@ import { useSupportedChains } from "./useSupportedChains";
  * 2. Filtering to only show currently supported chains and tokens
  *
  * CURRENTLY SUPPORTED CHAINS & TOKENS IN WALLET PAYMENT OPTIONS:
- * - Base (Chain ID: 8453) - USDC
- * - Polygon (Chain ID: 137) - USDC
- * - Ethereum (Chain ID: 1) - USDC
- * - BSC (Chain ID: 56) - USDT (when MugglePay app, BSC preferred, or user has BSC USDT balance, even if disabled)
- * - Rozo Solana - USDC (native Solana USDC)
+ * - Base (Chain ID: 8453) - USDC, native ETH
+ * - Polygon (Chain ID: 137) - USDC, native POL
+ * - Ethereum (Chain ID: 1) - USDC, native ETH
+ * - BSC (Chain ID: 56) - USDT, native BNB (when MugglePay app, BSC preferred, or user has BSC USDT balance, even if disabled)
+ * - Rozo Solana - USDC (native Solana USDC), native SOL
  * - Rozo Stellar - USDC/XLM (native Stellar tokens)
+ *
+ * Native sources are opt-in per response: the SDK never synthesizes them, it
+ * only decides whether balances the proxy returns survive isSupported and the
+ * preferredTokens filter. EVM natives live in sourcePaymentTokens, not
+ * supportedTokens (see utils/token.ts).
  *
  * Note: The SDK supports many more chains/tokens (see pay-common/src/chain.ts and token.ts)
  * but wallet payment options are currently filtered to the above for optimal user experience.
@@ -134,7 +139,7 @@ export function useWalletPaymentOptions({
       }
       return memoizedPreferredTokens.some(
         (pt) =>
-          pt.chainId === o.balance.token.chainId &&
+          sourceTokenChainId(pt.chainId) === sourceTokenChainId(o.balance.token.chainId) &&
           normalizeSourceTokenAddress(pt.chainId, pt.token) ===
             normalizeSourceTokenAddress(o.balance.token.chainId, o.balance.token.token),
       );
