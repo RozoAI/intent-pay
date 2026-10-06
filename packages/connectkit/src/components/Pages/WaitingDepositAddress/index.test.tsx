@@ -49,20 +49,22 @@ it("names the only network above an EVM address and says not to pay again below 
   const html = render({ address: evmAddr, coins: "USDC Base", onlyOn: "USDC on Base" });
   expect(html).toContain("Send USDC on Base only");
   expect(html).not.toContain("Network and token:");
-  expect(html).toContain("Already sent on another chain? Don&#x27;t pay again. We detect it automatically.");
-  expect(html.indexOf("Send USDC on Base only")).toBeLessThan(html.indexOf("Already sent on another chain?"));
+  expect(html).toContain(
+    "Already sent USDC/USDT on another chain? Don&#x27;t pay again. We detect it automatically. Contact us if it isn&#x27;t confirmed within 5 minutes.",
+  );
+  expect(html.indexOf("Send USDC on Base only")).toBeLessThan(html.indexOf("Already sent USDC/USDT on another chain?"));
 });
 
 it("keeps the network line but makes no cross-chain promise for non-EVM addresses", () => {
   const sol = render({ address: "So1anaTestAddre55111111111111111111111111", coins: "USDC Solana", onlyOn: "USDC on Solana" });
   expect(sol).toContain("Send USDC on Solana only");
-  expect(sol).not.toContain("Already sent on another chain?");
+  expect(sol).not.toContain("Already sent USDC/USDT on another chain?");
   const xlm = render({ address: "G" + "A".repeat(55), memo: "123", coins: "USDC Stellar", onlyOn: "USDC on Stellar", isStellarClassic: true });
   expect(xlm).toContain("Send USDC on Stellar only");
-  expect(xlm).not.toContain("Already sent on another chain?");
+  expect(xlm).not.toContain("Already sent USDC/USDT on another chain?");
 });
 
 it("drops the already-sent line once the address has expired", () => {
   const html = render({ address: evmAddr, coins: "USDC Base", onlyOn: "USDC on Base" }, true);
-  expect(html).not.toContain("Already sent on another chain?");
+  expect(html).not.toContain("Already sent USDC/USDT on another chain?");
 });
