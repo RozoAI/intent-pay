@@ -29,6 +29,7 @@ import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { tokenBaseAmountToDecimalString } from "../utils/format";
 import {
   convertPreferredSymbolsToTokens,
+  NATIVE_SYMBOLS,
   normalizeSourceTokenAddress,
   sourceTokenChainId,
 } from "../utils/token";
@@ -125,12 +126,15 @@ export function resolveDestinationAddress(payParams: PayParams): string {
 }
 
 /**
- * payId mode has no RozoPayButton props to read preferredTokens from, so
- * source stablecoin filtering must mirror the destination: EURC destination
- * → source restricted to EURC; any other destination → source restricted to
- * USDC/USDT/USDT0 (EURC balances can't fund a USD destination, and vice versa).
- * Non-stablecoin source options (native tokens etc.) are unaffected — this
- * filter only ever narrows within [USDC, USDT, USDT0, EURC].
+ * payId mode has no RozoPayButton props to read preferredTokens from, so the
+ * source filter is derived from the destination: a EURC destination can only
+ * be funded by EURC, any other destination by USD stablecoins (and vice versa).
+ *
+ * preferredTokens is a HARD allowlist downstream (useWalletPaymentOptions drops
+ * every balance not listed), so the derived set must also carry the native
+ * source tokens — narrowing to stablecoins alone would silently delete native
+ * ETH/BNB/POL/SOL from payId checkout. Native legs a merchant has not opted into
+ * are removed by the proxy's own per-appId allowlist, not here.
  */
 export function derivePayIdPreferredTokens(
   destTokenSymbol: string,
@@ -141,7 +145,9 @@ export function derivePayIdPreferredTokens(
 } {
   const preferredSymbol =
     preferredSymbolOverride ??
-    (destTokenSymbol === TokenSymbol.EURC ? [TokenSymbol.EURC] : [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.USDT0]);
+    (destTokenSymbol === TokenSymbol.EURC
+      ? [TokenSymbol.EURC]
+      : [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.USDT0, ...NATIVE_SYMBOLS]);
   return {
     preferredSymbol,
     preferredTokens: convertPreferredSymbolsToTokens(preferredSymbol, undefined),

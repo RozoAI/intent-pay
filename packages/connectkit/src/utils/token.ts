@@ -80,6 +80,22 @@ export function getSourcePaymentToken(chainId: number, address: string): Token |
 }
 
 /**
+ * Native gas tokens the SDK may offer as payment SOURCES.
+ *
+ * Every set of source tokens the SDK derives must include these: downstream
+ * `useWalletPaymentOptions` treats preferredTokens as a HARD allowlist and
+ * deletes any balance not listed, so a stablecoin-only set silently removes
+ * native options even when the proxy returned them.
+ */
+export const NATIVE_SYMBOLS = [
+  TokenSymbol.ETH,
+  TokenSymbol.BNB,
+  TokenSymbol.POL,
+  TokenSymbol.SOL,
+  TokenSymbol.XLM,
+];
+
+/**
  * Converts preferredSymbol array to preferredTokens array.
  *
  * Explicit preferredSymbol values are respected as given: stablecoins
@@ -100,19 +116,11 @@ export function convertPreferredSymbolsToTokens(
     return existingPreferredTokens.filter((v) => !!v);
   }
 
-  const nativeSymbols = [
-    TokenSymbol.ETH,
-    TokenSymbol.BNB,
-    TokenSymbol.POL,
-    TokenSymbol.SOL,
-    TokenSymbol.XLM,
-  ];
-
   // If no preferredSymbol provided, default to stablecoins plus native tokens
   const symbolsToUse =
     symbols && symbols.length > 0
       ? symbols
-      : [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.USDT0, ...nativeSymbols];
+      : [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.USDT0, ...NATIVE_SYMBOLS];
 
   // Validate that only allowed symbols are used
   const allowedSymbols = [
@@ -120,7 +128,7 @@ export function convertPreferredSymbolsToTokens(
     TokenSymbol.USDT,
     TokenSymbol.USDT0,
     TokenSymbol.EURC,
-    ...nativeSymbols,
+    ...NATIVE_SYMBOLS,
   ];
   const validSymbols = symbolsToUse.filter((s) => allowedSymbols.includes(s));
   const invalidSymbols = symbolsToUse.filter((s) => !allowedSymbols.includes(s));
