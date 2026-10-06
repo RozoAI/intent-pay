@@ -82,7 +82,7 @@ const PROJECTS = [
   "deposit-stellar-native",
 ]
 
-const { execSync } = require("child_process")
+const { spawnSync } = require("child_process")
 const args = process.argv.slice(2).filter((a) => a !== "--")
 
 if (args.includes("--list")) {
@@ -90,16 +90,16 @@ if (args.includes("--list")) {
   process.exit(0)
 }
 
-const base =
-  "node_modules/.bin/playwright test --config e2e/playwright.config.ts"
+// argv array + spawnSync: forwarded CLI args are never concatenated into a
+// shell string, so a stray argument cannot be interpreted by a shell.
+const playwright = ["test", "--config", "e2e/playwright.config.ts"]
+const env = { ...process.env }
 
-let cmd
 if (args.includes("--mocked")) {
-  const rest = args.filter((a) => a !== "--mocked").join(" ")
-  cmd = `SKIP_ENV_VALIDATION=1 ${base} --project=mocked ${rest}`
-} else if (args.length === 0) {
-  cmd = base
-} else {
+  const rest = args.filter((a) => a !== "--mocked")
+  playwright.push("--project=mocked", ...rest)
+  env.SKIP_ENV_VALIDATION = "1"
+} else if (args.length > 0) {
   const [project, ...rest] = args
   if (!PROJECTS.includes(project)) {
     console.error(
@@ -107,12 +107,17 @@ if (args.includes("--mocked")) {
     )
     process.exit(1)
   }
-  cmd = `${base} --project=${project} --no-deps ${rest.join(" ")}`
+  playwright.push(`--project=${project}`, "--no-deps", ...rest)
 }
 
-console.log(`\n$ ${cmd}\n`)
-try {
-  execSync(cmd.trim(), { stdio: "inherit" })
-} catch (err) {
-  process.exit(err.status ?? 1)
+console.log(`\n$ playwright ${playwright.join(" ")}\n`)
+const result = spawnSync("node_modules/.bin/playwright", playwright, {
+  stdio: "inherit",
+  env,
+})
+
+if (result.error) {
+  console.error(result.error.message)
+  process.exit(1)
 }
+process.exit(result.status ?? 1)

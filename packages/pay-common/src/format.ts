@@ -1,5 +1,5 @@
 import { getChainName } from "./chain";
-import { getKnownToken, isNativeToken } from "./token";
+import { getKnownSourceToken, getKnownToken, isNativeToken } from "./token";
 
 /**
  * Contract an Ethereum address to a shorter string.
@@ -122,7 +122,9 @@ export function generateIntentTitle({
   const toChainName = getChainName(toChainId);
   const preferredChainName = getChainName(preferredChainId);
   const toToken = getKnownToken(toChainId, toTokenAddress);
-  const preferredToken = getKnownToken(preferredChainId, preferredTokenAddress);
+  // Preferred token is a payment SOURCE, so resolve natives too (SOL/XLM are
+  // intentionally absent from supportedTokens/getKnownToken).
+  const preferredToken = getKnownSourceToken(preferredChainId, preferredTokenAddress);
 
   if (!toToken || !preferredToken) {
     return "Pay";

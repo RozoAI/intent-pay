@@ -22,14 +22,18 @@ import { zeroAddress } from "viem";
 
 export { isNativeToken };
 
-// Keep source-only EVM natives outside supportedTokens: the proxy uses that
-// map to generate stablecoin deposit rows before applying its native allowlist.
+// Natives are payment SOURCES only, so they stay out of supportedTokens: that
+// map feeds getKnownToken/isTokenSupported (destination validation) and the
+// proxy builds stablecoin deposit rows from it. Expose every native here
+// instead — EVM via the chain registry, SOL/XLM as explicit source entries.
 const evmNativeSourceTokens = [arbitrum, base, bsc, ethereum, polygon].map((chain) =>
   getChainNativeToken(chain.chainId),
 );
 export const sourcePaymentTokens = [
   ...Array.from(supportedTokens.values()).flat(),
   ...evmNativeSourceTokens,
+  solanaSOL,
+  stellarXLM,
 ];
 
 /** Compare proxy source identities without changing destination or quoted addresses. */

@@ -1,6 +1,6 @@
 import test from "tape";
 import { createPaymentBridgeConfig, PaymentBridgeConfig } from "../src/bridge-utils";
-import { base, bsc, polygon, rozoSolana, rozoStellar } from "../src/chain";
+import { base, bsc, polygon, rozoSolana, rozoStellar, solana } from "../src/chain";
 import {
   baseUSDC,
   polygonUSDC,
@@ -292,6 +292,29 @@ test("createPaymentBridgeConfig - Error: Invalid address for chain", (t) => {
     "Should throw error for invalid address",
   );
 
+  t.end();
+});
+
+test("createPaymentBridgeConfig - native tokens are sources, never destinations", (t) => {
+  for (const [chainId, address, toAddress, symbol] of [
+    [base.chainId, "0x0000000000000000000000000000000000000000", VALID_EVM_ADDRESS, "ETH"],
+    [solana.chainId, solanaSOL.token, VALID_SOLANA_ADDRESS, "SOL"],
+    [rozoStellar.chainId, stellarXLM.token, VALID_STELLAR_ADDRESS, "XLM"],
+  ] as const) {
+    t.throws(
+      () =>
+        createPaymentBridgeConfig({
+          toChain: chainId,
+          toToken: address,
+          toAddress,
+          toUnits: "1",
+          preferredChain: base.chainId,
+          preferredTokenAddress: baseUSDC.token,
+        }),
+      /Unsupported token/,
+      `${symbol} must not be accepted as a destination`,
+    );
+  }
   t.end();
 });
 

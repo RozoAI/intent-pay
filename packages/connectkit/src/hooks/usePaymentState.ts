@@ -1002,16 +1002,24 @@ export function usePaymentState({
           const recipient = getAddress(destinationAddress);
           const sender = getAddress(ethWalletAddress);
           const chainId = required.token.chainId;
-          const [balance, gas, gasPrice] = await Promise.all([
+          const [balance, gasPrice] = await Promise.all([
             getBalance(wagmiConfig, { address: sender, chainId }),
-            estimateGas(wagmiConfig, {
+            getGasPrice(wagmiConfig, { chainId }),
+          ]);
+          // Estimate the transfer fee, but never let an estimate that reverts
+          // *because* the account cannot cover value + gas mask the spendable
+          // check below. A bare native transfer is 21000 gas; fall back to that.
+          let gas: bigint;
+          try {
+            gas = await estimateGas(wagmiConfig, {
               account: sender,
               to: recipient,
               value: paymentAmount,
               chainId,
-            }),
-            getGasPrice(wagmiConfig, { chainId }),
-          ]);
+            });
+          } catch {
+            gas = 21_000n;
+          }
           assertNativeSpendable(
             balance.value,
             paymentAmount,

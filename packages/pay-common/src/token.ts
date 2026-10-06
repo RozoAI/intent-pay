@@ -966,9 +966,14 @@ export const supportedTokens: Map<number, Token[]> = new Map([
   [polygon.chainId, [polygonUSDC, polygonUSDT]],
   [hyperEVM.chainId, [hyperEVMUSDC]],
 
-  [solana.chainId, [solanaSOL, solanaUSDC, solanaUSDT]],
-  [rozoSolana.chainId, [solanaSOL, rozoSolanaUSDC, rozoSolanaUSDT]],
-  [rozoStellar.chainId, [stellarXLM, rozoStellarUSDC, rozoStellarEURC, rozoStellarUSDT0]],
+  // Native SOL/XLM are payment SOURCES only. Keep them out of supportedTokens:
+  // it feeds getKnownToken/isTokenSupported, so a native entry here would let
+  // native SOL/XLM satisfy destination validation (and the proxy iterates this
+  // map to build stablecoin deposit rows). Source recognition uses
+  // getChainNativeToken/getKnownSourceToken instead.
+  [solana.chainId, [solanaUSDC, solanaUSDT]],
+  [rozoSolana.chainId, [rozoSolanaUSDC, rozoSolanaUSDT]],
+  [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC, rozoStellarUSDT0]],
 ]);
 
 export const supportedPayoutTokens: Map<number, Token[]> = new Map([

@@ -267,6 +267,24 @@ export function createPaymentBridgeConfig({
 }
 
 /**
+ * True when a payment response's source token is the chain's native asset.
+ * Accepts the canonical sentinels plus the aliases a backend/proxy may echo
+ * (`"native"` for Solana, the legacy System Program alias) by resolving
+ * through the chain-aware source lookup first.
+ */
+function isNativePaymentSource(
+  chainId: number | string | undefined,
+  tokenAddress: string | undefined,
+): boolean {
+  if (tokenAddress == null) return false;
+  if (isNativeToken(tokenAddress)) return true;
+  const numericChainId = Number(chainId);
+  if (!Number.isFinite(numericChainId)) return false;
+  const known = getKnownSourceToken(numericChainId, tokenAddress);
+  return known != null && isNativeToken(known.token);
+}
+
+/**
  * Converts a RozoAI payment API response to a fully hydrated RozoPay order.
  *
  * This utility transforms the low-level {@link PaymentResponse} object returned by the RozoAI Intent Pay API
@@ -319,6 +337,14 @@ export function createPaymentBridgeConfig({
 export function formatPaymentResponseToHydratedOrder(
   order: PaymentResponse,
 ): RozoPayHydratedOrderWithOrg {
+  // Chain-aware native-source detection. The backend echoes the canonical
+  // Solana source as `"native"` (and older proxies used the legacy System
+  // Program alias), neither of which is in NATIVE_TOKEN_ADDRESSES, so resolve
+  // through the source lookup before falling back to the plain sentinel check.
+  const sourceIsNative = isNativePaymentSource(
+    order.source?.chainId,
+    order.source?.tokenAddress,
+  );
   // Amount the recipient ultimately receives, in destination-token units.
   // This is what `destFinalCallTokenAmount` and `usdValue` must reflect.
   //
@@ -327,7 +353,6 @@ export function formatPaymentResponseToHydratedOrder(
   // Use `destination.amount` (stablecoin payout, USD-denominated) instead.
   // If source is a stablecoin, source.amount is already USD and is preferred
   // (it includes fees).
-  const sourceIsNative = isNativeToken(order.source?.tokenAddress);
   const destinationAmountUnits = sourceIsNative
     ? (order.destination?.amount ?? order.destination?.amountUnits ?? "0")
     : (order.source?.amount ?? order.destination?.amount ?? order.destination?.amountUnits ?? "0");
