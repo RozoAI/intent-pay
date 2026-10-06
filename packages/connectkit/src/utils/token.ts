@@ -66,6 +66,34 @@ export function sourceTokenChainId(chainId: number): number {
   return chainId;
 }
 
+/**
+ * True when an existing payment's source already matches the selected token.
+ *
+ * Compares chain + normalized source address, so a payment stored with the
+ * backend canonical native address (`0x0000…`) matches a proxy/UI native
+ * sentinel (`0xEeee…`) for the SAME asset. Without this, selecting the source
+ * the payment was already created with is misread as a token switch and forces
+ * a needless — and for native, backend-rejected — checkout round-trip.
+ */
+export function isSamePaymentSource(
+  payment:
+    | { source?: { chainId?: number | string | null; tokenAddress?: string | null } }
+    | undefined,
+  token: { chainId: number; token: string },
+): boolean {
+  const chainId = payment?.source?.chainId;
+  const address = payment?.source?.tokenAddress;
+  if (chainId == null || !address) return false;
+  const numericChainId = Number(chainId);
+  if (sourceTokenChainId(numericChainId) !== sourceTokenChainId(token.chainId)) {
+    return false;
+  }
+  return (
+    normalizeSourceTokenAddress(numericChainId, address) ===
+    normalizeSourceTokenAddress(token.chainId, token.token)
+  );
+}
+
 /** A quoted source may use the proxy sentinel, unlike known payout tokens. */
 export function getSourcePaymentToken(chainId: number, address: string): Token | undefined {
   return (

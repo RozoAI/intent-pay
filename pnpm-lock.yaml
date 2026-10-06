@@ -191,8 +191,8 @@ importers:
         specifier: ^12.1.2
         version: 12.3.0(rollup@4.64.0)(tslib@2.8.1)(typescript@5.5.2)
       '@rozoai/intent-common':
-        specifier: 0.1.42
-        version: 0.1.42(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(viem@2.57.3(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@4.6.5))
+        specifier: 0.1.43-beta.0
+        version: 0.1.43-beta.0(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(viem@2.57.3(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@4.6.5))
       '@solana/spl-memo':
         specifier: ^0.2.5
         version: 0.2.5(@solana/web3.js@1.99.0(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6))
@@ -2759,6 +2759,11 @@ packages:
 
   '@rozoai/intent-common@0.1.42':
     resolution: {integrity: sha512-MK1AHgNNHcLjpNqV6PrRBl24EHSYmrLGMhnlk0JVkNdjr74tklsiRaWatHv/TZI8WEDrlJ6z0yMvWP+8TUwEeQ==}
+    peerDependencies:
+      viem: ^2.23.2
+
+  '@rozoai/intent-common@0.1.43-beta.0':
+    resolution: {integrity: sha512-Vjrn/C/sF1ajz1qoD+A1alwqIhonvcUmoKnlP7NK7BNTvhr/vp4frqaEXZtfiaU7BUGHXirj1sQwh69VrLaylA==}
     peerDependencies:
       viem: ^2.23.2
 
@@ -12118,7 +12123,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@rozoai/intent-common@0.1.42(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(viem@2.57.3(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@4.6.5))':
+  '@rozoai/intent-common@0.1.43-beta.0(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(viem@2.57.3(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)(zod@4.6.5))':
     dependencies:
       '@scure/base': 1.2.6
       '@solana/web3.js': 1.99.0(bufferutil@4.1.0)(typescript@5.5.2)(utf-8-validate@6.0.6)

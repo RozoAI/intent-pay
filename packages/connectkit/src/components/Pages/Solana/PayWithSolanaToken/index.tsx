@@ -19,7 +19,6 @@ import {
   getChainExplorerTxUrl,
   getPayment,
   isNativeToken,
-  normalizeTokenAddress,
   RozoPayHydratedOrderWithOrg,
   rozoSolana,
   solana,
@@ -44,10 +43,17 @@ import {
   parseErrorMessage,
 } from "../../../../utils/errorParser";
 import {
+  resolveSourceAmountUnits,
   resolveWalletPaymentAmount,
+  resolveWalletSourceBreakdown,
   type WalletSourceQuoteOrder,
   withWalletSourceQuote,
 } from "../../../../payment/createPaymentPayload";
+import {
+  isSamePaymentSource,
+  normalizeSourceTokenAddress,
+  sourceTokenChainId,
+} from "../../../../utils/token";
 
 enum PayState {
   PreparingTransaction = "Preparing Transaction",
@@ -200,11 +206,14 @@ const PayWithSolanaToken: React.FC = () => {
 
         const tokenChanged =
           currentOrder.preferredTokenAddress != null &&
-          normalizeTokenAddress(currentOrder.preferredChainId ?? undefined, currentOrder.preferredTokenAddress) !==
-            normalizeTokenAddress(required.token.chainId, required.token.token);
+          normalizeSourceTokenAddress(
+            Number(currentOrder.preferredChainId ?? required.token.chainId),
+            currentOrder.preferredTokenAddress,
+          ) !== normalizeSourceTokenAddress(required.token.chainId, required.token.token);
         const needRozoPayment =
           (currentOrder.preferredChainId !== null &&
-            currentOrder.preferredChainId !== required.token.chainId) ||
+            sourceTokenChainId(Number(currentOrder.preferredChainId)) !==
+              sourceTokenChainId(required.token.chainId)) ||
           tokenChanged;
 
         let hydratedOrder: RozoPayHydratedOrderWithOrg;
@@ -222,48 +231,63 @@ const PayWithSolanaToken: React.FC = () => {
           ? formatUnits(BigInt(destAmountAtomic), destToken.decimals)
           : option.required.usd.toString();
         const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
-        setFeeLoading(true);
-        const feeData = await getCachedFee(
-          buildFeeQuoteParams({
-            order: currentOrder,
-            payParams: paymentState.payParams,
-            destChainId: destToken.chainId,
-            destTokenAddress: destToken.token,
-            destAddress:
-              getCanonicalDestination(currentOrder).finalDestinationAddress ??
-              "",
-            sourceChainId: option.required.token.chainId,
-            sourceTokenAddress: option.required.token.token,
-            toUnits,
-          }),
-          { signal: request.signal },
+
+        // Stored payment/checkout quote for this source is authoritative —
+        // render it directly instead of a redundant, possibly-divergent getFee.
+        const storedBreakdown = resolveWalletSourceBreakdown(
+          currentOrder as WalletSourceQuoteOrder,
+          option.required.token,
         );
-        setFeeLoading(false);
+        let quoteData: FeeResponseData | null = storedBreakdown ?? null;
+        if (!quoteData) {
+          setFeeLoading(true);
+          const feeData = await getCachedFee(
+            buildFeeQuoteParams({
+              order: currentOrder,
+              payParams: paymentState.payParams,
+              destChainId: destToken.chainId,
+              destTokenAddress: destToken.token,
+              destAddress:
+                getCanonicalDestination(currentOrder).finalDestinationAddress ??
+                "",
+              sourceChainId: option.required.token.chainId,
+              sourceTokenAddress: option.required.token.token,
+              toUnits,
+              sourceAmountUnits: resolveSourceAmountUnits(option.required),
+            }),
+            { signal: request.signal },
+          );
+          setFeeLoading(false);
 
-        if (request.signal.aborted) {
-          return;
-        }
-
-        if (feeData.error) {
-          if (feeData.error.name === "AbortError") {
+          if (request.signal.aborted) {
             return;
           }
-          capture(ROZO_EVENTS.PAYMENT_FAILED, {
-            payment_id: rozoPaymentId ?? order?.externalId,
-            error_message: feeData.error.message,
-            source_chain: option.required.token.chainId,
-            source_token: option.required.token.symbol,
-            dest_chain: destToken.chainId,
-            dest_token: destToken.symbol,
-          });
-          console.error("Fee calculation failed", feeData.error);
-          setRoute(ROUTES.ERROR, { error: feeData.error.message });
-          return;
+
+          if (feeData.error) {
+            if (feeData.error.name === "AbortError") {
+              return;
+            }
+            capture(ROZO_EVENTS.PAYMENT_FAILED, {
+              payment_id: rozoPaymentId ?? order?.externalId,
+              error_message: feeData.error.message,
+              source_chain: option.required.token.chainId,
+              source_token: option.required.token.symbol,
+              dest_chain: destToken.chainId,
+              dest_token: destToken.symbol,
+            });
+            console.error("Fee calculation failed", feeData.error);
+            setRoute(ROUTES.ERROR, { error: feeData.error.message });
+            return;
+          }
+
+          quoteData = feeData.data;
+        } else {
+          // Stored payment quote: no fetch in flight, so clear any stale spinner.
+          setFeeLoading(false);
         }
+        setFeeData(quoteData);
 
-        setFeeData(feeData.data);
-
-        if (isPayIdMode) {
+        if (isPayIdMode && !storedBreakdown) {
           // payId mode: checkout (refresh) the payment with the selected
           // source token. Claim checkoutInFlightRef synchronously (no await
           // before this point in the branch) so a second overlapping
@@ -286,6 +310,16 @@ const PayWithSolanaToken: React.FC = () => {
                 throw new Error("Aborted");
               }
 
+              if (isSamePaymentSource(paymentRes.data, option.required.token)) {
+                return {
+                  paymentId: paymentRes.data.id,
+                  hydratedOrder: withWalletSourceQuote(
+                    formatPaymentResponseToHydratedOrder(paymentRes.data),
+                    paymentRes.data,
+                  ),
+                };
+              }
+
               let sourceChainId = Number(option.required.token.chainId);
 
               if (sourceChainId === solana.chainId) {
@@ -298,7 +332,7 @@ const PayWithSolanaToken: React.FC = () => {
                   chainId: option.required.token.chainId,
                   tokenSymbol: option.required.token.symbol,
                   tokenAddress: option.required.token.token,
-                  amount: String(option.required.usd),
+                  amount: resolveSourceAmountUnits(option.required),
                 }),
                 undefined,
                 { signal: request.signal },
@@ -354,7 +388,7 @@ const PayWithSolanaToken: React.FC = () => {
                 chainId: option.required.token.chainId,
                 tokenSymbol: option.required.token.symbol,
                 tokenAddress: option.required.token.token,
-                amount: String(option.required.usd),
+                amount: resolveSourceAmountUnits(option.required),
               }),
               undefined,
               { signal: request.signal },
@@ -377,8 +411,8 @@ const PayWithSolanaToken: React.FC = () => {
                 fees: {
                   ...option.fees,
                   usd:
-                    feeData.data?.source.fee != null
-                      ? Number(feeData.data.source.fee)
+                    quoteData?.source.fee != null
+                      ? Number(quoteData.source.fee)
                       : option.fees.usd,
                 },
               },
@@ -400,8 +434,8 @@ const PayWithSolanaToken: React.FC = () => {
             fees: {
               ...option.fees,
               usd:
-                feeData.data?.source.fee != null
-                  ? Number(feeData.data.source.fee)
+                quoteData?.source.fee != null
+                  ? Number(quoteData.source.fee)
                   : option.fees.usd,
             },
           }, { signal: request.signal });
@@ -497,8 +531,8 @@ const PayWithSolanaToken: React.FC = () => {
             fees: {
               ...option.fees,
               usd:
-                feeData.data?.source.fee != null
-                  ? Number(feeData.data.source.fee)
+                quoteData?.source.fee != null
+                  ? Number(quoteData.source.fee)
                   : option.fees.usd,
             },
           },

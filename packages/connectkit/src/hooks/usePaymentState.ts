@@ -60,6 +60,9 @@ import {
   convertPreferredSymbolsToTokens,
   getSourcePaymentToken,
   isNativeToken,
+  isSamePaymentSource,
+  normalizeSourceTokenAddress,
+  sourceTokenChainId,
 } from "../utils/token";
 import {
   beginRequestScope,
@@ -93,6 +96,7 @@ import {
   buildDepositWalletOption,
   derivePayIdPreferredTokens,
   resolveDepositSourceAmount,
+  resolveSourceAmountUnits,
   resolveWalletPaymentAmount,
   type WalletSourceQuoteOrder,
   withWalletSourceQuote,
@@ -717,13 +721,21 @@ export function usePaymentState({
             if (!paymentRes?.data) {
               throw new Error("Failed to fetch payment");
             }
+            // The payment already pays from the selected source — nothing to
+            // rotate. Skip the checkout round-trip: a same-source checkout only
+            // churns the quote/deposit address, and the backend rejects
+            // checkout when the source is native. The fetched response already
+            // carries the receiver address the UI needs.
+            if (isSamePaymentSource(paymentRes.data, walletOption.required.token)) {
+              return paymentRes.data;
+            }
             const checkoutRes = await checkoutPayment(
               existingPayId,
               buildCheckoutPayload(paymentRes.data, {
                 chainId: walletOption.required.token.chainId,
                 tokenSymbol: walletOption.required.token.symbol,
                 tokenAddress: walletOption.required.token.token,
-                amount: String(walletOption.required.usd),
+                amount: resolveSourceAmountUnits(walletOption.required),
               }),
               undefined,
               { signal: request.signal },
@@ -866,9 +878,11 @@ export function usePaymentState({
     // stale order with no checkout call at all.
     const hasExistingPayment = currentOrder.externalId != null;
     const sourceChanged =
-      previousChainId !== required.token.chainId ||
+      (previousChainId != null &&
+        sourceTokenChainId(previousChainId) !== sourceTokenChainId(required.token.chainId)) ||
       (previousTokenAddress != null &&
-        previousTokenAddress.toLowerCase() !== required.token.token.toLowerCase());
+        normalizeSourceTokenAddress(previousChainId ?? required.token.chainId, previousTokenAddress) !==
+          normalizeSourceTokenAddress(required.token.chainId, required.token.token));
     const needRozoPayment =
       hasExistingPayment &&
       (previousChainId !== null || previousTokenAddress != null
@@ -1510,6 +1524,16 @@ export function usePaymentState({
     fees: FeeResponseData | null,
     log?: (message: string) => void,
   ) => {
+    // POS: native-source deposits are disabled until the deposit flow can
+    // resolve a source-token quote. The deposit catalog exposes no native
+    // amount/price, so any checkout/create here would send the USD charge as
+    // native units (the 0.7-ETH-for-$0.70 bug). Fail closed with a clear note.
+    if (isNativeToken(option.token.token)) {
+      throw new Error(
+        "[PAY DEPOSIT ADDRESS] native source deposits are not supported yet; choose a stablecoin.",
+      );
+    }
+
     // Prevent duplicate calls for the same option
     if (depositAddressCallRef.current.has(option.id)) {
       log?.(`[PAY DEPOSIT ADDRESS] Already processing ${option}, skipping duplicate call`);
@@ -1557,43 +1581,56 @@ export function usePaymentState({
           throw new Error("Failed to fetch payment");
         }
 
-        let sourceChainId = Number(option.token.chainId);
+        if (isSamePaymentSource(paymentRes.data, option.token)) {
+          // Same-source deposit: reuse the fetched payment instead of a
+          // checkout round-trip that only churns the deposit address.
+          setRozoPaymentId(paymentRes.data.id);
+          quotedSourceAmount = paymentRes.data.source?.amount ?? null;
+          order = formatPaymentResponseToHydratedOrder(
+            paymentRes.data,
+          ) as RozoPayHydratedOrderWithOrg;
+          log?.(
+            `[PAY DEPOSIT ADDRESS] payId mode — reused order ${order.id} for ${order.usdValue} USD`,
+          );
+        } else {
+          let sourceChainId = Number(option.token.chainId);
 
-        if (sourceChainId === solana.chainId) {
-          sourceChainId = rozoSolana.chainId;
-        } else if (sourceChainId === stellar.chainId) {
-          sourceChainId = rozoStellar.chainId;
+          if (sourceChainId === solana.chainId) {
+            sourceChainId = rozoSolana.chainId;
+          } else if (sourceChainId === stellar.chainId) {
+            sourceChainId = rozoStellar.chainId;
+          }
+
+          const checkoutRes = await checkoutPayment(
+            existingPayId,
+            buildCheckoutPayload(paymentRes.data, {
+              chainId: sourceChainId,
+              tokenSymbol: option.token.symbol,
+              tokenAddress: option.token.token,
+              amount: String(paymentRes.data.destination?.amount ?? "0"),
+            }),
+            undefined,
+            { signal: request.signal },
+          );
+          // Superseded while awaiting: never adopt this option's payment.
+          if (!isCurrent()) return null;
+          if (checkoutRes.error) {
+            throw checkoutRes.error;
+          }
+          if (!checkoutRes?.data) {
+            throw new Error("Failed to checkout payment");
+          }
+
+          setRozoPaymentId(checkoutRes.data.id);
+          quotedSourceAmount = checkoutRes.data.source?.amount ?? null;
+          order = formatPaymentResponseToHydratedOrder(
+            checkoutRes.data,
+          ) as RozoPayHydratedOrderWithOrg;
+
+          log?.(
+            `[PAY DEPOSIT ADDRESS] payId mode — checked out order ${order.id} for ${order.usdValue} USD`,
+          );
         }
-
-        const checkoutRes = await checkoutPayment(
-          existingPayId,
-          buildCheckoutPayload(paymentRes.data, {
-            chainId: sourceChainId,
-            tokenSymbol: option.token.symbol,
-            tokenAddress: option.token.token,
-            amount: String(paymentRes.data.destination?.amount ?? "0"),
-          }),
-          undefined,
-          { signal: request.signal },
-        );
-        // Superseded while awaiting: never adopt this option's payment.
-        if (!isCurrent()) return null;
-        if (checkoutRes.error) {
-          throw checkoutRes.error;
-        }
-        if (!checkoutRes?.data) {
-          throw new Error("Failed to checkout payment");
-        }
-
-        setRozoPaymentId(checkoutRes.data.id);
-        quotedSourceAmount = checkoutRes.data.source?.amount ?? null;
-        order = formatPaymentResponseToHydratedOrder(
-          checkoutRes.data,
-        ) as RozoPayHydratedOrderWithOrg;
-
-        log?.(
-          `[PAY DEPOSIT ADDRESS] payId mode — checked out order ${order.id} for ${order.usdValue} USD`,
-        );
       } else {
         // Create a new payment — or checkout the existing one — bound to
         // the selected source chain/token. hydrateOrder alone never updates

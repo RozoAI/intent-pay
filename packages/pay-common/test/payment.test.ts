@@ -1,8 +1,9 @@
 import test from "tape";
 import { apiClient } from "../src/api/base";
-import { getFee, createPayment } from "../src/api/payment";
+import { buildCheckoutPayload, getFee, createPayment } from "../src/api/payment";
+import { PaymentResponse } from "../src/api/types";
 import { baseUSDC } from "../src/token";
-import { base } from "../src/chain";
+import { base, solana, stellar } from "../src/chain";
 
 const VALID_EVM_ADDRESS = "0xdC4313EfB37836615d820F38A6016EE76598887B";
 
@@ -74,13 +75,13 @@ test("getFee and createPayment use identical request body", (t) => {
 
 test("getFee and createPayment send backend-native source and destination addresses", (t) => {
   const sources = [
-    { chain: 8453, address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", symbol: "ETH", backendAddress: "0x0000000000000000000000000000000000000000" },
-    { chain: 56, address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", symbol: "BNB", backendAddress: "0x0000000000000000000000000000000000000000" },
-    { chain: 137, address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", symbol: "POL", backendAddress: "0x0000000000000000000000000000000000000000" },
-    { chain: 501, address: "11111111111111111111111111111111", symbol: "SOL", backendAddress: "native" },
-    { chain: 1500, address: "XLM", symbol: "XLM", backendAddress: "XLM" },
+    { chain: 8453, address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", symbol: "ETH", backendAddress: "0x0000000000000000000000000000000000000000", sourceAmount: "0.0025" },
+    { chain: 56, address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", symbol: "BNB", backendAddress: "0x0000000000000000000000000000000000000000", sourceAmount: "0.0025" },
+    { chain: 137, address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", symbol: "POL", backendAddress: "0x0000000000000000000000000000000000000000", sourceAmount: "5" },
+    { chain: 501, address: "11111111111111111111111111111111", symbol: "SOL", backendAddress: "native", sourceAmount: "0.04" },
+    { chain: 1500, address: "XLM", symbol: "XLM", backendAddress: "XLM", sourceAmount: "5" },
   ];
-  type Body = { source: { chainId: number; tokenSymbol: string; tokenAddress: string }; destination: { tokenAddress: string } };
+  type Body = { source: { chainId: number; tokenSymbol: string; tokenAddress: string; amount: string }; destination: { tokenAddress: string } };
   const originalPost = apiClient.post;
   const requests: Array<{ body: Body; dryrun?: string }> = [];
   apiClient.post = function <T>(url: string, body: unknown, opts?: Record<string, unknown>) {
@@ -96,6 +97,8 @@ test("getFee and createPayment send backend-native source and destination addres
       toAddress: VALID_EVM_ADDRESS,
       preferredChain: source.chain,
       preferredTokenAddress: source.address,
+      // Native sources quote in source-token units, never the USD destination amount.
+      preferredAmountUnits: source.sourceAmount,
       toUnits: "5",
     };
     await createPayment(params);
@@ -112,6 +115,7 @@ test("getFee and createPayment send backend-native source and destination addres
         t.deepEqual(create.body, quote.body, `${source.symbol} getFee/createPayment body matches`);
         t.equal(quote.body.source.chainId, source.chain === 501 ? 900 : source.chain, `${source.symbol} source chain`);
         t.equal(quote.body.source.tokenAddress, source.backendAddress, `${source.symbol} backend source address`);
+        t.equal(quote.body.source.amount, source.sourceAmount, `${source.symbol} source amount is native units, not USD`);
         t.equal(quote.body.destination.tokenAddress, baseUSDC.token, `${source.symbol} destination tokenAddress`);
       }
     })
@@ -120,6 +124,36 @@ test("getFee and createPayment send backend-native source and destination addres
       apiClient.post = originalPost;
       t.end();
     });
+});
+
+test("native source without a source amount is refused before transport", async (t) => {
+  const originalPost = apiClient.post;
+  let posted = 0;
+  apiClient.post = function <T>() {
+    posted += 1;
+    return Promise.resolve({ data: { id: "mock-id" }, error: null, status: 200 });
+  };
+  try {
+    await createPayment({
+      appId: "test-app",
+      toChain: base.chainId,
+      toToken: baseUSDC.token,
+      toAddress: VALID_EVM_ADDRESS,
+      preferredChain: base.chainId,
+      preferredTokenAddress: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+      toUnits: "5",
+    });
+    t.fail("native source without preferredAmountUnits should throw");
+  } catch (error) {
+    t.ok(
+      (error as Error).message.includes("preferredAmountUnits"),
+      "throws a source-amount error",
+    );
+  } finally {
+    t.equal(posted, 0, "no request posted for an under-specified native source");
+    apiClient.post = originalPost;
+    t.end();
+  }
 });
 
 test("getFee and createPayment — body matches for cross-chain payment with intent", (t) => {
@@ -175,4 +209,70 @@ test("getFee and createPayment — body matches for cross-chain payment with int
       t.fail(`unexpected error: ${err.message}`);
       t.end();
     });
+});
+
+test("buildCheckoutPayload emits backend-native source addresses", (t) => {
+  const payment = {
+    id: "pay-1",
+    appId: "test-app",
+    type: "EXACT_IN",
+    source: {
+      chainId: base.chainId,
+      tokenSymbol: "ETH",
+      tokenAddress: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+      amount: "0.7",
+    },
+    destination: {
+      chainId: base.chainId,
+      receiverAddress: VALID_EVM_ADDRESS,
+      tokenSymbol: "USDC",
+      tokenAddress: baseUSDC.token,
+      amount: "0.7",
+    },
+    display: { currency: "USD", title: "Pay" },
+    metadata: { appId: "test-app" },
+  } as unknown as PaymentResponse;
+
+  const cases = [
+    {
+      chainId: base.chainId,
+      tokenSymbol: "ETH",
+      tokenAddress: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+      expectedChain: base.chainId,
+      expected: "0x0000000000000000000000000000000000000000",
+    },
+    {
+      chainId: solana.chainId,
+      tokenSymbol: "SOL",
+      tokenAddress: "11111111111111111111111111111111",
+      expectedChain: 900,
+      expected: "native",
+    },
+    {
+      chainId: stellar.chainId,
+      tokenSymbol: "XLM",
+      tokenAddress: "XLM",
+      expectedChain: 1500,
+      expected: "XLM",
+    },
+    {
+      chainId: base.chainId,
+      tokenSymbol: "USDC",
+      tokenAddress: baseUSDC.token,
+      expectedChain: base.chainId,
+      expected: baseUSDC.token,
+    },
+  ];
+
+  for (const c of cases) {
+    const payload = buildCheckoutPayload(payment, {
+      chainId: c.chainId,
+      tokenSymbol: c.tokenSymbol,
+      tokenAddress: c.tokenAddress,
+      amount: "1",
+    });
+    t.equal(payload.source.chainId, c.expectedChain, `${c.tokenSymbol} source chain`);
+    t.equal(payload.source.tokenAddress, c.expected, `${c.tokenSymbol} backend source address`);
+  }
+  t.end();
 });

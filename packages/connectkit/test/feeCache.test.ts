@@ -98,3 +98,26 @@ describe("buildFeeQuoteParams — feeType/amount consistency", () => {
     expect(params.toUnits).toBe("100");
   });
 });
+
+describe("buildFeeQuoteParams — native source amount", () => {
+  it("forwards preferredAmountUnits so a native quote is not the USD destination amount", () => {
+    const params = buildFeeQuoteParams({
+      order: ORDER,
+      payParams: undefined,
+      destChainId: BASE_CHAIN,
+      destTokenAddress: BASE_USDC,
+      destAddress: VALID_EVM_ADDRESS,
+      sourceChainId: BASE_CHAIN,
+      sourceTokenAddress: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+      toUnits: "0.7",
+      sourceAmountUnits: "0.00026",
+    });
+
+    expect(params.toUnits).toBe("0.7");
+    expect(params.preferredAmountUnits).toBe("0.00026");
+  });
+
+  it("omits preferredAmountUnits when the caller has no source quote (deposit)", () => {
+    expect(build(undefined).preferredAmountUnits).toBeUndefined();
+  });
+});

@@ -29,6 +29,8 @@ import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { tokenBaseAmountToDecimalString } from "../utils/format";
 import {
   convertPreferredSymbolsToTokens,
+  isNativeToken,
+  isSamePaymentSource,
   NATIVE_SYMBOLS,
   normalizeSourceTokenAddress,
   sourceTokenChainId,
@@ -72,6 +74,35 @@ function roundDecimalString(value: string, decimals: number): string {
 }
 
 type OrderLike = RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg;
+
+/**
+ * Pay-in amount in SOURCE-TOKEN units for a wallet option.
+ *
+ * `required.amount` is already source-token base units (wei/lamports/stroops),
+ * so converting it yields the exact token amount (e.g. `0.00026` ETH).
+ * `required.usd` is USD and is only a valid stand-in for $1-pegged stablecoins —
+ * sending it as a native source amount is the "0.7 ETH for a $0.70 charge" bug.
+ * Native sources must carry an explicit amount; refuse rather than misstate the
+ * charge (POS: native deposit flow is blocked until a source quote exists).
+ */
+export function resolveSourceAmountUnits(required: {
+  token: { token: string; decimals: number };
+  amount?: bigint | string | null;
+  usd?: number;
+}): string {
+  if (required.amount != null) {
+    return tokenBaseAmountToDecimalString(
+      required.amount,
+      required.token.decimals,
+    );
+  }
+  if (isNativeToken(required.token.token)) {
+    throw new Error(
+      "[PAY TOKEN] native source amount is unknown; refusing to send the USD amount as native units",
+    );
+  }
+  return String(required.usd ?? "0");
+}
 
 /** Direct settlement only applies to identical supported Stellar assets. */
 export function resolveStellarDirectIntent(
@@ -210,13 +241,9 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
   // Source amount is token-denominated and differs from the destination for
   // native/cross-chain payments. Preserve the API quote without Number()
   // coercion so a payment is never silently rounded.
-  const sourceAmountUnitsStr =
-    walletOption?.required.amount != null
-      ? tokenBaseAmountToDecimalString(
-          walletOption.required.amount,
-          walletOption.required.token.decimals,
-        )
-      : undefined;
+  const sourceAmountUnitsStr = walletOption?.required
+    ? resolveSourceAmountUnits(walletOption.required)
+    : undefined;
 
   // --------------------------------------------------
   // Preferred payment method (what user will pay with)
@@ -313,9 +340,14 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
 /**
  * Minimal wallet-option shape the deposit-address flow fabricates from the
  * selected source option + its fee quote. Only the fields
- * `handleCreateRozoPayment` actually reads (create: required.token +
- * fees.usd; checkout: required.token + required.usd) — balance/minimumRequired
- * are meaningless for deposits (no wallet connected yet) and stay unset.
+ * `handleCreateRozoPayment` / checkout actually read (`required.token`,
+ * `required.usd`, `fees.usd`) — balance/minimumRequired are meaningless for
+ * deposits (no wallet connected yet) and stay unset.
+ *
+ * No `required.amount`: deposits carry no source-token amount, so
+ * `resolveSourceAmountUnits` can only fall back to USD. That is correct for
+ * $1-pegged stablecoins but wrong for native sources, which is why
+ * `payWithDepositAddress` blocks native deposits outright (POS).
  */
 export interface DepositWalletOption {
   required: {
@@ -399,6 +431,24 @@ export function withWalletSourceQuote<T extends RozoPayHydratedOrderWithOrg>(
         ? ({ source: quote, destination: response.destination } as unknown as FeeResponseData)
         : undefined,
   };
+}
+
+/**
+ * The stored payment/checkout breakdown, when it already quotes the selected
+ * source token. PaymentBreakdown should render this instead of re-quoting via
+ * getFee: the quote is redundant, and for native sources getFee can return a
+ * different `source.amount` than the payment the wallet will actually sign
+ * (wallet confirmation reads the payment's `source.amount`, never getFee).
+ */
+export function resolveWalletSourceBreakdown(
+  order: WalletSourceQuoteOrder | null | undefined,
+  token: { chainId: number; token: string },
+): FeeResponseData | undefined {
+  const quote = order?.sourceQuote;
+  const breakdown = order?.paymentBreakdown;
+  if (!quote || !breakdown) return undefined;
+  if (!isSamePaymentSource({ source: quote }, token)) return undefined;
+  return breakdown;
 }
 
 /** Amount authorized by payment/checkout, validated against selected source token. */
