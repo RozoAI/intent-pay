@@ -72,7 +72,7 @@ import {
 } from "../utils/paymentRequestScope";
 import { resolveChainObject } from "../defaultConfig";
 
-import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
+import type { ApiVersion } from "@rozoai/intent-common";
 import { createMemoInstruction } from "@solana/spl-memo";
 import {
   createAssociatedTokenAccountInstruction,
