@@ -538,8 +538,8 @@ export function usePaymentState({
     // override or narrow that derivation.
     if (pay.order && pay.order.destFinalCallTokenAmount) {
       const destSymbol = pay.order.destFinalCallTokenAmount.token.symbol;
-      const derived = derivePayIdPreferredTokens(destSymbol);
-      const preferredSymbol = buttonProps?.preferredSymbol ?? derived.preferredSymbol;
+      const derived = derivePayIdPreferredTokens(destSymbol, buttonProps?.preferredSymbol);
+      const preferredSymbol = derived.preferredSymbol;
       let preferredTokens = buttonProps?.preferredTokens ?? derived.preferredTokens;
       const preferredChains = buttonProps?.preferredChains;
 
