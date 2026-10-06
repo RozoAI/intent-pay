@@ -671,7 +671,7 @@ function FeeErrorContent({ feeError, fiatISO }: { feeError: FeeErrorData; fiatIS
   );
 }
 
-function DepositAddressInfo({
+export function DepositAddressInfo({
   depAddr,
   feeData,
   refresh,
@@ -736,7 +736,11 @@ function DepositAddressInfo({
       ) : (
         <QRWrap>
           <CustomQRCode value={depAddr.uri} contentPadding={24} size={200} image={logoElement} />
-          <AutoDetectHint>Auto-detected after confirmation</AutoDetectHint>
+          <AutoDetectHint>
+            {depAddr.coins
+              ? `Network and token: ${depAddr.coins}. Send only using this network and token.`
+              : "Auto-detected after confirmation"}
+          </AutoDetectHint>
         </QRWrap>
       )}
       <CopyableInfo depAddr={depAddr} feeData={feeData} remainingS={remainingS} totalS={totalS} />
@@ -814,7 +818,8 @@ function CopyableInfo({
         disabled={isExpired}
       />
       <CopyRowOrThrobber
-        title="Receiving Address"
+        title={depAddr?.coins ? `Receiving Address (${depAddr.coins})` : "Receiving Address"}
+        copiedHint={depAddr?.coins ? `Copied. Send only ${depAddr.coins}.` : undefined}
         value={depAddr?.address}
         valueText={depAddr?.address && getAddressContraction(depAddr.address)}
         disabled={isExpired}
@@ -1068,12 +1073,14 @@ function CopyRowOrThrobber({
   valueText,
   smallText,
   disabled,
+  copiedHint,
 }: {
   title: string;
   value?: string;
   valueText?: string;
   smallText?: string;
   disabled?: boolean;
+  copiedHint?: string;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -1085,7 +1092,7 @@ function CopyRowOrThrobber({
       navigator.clipboard.writeText(str);
     }
     setCopied(true);
-    setTimeout(() => setCopied(false), 1000);
+    setTimeout(() => setCopied(false), 3000);
   };
 
   if (!value) {
@@ -1107,7 +1114,7 @@ function CopyRowOrThrobber({
     <CopyRow as="button" onClick={handleCopy} disabled={disabled}>
       <div>
         <LabelRow>
-          <LabelText>{title}</LabelText>
+          <LabelText>{copied && copiedHint ? copiedHint : title}</LabelText>
         </LabelRow>
         <MainRow>
           <ValueContainer>

@@ -29,6 +29,7 @@ import {
   rozoStellar,
   rozoStellarEURC,
   rozoStellarUSDC,
+  rozoStellarUSDT0,
   solana,
   stellar,
   WalletPaymentOption,
@@ -1378,7 +1379,6 @@ export function usePaymentState({
       }
 
       const destinationAddress = rozoPayment.destAddress;
-      // const issuer = rozoStellarUSDC.token.split(":")[1];
 
       // Ensure kit is on the correct wallet (idempotent — no second prompt if already connected).
       if (stellarConnector) {
@@ -1430,6 +1430,11 @@ export function usePaymentState({
         destAsset = new Asset(
           walletPaymentOption.required.token.symbol,
           rozoStellarEURC.token.split(":")[1],
+        );
+      } else if (walletPaymentOption.required.token.token === rozoStellarUSDT0.token) {
+        destAsset = new Asset(
+          walletPaymentOption.required.token.symbol,
+          rozoStellarUSDT0.token.split(":")[1],
         );
       } else {
         throw new Error("Unsupported token");

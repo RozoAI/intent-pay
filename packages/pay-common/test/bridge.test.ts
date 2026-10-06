@@ -6,6 +6,7 @@ import {
   polygonUSDC,
   rozoSolanaUSDC,
   rozoStellarUSDC,
+  rozoStellarUSDT0,
   solanaSOL,
   stellarXLM,
 } from "../src/token";
@@ -111,6 +112,27 @@ test("createPaymentBridgeConfig - Same-chain payment (Base USDC to Base USDC)", 
   t.end();
 });
 
+test("createPaymentBridgeConfig - EVM token casing does not create intent", (t) => {
+  for (const toToken of [
+    baseUSDC.token.toLowerCase(),
+    baseUSDC.token.toUpperCase().replace("0X", "0x"),
+    baseUSDC.token,
+  ]) {
+    const result = createPaymentBridgeConfig({
+      toChain: base.chainId,
+      toToken,
+      toAddress: VALID_EVM_ADDRESS,
+      toUnits: "1",
+      preferredChain: base.chainId,
+      preferredTokenAddress: baseUSDC.token,
+    });
+
+    t.equal(result.isIntentPayment, false, "same EVM token should not require intent");
+    t.equal(result.destination.tokenAddress, toToken, "destination preserves input casing");
+  }
+  t.end();
+});
+
 test("createPaymentBridgeConfig - Payment to Stellar destination", (t) => {
   const config: PaymentBridgeConfig = {
     toChain: rozoStellar.chainId,
@@ -150,6 +172,38 @@ test("createPaymentBridgeConfig - Payment to Stellar destination", (t) => {
 
   t.equal(result.isIntentPayment, true, "Should be an intent payment (Base to Stellar)");
 
+  t.end();
+});
+
+test("createPaymentBridgeConfig - Stellar USDT0 payout retains requested asset", (t) => {
+  const result = createPaymentBridgeConfig({
+    toChain: rozoStellar.chainId,
+    toToken: rozoStellarUSDT0.token,
+    toAddress: VALID_STELLAR_ADDRESS,
+    toUnits: "1",
+    preferredChain: base.chainId,
+    preferredTokenAddress: baseUSDC.token,
+  });
+
+  t.equal(result.destination.tokenSymbol, "USDT0");
+  t.equal(result.destination.tokenAddress, rozoStellarUSDT0.token);
+  t.end();
+});
+
+test("createPaymentBridgeConfig - Stellar USDT0 pay-in to USDC payout needs intent", (t) => {
+  const result = createPaymentBridgeConfig({
+    toChain: rozoStellar.chainId,
+    toToken: rozoStellarUSDC.token,
+    toAddress: VALID_STELLAR_ADDRESS,
+    toUnits: "1",
+    preferredChain: rozoStellar.chainId,
+    preferredTokenAddress: rozoStellarUSDT0.token,
+  });
+
+  t.equal(result.preferred.preferredToken, "USDT0");
+  t.equal(result.preferred.preferredTokenAddress, rozoStellarUSDT0.token);
+  t.equal(result.destination.tokenAddress, rozoStellarUSDC.token);
+  t.equal(result.isIntentPayment, true, "same-chain token swap requires intent");
   t.end();
 });
 
@@ -317,9 +371,7 @@ test("createPaymentBridgeConfig - Intent payment detection: different chain, sam
   t.end();
 });
 
-test("createPaymentBridgeConfig - Intent payment detection: same chain, different token", (t) => {
-  // This test assumes there are different tokens on the same chain
-  // For Base, we'll use the same token but the logic should still work
+test("createPaymentBridgeConfig - Intent payment detection: same chain and token", (t) => {
   const config: PaymentBridgeConfig = {
     toChain: base.chainId,
     toToken: baseUSDC.token,
@@ -331,10 +383,11 @@ test("createPaymentBridgeConfig - Intent payment detection: same chain, differen
 
   const result = createPaymentBridgeConfig(config);
 
-  // When same chain and token, preferredTokenAddress will be set but
-  // the comparison checks preferredToken (symbol) vs toToken (address)
-  // So this might still be false if symbols match
-  t.equal(result.isIntentPayment, false, "Should not be intent payment when same chain and token");
+  t.equal(
+    result.isIntentPayment,
+    false,
+    "Should not be intent payment when same chain and token"
+  );
 
   t.end();
 });

@@ -5,6 +5,7 @@ import {
   getKnownSourceToken,
   isChainSupported,
   isTokenSupported,
+  normalizeTokenAddress,
   PaymentResponse,
   RozoPayHydratedOrderWithOrg,
   RozoPayIntentStatus,
@@ -226,9 +227,14 @@ export function createPaymentBridgeConfig({
     };
 
     // Determine destination based on special address types
-    if (isChainSupported(toChain, "stellar")) {
-      // Use EURC token if destination is EURC, otherwise use USDC
-      const stellarToken = isDestinationEURC ? rozoStellarEURC : rozoStellarUSDC;
+    if (
+      isChainSupported(toChain, "stellar") &&
+      destinationToken.symbol !== TokenSymbol.USDT0
+    ) {
+      // Keep USDT0's selected asset; normalize legacy USDC/EURC destinations.
+      const stellarToken = isDestinationEURC
+        ? rozoStellarEURC
+        : rozoStellarUSDC;
       destination = {
         ...destination,
         tokenSymbol: stellarToken.symbol,
@@ -249,9 +255,13 @@ export function createPaymentBridgeConfig({
     );
   }
 
-  // If the preferred chain and token are not the same as the toChain and toToken, then it is an intent payment
+  // Any chain or token change requires an intent payment (including same-chain swaps).
   const isIntentPayment =
-    preferred.preferredChain !== String(toChain) && preferred.preferredTokenAddress !== toToken;
+    preferred.preferredChain !== destination.chainId ||
+    normalizeTokenAddress(
+      Number(preferred.preferredChain),
+      preferred.preferredTokenAddress,
+    ) !== normalizeTokenAddress(Number(destination.chainId), destination.tokenAddress);
 
   return { preferred, destination, isIntentPayment };
 }

@@ -105,10 +105,16 @@ export function convertPreferredSymbolsToTokens(
   const symbolsToUse =
     symbols && symbols.length > 0
       ? symbols
-      : [TokenSymbol.USDC, TokenSymbol.USDT, ...nativeSymbols];
+      : [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.USDT0, ...nativeSymbols];
 
   // Validate that only allowed symbols are used
-  const allowedSymbols = [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.EURC, ...nativeSymbols];
+  const allowedSymbols = [
+    TokenSymbol.USDC,
+    TokenSymbol.USDT,
+    TokenSymbol.USDT0,
+    TokenSymbol.EURC,
+    ...nativeSymbols,
+  ];
   const validSymbols = symbolsToUse.filter((s) => allowedSymbols.includes(s));
   const invalidSymbols = symbolsToUse.filter((s) => !allowedSymbols.includes(s));
 
@@ -136,4 +142,14 @@ export function convertPreferredSymbolsToTokens(
   }
 
   return tokens.length > 0 ? tokens : undefined;
+}
+
+/** Resolve the canonical Stellar asset, never trust a wallet option's issuer or symbol. */
+export function getStellarPaymentAsset(tokenAddress: string): { code: string; issuer: string } {
+  const token = getKnownToken(rozoStellar.chainId, tokenAddress);
+  const [code, issuer] = token?.token.split(":") ?? [];
+  if (!token || !code || !issuer || code !== token.symbol) {
+    throw new Error("Unsupported Stellar token");
+  }
+  return { code, issuer };
 }

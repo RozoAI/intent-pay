@@ -15,8 +15,8 @@ import {
   RozoPayOrderWithOrg,
   rozoSolana,
   rozoStellar,
-  rozoStellarEURC,
-  rozoStellarUSDC,
+  supportedPayoutTokens,
+  supportedTokens,
   solana,
   solanaSOL,
   stellar,
@@ -72,6 +72,25 @@ function roundDecimalString(value: string, decimals: number): string {
 
 type OrderLike = RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg;
 
+/** Direct settlement only applies to identical supported Stellar assets. */
+export function resolveStellarDirectIntent(
+  destChainId: number,
+  destTokenAddress: string,
+  sourceChainId: number,
+  sourceTokenAddress: string,
+  requestedIntent?: string,
+): string | undefined {
+  const isSameSupportedToken =
+    destChainId === rozoStellar.chainId &&
+    sourceChainId === rozoStellar.chainId &&
+    destTokenAddress === sourceTokenAddress &&
+    supportedTokens.get(rozoStellar.chainId)?.some((token) => token.token === destTokenAddress) &&
+    supportedPayoutTokens.get(rozoStellar.chainId)?.some((token) => token.token === destTokenAddress);
+
+  if (isSameSupportedToken) return "stellar_direct";
+  return requestedIntent === "stellar_direct" ? undefined : requestedIntent;
+}
+
 export type CreatePaymentContext = {
   /** Original pay params from the button. */
   payParams: PayParams;
@@ -109,9 +128,9 @@ export function resolveDestinationAddress(payParams: PayParams): string {
  * payId mode has no RozoPayButton props to read preferredTokens from, so
  * source stablecoin filtering must mirror the destination: EURC destination
  * → source restricted to EURC; any other destination → source restricted to
- * USDC/USDT (EURC balances can't fund a USD destination, and vice versa).
+ * USDC/USDT/USDT0 (EURC balances can't fund a USD destination, and vice versa).
  * Non-stablecoin source options (native tokens etc.) are unaffected — this
- * filter only ever narrows within [USDC, USDT, EURC].
+ * filter only ever narrows within [USDC, USDT, USDT0, EURC].
  */
 export function derivePayIdPreferredTokens(destTokenSymbol: string): {
   preferredSymbol: TokenSymbol[];
@@ -120,7 +139,7 @@ export function derivePayIdPreferredTokens(destTokenSymbol: string): {
   const preferredSymbol =
     destTokenSymbol === TokenSymbol.EURC
       ? [TokenSymbol.EURC]
-      : [TokenSymbol.USDC, TokenSymbol.USDT];
+      : [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.USDT0];
   return {
     preferredSymbol,
     preferredTokens: convertPreferredSymbolsToTokens(preferredSymbol, undefined),
@@ -249,24 +268,13 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
         }
       : {};
 
-  // --------------------------------------------------
-  // Stellar Direct Settlement: auto-detect same-chain USDC→USDC
-  // --------------------------------------------------
-  // When both source and destination are Stellar USDC, the backend can settle
-  // directly (one on-chain transfer, 0 fee, no hub hop). We opt-in by sending
-  // intent: "stellar_direct". Consumer can also override via payParams.intent.
-  // Both destination and source must be Stellar with the SAME token (USDC or EURC)
-  const isStellarSameToken =
-    toChain === rozoStellar.chainId &&
-    preferredChain === rozoStellar.chainId &&
-    toTokenAddress.toLowerCase() === preferredTokenAddress.toLowerCase();
-  const isSupportedStellarToken =
-    toTokenAddress.toLowerCase() === rozoStellarUSDC.token.toLowerCase() ||
-    toTokenAddress.toLowerCase() === rozoStellarEURC.token.toLowerCase();
-  const isStellarDirect = isStellarSameToken && isSupportedStellarToken;
-
-  // When isStellarDirect, always force intent to "stellar_direct" regardless of consumer override
-  const intent = isStellarDirect ? "stellar_direct" : payParams.intent;
+  const intent = resolveStellarDirectIntent(
+    toChain,
+    toTokenAddress,
+    preferredChain,
+    preferredTokenAddress,
+    payParams.intent,
+  );
 
   const payload: CreateNewPaymentParams = {
     apiVersion,

@@ -8,6 +8,8 @@ import {
   solanaUSDT,
   solanaWSOL,
   stellarXLM,
+  supportedPayoutTokens,
+  supportedTokens,
 } from "../src/token";
 
 test("finds Solana USDT by its native chain ID", (t) => {
@@ -22,6 +24,8 @@ test("finds Solana USDT by its native chain ID", (t) => {
 
 test("finds Stellar USDT0 by its Rozo Stellar chain ID", (t) => {
   t.equal(rozoStellarUSDT0.chainId, rozoStellar.chainId, "USDT0 belongs to Rozo Stellar");
+  t.ok(supportedTokens.get(rozoStellar.chainId)?.includes(rozoStellarUSDT0), "USDT0 is available for pay-in");
+  t.ok(supportedPayoutTokens.get(rozoStellar.chainId)?.includes(rozoStellarUSDT0), "USDT0 is available for payout");
   t.equal(
     getKnownToken(rozoStellar.chainId, rozoStellarUSDT0.token)?.symbol,
     "USDT0",
