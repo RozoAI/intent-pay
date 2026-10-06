@@ -59,6 +59,8 @@ type DepositAddr = {
   expirationS?: number;
   uri?: string;
   coins?: string;
+  // "<token> on <network>", e.g. "USDC on Base" — the wrong-chain guard line.
+  onlyOn?: string;
   amount?: string;
   address?: string;
   underpayment?: Underpayment;
@@ -345,6 +347,7 @@ export default function WaitingDepositAddress() {
           coin: order.destFinalCallTokenAmount.token.symbol,
         },
         coins: `${preferredToken.symbol} on ${getChainName(preferredToken.chainId)}`,
+        onlyOn: `${preferredToken.symbol} on ${getChainName(preferredToken.chainId)}`,
         expirationS: expirationS,
         uri: uriDeeplink ?? undefined,
         displayToken: order.destFinalCallTokenAmount.token,
@@ -466,6 +469,9 @@ export default function WaitingDepositAddress() {
             address: details.address,
             amount: details.amount,
             coins: details.suffix,
+            onlyOn: `${selectedDepositAddressOption.token.symbol} on ${getChainName(
+              selectedDepositAddressOption.token.chainId,
+            )}`,
             expirationS: details.expirationS,
             uri: details.uri,
             displayToken: displayToken ?? null,
@@ -747,11 +753,17 @@ export function DepositAddressInfo({
       ) : (
         <QRWrap>
           <CustomQRCode value={depAddr.uri} contentPadding={24} size={200} image={logoElement} />
-          <AutoDetectHint>
-            {depAddr.coins
-              ? `Network and token: ${depAddr.coins}. Send only using this network and token.`
-              : "Auto-detected after confirmation"}
-          </AutoDetectHint>
+          {depAddr.onlyOn ? (
+            <OnlyOnHint role="note" data-testid="deposit-only-on">
+              {`Send ${depAddr.onlyOn} only`}
+            </OnlyOnHint>
+          ) : (
+            <AutoDetectHint>
+              {depAddr.coins
+                ? `Network and token: ${depAddr.coins}. Send only using this network and token.`
+                : "Auto-detected after confirmation"}
+            </AutoDetectHint>
+          )}
         </QRWrap>
       )}
       <CopyableInfo depAddr={depAddr} feeData={feeData} remainingS={remainingS} totalS={totalS} />
@@ -771,6 +783,31 @@ const LogoRow = styled.div`
 const QRWrap = styled.div`
   margin: 0 auto;
   width: 280px;
+`;
+
+// Wrong-chain guard: names the one network + token this address accepts.
+const OnlyOnHint = styled.p`
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+`;
+
+// EVM deposit addresses are the same forwarder on every supported EVM chain,
+// and the Rozo backend sweeps them there, so a payment on the wrong EVM chain
+// is still found. Shown under the address to stop a second payment.
+const AlreadySentHint = styled.p`
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--ck-body-color-muted);
 `;
 
 const AutoDetectHint = styled.p`
@@ -837,6 +874,11 @@ function CopyableInfo({
         valueText={depAddr?.address && getAddressContraction(depAddr.address)}
         disabled={isExpired}
       />
+      {!isExpired && depAddr?.address && /^0x[0-9a-fA-F]{40}$/.test(depAddr.address) && (
+        <AlreadySentHint data-testid="deposit-already-sent">
+          Already sent on another chain? Don&apos;t pay again. We detect it automatically.
+        </AlreadySentHint>
+      )}
 
       {depAddr?.memo && (
         <>
