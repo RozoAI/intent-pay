@@ -7,19 +7,21 @@ import {
   ethereum,
   ethereumUSDC,
   ethereumUSDT,
-  normalizeTokenAddress,
   RozoPayOrderMode,
   rozoSolanaUSDC,
   rozoSolanaUSDT,
+  solanaSOL,
 } from "@rozoai/intent-common";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { PayParams } from "../payment/paymentFsm";
+import { normalizeSourceTokenAddress, sourceTokenChainId } from "../utils/token";
 import { TrpcClient } from "../utils/trpc";
 
 export interface UseDepositAddressOptionsParams {
   trpc: TrpcClient;
   usdRequired: number | undefined;
+  mode: RozoPayOrderMode | undefined;
   payParams: PayParams | undefined;
 }
 
@@ -92,15 +94,18 @@ const fallbackOptions = [
 export function useDepositAddressOptions({
   trpc,
   usdRequired,
+  mode,
   payParams,
 }: UseDepositAddressOptionsParams): UseDepositAddressOptionsReturn {
   const { data, isLoading, error } = useQuery<DepositAddressPaymentOptionMetadata[]>({
-    enabled: usdRequired != null && usdRequired > 0,
-    queryKey: ["depositAddressOptions", usdRequired],
+    enabled: usdRequired != null && usdRequired > 0 && mode != null,
+    queryKey: ["depositAddressOptions", usdRequired, mode, payParams?.appId],
     queryFn: async () => {
       try {
         return await trpc.getDepositAddressOptions.query({
-          usdRequired: usdRequired!,
+          usdRequired,
+          mode,
+          appId: payParams?.appId,
         });
       } catch (err) {
         // Fallback to static options on error so the UI never goes blank.
@@ -115,23 +120,33 @@ export function useDepositAddressOptions({
 
   // Memoized configuration for deposit address options
   const filteredOptions = useMemo(() => {
-    const options = data ?? [];
-    if (payParams?.preferredTokens && payParams.preferredTokens.length > 0) {
+    const options = (data ?? []).map((option) =>
+      option.token.symbol === "SOL" &&
+      normalizeSourceTokenAddress(option.token.chainId, option.token.token) === solanaSOL.token
+        ? { ...option, token: { ...option.token, token: solanaSOL.token } }
+        : option,
+    );
+    if (payParams?.preferredTokens && payParams?.preferredTokens.length > 0) {
+      const sourceKey = (chainId: number, address: string) =>
+        `${sourceTokenChainId(chainId)}:${normalizeSourceTokenAddress(chainId, address)}`;
+      const preferred = new Set(
+        payParams.preferredTokens.map((pt) => sourceKey(pt.chainId, pt.token)),
+      );
       return options.filter((option) =>
-        payParams.preferredTokens?.some(
-          (pt) =>
-            pt.token != null &&
-            normalizeTokenAddress(option.token.chainId, pt.token) ===
-              normalizeTokenAddress(option.token.chainId, option.token.token),
-        ),
+        preferred.has(sourceKey(option.token.chainId, option.token.token)),
       );
     }
+
     return options;
   }, [data, payParams?.preferredTokens]);
 
   return {
     options: filteredOptions,
     loading: isLoading,
-    error: error ? String(error) : null,
+    error: error
+      ? error instanceof Error
+        ? error.message
+        : "Failed to load deposit address options"
+      : null,
   };
 }

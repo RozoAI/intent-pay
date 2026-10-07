@@ -15,6 +15,8 @@ import {
   payInWithMetaMask,
   startDepositPayment,
   waitForPayoutCompleted,
+  setupPaymentIdCapture,
+  reportPayment,
 } from "../../helpers"
 
 const test = testWithChainwright(metamaskFixture())
@@ -25,10 +27,21 @@ test.describe("Deposit: EVM USDC → Solana (mainnet, real funds)", () => {
     "Set E2E_EVM_SEED_PHRASE and E2E_SOLANA_ADDRESS in .env.e2e"
   )
 
+  let getPayId: (() => string | undefined) | undefined
+
+  test.afterEach(async ({}, testInfo) => {
+    await reportPayment(testInfo, {
+      payId: getPayId?.(),
+      route: "EVM USDC → Solana (deposit)",
+      status: testInfo.status,
+    })
+  })
+
   test("deposit USDC from EVM to Solana destination", async ({
     page,
     metamask,
   }) => {
+    getPayId = setupPaymentIdCapture(page)
     await metamask.unlock()
     await startDepositPayment(page, {
       destChain: "Solana",

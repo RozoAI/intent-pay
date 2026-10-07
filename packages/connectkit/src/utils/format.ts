@@ -1,5 +1,10 @@
-import { BigIntStr, RozoPayToken } from "@rozoai/intent-common";
-import { formatUnits } from "viem";
+import {
+  BigIntStr,
+  RozoPayToken,
+  type Token,
+  type WalletPaymentOption,
+} from "@rozoai/intent-common";
+import { formatUnits, parseUnits } from "viem";
 
 export const USD_DECIMALS = 2;
 
@@ -30,7 +35,6 @@ export function formatTokenAmount(amount: number, decimals: number): string {
   }
   return stripTrailingZeros(amount.toFixed(decimals));
 }
-
 
 /**
  * Round a number to a given number of decimal places
@@ -180,4 +184,91 @@ export function tokenAmountToRoundedUsd(
 ): string {
   const amountUnits = formatUnits(BigInt(amount), token.decimals);
   return roundUsd(Number(amountUnits) * token.usd, round);
+}
+
+/**
+ * Build a Stellar SEP-0007 `pay` URI that opens a Stellar wallet with the
+ * destination, amount, asset, and optional memo pre-filled.
+ *
+ * Native XLM uses asset_code=XLM with no asset_issuer. Custom assets use the
+ * token address (issuer) and token symbol parsed from the Rozo token object.
+ */
+export function generateStellarDeepLink({
+  amountUnits,
+  recipientAddress,
+  token,
+  memo,
+}: {
+  amountUnits: string;
+  recipientAddress: string;
+  token: Token;
+  memo?: string | null;
+}): string {
+  const params = new URLSearchParams();
+  params.set("destination", recipientAddress);
+  params.set("amount", amountUnits);
+
+  const tokenAddress = token.token;
+  let assetCode = token.symbol;
+  let assetIssuer: string | undefined;
+
+  if (tokenAddress.toLowerCase() !== "xlm") {
+    const parts = tokenAddress.split(":");
+    if (parts.length === 2) {
+      assetCode = parts[0];
+      assetIssuer = parts[1];
+    } else {
+      assetIssuer = tokenAddress;
+    }
+  }
+
+  params.set("asset_code", assetCode);
+  if (assetIssuer) {
+    params.set("asset_issuer", assetIssuer);
+  }
+  if (memo) {
+    params.set("memo", memo);
+  }
+
+  return `stellar:pay?${params.toString()}`;
+}
+
+/**
+ * Convert a `RozoPayTokenAmount.amount` value to a full-precision, human-readable
+ * decimal string suitable for sending to the backend (checkout/create-payment
+ * payloads, on-chain transfer amounts, etc).
+ *
+ * `amount` is documented as `BigIntStr` (integer base units, e.g. lamports/wei)
+ * but some endpoints (e.g. Solana tRPC payment options) have been observed to
+ * return an already-human-readable decimal string instead (e.g. "0.012985327").
+ * `BigInt()` throws on decimal strings, so this detects the shape first:
+ * - Contains a "." → already a decimal token amount, pass through as-is.
+ * - Otherwise → integer base units, convert via `formatUnits`.
+ */
+export function tokenBaseAmountToDecimalString(amount: bigint | string, decimals: number): string {
+  if (typeof amount === "string" && amount.includes(".")) {
+    return amount;
+  }
+  return formatUnits(BigInt(amount), decimals);
+}
+
+export function formatNativeInsufficientBalance(balance: WalletPaymentOption["balance"]): string {
+  return `Balance too low: ${tokenBaseAmountToDecimalString(balance.amount, balance.token.decimals)} ${balance.token.symbol} (~$${formatTokenAmount(balance.usd, USD_DECIMALS)})`;
+}
+
+/**
+ * Inverse of `tokenBaseAmountToDecimalString`: convert a
+ * `RozoPayTokenAmount.amount` value to an integer base-units bigint, suitable
+ * for on-chain transfer instructions (e.g. lamports for SOL, raw SPL/ERC20
+ * transfer amounts).
+ *
+ * Same shape ambiguity as above — detects a decimal string (already
+ * human-readable) and converts it up to base units via `parseUnits`;
+ * otherwise assumes the string is already an integer base-units amount.
+ */
+export function tokenAmountToBaseUnits(amount: bigint | BigIntStr, decimals: number): bigint {
+  if (typeof amount === "string" && amount.includes(".")) {
+    return parseUnits(amount, decimals);
+  }
+  return BigInt(amount);
 }

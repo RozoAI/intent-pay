@@ -2,6 +2,7 @@ import { parseUnits } from "viem";
 import {
   getChainById,
   getKnownToken,
+  getKnownSourceToken,
   isChainSupported,
   isTokenSupported,
   normalizeTokenAddress,
@@ -20,6 +21,7 @@ import {
   TokenSymbol,
   validateAddressForChain,
 } from ".";
+import { isNativeToken } from "./token";
 
 export interface PaymentBridgeConfig {
   toChain: number;
@@ -167,35 +169,28 @@ export function createPaymentBridgeConfig({
   const destinationToken = getKnownToken(toChain, toToken);
 
   if (!destinationToken) {
-    throw new Error(
-      `Unsupported token ${toToken} for chain ${destinationChain.name} (${toChain})`,
-    );
+    throw new Error(`Unsupported token ${toToken} for chain ${destinationChain.name} (${toChain})`);
   }
 
   const addressValid = validateAddressForChain(toChain, toAddress);
   if (!addressValid) {
-    throw new Error(
-      `Invalid address ${toAddress} for chain ${destinationChain.name} (${toChain})`,
-    );
+    throw new Error(`Invalid address ${toAddress} for chain ${destinationChain.name} (${toChain})`);
   }
 
   const preferredChainData = getChainById(preferredChain);
   const correctedPreferredChain =
-    preferredChainData.chainId === solana.chainId
-      ? rozoSolana.chainId
-      : preferredChain;
-  const prefferedToken = getKnownToken(
-    correctedPreferredChain,
-    preferredTokenAddress,
-  );
-  if (!prefferedToken) {
+    preferredChainData.chainId === solana.chainId ? rozoSolana.chainId : preferredChain;
+  const knownPreferredToken = getKnownToken(correctedPreferredChain, preferredTokenAddress);
+  const preferredToken =
+    knownPreferredToken ?? getKnownSourceToken(correctedPreferredChain, preferredTokenAddress);
+  if (!preferredToken) {
     throw new Error(
       `Unknown token ${preferredTokenAddress} for chain ${preferredChainData.name} (${preferredChain})`,
     );
   }
 
   // Validate EURC: EURC can only be sent to another EURC
-  const isPreferredEURC = prefferedToken.symbol === TokenSymbol.EURC;
+  const isPreferredEURC = preferredToken.symbol === TokenSymbol.EURC;
   const isDestinationEURC = destinationToken.symbol === TokenSymbol.EURC;
 
   if (isPreferredEURC && !isDestinationEURC) {
@@ -206,14 +201,14 @@ export function createPaymentBridgeConfig({
 
   if (isDestinationEURC && !isPreferredEURC) {
     throw new Error(
-      `EURC can only be received from another EURC. Preferred token is ${prefferedToken.symbol}, not EURC.`,
+      `EURC can only be received from another EURC. Preferred token is ${preferredToken.symbol}, not EURC.`,
     );
   }
 
   let preferred: PreferredPaymentConfig = {
-    preferredChain: String(prefferedToken.chainId),
-    preferredToken: prefferedToken.symbol,
-    preferredTokenAddress: prefferedToken.token,
+    preferredChain: String(correctedPreferredChain),
+    preferredToken: preferredToken.symbol,
+    preferredTokenAddress: knownPreferredToken?.token ?? preferredTokenAddress,
   };
 
   let destination: DestinationConfig = {
@@ -226,13 +221,9 @@ export function createPaymentBridgeConfig({
 
   if (isChainSupported(toChain) && isTokenSupported(toChain, toToken)) {
     preferred = {
-      preferredChain: String(
-        prefferedToken.chainId === solana.chainId
-          ? rozoSolana.chainId
-          : prefferedToken.chainId,
-      ),
-      preferredToken: prefferedToken.symbol,
-      preferredTokenAddress: prefferedToken.token,
+      preferredChain: String(correctedPreferredChain),
+      preferredToken: preferredToken.symbol,
+      preferredTokenAddress: knownPreferredToken?.token ?? preferredTokenAddress,
     };
 
     // Determine destination based on special address types
@@ -273,6 +264,24 @@ export function createPaymentBridgeConfig({
     ) !== normalizeTokenAddress(Number(destination.chainId), destination.tokenAddress);
 
   return { preferred, destination, isIntentPayment };
+}
+
+/**
+ * True when a payment response's source token is the chain's native asset.
+ * Accepts the canonical sentinels plus the aliases a backend/proxy may echo
+ * (`"native"` for Solana, the legacy System Program alias) by resolving
+ * through the chain-aware source lookup first.
+ */
+function isNativePaymentSource(
+  chainId: number | string | undefined,
+  tokenAddress: string | undefined,
+): boolean {
+  if (tokenAddress == null) return false;
+  if (isNativeToken(tokenAddress)) return true;
+  const numericChainId = Number(chainId);
+  if (!Number.isFinite(numericChainId)) return false;
+  const known = getKnownSourceToken(numericChainId, tokenAddress);
+  return known != null && isNativeToken(known.token);
 }
 
 /**
@@ -328,9 +337,25 @@ export function createPaymentBridgeConfig({
 export function formatPaymentResponseToHydratedOrder(
   order: PaymentResponse,
 ): RozoPayHydratedOrderWithOrg {
-  // Source amount is in the same units as the destination amount without fee
-  const sourceAmountUnits =
-    order.source?.amount ?? order.destination?.amountUnits ?? "0";
+  // Chain-aware native-source detection. The backend echoes the canonical
+  // Solana source as `"native"` (and older proxies used the legacy System
+  // Program alias), neither of which is in NATIVE_TOKEN_ADDRESSES, so resolve
+  // through the source lookup before falling back to the plain sentinel check.
+  const sourceIsNative = isNativePaymentSource(
+    order.source?.chainId,
+    order.source?.tokenAddress,
+  );
+  // Amount the recipient ultimately receives, in destination-token units.
+  // This is what `destFinalCallTokenAmount` and `usdValue` must reflect.
+  //
+  // Rule: if the SOURCE token is native (ETH/SOL/XLM), its `source.amount`
+  // is denominated in native units (e.g. 0.00007449 ETH) — not USD.
+  // Use `destination.amount` (stablecoin payout, USD-denominated) instead.
+  // If source is a stablecoin, source.amount is already USD and is preferred
+  // (it includes fees).
+  const destinationAmountUnits = sourceIsNative
+    ? (order.destination?.amount ?? order.destination?.amountUnits ?? "0")
+    : (order.source?.amount ?? order.destination?.amount ?? order.destination?.amountUnits ?? "0");
 
   // Deposit (pay-in) address – where the user actually sends funds.
   const depositAddress = order.source?.receiverAddress ?? "";
@@ -338,13 +363,11 @@ export function formatPaymentResponseToHydratedOrder(
   // Final destination address – where funds are intended to end up after
   // processing/bridging. For many flows this will be the same as the deposit
   // address, but it can differ for cross-chain payouts.
-  const finalDestinationAddress =
-    order.destination?.receiverAddress ?? depositAddress;
+  const finalDestinationAddress = order.destination?.receiverAddress ?? depositAddress;
 
   // Destination Intent Address used by legacy flows and deposit deep links.
   // This should always point to the deposit address that the user pays into.
-  const intentAddress =
-    (order.metadata?.receivingAddress ?? depositAddress) || "";
+  const intentAddress = (order.metadata?.receivingAddress ?? depositAddress) || "";
 
   // Deposit memo: the memo the user must attach when paying INTO the
   // deposit address. source.receiverMemo is authoritative — metadata.memo
@@ -378,7 +401,7 @@ export function formatPaymentResponseToHydratedOrder(
         chainId: destToken.chainId,
         token: destToken.token,
         symbol: destToken.symbol,
-        usd: Number(sourceAmountUnits),
+        usd: Number(destinationAmountUnits),
         priceFromUsd: 1,
         decimals: destToken.decimals,
         displayDecimals: 6,
@@ -388,13 +411,10 @@ export function formatPaymentResponseToHydratedOrder(
         maxSendUsd: 0,
         fiatISO: destToken.fiatISO ?? order.display?.currency ?? "USD",
       },
-      amount: parseUnits(
-        sourceAmountUnits,
-        destToken.decimals,
-      ).toString() as `${bigint}`,
-      usd: Number(sourceAmountUnits),
+      amount: parseUnits(destinationAmountUnits, destToken.decimals).toString() as `${bigint}`,
+      usd: Number(destinationAmountUnits),
     },
-    usdValue: Number(sourceAmountUnits),
+    usdValue: Number(destinationAmountUnits),
     destFinalCall: {
       // For backwards compatibility we keep destFinalCall.to as the deposit
       // address. Callers that care about the ultimate payout destination
@@ -427,8 +447,7 @@ export function formatPaymentResponseToHydratedOrder(
       appId: (order?.metadata as any)?.appId ?? order?.appId,
       // Map display.title to intent so the SDK heading shows the correct label
       // (e.g. "Purchase", "Pay", "Deposit") when using payId mode.
-      intent:
-        order?.display?.title ?? (order?.metadata as any)?.intent ?? "Pay",
+      intent: order?.display?.title ?? (order?.metadata as any)?.intent ?? "Pay",
       // Canonical destination model for v2 payments. These fields are used by
       // getCanonicalDestination/getRozoPayOrderView in this package and by
       // higher-level SDKs to reason about where funds are deposited vs where
@@ -436,8 +455,14 @@ export function formatPaymentResponseToHydratedOrder(
       finalDestinationAddress,
       finalDestinationChainId: Number(order.destination.chainId),
       depositAddress,
-      depositChainId:
-        order.source?.chainId ?? Number(order.destination.chainId),
+      depositChainId: order.source?.chainId ?? Number(order.destination.chainId),
+      // Source amount to pay, in source-token units (e.g. "0.016885" SOL).
+      // Distinct from usdValue/destFinalCallTokenAmount (which are the
+      // destination payout). Deposit-address flows show this as the exact
+      // amount to send, since the source token can be native (SOL/ETH/XLM)
+      // where the source amount differs from the USD/destination value.
+      sourceAmountUnits: order.source?.amount ?? null,
+      sourceTokenSymbol: order.source?.tokenSymbol ?? null,
       receivingAddress: intentAddress ?? "",
       // Destination memo set by the consumer (e.g. receiverMemo for the
       // payout leg). Kept distinct from the deposit memo (order.memo);
@@ -452,9 +477,7 @@ export function formatPaymentResponseToHydratedOrder(
     } as any,
     externalId: order.externalId ?? order.id ?? null,
     userMetadata: order.userMetadata as RozoPayUserMetadata | null,
-    expirationTs: BigInt(
-      Math.floor(new Date(order.expiresAt).getTime() / 1000).toString(),
-    ),
+    expirationTs: BigInt(Math.floor(new Date(order.expiresAt).getTime() / 1000).toString()),
     org: {
       orgId: order.orgId ?? "",
       name: "",

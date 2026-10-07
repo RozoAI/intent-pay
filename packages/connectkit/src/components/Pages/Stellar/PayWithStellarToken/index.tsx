@@ -19,6 +19,7 @@ import {
   getCanonicalDestination,
   getChainExplorerTxUrl,
   getPayment,
+  isNativeToken,
   RozoPayHydratedOrderWithOrg,
   rozoStellar,
   WalletPaymentOption,
@@ -46,10 +47,17 @@ import {
   parseErrorMessage,
 } from "../../../../utils/errorParser";
 import {
+  resolveSourceAmountUnits,
   resolveWalletPaymentAmount,
+  resolveWalletSourceBreakdown,
   type WalletSourceQuoteOrder,
   withWalletSourceQuote,
 } from "../../../../payment/createPaymentPayload";
+import {
+  isSamePaymentSource,
+  normalizeSourceTokenAddress,
+  sourceTokenChainId,
+} from "../../../../utils/token";
 import { waitForPaymentSourceTxHash } from "../../../../payment/waitForPaymentSourceTxHash";
 import { WALLET_CONNECT_ID } from "../../../../utils/stellar/walletconnect.module";
 
@@ -240,9 +248,17 @@ const PayWithStellarToken: React.FC = () => {
 
       const { required } = option;
 
+      const tokenChanged =
+        currentOrder.preferredTokenAddress != null &&
+        normalizeSourceTokenAddress(
+          Number(currentOrder.preferredChainId ?? required.token.chainId),
+          currentOrder.preferredTokenAddress,
+        ) !== normalizeSourceTokenAddress(required.token.chainId, required.token.token);
       const needRozoPayment =
-        currentOrder.preferredChainId !== null &&
-        currentOrder.preferredChainId !== required.token.chainId;
+        (currentOrder.preferredChainId !== null &&
+          sourceTokenChainId(Number(currentOrder.preferredChainId)) !==
+            sourceTokenChainId(required.token.chainId)) ||
+        tokenChanged;
 
       let hydratedOrder: RozoPayHydratedOrderWithOrg;
       let paymentId: string | undefined;
@@ -260,48 +276,63 @@ const PayWithStellarToken: React.FC = () => {
         ? formatUnits(BigInt(destAmountAtomic), destToken.decimals)
         : option.required.usd.toString();
       const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
-      setFeeLoading(true);
-      const feeData = await getCachedFee(
-        buildFeeQuoteParams({
-          order: currentOrder,
-          payParams: paymentState.payParams,
-          destChainId: destToken.chainId,
-          destTokenAddress: destToken.token,
-          destAddress:
-            getCanonicalDestination(currentOrder).finalDestinationAddress ??
-            "",
-          sourceChainId: option.required.token.chainId,
-          sourceTokenAddress: option.required.token.token,
-          toUnits,
-        }),
-        { signal: request.signal },
+
+      // Stored payment/checkout quote for this source is authoritative —
+      // render it directly instead of a redundant, possibly-divergent getFee.
+      const storedBreakdown = resolveWalletSourceBreakdown(
+        currentOrder as WalletSourceQuoteOrder,
+        option.required.token,
       );
-      setFeeLoading(false);
+      let quoteData: FeeResponseData | null = storedBreakdown ?? null;
+      if (!quoteData) {
+        setFeeLoading(true);
+        const feeData = await getCachedFee(
+          buildFeeQuoteParams({
+            order: currentOrder,
+            payParams: paymentState.payParams,
+            destChainId: destToken.chainId,
+            destTokenAddress: destToken.token,
+            destAddress:
+              getCanonicalDestination(currentOrder).finalDestinationAddress ??
+              "",
+            sourceChainId: option.required.token.chainId,
+            sourceTokenAddress: option.required.token.token,
+            toUnits,
+            sourceAmountUnits: resolveSourceAmountUnits(option.required),
+          }),
+          { signal: request.signal },
+        );
+        setFeeLoading(false);
 
-      if (request.signal.aborted) {
-        return;
-      }
-
-      if (feeData.error) {
-        if (feeData.error.name === "AbortError") {
+        if (request.signal.aborted) {
           return;
         }
-        capture(ROZO_EVENTS.PAYMENT_FAILED, {
-          payment_id: rozoPaymentId ?? order?.externalId,
-          error_message: feeData.error.message,
-          source_chain: option.required.token.chainId,
-          source_token: option.required.token.symbol,
-          dest_chain: destToken.chainId,
-          dest_token: destToken.symbol,
-        });
-        console.error("Fee calculation failed", feeData.error);
-        setRoute(ROUTES.ERROR, { error: feeData.error.message });
-        return;
+
+        if (feeData.error) {
+          if (feeData.error.name === "AbortError") {
+            return;
+          }
+          capture(ROZO_EVENTS.PAYMENT_FAILED, {
+            payment_id: rozoPaymentId ?? order?.externalId,
+            error_message: feeData.error.message,
+            source_chain: option.required.token.chainId,
+            source_token: option.required.token.symbol,
+            dest_chain: destToken.chainId,
+            dest_token: destToken.symbol,
+          });
+          console.error("Fee calculation failed", feeData.error);
+          setRoute(ROUTES.ERROR, { error: feeData.error.message });
+          return;
+        }
+
+        quoteData = feeData.data;
+      } else {
+        // Stored payment quote: no fetch in flight, so clear any stale spinner.
+        setFeeLoading(false);
       }
+      setFeeData(quoteData);
 
-      setFeeData(feeData.data);
-
-      if (isPayIdMode) {
+      if (isPayIdMode && !storedBreakdown) {
         // payId mode: checkout (refresh) the payment with the selected source token.
         // Claim checkoutInFlightRef synchronously (no await before this point
         // in the branch) so a second overlapping handleTransfer call — e.g.
@@ -322,13 +353,23 @@ const PayWithStellarToken: React.FC = () => {
             if (request.signal.aborted) {
               throw new Error("Aborted");
             }
+            if (isSamePaymentSource(paymentRes.data, option.required.token)) {
+              return {
+                paymentId: paymentRes.data.id,
+                settlementMode: paymentRes.data.settlementMode,
+                hydratedOrder: withWalletSourceQuote(
+                  formatPaymentResponseToHydratedOrder(paymentRes.data),
+                  paymentRes.data,
+                ),
+              };
+            }
             const checkoutRes = await checkoutPayment(
               existingPayId!,
               buildCheckoutPayload(paymentRes.data, {
                 chainId: option.required.token.chainId,
                 tokenSymbol: option.required.token.symbol,
                 tokenAddress: option.required.token.token,
-                amount: String(option.required.usd),
+                amount: resolveSourceAmountUnits(option.required),
               }),
               undefined,
               { signal: request.signal },
@@ -365,7 +406,8 @@ const PayWithStellarToken: React.FC = () => {
         hydratedOrder = currentOrder as RozoPayHydratedOrderWithOrg;
       } else if (needRozoPayment) {
         const existingId = rozoPaymentId ?? currentOrder.externalId ?? undefined;
-        if (existingId) {
+        // Backend rejects checkout when rotating to native XLM.
+        if (existingId && !isNativeToken(option.required.token.token)) {
           const paymentRes = await getPayment(existingId, undefined, {
             signal: request.signal,
           });
@@ -384,7 +426,7 @@ const PayWithStellarToken: React.FC = () => {
               chainId: option.required.token.chainId,
               tokenSymbol: option.required.token.symbol,
               tokenAddress: option.required.token.token,
-              amount: String(option.required.usd),
+              amount: resolveSourceAmountUnits(option.required),
             }),
             undefined,
             { signal: request.signal },
@@ -408,8 +450,8 @@ const PayWithStellarToken: React.FC = () => {
               fees: {
                 ...option.fees,
                 usd:
-                  feeData.data?.source.fee != null
-                    ? Number(feeData.data.source.fee)
+                  quoteData?.source.fee != null
+                    ? Number(quoteData.source.fee)
                     : option.fees.usd,
               },
             },
@@ -432,8 +474,8 @@ const PayWithStellarToken: React.FC = () => {
           fees: {
             ...option.fees,
             usd:
-              feeData.data?.source.fee != null
-                ? Number(feeData.data.source.fee)
+              quoteData?.source.fee != null
+                ? Number(quoteData.source.fee)
                 : option.fees.usd,
           },
         }, { signal: request.signal });
@@ -556,8 +598,8 @@ const PayWithStellarToken: React.FC = () => {
           fees: {
             ...option.fees,
             usd:
-              feeData.data?.source.fee != null
-                ? Number(feeData.data.source.fee)
+              quoteData?.source.fee != null
+                ? Number(quoteData.source.fee)
                 : option.fees.usd,
           },
         },

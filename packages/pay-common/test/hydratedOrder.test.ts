@@ -63,6 +63,45 @@ test("source.receiverMemo wins over metadata.memo", (t) => {
   t.end();
 });
 
+test("native SOL source uses destination USD for usdValue, not SOL units", (t) => {
+  // Canonical backend value plus both System Program sentinels the proxy/SDK
+  // may echo. An address-only check misses "native" and the legacy alias.
+  for (const tokenAddress of [
+    "native",
+    "11111111111111111111111111111111",
+    "11111111111111111111111111111112",
+  ]) {
+    const order = formatPaymentResponseToHydratedOrder(
+      makeResponse({
+        source: {
+          amount: "0.125", // SOL units, NOT USD
+          chainId: 900,
+          tokenAddress,
+          receiverAddress: DEPOSIT,
+        },
+        destination: {
+          chainId: String(base.chainId),
+          tokenAddress: baseUSDC.token,
+          amount: "20",
+          receiverAddress: DEST,
+        },
+      }),
+    );
+    t.equal(order.usdValue, 20, `${tokenAddress}: usdValue reflects destination USD`);
+    t.equal(
+      order.destFinalCallTokenAmount.usd,
+      20,
+      `${tokenAddress}: destFinalCallTokenAmount.usd is destination USD`,
+    );
+    t.equal(
+      (order.metadata as any).sourceAmountUnits,
+      "0.125",
+      `${tokenAddress}: source amount stays in native units in metadata`,
+    );
+  }
+  t.end();
+});
+
 test("no fallback to metadata.memo when deposit memo is missing", (t) => {
   const res = makeResponse();
   delete res.source.receiverMemo;

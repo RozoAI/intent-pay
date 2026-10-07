@@ -1,5 +1,5 @@
 import { getChainName } from "./chain";
-import { getKnownToken } from "./token";
+import { getKnownSourceToken, getKnownToken, isNativeToken } from "./token";
 
 /**
  * Contract an Ethereum address to a shorter string.
@@ -34,6 +34,9 @@ export function generateEVMDeepLink({
   recipientAddress: string;
   amountUnits: string;
 }): string {
+  if (tokenAddress.startsWith("0x") && isNativeToken(tokenAddress)) {
+    return `ethereum:${recipientAddress}@${chainId}?value=${amountUnits}`;
+  }
   return `ethereum:${tokenAddress}@${chainId}/transfer?address=${recipientAddress}&uint256=${amountUnits}`;
 }
 
@@ -50,7 +53,9 @@ export function generateSolanaDeepLink({
 }): string {
   const params = [
     amountUnits ? `amount=${encodeURIComponent(amountUnits)}` : null,
-    tokenAddress ? `spl-token=${encodeURIComponent(tokenAddress)}` : null,
+    tokenAddress && !isNativeToken(tokenAddress)
+      ? `spl-token=${encodeURIComponent(tokenAddress)}`
+      : null,
     memo ? `memo=${encodeURIComponent(memo)}` : null,
   ]
     .filter(Boolean)
@@ -117,7 +122,9 @@ export function generateIntentTitle({
   const toChainName = getChainName(toChainId);
   const preferredChainName = getChainName(preferredChainId);
   const toToken = getKnownToken(toChainId, toTokenAddress);
-  const preferredToken = getKnownToken(preferredChainId, preferredTokenAddress);
+  // Preferred token is a payment SOURCE, so resolve natives too (SOL/XLM are
+  // intentionally absent from supportedTokens/getKnownToken).
+  const preferredToken = getKnownSourceToken(preferredChainId, preferredTokenAddress);
 
   if (!toToken || !preferredToken) {
     return "Pay";

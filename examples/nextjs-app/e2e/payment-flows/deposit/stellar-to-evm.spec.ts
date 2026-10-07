@@ -20,6 +20,8 @@ import {
   startDepositPayment,
   useStellarSigner,
   waitForPayoutCompleted,
+  setupPaymentIdCapture,
+  reportPayment,
 } from "../../helpers"
 
 test.describe("Deposit: Stellar USDC → Base (mainnet, real funds)", () => {
@@ -28,7 +30,18 @@ test.describe("Deposit: Stellar USDC → Base (mainnet, real funds)", () => {
     "Set E2E_STELLAR_SECRET and E2E_EVM_ADDRESS in .env.e2e"
   )
 
+  let getPayId: (() => string | undefined) | undefined
+
+  test.afterEach(async ({}, testInfo) => {
+    await reportPayment(testInfo, {
+      payId: getPayId?.(),
+      route: "Stellar USDC → EVM (Base) (deposit)",
+      status: testInfo.status,
+    })
+  })
+
   test("deposit USDC from Stellar to an EVM destination", async ({ page }) => {
+    getPayId = setupPaymentIdCapture(page)
     // Drive the in-page headless signer with our Stellar secret — must run
     // before navigation.
     await useStellarSigner(page, E2E.stellar.secret)

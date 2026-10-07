@@ -1,3 +1,4 @@
+import { ethAddress, zeroAddress } from "viem";
 import { createPaymentBridgeConfig } from "../bridge-utils";
 import {
   getChainById,
@@ -6,7 +7,14 @@ import {
   solana,
   stellar,
 } from "../chain";
-import { getKnownToken } from "../token";
+import {
+  getKnownSourceToken,
+  getKnownToken,
+  isNativeToken,
+  normalizeTokenAddress,
+  solanaSOL,
+  stellarXLM,
+} from "../token";
 import { apiClient, ApiResponse, ApiVersion, setApiConfig } from "./base";
 import {
   CreateNewPaymentParams,
@@ -48,6 +56,36 @@ export interface FeeErrorData {
 }
 
 /**
+ * Backend wire identity for a payment source address.
+ *
+ * The proxy/UI advertise native sources with sentinels (`0xEeee…` on EVM, the
+ * Solana System Program address, `XLM` on Stellar); the Intents API expects the
+ * zero address on EVM and the literal `"native"` on Solana. Non-native tokens
+ * pass through (canonicalized when known). Shared by createPayment/getFee and
+ * checkoutPayment so a fee quote and the payment it refreshes speak the same
+ * dialect — checkout previously forwarded the raw sentinel and the backend
+ * stored the wrong native source address.
+ */
+export function toBackendSourceTokenAddress(chainId: number, tokenAddress: string): string {
+  const sourceToken = getKnownSourceToken(chainId, tokenAddress);
+  if (!sourceToken) return tokenAddress;
+  if (
+    (chainId === solana.chainId || chainId === rozoSolana.chainId) &&
+    sourceToken.token === solanaSOL.token
+  ) {
+    return "native";
+  }
+  if (
+    (chainId === stellar.chainId || chainId === rozoStellar.chainId) &&
+    sourceToken.token === stellarXLM.token
+  ) {
+    return "XLM";
+  }
+  if (normalizeTokenAddress(chainId, sourceToken.token) === zeroAddress || normalizeTokenAddress(chainId, sourceToken.token) === ethAddress) return zeroAddress;
+  return sourceToken.token;
+}
+
+/**
  * Builds the backend request body shared by createPayment and getFee.
  * getFee posts the exact same shape with a dryrun query flag, so a
  * fee quote always reflects what createPayment will actually charge
@@ -63,6 +101,7 @@ function buildPaymentRequestBody(
     preferredChain,
     preferredTokenAddress,
     toUnits,
+    preferredAmountUnits,
     appId,
     metadata,
     title,
@@ -88,7 +127,7 @@ function buildPaymentRequestBody(
   });
 
   const sourceChain = getChainById(Number(preferred.preferredChain));
-  const sourceToken = getKnownToken(
+  const sourceToken = getKnownSourceToken(
     Number(preferred.preferredChain),
     preferred.preferredTokenAddress,
   );
@@ -104,6 +143,25 @@ function buildPaymentRequestBody(
     throw new Error("Source or destination token not found");
   }
 
+  // The proxy/UI use Eeee and the Solana System Program as native sentinels;
+  // Intents API expects zero address on EVM, "native" on Solana, "XLM" on Stellar.
+  const sourceTokenAddress = toBackendSourceTokenAddress(
+    Number(preferred.preferredChain),
+    preferred.preferredTokenAddress,
+  );
+
+  // `source.amount` is denominated in SOURCE-token units, while the destination
+  // amount is USD. For $1-pegged stablecoins those coincide, so the fallback is
+  // safe; for native sources (ETH/SOL/XLM/…) it is not — falling back to the USD
+  // destination amount makes the backend read "0.7 ETH" where the user owes
+  // $0.70. Callers must thread the wallet option's native amount through
+  // `preferredAmountUnits`; without one, refuse rather than misstate the charge.
+  if (isNativeToken(sourceToken.token) && preferredAmountUnits == null) {
+    throw new Error(
+      "Native source payments require an explicit source amount in token units (preferredAmountUnits); refusing to send the USD destination amount as native units.",
+    );
+  }
+
   // Build payment request data matching new backend interface
   const paymentData: CreatePaymentRequest = {
     appId,
@@ -112,19 +170,20 @@ function buildPaymentRequestBody(
     source: {
       chainId: sourceChain.chainId,
       tokenSymbol: sourceToken.symbol,
-      amount: destination.amountUnits, // Use same amount for source
-      ...(preferred.preferredTokenAddress
-        ? { tokenAddress: preferred.preferredTokenAddress }
-        : {}),
+      // Source amount the user actually pays, in source-token units. For
+      // 1:1-USD sources this equals the destination amount, but for native
+      // tokens (SOL/ETH/etc) it differs, so prefer the explicit source amount
+      // when provided and only fall back to the destination amount otherwise.
+      // Native sources without an explicit amount were rejected above.
+      amount: preferredAmountUnits ?? destination.amountUnits,
+      tokenAddress: sourceTokenAddress,
     },
     destination: {
       chainId: destinationChain.chainId,
       receiverAddress: destinationAddress,
       tokenSymbol: destinationToken.symbol,
       amount: destination.amountUnits,
-      ...(destination.tokenAddress
-        ? { tokenAddress: destination.tokenAddress }
-        : {}),
+      tokenAddress: destination.tokenAddress,
       ...(receiverMemo ? { receiverMemo } : {}),
     },
     display: {
@@ -148,7 +207,7 @@ function buildPaymentRequestBody(
     paymentData.destination.destinationAddress = destinationAddress;
     paymentData.preferredToken = sourceToken.symbol;
     paymentData.preferredChain = preferred.preferredChain;
-    paymentData.preferredTokenAddress = preferred.preferredTokenAddress;
+    paymentData.preferredTokenAddress = sourceTokenAddress;
   }
 
   return paymentData;
@@ -507,7 +566,7 @@ export function buildCheckoutPayload(
       chainId: sourceChainId,
       tokenSymbol: sourceToken.tokenSymbol,
       amount: sourceToken.amount,
-      tokenAddress: sourceToken.tokenAddress,
+      tokenAddress: toBackendSourceTokenAddress(sourceChainId, sourceToken.tokenAddress),
     },
     destination: {
       ...payment.destination,

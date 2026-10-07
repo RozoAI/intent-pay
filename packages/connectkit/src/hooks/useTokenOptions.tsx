@@ -1,10 +1,4 @@
-import {
-  getChainName,
-  normalizeTokenAddress,
-  RozoPayToken,
-  Token,
-  WalletPaymentOption,
-} from "@rozoai/intent-common";
+import { getChainName, RozoPayToken, Token, WalletPaymentOption } from "@rozoai/intent-common";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Option } from "../components/Common/OptionsList";
 import TokenChainLogo from "../components/Common/TokenChainLogo";
@@ -12,6 +6,7 @@ import { ROUTES } from "../constants/routes";
 import { ROZO_EVENTS, RozoEventName } from "../lib/analytics/events";
 import { useAnalytics } from "../provider/AnalyticsProvider";
 import { formatUsd, roundTokenAmount } from "../utils/format";
+import { normalizeSourceTokenAddress, sourceTokenChainId } from "../utils/token";
 import { suggestedSourceRank } from "../utils/suggestedSource";
 import { usePayContext } from "./usePayContext";
 
@@ -161,8 +156,9 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
 
     return preferredTokens.some(
       (pt) =>
-        pt.chainId === chainId &&
-        normalizeTokenAddress(chainId, pt.token) === normalizeTokenAddress(chainId, tokenAddress),
+        sourceTokenChainId(pt.chainId) === sourceTokenChainId(chainId) &&
+        normalizeSourceTokenAddress(pt.chainId, pt.token) ===
+          normalizeSourceTokenAddress(chainId, tokenAddress),
     );
   };
 
@@ -177,28 +173,30 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
 
   // Memoize the sorted optionsList and reassign to optionsList to preserve invariant
   const sortedOptionsList = useMemo(() => {
-    return optionsList.map((option) => ({
-      ...option,
-      badge: optionSuggestedRank(option) === 0 ? "Last used" : undefined,
-    })).sort((a, b) => {
-      // First: sort by disabled state (enabled tokens first)
-      const dDisabled = (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0);
-      if (dDisabled !== 0) return dDisabled;
+    return optionsList
+      .map((option) => ({
+        ...option,
+        badge: optionSuggestedRank(option) === 0 ? "Last used" : undefined,
+      }))
+      .sort((a, b) => {
+        // First: sort by disabled state (enabled tokens first)
+        const dDisabled = (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0);
+        if (dDisabled !== 0) return dDisabled;
 
-      // Second: prioritize preferred tokens (preferred tokens first)
-      const aIsPreferred = isTokenPreferred(a);
-      const bIsPreferred = isTokenPreferred(b);
-      const dPreferred = (bIsPreferred ? 1 : 0) - (aIsPreferred ? 1 : 0);
-      if (dPreferred !== 0) return dPreferred;
+        // Second: prioritize preferred tokens (preferred tokens first)
+        const aIsPreferred = isTokenPreferred(a);
+        const bIsPreferred = isTokenPreferred(b);
+        const dPreferred = (bIsPreferred ? 1 : 0) - (aIsPreferred ? 1 : 0);
+        if (dPreferred !== 0) return dPreferred;
 
-      // Third: the payer's suggested source (ordering hint only, never filters)
-      const dSuggested = optionSuggestedRank(a) - optionSuggestedRank(b);
-      if (dSuggested !== 0) return dSuggested;
+        // Third: the payer's suggested source (ordering hint only, never filters)
+        const dSuggested = optionSuggestedRank(a) - optionSuggestedRank(b);
+        if (dSuggested !== 0) return dSuggested;
 
-      // Fourth: sort by balance USD (highest first) within each group
-      const dSort = (b.sortValue ?? 0) - (a.sortValue ?? 0);
-      return dSort;
-    });
+        // Fourth: sort by balance USD (highest first) within each group
+        const dSort = (b.sortValue ?? 0) - (a.sortValue ?? 0);
+        return dSort;
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [optionsList, preferredTokens, suggestedSource]);
 
@@ -206,6 +204,8 @@ export function useTokenOptions(mode: "evm" | "solana" | "stellar" | "all"): {
   const refreshOptions = useCallback(async () => {
     const { ethWalletAddress, solanaPubKey, stellarPubKey } = paymentState;
     const refreshPromises: Promise<unknown>[] = [];
+
+    // Only refresh EVM options if we have EVM address and need EVM data
     if (
       ["evm", "all"].includes(mode) &&
       ethWalletAddress &&
@@ -475,7 +475,11 @@ function getEvmTokenOptions(
       title,
       subtitle,
       icons: [
-        <TokenChainLogo key={getRozoTokenKey(option.balance.token)} token={option.balance.token} />,
+        <TokenChainLogo
+          key={getRozoTokenKey(option.balance.token)}
+          token={option.balance.token}
+          nativeAsChainIcon
+        />,
       ],
       onClick: () => {
         capture(ROZO_EVENTS.CHAIN_SELECTED, {
@@ -527,7 +531,11 @@ function getSolanaTokenOptions(
       title,
       subtitle,
       icons: [
-        <TokenChainLogo key={getRozoTokenKey(option.balance.token)} token={option.balance.token} />,
+        <TokenChainLogo
+          key={getRozoTokenKey(option.balance.token)}
+          token={option.balance.token}
+          nativeAsChainIcon
+        />,
       ],
       onClick: () => {
         capture(ROZO_EVENTS.CHAIN_SELECTED, {
@@ -579,7 +587,11 @@ function getStellarTokenOptions(
       title,
       subtitle,
       icons: [
-        <TokenChainLogo key={getRozoTokenKey(option.balance.token)} token={option.balance.token} />,
+        <TokenChainLogo
+          key={getRozoTokenKey(option.balance.token)}
+          token={option.balance.token}
+          nativeAsChainIcon
+        />,
       ],
       onClick: () => {
         capture(ROZO_EVENTS.CHAIN_SELECTED, {

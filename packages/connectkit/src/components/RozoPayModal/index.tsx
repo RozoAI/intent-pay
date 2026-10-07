@@ -376,7 +376,6 @@ export const RozoPayModal: React.FC<{
     }, 10_000);
     return () => clearTimeout(timer);
   }, [context.open, context.route, context.userDisconnected, isEthConnected, isSolanaConnected, isMobile, solanaWallet, connectors, connect]);
-
   // If the user has a wallet already connected upon opening the modal, go
   // straight to the select token screen.
   // Gated on wagmi reconnect and Solana autoConnect completing first —

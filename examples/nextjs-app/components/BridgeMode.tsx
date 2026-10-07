@@ -1,5 +1,6 @@
 "use client"
 
+import { APP_ID } from "@/app/const"
 import { Button } from "@/components/ui/button"
 import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateBridgeSnippet } from "@/lib/snippets"
@@ -12,11 +13,10 @@ import { ModeDescription } from "./ModeDescription"
 import { ParamForm, type ParamFormValues } from "./ParamForm"
 import { PreviewPane } from "./PreviewPane"
 
-const APP_ID = "rozoDemo"
-
 export function BridgeMode() {
-  const [config, setConfig, hydrated] = useSharedConfig()
   const { resetPayment } = useRozoPayUI()
+
+  const [config, setConfig, hydrated] = useSharedConfig()
   const [pending, setPending] = useState(config)
   const [ready, setReady] = useState(false)
   const [resetting, setResetting] = useState(false)

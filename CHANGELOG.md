@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.59] - 2026-10-07
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- **connectkit**: Correct native-token (SOL/ETH/XLM) payment amounts end-to-end &nbsp;-&nbsp; by @akbarsaputrait [<samp>(fc97bc82)</samp>](https://github.com/RozoAI/intent-pay/commit/fc97bc82)
+- Normalize EVM address and fix deposit options native token &nbsp;-&nbsp; by @akbarsaputrait [<samp>(82089ec8)</samp>](https://github.com/RozoAI/intent-pay/commit/82089ec8)
+- **connectkit**: Dual-chain connect, query migration, Stellar deeplink &nbsp;-&nbsp; by @akbarsaputrait [<samp>(f8cdd3a5)</samp>](https://github.com/RozoAI/intent-pay/commit/f8cdd3a5)
+- **native-payments**: Enable native sources and canonical API payloads &nbsp;-&nbsp; by @akbarsaputrait [<samp>(f86d5591)</samp>](https://github.com/RozoAI/intent-pay/commit/f86d5591)
+- Support Stellar USDT0 pay-in, payout, and direct settlement &nbsp;-&nbsp; by @akbarsaputrait [<samp>(7699a742)</samp>](https://github.com/RozoAI/intent-pay/commit/7699a742)
+- **sdk**: Improve waiting deposit address information &nbsp;-&nbsp; by @akbarsaputrait [<samp>(bdf76ae9)</samp>](https://github.com/RozoAI/intent-pay/commit/bdf76ae9)
+- **deposit**: Wrong-chain guard copy on the deposit address page &nbsp;-&nbsp; by @shawnmuggle [<samp>(8b26a6e9)</samp>](https://github.com/RozoAI/intent-pay/commit/8b26a6e9)
+- **deposit**: Narrow the wrong-chain line and add a support fallback &nbsp;-&nbsp; by @shawnmuggle [<samp>(6613ff83)</samp>](https://github.com/RozoAI/intent-pay/commit/6613ff83)
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- Deposit address and exactly amount &nbsp;-&nbsp; by @akbarsaputrait [<samp>(f8cc0501)</samp>](https://github.com/RozoAI/intent-pay/commit/f8cc0501)
+- **connectkit**: Native source deposit + structured errors &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e8b7b234)</samp>](https://github.com/RozoAI/intent-pay/commit/e8b7b234)
+- **payment**: Correct fee quote, Stellar deep links, and token normalization for multi-chain payments &nbsp;-&nbsp; by @akbarsaputrait [<samp>(9f8b87d5)</samp>](https://github.com/RozoAI/intent-pay/commit/9f8b87d5)
+- **sdk**: Code review P0/P1 fixes, mobile flow, UX improvements &nbsp;-&nbsp; by @akbarsaputrait [<samp>(b88614a9)</samp>](https://github.com/RozoAI/intent-pay/commit/b88614a9)
+- Force EVM connect on Phantom deeplink, safe disconnectAll &nbsp;-&nbsp; by @akbarsaputrait [<samp>(e742e50f)</samp>](https://github.com/RozoAI/intent-pay/commit/e742e50f)
+- **connectkit**: Re-enable switch native token for merchant payment &nbsp;-&nbsp; by @akbarsaputrait [<samp>(6e11a53f)</samp>](https://github.com/RozoAI/intent-pay/commit/6e11a53f)
+- **solana**: Use payment.source.amount instead from walletOptions &nbsp;-&nbsp; by @akbarsaputrait [<samp>(2850c4f3)</samp>](https://github.com/RozoAI/intent-pay/commit/2850c4f3)
+- **example**: Stub `@x402/*` missing transitive deps from `@coinbase/cdp-sdk` &nbsp;-&nbsp; by @akbarsaputrait [<samp>(960cab9d)</samp>](https://github.com/RozoAI/intent-pay/commit/960cab9d)
+- **pay-common**: Preserve Stellar USDT0 payout token &nbsp;-&nbsp; by @akbarsaputrait [<samp>(0038a483)</samp>](https://github.com/RozoAI/intent-pay/commit/0038a483)
+- **common**: Normalize comparision address &nbsp;-&nbsp; by @akbarsaputrait [<samp>(317d3608)</samp>](https://github.com/RozoAI/intent-pay/commit/317d3608)
+- **connectkit**: Honor preferredSymbol in payId mode &nbsp;-&nbsp; by @akbarsaputrait [<samp>(ab502395)</samp>](https://github.com/RozoAI/intent-pay/commit/ab502395)
+- Address native-token review findings (P0/P1/P2) &nbsp;-&nbsp; by @akbarsaputrait [<samp>(267cd322)</samp>](https://github.com/RozoAI/intent-pay/commit/267cd322)
+- **connectkit**: Keep native sources in payId preferredTokens &nbsp;-&nbsp; by @akbarsaputrait [<samp>(4e7d7f8b)</samp>](https://github.com/RozoAI/intent-pay/commit/4e7d7f8b)
+- **native**: Send source-token amounts and reuse stored payment quotes &nbsp;-&nbsp; by @akbarsaputrait [<samp>(6a289645)</samp>](https://github.com/RozoAI/intent-pay/commit/6a289645)
+
+---
+
 ## [0.1.54] - 2026-09-30
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features

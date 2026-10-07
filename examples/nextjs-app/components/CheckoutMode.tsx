@@ -1,11 +1,12 @@
 "use client"
 
+import { APP_ID } from "@/app/const"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateCheckoutSnippet } from "@/lib/snippets"
-import { baseUSDC, createPayment } from "@rozoai/intent-common"
+import { createPayment } from "@rozoai/intent-common"
 import { RozoPayButton } from "@rozoai/intent-pay"
 import {
   WalletMetamask,
@@ -21,8 +22,6 @@ import { EventLog, type LogEntry } from "./EventLog"
 import { ModeDescription } from "./ModeDescription"
 import { ParamForm } from "./ParamForm"
 import { PreviewPane } from "./PreviewPane"
-
-const APP_ID = "rozoDemo"
 
 export function CheckoutMode() {
   const searchParams = useSearchParams()
@@ -128,8 +127,9 @@ export function CheckoutMode() {
         toToken: config.toToken,
         toAddress: config.toAddress,
         toUnits: config.toUnits,
-        preferredChain: baseUSDC.chainId,
-        preferredTokenAddress: baseUSDC.token,
+        preferredChain: config.toChain,
+        preferredTokenAddress: config.toToken,
+        feeType: config.feeType,
       })
       setPaymentId(result.id)
     } catch (err) {
@@ -209,6 +209,7 @@ export function CheckoutMode() {
           <RozoPayButton.Custom
             payId={paymentId}
             intent="Checkout"
+            feeType={config.feeType}
             onPaymentStarted={(e) => addLog("started", e)}
             onPaymentCompleted={(e) => addLog("completed", e)}
             onPayoutCompleted={(e) => addLog("payout", e)}
@@ -323,6 +324,7 @@ export function CheckoutMode() {
             values={pending}
             onChange={setPending}
             showAmount
+            showFeeType
             hydrated={hydrated}
           />
           <Button

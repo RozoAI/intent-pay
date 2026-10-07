@@ -19,7 +19,7 @@ import {
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import { buildFeeQuoteParams, getCachedFee } from "../../../utils/feeCache";
-import { type WalletSourceQuoteOrder } from "../../../payment/createPaymentPayload";
+import { resolveSourceAmountUnits, resolveWalletSourceBreakdown, type WalletSourceQuoteOrder } from "../../../payment/createPaymentPayload";
 import Button from "../../Common/Button";
 import {
   Link,
@@ -70,7 +70,7 @@ const PayWithToken: React.FC = () => {
   );
   const [txURL, setTxURL] = useState<string | undefined>();
   const [feeData, setFeeData] = useState<FeeResponseData | null>(null);
-  const [feeLoading, setFeeLoading] = useState(true);
+  const [feeLoading, setFeeLoading] = useState(false);
 
   useEffect(() => {
     if (rozoPaymentState === "error") {
@@ -191,49 +191,69 @@ const PayWithToken: React.FC = () => {
 
         // @NOTE: Fee calculation
         const request = beginRequestScope(PAYMENT_REQUEST_SCOPE);
-        setFeeLoading(true);
         const destToken = currentOrder.destFinalCallTokenAmount?.token;
         const destAmountAtomic = currentOrder.destFinalCallTokenAmount?.amount;
         const toUnits = destAmountAtomic && destToken
           ? formatUnits(BigInt(destAmountAtomic), destToken.decimals)
           : option.required.usd.toString();
-        const feeParams = buildFeeQuoteParams({
-          order: currentOrder,
-          payParams: paymentState.payParams,
-          destChainId: destToken.chainId,
-          destTokenAddress: destToken.token,
-          destAddress:
-            getCanonicalDestination(currentOrder).finalDestinationAddress ??
-            "",
-          sourceChainId: option.required.token.chainId,
-          sourceTokenAddress: option.required.token.token,
-          toUnits,
-        });
-        const feeData = await getCachedFee(feeParams, { signal: request.signal });
-        setFeeLoading(false);
 
-        if (request.signal.aborted) {
-          return;
-        }
+        // The payment/checkout already quoted this source; its stored breakdown
+        // is authoritative. Re-quoting via getFee is redundant and, for native
+        // sources, can diverge from the amount the wallet will sign (wallet
+        // confirmation reads the payment's source.amount, not getFee).
+        let quoteData: FeeResponseData | null =
+          resolveWalletSourceBreakdown(
+            currentOrder as WalletSourceQuoteOrder,
+            option.required.token,
+          ) ?? null;
 
-        if (feeData.error) {
-          if (feeData.error.name === "AbortError") {
+        if (!quoteData) {
+          setFeeLoading(true);
+          const feeData = await getCachedFee(
+            buildFeeQuoteParams({
+              order: currentOrder,
+              payParams: paymentState.payParams,
+              destChainId: destToken.chainId,
+              destTokenAddress: destToken.token,
+              destAddress:
+                getCanonicalDestination(currentOrder).finalDestinationAddress ??
+                "",
+              sourceChainId: option.required.token.chainId,
+              sourceTokenAddress: option.required.token.token,
+              toUnits,
+              sourceAmountUnits: resolveSourceAmountUnits(option.required),
+            }),
+            { signal: request.signal },
+          );
+          setFeeLoading(false);
+
+          if (request.signal.aborted) {
             return;
           }
-          capture(ROZO_EVENTS.PAYMENT_FAILED, {
-            payment_id: rozoPaymentId ?? order?.externalId,
-            error_message: feeData.error.message,
-            source_chain: option.required.token.chainId,
-            source_token: option.required.token.symbol,
-            dest_chain: destToken.chainId,
-            dest_token: destToken.symbol,
-          });
-          console.error("Fee calculation failed", feeData.error);
-          setRoute(ROUTES.ERROR, { error: feeData.error.message });
-          return;
+
+          if (feeData.error) {
+            if (feeData.error.name === "AbortError") {
+              return;
+            }
+            capture(ROZO_EVENTS.PAYMENT_FAILED, {
+              payment_id: rozoPaymentId ?? order?.externalId,
+              error_message: feeData.error.message,
+              source_chain: option.required.token.chainId,
+              source_token: option.required.token.symbol,
+              dest_chain: destToken.chainId,
+              dest_token: destToken.symbol,
+            });
+            console.error("Fee calculation failed", feeData.error);
+            setRoute(ROUTES.ERROR, { error: feeData.error.message });
+            return;
+          }
+          quoteData = feeData.data;
+        } else {
+          // Stored payment quote: no fetch in flight, so clear any stale spinner.
+          setFeeLoading(false);
         }
 
-        setFeeData(feeData.data);
+        setFeeData(quoteData);
         setPayState(PayState.WaitingForConfirmation);
 
         const result = await payWithToken(
@@ -242,8 +262,8 @@ const PayWithToken: React.FC = () => {
             fees: {
               ...option.fees,
               usd:
-                feeData.data?.source.fee != null
-                  ? Number(feeData.data.source.fee)
+                quoteData?.source.fee != null
+                  ? Number(quoteData.source.fee)
                   : option.fees.usd,
             },
           },

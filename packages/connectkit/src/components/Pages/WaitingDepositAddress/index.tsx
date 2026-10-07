@@ -6,7 +6,6 @@ import {
   getCanonicalDestination,
   getChainName,
   getFee,
-  getKnownToken,
   isHydrated,
   rozoSolana,
   rozoStellar,
@@ -36,6 +35,7 @@ import styled from "../../../styles/styled";
 import { buildFeeQuoteParams, resolveOrderAppId } from "../../../utils/feeCache";
 import { resolveDepositSourceAmount } from "../../../payment/createPaymentPayload";
 import { formatUsd, roundUsd, trimTokenAmount } from "../../../utils/format";
+import { getSourcePaymentToken } from "../../../utils/token";
 import Button from "../../Common/Button";
 import CircleTimer from "../../Common/CircleTimer";
 import CopyToClipboardIcon from "../../Common/CopyToClipboard/CopyToClipboardIcon";
@@ -104,13 +104,7 @@ export default function WaitingDepositAddress() {
     setTokenMode,
     setRozoPaymentId,
   } = paymentState;
-  const {
-    store,
-    order,
-    paymentState: rozoPaymentState,
-    reset,
-    createPreviewOrder,
-  } = useRozoPay();
+  const { store, order, paymentState: rozoPaymentState, reset, createPreviewOrder } = useRozoPay();
 
   // Detect Optimism USDT0 under-payment: the order has received some funds
   // but less than required.
@@ -286,7 +280,7 @@ export default function WaitingDepositAddress() {
         throw new Error("Preferred chain or token address not found");
       }
 
-      const preferredToken = getKnownToken(
+      const preferredToken = getSourcePaymentToken(
         Number(order.preferredChainId),
         order.preferredTokenAddress,
       );
@@ -329,10 +323,7 @@ export default function WaitingDepositAddress() {
       // Otherwise use EVM deep link
       else {
         uriDeeplink = generateEVMDeepLink({
-          amountUnits: parseUnits(
-            sourceAmount,
-            preferredToken.decimals,
-          ).toString(),
+          amountUnits: parseUnits(sourceAmount, preferredToken.decimals).toString(),
           chainId: preferredToken.chainId,
           recipientAddress: order.intentAddr,
           tokenAddress: preferredToken.token,
@@ -365,7 +356,7 @@ export default function WaitingDepositAddress() {
       // isLoading from the previous option blocks the retry).
       processingOptionRef.current = selectedDepositAddressOption.id;
 
-      const displayToken = getKnownToken(
+      const displayToken = getSourcePaymentToken(
         selectedDepositAddressOption.token.chainId,
         selectedDepositAddressOption.token.token,
       );
@@ -410,10 +401,8 @@ export default function WaitingDepositAddress() {
               buildFeeQuoteParams({
                 order: currentOrder,
                 payParams,
-                destChainId:
-                  destToken?.chainId ?? selectedDepositAddressOption.token.chainId,
-                destTokenAddress:
-                  destToken?.token ?? selectedDepositAddressOption.token.token,
+                destChainId: destToken?.chainId ?? selectedDepositAddressOption.token.chainId,
+                destTokenAddress: destToken?.token ?? selectedDepositAddressOption.token.token,
                 destAddress: destAddress ?? "",
                 sourceChainId: selectedDepositAddressOption.token.chainId,
                 sourceTokenAddress: selectedDepositAddressOption.token.token,
@@ -733,8 +722,8 @@ export function DepositAddressInfo({
           <ModalH1 style={{ textAlign: "center", marginTop: 16 }}>Memo Missing</ModalH1>
           <div style={{ height: 16 }} />
           <ModalBody style={{ textAlign: "center" }}>
-            This Stellar payment needs a memo, but none was provided. Payments sent without the
-            memo may be lost. Please select another payment method.
+            This Stellar payment needs a memo, but none was provided. Payments sent without the memo
+            may be lost. Please select another payment method.
           </ModalBody>
           <SelectAnotherMethodButton />
         </CenterContainer>
@@ -860,9 +849,7 @@ function CopyableInfo({
         title="Send Exactly"
         value={depAddr?.address ? sourceAmount : undefined}
         valueText={
-          depAddr?.address && sourceAmount
-            ? `${trimTokenAmount(sourceAmount)}`.trim()
-            : undefined
+          depAddr?.address && sourceAmount ? `${trimTokenAmount(sourceAmount)}`.trim() : undefined
         }
         smallText={depAddr?.coins}
         disabled={isExpired}
@@ -890,9 +877,7 @@ function CopyableInfo({
             disabled={isExpired}
           />
           <MemoRequiredBox>
-            <MemoRequiredText>
-              Include the memo or funds may be lost.
-            </MemoRequiredText>
+            <MemoRequiredText>Include the memo or funds may be lost.</MemoRequiredText>
           </MemoRequiredBox>
         </>
       )}

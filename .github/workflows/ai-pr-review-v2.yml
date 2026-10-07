@@ -102,11 +102,13 @@ jobs:
           # AFTER a successful review (`Claude reported a successful result
           # after 18 turns` / `error_max_turns` with no structured_output) on
           # PRs as small as 3 files — a red check for a review that actually
-          # worked. 40 leaves real headroom; the daily USD cap below, not this
-          # number, is what bounds spend.
+          # worked. 40 was still exhausted by the large native-token PR
+          # (41 turns, `error_max_turns`, no structured_output); 60 leaves
+          # headroom for a big diff. The daily USD cap below, not this number,
+          # is what bounds spend.
           claude_args: |
             --model claude-opus-4-8
-            --max-turns 40
+            --max-turns 60
             --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),mcp__github_inline_comment__create_inline_comment"
             --json-schema '{"type":"object","properties":{"has_blockers":{"type":"boolean"},"p0_count":{"type":"integer"},"summary":{"type":"string"}},"required":["has_blockers","p0_count","summary"],"additionalProperties":false}'
 

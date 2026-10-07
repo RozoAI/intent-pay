@@ -1,9 +1,138 @@
-import { getKnownToken, rozoStellar, supportedTokens, Token, TokenSymbol } from "@rozoai/intent-common";
+import {
+  arbitrum,
+  base,
+  bsc,
+  ethereum,
+  getChainNativeToken,
+  getKnownToken,
+  isNativeToken,
+  normalizeTokenAddress,
+  polygon,
+  rozoSolana,
+  rozoStellar,
+  solana,
+  solanaSOL,
+  stellar,
+  stellarXLM,
+  supportedTokens,
+  Token,
+  TokenSymbol,
+} from "@rozoai/intent-common";
+import { zeroAddress } from "viem";
+
+export { isNativeToken };
+
+// Natives are payment SOURCES only, so they stay out of supportedTokens: that
+// map feeds getKnownToken/isTokenSupported (destination validation) and the
+// proxy builds stablecoin deposit rows from it. Expose every native here
+// instead — EVM via the chain registry, SOL/XLM as explicit source entries.
+const evmNativeSourceTokens = [arbitrum, base, bsc, ethereum, polygon].map((chain) =>
+  getChainNativeToken(chain.chainId),
+);
+export const sourcePaymentTokens = [
+  ...Array.from(supportedTokens.values()).flat(),
+  ...evmNativeSourceTokens,
+  solanaSOL,
+  stellarXLM,
+];
+
+/** Compare proxy source identities without changing destination or quoted addresses. */
+export function normalizeSourceTokenAddress(chainId: number, address: string): string {
+  if (
+    (chainId === solana.chainId || chainId === rozoSolana.chainId) &&
+    (address === "native" || address === "11111111111111111111111111111112" || address === solanaSOL.token)
+  ) {
+    return solanaSOL.token;
+  }
+  if (
+    (chainId === stellar.chainId || chainId === rozoStellar.chainId) &&
+    (address === "XLM" || address === stellarXLM.token)
+  ) {
+    return stellarXLM.token;
+  }
+  if (
+    evmNativeSourceTokens.some((token) => token.chainId === chainId) &&
+    address.startsWith("0x") &&
+    isNativeToken(address)
+  ) {
+    return zeroAddress;
+  }
+  return normalizeTokenAddress(chainId, address) ?? address;
+}
+
+export function sourceTokenChainId(chainId: number): number {
+  if (chainId === solana.chainId) return rozoSolana.chainId;
+  if (chainId === stellar.chainId) return rozoStellar.chainId;
+  return chainId;
+}
+
+/**
+ * True when an existing payment's source already matches the selected token.
+ *
+ * Compares chain + normalized source address, so a payment stored with the
+ * backend canonical native address (`0x0000…`) matches a proxy/UI native
+ * sentinel (`0xEeee…`) for the SAME asset. Without this, selecting the source
+ * the payment was already created with is misread as a token switch and forces
+ * a needless — and for native, backend-rejected — checkout round-trip.
+ */
+export function isSamePaymentSource(
+  payment:
+    | { source?: { chainId?: number | string | null; tokenAddress?: string | null } }
+    | undefined,
+  token: { chainId: number; token: string },
+): boolean {
+  const chainId = payment?.source?.chainId;
+  const address = payment?.source?.tokenAddress;
+  if (chainId == null || !address) return false;
+  const numericChainId = Number(chainId);
+  if (sourceTokenChainId(numericChainId) !== sourceTokenChainId(token.chainId)) {
+    return false;
+  }
+  return (
+    normalizeSourceTokenAddress(numericChainId, address) ===
+    normalizeSourceTokenAddress(token.chainId, token.token)
+  );
+}
+
+/** A quoted source may use the proxy sentinel, unlike known payout tokens. */
+export function getSourcePaymentToken(chainId: number, address: string): Token | undefined {
+  return (
+    getKnownToken(chainId, address) ??
+    sourcePaymentTokens.find(
+      (token) =>
+        sourceTokenChainId(token.chainId) === sourceTokenChainId(chainId) &&
+        normalizeSourceTokenAddress(token.chainId, token.token) ===
+          normalizeSourceTokenAddress(chainId, address),
+    )
+  );
+}
+
+/**
+ * Native gas tokens the SDK may offer as payment SOURCES.
+ *
+ * Every set of source tokens the SDK derives must include these: downstream
+ * `useWalletPaymentOptions` treats preferredTokens as a HARD allowlist and
+ * deletes any balance not listed, so a stablecoin-only set silently removes
+ * native options even when the proxy returned them.
+ */
+export const NATIVE_SYMBOLS = [
+  TokenSymbol.ETH,
+  TokenSymbol.BNB,
+  TokenSymbol.POL,
+  TokenSymbol.SOL,
+  TokenSymbol.XLM,
+];
 
 /**
  * Converts preferredSymbol array to preferredTokens array.
- * Only USDC, USDT, USDT0, and EURC symbols are allowed.
- * Finds tokens matching the symbols across supported chains (Base, Polygon, Ethereum, Solana, Stellar).
+ *
+ * Explicit preferredSymbol values are respected as given: stablecoins
+ * (USDC, USDT, USDT0, EURC) or native (ETH/BNB/POL/SOL/XLM). When neither
+ * preferredSymbol nor preferredTokens is provided, defaults to stablecoins
+ * plus native tokens so native options aren't silently filtered out of the
+ * default request. Matches tokens across supported chains (Base, Polygon,
+ * Ethereum, Solana, Stellar) via sourcePaymentTokens, which includes the
+ * source-only EVM natives kept outside supportedTokens.
  */
 export function convertPreferredSymbolsToTokens(
   symbols: TokenSymbol[] | undefined,
@@ -15,24 +144,28 @@ export function convertPreferredSymbolsToTokens(
     return existingPreferredTokens.filter((v) => !!v);
   }
 
-  // If no preferredSymbol provided, show all supported USD stablecoins
+  // If no preferredSymbol provided, default to stablecoins plus native tokens
   const symbolsToUse =
     symbols && symbols.length > 0
       ? symbols
-      : [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.USDT0];
+      : [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.USDT0, ...NATIVE_SYMBOLS];
 
   // Validate that only allowed symbols are used
-  const allowedSymbols = [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.USDT0, TokenSymbol.EURC];
+  const allowedSymbols = [
+    TokenSymbol.USDC,
+    TokenSymbol.USDT,
+    TokenSymbol.USDT0,
+    TokenSymbol.EURC,
+    ...NATIVE_SYMBOLS,
+  ];
   const validSymbols = symbolsToUse.filter((s) => allowedSymbols.includes(s));
-  const invalidSymbols = symbolsToUse.filter(
-    (s) => !allowedSymbols.includes(s),
-  );
+  const invalidSymbols = symbolsToUse.filter((s) => !allowedSymbols.includes(s));
 
   if (invalidSymbols.length > 0) {
     console.warn(
       `[RozoPay] Invalid preferredSymbol values: ${invalidSymbols.join(
         ", ",
-      )}. Only USDC, USDT, USDT0, and EURC are allowed.`,
+      )}. Allowed: ${allowedSymbols.join(", ")}.`,
     );
   }
 
@@ -45,11 +178,9 @@ export function convertPreferredSymbolsToTokens(
   const symbolSet = new Set(validSymbols);
 
   // Iterate through all supported tokens (organized by chain)
-  for (const chainTokens of supportedTokens.values()) {
-    for (const token of chainTokens) {
-      if (symbolSet.has(token.symbol as TokenSymbol)) {
-        tokens.push(token);
-      }
+  for (const token of sourcePaymentTokens) {
+    if (symbolSet.has(token.symbol as TokenSymbol)) {
+      tokens.push(token);
     }
   }
 

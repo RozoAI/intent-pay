@@ -1,4 +1,4 @@
-import { getAddress, zeroAddress } from "viem";
+import { ethAddress, getAddress, zeroAddress } from "viem";
 import { assertNotNull } from "./assert";
 import {
   arbitrum,
@@ -77,6 +77,7 @@ export enum TokenSymbol {
   CELO = "CELO",
   cUSD = "cUSD",
   DAI = "DAI",
+  ETH = "ETH",
   EURC = "EURC",
   MNT = "MNT",
   POL = "POL",
@@ -777,7 +778,8 @@ export const stellarXLM = nativeToken({
   symbol: TokenSymbol.XLM,
   logoURI: TokenLogo.XLM,
   token: "11111111111111111111111111111111",
-  decimals: 9,
+  // Stellar's native unit is a stroop (10^-7 XLM).
+  decimals: 7,
 });
 
 export const stellarUSDC: Token = token({
@@ -964,6 +966,11 @@ export const supportedTokens: Map<number, Token[]> = new Map([
   [polygon.chainId, [polygonUSDC, polygonUSDT]],
   [hyperEVM.chainId, [hyperEVMUSDC]],
 
+  // Native SOL/XLM are payment SOURCES only. Keep them out of supportedTokens:
+  // it feeds getKnownToken/isTokenSupported, so a native entry here would let
+  // native SOL/XLM satisfy destination validation (and the proxy iterates this
+  // map to build stablecoin deposit rows). Source recognition uses
+  // getChainNativeToken/getKnownSourceToken instead.
   [solana.chainId, [solanaUSDC, solanaUSDT]],
   [rozoSolana.chainId, [rozoSolanaUSDC, rozoSolanaUSDT]],
   [rozoStellar.chainId, [rozoStellarUSDC, rozoStellarEURC, rozoStellarUSDT0]],
@@ -1191,6 +1198,28 @@ export function getChainNativeToken(chainId: number): Token {
   );
 }
 
+/** Resolve a payment source without adding native assets to payout/deposit registries. */
+export function getKnownSourceToken(chainId: number, address: string): Token | undefined {
+  const known = getKnownToken(chainId, address);
+  if (known) return known;
+
+  const native = tokensByChainAndType.get(chainId)?.[TokenType.NATIVE];
+  if (!native) return undefined;
+  if (chainId === solana.chainId || chainId === rozoSolana.chainId) {
+    return address === "native" || address === solanaSOL.token || address === "11111111111111111111111111111112"
+      ? native
+      : undefined;
+  }
+  if (chainId === stellar.chainId || chainId === rozoStellar.chainId) {
+    return address === "XLM" || address === stellarXLM.token ? native : undefined;
+  }
+  const normalized = address.toLowerCase();
+  return native.token === zeroAddress &&
+    (normalized === zeroAddress || normalized === ethAddress.toLowerCase())
+    ? native
+    : undefined;
+}
+
 export function getChainWrappedNativeToken(chainId: number): Token {
   return assertNotNull(
     tokensByChainAndType.get(chainId)?.[TokenType.WRAPPED_NATIVE],
@@ -1257,6 +1286,17 @@ function nativeToken({
     logoURI,
     logoSourceURI: logoURI,
   };
+}
+
+/** Native token sentinels used by the supported EVM, Solana, and Stellar sources. */
+export const NATIVE_TOKEN_ADDRESSES = new Set(
+  [ethAddress, zeroAddress, "11111111111111111111111111111111", "XLM"].map((address) =>
+    address.toLowerCase(),
+  ),
+);
+
+export function isNativeToken(tokenAddress: string | null | undefined): boolean {
+  return tokenAddress != null && NATIVE_TOKEN_ADDRESSES.has(tokenAddress.toLowerCase());
 }
 
 export function token({

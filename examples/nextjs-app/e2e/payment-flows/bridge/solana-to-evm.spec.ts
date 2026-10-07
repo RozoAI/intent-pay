@@ -18,6 +18,8 @@ import {
   startBridgePayment,
   unlockPhantomIfNeeded,
   waitForPayoutCompleted,
+  setupPaymentIdCapture,
+  reportPayment,
 } from "../../helpers"
 
 const test = testWithChainwright(phantomFixture())
@@ -28,11 +30,22 @@ test.describe("Bridge: Solana USDC → Base (mainnet, real funds)", () => {
     "Set E2E_SOLANA_SEED_PHRASE and E2E_EVM_ADDRESS in .env.e2e"
   )
 
+  let getPayId: (() => string | undefined) | undefined
+
+  test.afterEach(async ({}, testInfo) => {
+    await reportPayment(testInfo, {
+      payId: getPayId?.(),
+      route: "Solana USDC → EVM (Base)",
+      status: testInfo.status,
+    })
+  })
+
   test("send USDC from Solana to EVM destination", async ({
     page,
     phantom,
     phantomPage,
   }) => {
+    getPayId = setupPaymentIdCapture(page)
     // Cached Phantom profile usually starts unlocked — only unlock if locked.
     await unlockPhantomIfNeeded(phantom, phantomPage)
 

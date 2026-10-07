@@ -1,10 +1,12 @@
-import { getKnownToken, normalizeTokenAddress, WalletPaymentOption } from "@rozoai/intent-common";
+import { WalletPaymentOption } from "@rozoai/intent-common";
+import { ethAddress } from "viem";
+import { isNativeToken, normalizeSourceTokenAddress, sourceTokenChainId } from "../utils/token";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
 import { TrpcClient } from "../utils/trpc";
-import { formatTokenAmount } from "../utils/format";
+import { formatNativeInsufficientBalance, formatTokenAmount } from "../utils/format";
 import { useSupportedChains } from "./useSupportedChains";
 
 /**
@@ -15,12 +17,17 @@ import { useSupportedChains } from "./useSupportedChains";
  * 2. Filtering to only show currently supported chains and tokens
  *
  * CURRENTLY SUPPORTED CHAINS & TOKENS IN WALLET PAYMENT OPTIONS:
- * - Base (Chain ID: 8453) - USDC
- * - Polygon (Chain ID: 137) - USDC
- * - Ethereum (Chain ID: 1) - USDC
- * - BSC (Chain ID: 56) - USDT (when MugglePay app, BSC preferred, or user has BSC USDT balance, even if disabled)
- * - Rozo Solana - USDC (native Solana USDC)
+ * - Base (Chain ID: 8453) - USDC, native ETH
+ * - Polygon (Chain ID: 137) - USDC, native POL
+ * - Ethereum (Chain ID: 1) - USDC, native ETH
+ * - BSC (Chain ID: 56) - USDT, native BNB (when MugglePay app, BSC preferred, or user has BSC USDT balance, even if disabled)
+ * - Rozo Solana - USDC (native Solana USDC), native SOL
  * - Rozo Stellar - USDC/XLM (native Stellar tokens)
+ *
+ * Native sources are opt-in per response: the SDK never synthesizes them, it
+ * only decides whether balances the proxy returns survive isSupported and the
+ * preferredTokens filter. EVM natives live in sourcePaymentTokens, not
+ * supportedTokens (see utils/token.ts).
  *
  * Note: The SDK supports many more chains/tokens (see pay-common/src/chain.ts and token.ts)
  * but wallet payment options are currently filtered to the above for optimal user experience.
@@ -69,10 +76,7 @@ export function useWalletPaymentOptions({
   );
 
   const { data, isLoading, refetch } = useQuery<WalletPaymentOption[] | null>({
-    enabled:
-      address != null &&
-      usdRequired != null &&
-      destChainId != null,
+    enabled: address != null && usdRequired != null && destChainId != null,
     queryKey: [
       "walletPaymentOptions",
       address,
@@ -87,7 +91,10 @@ export function useWalletPaymentOptions({
       // Source of truth for Intent API calls: chain + token pairing.
       const evmPreferredTokens = (memoizedPreferredTokens ?? [])
         .filter((t) => evmChainIds.has(t.chainId))
-        .map((t) => ({ chain: t.chainId, address: t.token }));
+        .map((t) => ({
+          chain: t.chainId,
+          address: isNativeToken(t.token) ? ethAddress : t.token,
+        }));
       // Backward-compat for local proxy implementations that still read this field.
       const evmPreferredTokenAddresses = evmPreferredTokens.map((t) => t.address);
 
@@ -113,7 +120,12 @@ export function useWalletPaymentOptions({
       chains.some(
         (c) =>
           c.chainId === o.balance.token.chainId &&
-          tokens.some((t) => t.token === o.balance.token.token),
+          tokens.some(
+            (t) =>
+              t.chainId === c.chainId &&
+              normalizeSourceTokenAddress(c.chainId, t.token) ===
+                normalizeSourceTokenAddress(c.chainId, o.balance.token.token),
+          ),
       );
 
     // Hard filter, not a ranking hint: any balance not matching a
@@ -127,9 +139,9 @@ export function useWalletPaymentOptions({
       }
       return memoizedPreferredTokens.some(
         (pt) =>
-          pt.chainId === o.balance.token.chainId &&
-          normalizeTokenAddress(pt.chainId, pt.token) ===
-            normalizeTokenAddress(o.balance.token.chainId, o.balance.token.token),
+          sourceTokenChainId(pt.chainId) === sourceTokenChainId(o.balance.token.chainId) &&
+          normalizeSourceTokenAddress(pt.chainId, pt.token) ===
+            normalizeSourceTokenAddress(o.balance.token.chainId, o.balance.token.token),
       );
     };
 
@@ -142,12 +154,16 @@ export function useWalletPaymentOptions({
           ...item,
           required: { ...item.required, usd },
         };
-        const destinationFiatISO = getKnownToken(
-          item.balance.token.chainId,
-          item.balance.token.token,
-        )?.fiatISO;
         if (item.balance.usd < usd) {
-          value.disabledReason = `Balance too low: ${formatTokenAmount(item.balance.usd, 6)} ${destinationFiatISO}`;
+          const usdBalance = `$${formatTokenAmount(item.balance.usd, 2)}`;
+          if (
+            isNativeToken(item.balance.token.token) &&
+            (!value.disabledReason || value.disabledReason.startsWith("Balance too low:"))
+          ) {
+            value.disabledReason = formatNativeInsufficientBalance(item.balance);
+          } else if (!value.disabledReason) {
+            value.disabledReason = `Balance too low: ${usdBalance}`;
+          }
         }
         return value;
       }) as WalletPaymentOption[];

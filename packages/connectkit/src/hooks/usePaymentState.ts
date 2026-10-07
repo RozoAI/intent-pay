@@ -18,7 +18,6 @@ import {
   generateSolanaDeepLink,
   generateStellarDeepLink,
   getChainById,
-  getKnownToken,
   getPayment,
   isValidSolanaAddress,
   PaymentResponse,
@@ -27,8 +26,10 @@ import {
   RozoPayOrder,
   RozoPayOrderWithOrg,
   rozoSolana,
-  rozoSolanaUSDC,
   rozoStellar,
+  rozoStellarEURC,
+  rozoStellarUSDC,
+  rozoStellarUSDT0,
   solana,
   stellar,
   WalletPaymentOption,
@@ -37,22 +38,32 @@ import {
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
   PublicKey,
+  SystemProgram,
   Transaction,
   TransactionInstruction,
   VersionedTransaction,
 } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { erc20Abi, formatUnits, getAddress, Hex, hexToBytes, parseUnits, zeroAddress } from "viem";
+import { erc20Abi, formatUnits, getAddress, Hex, hexToBytes, parseUnits } from "viem";
 import {
   useAccount,
   useCapabilities,
+  useConfig,
   useSendTransaction,
   useSwitchChain,
   useWalletClient,
   useWriteContract,
 } from "wagmi";
 import { useWriteContracts } from "wagmi/experimental";
-import { convertPreferredSymbolsToTokens, getStellarPaymentAsset } from "../utils/token";
+import { estimateGas, getBalance, getGasPrice } from "wagmi/actions";
+import {
+  convertPreferredSymbolsToTokens,
+  getSourcePaymentToken,
+  isNativeToken,
+  isSamePaymentSource,
+  normalizeSourceTokenAddress,
+  sourceTokenChainId,
+} from "../utils/token";
 import {
   beginRequestScope,
   cancelRequestScope,
@@ -64,7 +75,7 @@ import {
 } from "../utils/paymentRequestScope";
 import { resolveChainObject } from "../defaultConfig";
 
-import { ApiVersion } from "@rozoai/intent-common/dist/api/base";
+import type { ApiVersion } from "@rozoai/intent-common";
 import { createMemoInstruction } from "@solana/spl-memo";
 import {
   createAssociatedTokenAccountInstruction,
@@ -85,20 +96,19 @@ import {
   buildDepositWalletOption,
   derivePayIdPreferredTokens,
   resolveDepositSourceAmount,
+  resolveSourceAmountUnits,
   resolveWalletPaymentAmount,
   type WalletSourceQuoteOrder,
   withWalletSourceQuote,
 } from "../payment/createPaymentPayload";
 import { shouldRecoverEvmWalletConnectTx } from "../payment/shouldRecoverEvmWalletConnectTx";
+import { assertNativeSpendable } from "../payment/nativeSpendable";
 import { waitForPaymentSourceTxHash } from "../payment/waitForPaymentSourceTxHash";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
 import { useAnalytics } from "../provider/AnalyticsProvider";
 import { useStellar } from "../provider/StellarContextProvider";
 import { Store } from "../stateStore";
-import {
-  createPaymentFailureError,
-  parseErrorMessage,
-} from "../utils/errorParser";
+import { createPaymentFailureError, parseErrorMessage } from "../utils/errorParser";
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
 import { WalletConfigProps } from "../wallets/walletConfigs";
@@ -279,9 +289,7 @@ export function usePaymentState({
   // never reuses a stale result cached under the previous token's key.
   // Claimed synchronously — before any await — same pattern as
   // PayWithStellarToken/PayWithSolanaToken's checkoutInFlightRef.
-  const rozoPaymentCheckoutInFlightRef = useRef<
-    Map<string, Promise<PaymentResponse>>
-  >(new Map());
+  const rozoPaymentCheckoutInFlightRef = useRef<Map<string, Promise<PaymentResponse>>>(new Map());
   const paymentAttemptLockRef = useRef(createPaymentAttemptLock());
   const [pendingPaymentAttemptId, setPendingPaymentAttemptId] = useState<string>();
 
@@ -295,6 +303,7 @@ export function usePaymentState({
 
   // Wallet state.
   const { address: ethWalletAddress, connector: ethConnector } = useAccount();
+  const wagmiConfig = useConfig();
   const senderEnsName = undefined;
   const { switchChainAsync } = useSwitchChain();
 
@@ -328,7 +337,9 @@ export function usePaymentState({
   const stellarPubKey = stellarPublicKey;
 
   // From RozoPayButton props
-  const [buttonPropsMap, setButtonPropsMap] = useState<Map<string, PayButtonPaymentProps>>(new Map());
+  const [buttonPropsMap, setButtonPropsMap] = useState<Map<string, PayButtonPaymentProps>>(
+    new Map(),
+  );
   const [currentPayId, setCurrentPayId] = useState<string | undefined>(undefined);
   const [currPayParams, setCurrPayParams] = useState<PayParams>();
 
@@ -370,7 +381,9 @@ export function usePaymentState({
   const [depositAddressState, setDepositAddressState] = useState<"idle" | "creating" | "ready">(
     "idle",
   );
-  const [walletPaymentState, setWalletPaymentState] = useState<"idle" | "waiting" | "processing">("idle");
+  const [walletPaymentState, setWalletPaymentState] = useState<"idle" | "waiting" | "processing">(
+    "idle",
+  );
 
   const [tokenMode, setTokenModeRaw] = useState<"evm" | "solana" | "stellar" | "all">("evm");
   // Tracks whether tokenMode was set by an explicit user action (e.g. clicking a wallet in SelectMethod).
@@ -402,13 +415,11 @@ export function usePaymentState({
   const stellarChainIds = useMemo(() => [stellar.chainId, rozoStellar.chainId], []);
 
   const includesSolanaChain = useCallback(
-    (chains: number[] | undefined) =>
-      chains?.some((c) => solanaChainIds.includes(c)) ?? false,
+    (chains: number[] | undefined) => chains?.some((c) => solanaChainIds.includes(c)) ?? false,
     [],
   );
   const includesStellarChain = useCallback(
-    (chains: number[] | undefined) =>
-      chains?.some((c) => stellarChainIds.includes(c)) ?? false,
+    (chains: number[] | undefined) => chains?.some((c) => stellarChainIds.includes(c)) ?? false,
     [],
   );
 
@@ -449,7 +460,14 @@ export function usePaymentState({
         effectivePaymentOptions?.includes(ExternalPaymentOptions.Stellar)) &&
       pay.order != null
     );
-  }, [effectivePaymentOptions, effectivePreferredTokens, effectivePreferredChains, pay.order, includesStellarChain, stellarChainIds]);
+  }, [
+    effectivePaymentOptions,
+    effectivePreferredTokens,
+    effectivePreferredChains,
+    pay.order,
+    includesStellarChain,
+    stellarChainIds,
+  ]);
 
   // Order-independent eligibility for Solana/Stellar. Same rules as
   // show{Solana,Stellar}PaymentMethod but WITHOUT the `pay.order != null` gate,
@@ -481,7 +499,13 @@ export function usePaymentState({
       effectivePaymentOptions == null ||
       effectivePaymentOptions.includes(ExternalPaymentOptions.Stellar)
     );
-  }, [effectivePaymentOptions, effectivePreferredTokens, effectivePreferredChains, includesStellarChain, stellarChainIds]);
+  }, [
+    effectivePaymentOptions,
+    effectivePreferredTokens,
+    effectivePreferredChains,
+    includesStellarChain,
+    stellarChainIds,
+  ]);
 
   // Memoize usdRequired and destChainId to prevent unnecessary refetches when order object reference changes
   const usdRequired = useMemo(
@@ -587,6 +611,7 @@ export function usePaymentState({
   const depositAddressOptions = useDepositAddressOptions({
     trpc,
     usdRequired,
+    mode: pay.order?.mode,
     payParams: stablePayParams,
   });
 
@@ -665,9 +690,10 @@ export function usePaymentState({
         ? (order as RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg)
         : undefined;
 
-    // If payment already exists (payId mode or rozoPaymentId set), checkout instead of create.
+    // Backend rejects checkout when rotating to a native source token.
     const existingPayId = order?.externalId ?? rozoPaymentId ?? undefined;
-    if (!payParams || existingPayId) {
+    const shouldCheckout = !!existingPayId && !isNativeToken(walletOption.required.token.token);
+    if (!payParams || shouldCheckout) {
       if (!existingPayId) {
         throw new Error("No pay params provided");
       }
@@ -695,13 +721,21 @@ export function usePaymentState({
             if (!paymentRes?.data) {
               throw new Error("Failed to fetch payment");
             }
+            // The payment already pays from the selected source — nothing to
+            // rotate. Skip the checkout round-trip: a same-source checkout only
+            // churns the quote/deposit address, and the backend rejects
+            // checkout when the source is native. The fetched response already
+            // carries the receiver address the UI needs.
+            if (isSamePaymentSource(paymentRes.data, walletOption.required.token)) {
+              return paymentRes.data;
+            }
             const checkoutRes = await checkoutPayment(
               existingPayId,
               buildCheckoutPayload(paymentRes.data, {
                 chainId: walletOption.required.token.chainId,
                 tokenSymbol: walletOption.required.token.symbol,
                 tokenAddress: walletOption.required.token.token,
-                amount: String(walletOption.required.usd),
+                amount: resolveSourceAmountUnits(walletOption.required),
               }),
               undefined,
               { signal: request.signal },
@@ -844,9 +878,11 @@ export function usePaymentState({
     // stale order with no checkout call at all.
     const hasExistingPayment = currentOrder.externalId != null;
     const sourceChanged =
-      previousChainId !== required.token.chainId ||
+      (previousChainId != null &&
+        sourceTokenChainId(previousChainId) !== sourceTokenChainId(required.token.chainId)) ||
       (previousTokenAddress != null &&
-        previousTokenAddress.toLowerCase() !== required.token.token.toLowerCase());
+        normalizeSourceTokenAddress(previousChainId ?? required.token.chainId, previousTokenAddress) !==
+          normalizeSourceTokenAddress(required.token.chainId, required.token.token));
     const needRozoPayment =
       hasExistingPayment &&
       (previousChainId !== null || previousTokenAddress != null
@@ -858,8 +894,8 @@ export function usePaymentState({
     );
 
     // Prepare transaction parameters early (before async operations)
-    const isNativeToken = required.token.token === zeroAddress;
-    const tokenAddress = isNativeToken ? null : getAddress(required.token.token);
+    const isNativeSource = isNativeToken(required.token.token);
+    const tokenAddress = isNativeSource ? null : getAddress(required.token.token);
 
     // Get hydrated order efficiently with parallel preparation
     let hydratedOrder: RozoPayHydratedOrderWithOrg;
@@ -888,10 +924,7 @@ export function usePaymentState({
         }
 
         paymentId = res.id;
-        hydratedOrder = withWalletSourceQuote(
-          formatPaymentResponseToHydratedOrder(res),
-          res,
-        );
+        hydratedOrder = withWalletSourceQuote(formatPaymentResponseToHydratedOrder(res), res);
       } else if (pay.paymentState === "payment_unpaid" || pay.paymentState === "payment_started") {
         // Order is already hydrated for same chain, use it directly
         hydratedOrder = pay.order;
@@ -974,21 +1007,43 @@ export function usePaymentState({
     let transactionRecoveredFromApi = false;
     const transactionPromise = (async () => {
       try {
-        if (isNativeToken) {
+        if (required.token.chainId !== bscUSDT.chainId) {
+          await switchChainAsync({ chainId: required.token.chainId });
+        }
+
+        if (isNativeSource) {
+          // Check spendable balance on the selected chain before opening wallet.
+          const recipient = getAddress(destinationAddress);
+          const sender = getAddress(ethWalletAddress);
+          const chainId = required.token.chainId;
+          const [balance, gasPrice] = await Promise.all([
+            getBalance(wagmiConfig, { address: sender, chainId }),
+            getGasPrice(wagmiConfig, { chainId }),
+          ]);
+          // Estimate the transfer fee, but never let an estimate that reverts
+          // *because* the account cannot cover value + gas mask the spendable
+          // check below. A bare native transfer is 21000 gas; fall back to that.
+          let gas: bigint;
+          try {
+            gas = await estimateGas(wagmiConfig, {
+              account: sender,
+              to: recipient,
+              value: paymentAmount,
+              chainId,
+            });
+          } catch {
+            gas = 21_000n;
+          }
+          assertNativeSpendable(
+            balance.value,
+            paymentAmount,
+            gas * gasPrice,
+            required.token.symbol,
+          );
           // dataSuffix intentionally omitted — appending data to bare ETH transfers
           // changes wallet UI display; builder-code attribution targets contract calls.
-          const paymentAmount = resolveWalletPaymentAmount(
-            hydratedOrder as WalletSourceQuoteOrder,
-            walletOption,
-          );
-          return await sendTransactionAsync({
-            to: getAddress(destinationAddress),
-            value: paymentAmount,
-          });
+          return await sendTransactionAsync({ to: recipient, value: paymentAmount });
         } else {
-          if (required.token.chainId !== bscUSDT.chainId) {
-            await switchChainAsync({ chainId: required.token.chainId });
-          }
           log?.(`[PAY ERC20] dataSuffix: ${resolvedDataSuffix ?? "(none)"}`);
 
           // EIP-5792 path: only when wallet advertises dataSuffix capability (Base App / Coinbase Wallet).
@@ -1078,7 +1133,9 @@ export function usePaymentState({
         transactionRecoveredFromApi = result.recovered;
         if (result.recovered) {
           clearPaymentAttempt();
-          log?.(`[PAY TOKEN] Recovered external WalletConnect tx hash from payment API: ${paymentTxHash}`);
+          log?.(
+            `[PAY TOKEN] Recovered external WalletConnect tx hash from payment API: ${paymentTxHash}`,
+          );
         }
       } finally {
         pollingController.abort();
@@ -1206,13 +1263,9 @@ export function usePaymentState({
         throw new Error(`Invalid Solana destination address format: ${rozoPayment.destAddress}`);
       }
 
-      // Set up token addresses
-      let mintAddress: PublicKey;
       let fromKey: PublicKey;
       let toKey: PublicKey;
-
       try {
-        mintAddress = new PublicKey(walletPaymentOption.required.token.token);
         fromKey = new PublicKey(payerPublicKey);
         toKey = new PublicKey(rozoPayment.destAddress);
       } catch (error: any) {
@@ -1222,54 +1275,44 @@ export function usePaymentState({
         );
       }
 
-      log("[PAY SOLANA] Transaction details:", {
-        tokenMint: mintAddress.toString(),
-        fromKey: fromKey.toString(),
-        toKey: toKey.toString(),
-        amount: rozoPayment.amount.toString(),
-        memo: rozoPayment.memo,
-      });
-
-      // Get token accounts for sender and recipient
-      log("[PAY SOLANA] Deriving associated token accounts...");
-      const senderTokenAccount = await getAssociatedTokenAddress(mintAddress, fromKey);
-      const recipientTokenAccount = await getAssociatedTokenAddress(mintAddress, toKey);
-      log("[PAY SOLANA] Sender token account:", senderTokenAccount.toString());
-      log("[PAY SOLANA] Recipient token account:", recipientTokenAccount.toString());
-
-      // Check if recipient token account exists
-      log("[PAY SOLANA] Checking if recipient token account exists...");
-      const recipientTokenInfo = await connection.getAccountInfo(recipientTokenAccount);
-
-      // Create recipient token account if it doesn't exist
-      if (!recipientTokenInfo) {
-        log("[PAY SOLANA] Creating recipient token account...");
+      const transferAmount = rozoPayment.amount;
+      if (isNativeToken(walletPaymentOption.required.token.token)) {
         instructions.push(
-          createAssociatedTokenAccountInstruction(
-            payerPublicKey,
-            recipientTokenAccount,
-            toKey,
+          SystemProgram.transfer({
+            fromPubkey: fromKey,
+            toPubkey: toKey,
+            lamports: transferAmount,
+          }),
+        );
+      } else {
+        const mintAddress = new PublicKey(walletPaymentOption.required.token.token);
+        const senderTokenAccount = await getAssociatedTokenAddress(mintAddress, fromKey);
+        const recipientTokenAccount = await getAssociatedTokenAddress(mintAddress, toKey);
+        const recipientTokenInfo = await connection.getAccountInfo(recipientTokenAccount);
+
+        if (!recipientTokenInfo) {
+          instructions.push(
+            createAssociatedTokenAccountInstruction(
+              payerPublicKey,
+              recipientTokenAccount,
+              toKey,
+              mintAddress,
+              TOKEN_PROGRAM_ID,
+            ),
+          );
+        }
+
+        instructions.push(
+          createTransferCheckedInstruction(
+            senderTokenAccount,
             mintAddress,
-            TOKEN_PROGRAM_ID,
+            recipientTokenAccount,
+            fromKey,
+            transferAmount,
+            walletPaymentOption.required.token.decimals,
           ),
         );
       }
-
-      // Add transfer instruction
-      log("[PAY SOLANA] Adding transfer instruction...");
-      const transferAmount = rozoPayment.amount;
-      log("[PAY SOLANA] Transfer amount (atomic):", transferAmount.toString());
-
-      instructions.push(
-        createTransferCheckedInstruction(
-          senderTokenAccount,
-          mintAddress,
-          recipientTokenAccount,
-          fromKey,
-          transferAmount,
-          rozoSolanaUSDC.decimals,
-        ),
-      );
 
       // Add memo if provided
       if (rozoPayment.memo) {
@@ -1288,6 +1331,18 @@ export function usePaymentState({
       transaction.lastValidBlockHeight = lastValidBlockHeight;
       transaction.feePayer = payerPublicKey;
       instructions.forEach((instruction) => transaction.add(instruction));
+
+      if (isNativeToken(walletPaymentOption.required.token.token)) {
+        const [balance, feeResponse] = await Promise.all([
+          connection.getBalance(fromKey),
+          connection.getFeeForMessage(transaction.compileMessage(), "confirmed"),
+        ]);
+        const fee = feeResponse.value;
+        if (!Number.isSafeInteger(balance) || fee == null || !Number.isSafeInteger(fee)) {
+          throw new Error("Could not determine spendable SOL balance or transaction fee");
+        }
+        assertNativeSpendable(BigInt(balance), transferAmount, BigInt(fee), "SOL");
+      }
 
       // Serialize the transaction
       log("[PAY SOLANA] Serializing transaction...");
@@ -1373,20 +1428,39 @@ export function usePaymentState({
       const baseFeeStroops = await stellarServer.fetchBaseFee();
       const baseFeeXlm = baseFeeStroops / 10_000_000; // stroops to XLM
 
-      if (spendableStroops < BigInt(baseFeeStroops)) {
+      if (isNativeToken(walletPaymentOption.required.token.token)) {
+        assertNativeSpendable(spendableStroops, rozoPayment.amount, BigInt(baseFeeStroops), "XLM");
+      } else if (spendableStroops < BigInt(baseFeeStroops)) {
         const spendable = Number(spendableStroops) / 10_000_000;
         throw new Error(getStellarInsufficientXlmMessage(spendable, baseFeeXlm));
       }
 
-      const { code, issuer } = getStellarPaymentAsset(walletPaymentOption.required.token.token);
-
       // @stellar/stellar-sdk is ~14M — load it only when actually building a
       // Stellar transaction, not on every SDK mount.
-      const { Asset, Memo, Networks, Operation, TransactionBuilder } = await import(
-        "@stellar/stellar-sdk"
-      );
+      const { Asset, Memo, Networks, Operation, TransactionBuilder } =
+        await import("@stellar/stellar-sdk");
 
-      const destAsset = new Asset(code, issuer);
+      let destAsset: InstanceType<typeof Asset>;
+      if (isNativeToken(walletPaymentOption.required.token.token)) {
+        destAsset = Asset.native();
+      } else if (walletPaymentOption.required.token.token === rozoStellarUSDC.token) {
+        destAsset = new Asset(
+          walletPaymentOption.required.token.symbol,
+          rozoStellarUSDC.token.split(":")[1],
+        );
+      } else if (walletPaymentOption.required.token.token === rozoStellarEURC.token) {
+        destAsset = new Asset(
+          walletPaymentOption.required.token.symbol,
+          rozoStellarEURC.token.split(":")[1],
+        );
+      } else if (walletPaymentOption.required.token.token === rozoStellarUSDT0.token) {
+        destAsset = new Asset(
+          walletPaymentOption.required.token.symbol,
+          rozoStellarUSDT0.token.split(":")[1],
+        );
+      } else {
+        throw new Error("Unsupported token");
+      }
       const fee = String(baseFeeStroops);
 
       // Build transaction
@@ -1450,6 +1524,16 @@ export function usePaymentState({
     fees: FeeResponseData | null,
     log?: (message: string) => void,
   ) => {
+    // POS: native-source deposits are disabled until the deposit flow can
+    // resolve a source-token quote. The deposit catalog exposes no native
+    // amount/price, so any checkout/create here would send the USD charge as
+    // native units (the 0.7-ETH-for-$0.70 bug). Fail closed with a clear note.
+    if (isNativeToken(option.token.token)) {
+      throw new Error(
+        "[PAY DEPOSIT ADDRESS] native source deposits are not supported yet; choose a stablecoin.",
+      );
+    }
+
     // Prevent duplicate calls for the same option
     if (depositAddressCallRef.current.has(option.id)) {
       log?.(`[PAY DEPOSIT ADDRESS] Already processing ${option}, skipping duplicate call`);
@@ -1497,43 +1581,56 @@ export function usePaymentState({
           throw new Error("Failed to fetch payment");
         }
 
-        let sourceChainId = Number(option.token.chainId);
+        if (isSamePaymentSource(paymentRes.data, option.token)) {
+          // Same-source deposit: reuse the fetched payment instead of a
+          // checkout round-trip that only churns the deposit address.
+          setRozoPaymentId(paymentRes.data.id);
+          quotedSourceAmount = paymentRes.data.source?.amount ?? null;
+          order = formatPaymentResponseToHydratedOrder(
+            paymentRes.data,
+          ) as RozoPayHydratedOrderWithOrg;
+          log?.(
+            `[PAY DEPOSIT ADDRESS] payId mode — reused order ${order.id} for ${order.usdValue} USD`,
+          );
+        } else {
+          let sourceChainId = Number(option.token.chainId);
 
-        if (sourceChainId === solana.chainId) {
-          sourceChainId = rozoSolana.chainId;
-        } else if (sourceChainId === stellar.chainId) {
-          sourceChainId = rozoStellar.chainId;
+          if (sourceChainId === solana.chainId) {
+            sourceChainId = rozoSolana.chainId;
+          } else if (sourceChainId === stellar.chainId) {
+            sourceChainId = rozoStellar.chainId;
+          }
+
+          const checkoutRes = await checkoutPayment(
+            existingPayId,
+            buildCheckoutPayload(paymentRes.data, {
+              chainId: sourceChainId,
+              tokenSymbol: option.token.symbol,
+              tokenAddress: option.token.token,
+              amount: String(paymentRes.data.destination?.amount ?? "0"),
+            }),
+            undefined,
+            { signal: request.signal },
+          );
+          // Superseded while awaiting: never adopt this option's payment.
+          if (!isCurrent()) return null;
+          if (checkoutRes.error) {
+            throw checkoutRes.error;
+          }
+          if (!checkoutRes?.data) {
+            throw new Error("Failed to checkout payment");
+          }
+
+          setRozoPaymentId(checkoutRes.data.id);
+          quotedSourceAmount = checkoutRes.data.source?.amount ?? null;
+          order = formatPaymentResponseToHydratedOrder(
+            checkoutRes.data,
+          ) as RozoPayHydratedOrderWithOrg;
+
+          log?.(
+            `[PAY DEPOSIT ADDRESS] payId mode — checked out order ${order.id} for ${order.usdValue} USD`,
+          );
         }
-
-        const checkoutRes = await checkoutPayment(
-          existingPayId,
-          buildCheckoutPayload(paymentRes.data, {
-            chainId: sourceChainId,
-            tokenSymbol: option.token.symbol,
-            tokenAddress: option.token.token,
-            amount: String(paymentRes.data.destination?.amount ?? "0"),
-          }),
-          undefined,
-          { signal: request.signal },
-        );
-        // Superseded while awaiting: never adopt this option's payment.
-        if (!isCurrent()) return null;
-        if (checkoutRes.error) {
-          throw checkoutRes.error;
-        }
-        if (!checkoutRes?.data) {
-          throw new Error("Failed to checkout payment");
-        }
-
-        setRozoPaymentId(checkoutRes.data.id);
-        quotedSourceAmount = checkoutRes.data.source?.amount ?? null;
-        order = formatPaymentResponseToHydratedOrder(
-          checkoutRes.data,
-        ) as RozoPayHydratedOrderWithOrg;
-
-        log?.(
-          `[PAY DEPOSIT ADDRESS] payId mode — checked out order ${order.id} for ${order.usdValue} USD`,
-        );
       } else {
         // Create a new payment — or checkout the existing one — bound to
         // the selected source chain/token. hydrateOrder alone never updates
@@ -1558,9 +1655,7 @@ export function usePaymentState({
 
         setRozoPaymentId(res.id);
         quotedSourceAmount = res.source?.amount ?? null;
-        order = formatPaymentResponseToHydratedOrder(
-          res,
-        ) as RozoPayHydratedOrderWithOrg;
+        order = formatPaymentResponseToHydratedOrder(res) as RozoPayHydratedOrderWithOrg;
       }
 
       log?.(
@@ -1576,11 +1671,7 @@ export function usePaymentState({
       // fee-inclusive) for the deposit QR and "Send Exactly". Never the
       // destination USD value: that underpays when fees are nonzero or the
       // source asset isn't $1-pegged.
-      const sourceAmount = resolveDepositSourceAmount(
-        quotedSourceAmount,
-        fees,
-        order.usdValue,
-      );
+      const sourceAmount = resolveDepositSourceAmount(quotedSourceAmount, fees, order.usdValue);
 
       const chain = getChainById(option.token.chainId);
 
@@ -1590,7 +1681,7 @@ export function usePaymentState({
         throw new Error("Preferred chain or token address not found");
       }
 
-      const preferredToken = getKnownToken(
+      const preferredToken = getSourcePaymentToken(
         Number(order.preferredChainId),
         order.preferredTokenAddress,
       );
@@ -1625,10 +1716,7 @@ export function usePaymentState({
       // Otherwise use EVM deep link
       else {
         uriDeeplink = generateEVMDeepLink({
-          amountUnits: parseUnits(
-            sourceAmount,
-            preferredToken.decimals,
-          ).toString(),
+          amountUnits: parseUnits(sourceAmount, preferredToken.decimals).toString(),
           chainId: preferredToken.chainId,
           recipientAddress: order.intentAddr,
           tokenAddress: preferredToken.token,

@@ -16,6 +16,8 @@ import {
   startCheckoutPayment,
   unlockPhantomIfNeeded,
   waitForPayoutCompleted,
+  setupPaymentIdCapture,
+  reportPayment,
 } from "../../helpers"
 
 const test = testWithChainwright(phantomFixture())
@@ -26,11 +28,22 @@ test.describe("Checkout (payId): Solana USDC → Base (mainnet, real funds)", ()
     "Set E2E_SOLANA_SEED_PHRASE and E2E_EVM_ADDRESS in .env.e2e"
   )
 
+  let getPayId: (() => string | undefined) | undefined
+
+  test.afterEach(async ({}, testInfo) => {
+    await reportPayment(testInfo, {
+      payId: getPayId?.(),
+      route: "Solana USDC → EVM (Base) (checkout)",
+      status: testInfo.status,
+    })
+  })
+
   test("create a payId then pay it with USDC from Solana to EVM", async ({
     page,
     phantom,
     phantomPage,
   }) => {
+    getPayId = setupPaymentIdCapture(page)
     await unlockPhantomIfNeeded(phantom, phantomPage)
     await startCheckoutPayment(page, {
       destChain: "Base",

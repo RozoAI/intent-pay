@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FeeType, rozoStellar, rozoStellarUSDC, rozoStellarUSDT0 } from "@rozoai/intent-common";
-import { buildCreatePaymentPayload } from "../src/payment/createPaymentPayload.js";
+import { buildCreatePaymentPayload, resolveSourceAmountUnits } from "../src/payment/createPaymentPayload.js";
 import { PayParams, PaymentState, PaymentEvent } from "../src/payment/paymentFsm.js";
 import { buildHydratePayParamsPayload } from "../src/payment/paymentEffects.js";
 
@@ -79,6 +79,30 @@ describe("toUnits serialization", () => {
     });
 
     expect(payload.toUnits).toBe("123456789012345.678901");
+  });
+});
+
+describe("native source serialization", () => {
+  it("uses public Solana chain and System Program sentinel for legacy proxy SOL", () => {
+    const payload = buildCreatePaymentPayload({
+      payParams: makePayParams(),
+      walletOption: {
+        required: {
+          token: {
+            chainId: 501,
+            token: "11111111111111111111111111111112",
+            symbol: "SOL",
+            decimals: 9,
+          },
+          amount: "125000000",
+          usd: 20,
+        },
+        fees: { usd: 0.1 },
+      } as any,
+    });
+    expect(payload.preferredChain).toBe(900);
+    expect(payload.preferredTokenAddress).toBe("11111111111111111111111111111111");
+    expect(payload.preferredAmountUnits).toBe("0.125");
   });
 });
 
@@ -203,6 +227,51 @@ describe("Stellar direct settlement", () => {
   });
 });
 
+describe("resolveSourceAmountUnits — native sources never borrow the USD amount", () => {
+  it("converts native base units to token units (wei → ETH)", () => {
+    expect(
+      resolveSourceAmountUnits({
+        token: { token: "0x0000000000000000000000000000000000000000", decimals: 18 },
+        amount: "260000000000000",
+        usd: 0.7,
+      }),
+    ).toBe("0.00026");
+  });
+
+  it("throws when a native source has no explicit amount", () => {
+    expect(() =>
+      resolveSourceAmountUnits({
+        token: { token: "11111111111111111111111111111111", decimals: 9 },
+        usd: 0.7,
+      }),
+    ).toThrow(/native source amount is unknown/);
+  });
+
+  it("allows a stablecoin to fall back to its USD amount", () => {
+    expect(
+      resolveSourceAmountUnits({
+        token: { token: BASE_USDC, decimals: 6 },
+        usd: 0.7,
+      }),
+    ).toBe("0.7");
+  });
+
+  it("buildCreatePaymentPayload threads the native amount into preferredAmountUnits", () => {
+    const payload = buildCreatePaymentPayload({
+      payParams: makePayParams(),
+      walletOption: {
+        required: {
+          token: { chainId: BASE_CHAIN, token: "0x0000000000000000000000000000000000000000", symbol: "ETH", decimals: 18 },
+          amount: "260000000000000",
+          usd: 0.7,
+        },
+        fees: { usd: 0.01 },
+      } as any,
+    });
+    expect(payload.preferredAmountUnits).toBe("0.00026");
+  });
+});
+
 describe("hydrate_order effect — PayParamsData narrowing", () => {
   // Regression test for the EVM PayWithToken flow specifically: PayParams
   // set via set_pay_params is narrowed to PayParamsData when the reducer
@@ -215,7 +284,9 @@ describe("hydrate_order effect — PayParamsData narrowing", () => {
   // payload buildHydratePayParamsPayload produces for hydrate_order still
   // carries the top-level intent flag.
   function makePreviewState(
-    payParamsDataOverrides: Partial<Extract<PaymentState, { type: "preview" }>["payParamsData"]> = {},
+    payParamsDataOverrides: Partial<
+      Extract<PaymentState, { type: "preview" }>["payParamsData"]
+    > = {},
   ): Extract<PaymentState, { type: "preview" }> {
     return {
       type: "preview",

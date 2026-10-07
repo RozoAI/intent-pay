@@ -130,6 +130,13 @@ export function buildFeeQuoteParams(params: {
   sourceTokenAddress: string;
   /** Amount in destination units (atomic). */
   toUnits: string;
+  /**
+   * Pay-in amount in SOURCE-token units (e.g. `0.00026` ETH). Required so the
+   * quote's `source.amount` is not the USD destination amount for native
+   * sources — see `resolveSourceAmountUnits` and buildPaymentRequestBody's
+   * native guard. Omitted only when the caller has no source quote (deposit).
+   */
+  sourceAmountUnits?: string;
 }): CreateNewPaymentParams {
   const {
     order,
@@ -140,6 +147,7 @@ export function buildFeeQuoteParams(params: {
     sourceChainId,
     sourceTokenAddress,
     toUnits,
+    sourceAmountUnits,
   } = params;
 
   const intent = resolveStellarDirectIntent(
@@ -162,6 +170,7 @@ export function buildFeeQuoteParams(params: {
     preferredChain: sourceChainId,
     preferredTokenAddress: sourceTokenAddress,
     toUnits,
+    ...(sourceAmountUnits ? { preferredAmountUnits: sourceAmountUnits } : {}),
     ...(intent ? { intent } : {}),
   };
 }

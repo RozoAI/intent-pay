@@ -33,6 +33,13 @@ export const E2E = {
    */
   realApi: process.env.E2E_REAL_API === "true",
 
+  /**
+   * Opt-in to the real-backend native route viability probe
+   * (e2e/native/viability.spec.ts). Off by default so the `mocked` project stays
+   * network-free; it hits live /payment-api dryrun quotes but moves no funds.
+   */
+  nativeViability: process.env.E2E_NATIVE_VIABILITY === "true",
+
   /** USDC amount to send (human units), applies to every flow. */
   amount: process.env.E2E_AMOUNT ?? "0.02",
 

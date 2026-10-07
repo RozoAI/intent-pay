@@ -1,16 +1,16 @@
-import {
-  getKnownToken,
-  normalizeTokenAddress,
-  rozoStellar,
-  WalletPaymentOption,
-} from "@rozoai/intent-common";
+import { getKnownToken, WalletPaymentOption } from "@rozoai/intent-common";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
 import { PayParams } from "../payment/paymentFsm";
+import {
+  formatNativeInsufficientBalance,
+  formatTokenAmount,
+  roundTokenAmount,
+} from "../utils/format";
 import { TrpcClient } from "../utils/trpc";
-import { formatTokenAmount } from "../utils/format";
 import { useSupportedChains } from "./useSupportedChains";
+import { isNativeToken, normalizeSourceTokenAddress, sourceTokenChainId } from "../utils/token";
 
 /** Wallet payment options. User picks one. */
 export function useStellarPaymentOptions({
@@ -28,16 +28,14 @@ export function useStellarPaymentOptions({
 }) {
   const { chains, tokens } = useSupportedChains();
 
-  const stellarChainIds = useMemo(
-    () => new Set(chains.filter((c) => c.type === "stellar").map((c) => c.chainId)),
-    [chains],
-  );
+  // Get Stellar chain IDs from supported chains
+  const stellarChainIds = useMemo(() => {
+    return new Set(chains.filter((c) => c.type === "stellar").map((c) => c.chainId));
+  }, [chains]);
 
-  // Fetch under caller's appId, or DEFAULT_ROZO_APP_ID when none passed.
-  const stableAppId = useMemo(
-    () => payParams?.appId ?? DEFAULT_ROZO_APP_ID,
-    [payParams?.appId],
-  );
+  const stableAppId = useMemo(() => {
+    return payParams?.appId;
+  }, [payParams]);
 
   const memoizedPreferredTokens = useMemo(
     () => payParams?.preferredTokens,
@@ -48,7 +46,9 @@ export function useStellarPaymentOptions({
   const { data, isLoading, refetch } = useQuery<WalletPaymentOption[] | null>({
     enabled:
       address != null &&
-      usdRequired != null,
+      usdRequired != null &&
+      stableAppId != null &&
+      stableAppId !== DEFAULT_ROZO_APP_ID,
     queryKey: [
       "stellarPaymentOptions",
       address,
@@ -59,15 +59,21 @@ export function useStellarPaymentOptions({
     ],
     queryFn: () => {
       const stellarPreferredTokenAddresses = (memoizedPreferredTokens ?? [])
-        .filter((t) => stellarChainIds.has(t.chainId))
-        .map((t) => t.token);
+        .filter((t) => stellarChainIds.has(sourceTokenChainId(t.chainId)))
+        .map((t) => (t.symbol === "XLM" && isNativeToken(t.token) ? "XLM" : t.token));
+
+      // Preserve the existing hint behavior for non-XLM lists. The local
+      // proxy ranks these addresses; explicit restrictions stay in the SDK.
+      const isRestrictive =
+        stellarPreferredTokenAddresses.length > 0 &&
+        !stellarPreferredTokenAddresses.includes("XLM");
 
       return trpc.getStellarPaymentOptions.query({
-        stellarAddress: address!,
+        stellarAddress: address,
         // API expects undefined for deposit flow.
         usdRequired: isDepositFlow ? undefined : usdRequired,
         appId: stableAppId,
-        preferredTokenAddress: stellarPreferredTokenAddresses,
+        preferredTokenAddress: isRestrictive ? stellarPreferredTokenAddresses : undefined,
       });
     },
     staleTime: 30_000,
@@ -85,36 +91,55 @@ export function useStellarPaymentOptions({
         const tokenChainId = option.balance.token.chainId;
         const tokenAddress = option.balance.token.token;
 
+        // If preferredTokens is provided and not empty, filter by matching chainId and token address
         if (preferredTokens && preferredTokens.length > 0) {
           return preferredTokens.some(
             (pt) =>
-              pt.chainId === tokenChainId &&
-              normalizeTokenAddress(tokenChainId, pt.token) ===
-                normalizeTokenAddress(tokenChainId, tokenAddress),
+              sourceTokenChainId(pt.chainId) === sourceTokenChainId(tokenChainId) &&
+              normalizeSourceTokenAddress(pt.chainId, pt.token) ===
+                normalizeSourceTokenAddress(tokenChainId, tokenAddress),
           );
         }
 
         // Otherwise, check against supported tokens
         return tokens.some(
           (t) =>
-            normalizeTokenAddress(t.chainId, t.token) ===
-              normalizeTokenAddress(tokenChainId, tokenAddress) &&
-            t.chainId === rozoStellar.chainId,
+            normalizeSourceTokenAddress(t.chainId, t.token) ===
+              normalizeSourceTokenAddress(tokenChainId, tokenAddress) &&
+            sourceTokenChainId(t.chainId) === sourceTokenChainId(tokenChainId),
         );
       })
       .map((item) => {
         const usd = isDepositFlow ? 0 : usdRequired || 0;
+
         const value: WalletPaymentOption = {
           ...item,
-          required: { ...item.required, usd },
+          required: {
+            ...item.required,
+            usd,
+          },
         };
-        const destinationFiatISO = getKnownToken(
-          item.balance.token.chainId,
-          item.balance.token.token,
-        )?.fiatISO;
+
+        // Set `disabledReason` manually (based on current usdRequired state, not API Request)
+        const knownToken = getKnownToken(item.balance.token.chainId, item.balance.token.token);
+        const fiatISO = knownToken?.fiatISO ?? item.balance.token.fiatISO;
+        const isNative = isNativeToken(item.balance.token.token);
+
         if (item.balance.usd < usd) {
-          value.disabledReason = `Balance too low: ${formatTokenAmount(item.balance.usd, 6)} ${destinationFiatISO}`;
+          if (isNative) {
+            if (!value.disabledReason || value.disabledReason.startsWith("Balance too low:")) {
+              value.disabledReason = formatNativeInsufficientBalance(item.balance);
+            }
+          } else if (fiatISO) {
+            value.disabledReason = `Balance too low: ${formatTokenAmount(item.balance.usd, 6)} ${fiatISO}`;
+          } else {
+            value.disabledReason = `Balance too low: ${roundTokenAmount(
+              item.balance.amount,
+              item.balance.token,
+            )} ${item.balance.token.symbol}`;
+          }
         }
+
         return value;
       }) as WalletPaymentOption[];
   }, [data, isDepositFlow, usdRequired, tokens, payParams?.preferredTokens]);
@@ -122,6 +147,6 @@ export function useStellarPaymentOptions({
   return {
     options: filteredOptions,
     isLoading,
-    refreshOptions: refetch,
+    refreshOptions: () => refetch().then(() => {}),
   };
 }

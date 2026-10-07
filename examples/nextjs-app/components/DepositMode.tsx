@@ -1,5 +1,6 @@
 "use client"
 
+import { APP_ID } from "@/app/const"
 import { Button } from "@/components/ui/button"
 import { useSharedConfig } from "@/hooks/useSharedConfig"
 import { generateDepositSnippet } from "@/lib/snippets"
@@ -11,8 +12,6 @@ import { EventLog, type LogEntry } from "./EventLog"
 import { ModeDescription } from "./ModeDescription"
 import { ParamForm, type ParamFormValues } from "./ParamForm"
 import { PreviewPane } from "./PreviewPane"
-
-const APP_ID = "rozoDemo"
 
 export function DepositMode() {
   const [config, setConfig, hydrated] = useSharedConfig()
@@ -50,7 +49,7 @@ export function DepositMode() {
     () =>
       isDestinationEURC
         ? [TokenSymbol.EURC]
-        : [TokenSymbol.USDC, TokenSymbol.USDT],
+        : undefined,
     [isDestinationEURC]
   )
 
@@ -78,6 +77,7 @@ export function DepositMode() {
           toUnits: undefined, // explicit clear — user sets amount inside modal
           intent: "Deposit",
           preferredSymbol,
+          feeType: c.feeType,
         })
         setReady(true)
       } catch (err) {
@@ -115,6 +115,7 @@ export function DepositMode() {
             toToken={config.toToken}
             toAddress={config.toAddress}
             preferredSymbol={preferredSymbol}
+            feeType={config.feeType}
             intent="Deposit"
             resetOnSuccess
             showProcessingPayout
@@ -183,6 +184,7 @@ export function DepositMode() {
             values={pending}
             onChange={setPending}
             showAmount={false}
+            showFeeType
             hydrated={hydrated}
           />
           <Button

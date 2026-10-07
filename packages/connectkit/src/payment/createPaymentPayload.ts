@@ -18,15 +18,24 @@ import {
   supportedPayoutTokens,
   supportedTokens,
   solana,
+  solanaSOL,
   stellar,
   Token,
   TokenSymbol,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
-import { formatUnits, getAddress, parseUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 import { DEFAULT_ROZO_APP_ID } from "../constants/rozoConfig";
-import { convertPreferredSymbolsToTokens } from "../utils/token";
-import { PayParams } from "./paymentFsm";
+import { tokenBaseAmountToDecimalString } from "../utils/format";
+import {
+  convertPreferredSymbolsToTokens,
+  isNativeToken,
+  isSamePaymentSource,
+  NATIVE_SYMBOLS,
+  normalizeSourceTokenAddress,
+  sourceTokenChainId,
+} from "../utils/token";
+import { HydrateWalletOption, PayParams } from "./paymentFsm";
 
 /**
  * Round a decimal amount string to `decimals` fraction digits, string-only
@@ -66,6 +75,35 @@ function roundDecimalString(value: string, decimals: number): string {
 
 type OrderLike = RozoPayHydratedOrderWithOrg | RozoPayOrderWithOrg;
 
+/**
+ * Pay-in amount in SOURCE-TOKEN units for a wallet option.
+ *
+ * `required.amount` is already source-token base units (wei/lamports/stroops),
+ * so converting it yields the exact token amount (e.g. `0.00026` ETH).
+ * `required.usd` is USD and is only a valid stand-in for $1-pegged stablecoins —
+ * sending it as a native source amount is the "0.7 ETH for a $0.70 charge" bug.
+ * Native sources must carry an explicit amount; refuse rather than misstate the
+ * charge (POS: native deposit flow is blocked until a source quote exists).
+ */
+export function resolveSourceAmountUnits(required: {
+  token: { token: string; decimals: number };
+  amount?: bigint | string | null;
+  usd?: number;
+}): string {
+  if (required.amount != null) {
+    return tokenBaseAmountToDecimalString(
+      required.amount,
+      required.token.decimals,
+    );
+  }
+  if (isNativeToken(required.token.token)) {
+    throw new Error(
+      "[PAY TOKEN] native source amount is unknown; refusing to send the USD amount as native units",
+    );
+  }
+  return String(required.usd ?? "0");
+}
+
 /** Direct settlement only applies to identical supported Stellar assets. */
 export function resolveStellarDirectIntent(
   destChainId: number,
@@ -91,7 +129,7 @@ export type CreatePaymentContext = {
   /** Existing order, if any (used to derive amount/metadata in hydrate flows). */
   order?: OrderLike;
   /** Wallet option the user selected (required for wallet payments). */
-  walletOption?: WalletPaymentOption;
+  walletOption?: HydrateWalletOption;
   /** Explicit API version (defaults to v2). */
   apiVersion?: ApiVersion;
   /** Override for fee type – falls back to payParams.feeType or ExactIn. */
@@ -119,12 +157,15 @@ export function resolveDestinationAddress(payParams: PayParams): string {
 }
 
 /**
- * payId mode has no RozoPayButton props to read preferredTokens from, so
- * source stablecoin filtering must mirror the destination: EURC destination
- * → source restricted to EURC; any other destination → source restricted to
- * USDC/USDT/USDT0 (EURC balances can't fund a USD destination, and vice versa).
- * Non-stablecoin source options (native tokens etc.) are unaffected — this
- * filter only ever narrows within [USDC, USDT, USDT0, EURC].
+ * payId mode has no RozoPayButton props to read preferredTokens from, so the
+ * source filter is derived from the destination: a EURC destination can only
+ * be funded by EURC, any other destination by USD stablecoins (and vice versa).
+ *
+ * preferredTokens is a HARD allowlist downstream (useWalletPaymentOptions drops
+ * every balance not listed), so the derived set must also carry the native
+ * source tokens — narrowing to stablecoins alone would silently delete native
+ * ETH/BNB/POL/SOL from payId checkout. Native legs a merchant has not opted into
+ * are removed by the proxy's own per-appId allowlist, not here.
  */
 export function derivePayIdPreferredTokens(
   destTokenSymbol: string,
@@ -135,7 +176,9 @@ export function derivePayIdPreferredTokens(
 } {
   const preferredSymbol =
     preferredSymbolOverride ??
-    (destTokenSymbol === TokenSymbol.EURC ? [TokenSymbol.EURC] : [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.USDT0]);
+    (destTokenSymbol === TokenSymbol.EURC
+      ? [TokenSymbol.EURC]
+      : [TokenSymbol.USDC, TokenSymbol.USDT, TokenSymbol.USDT0, ...NATIVE_SYMBOLS]);
   return {
     preferredSymbol,
     preferredTokens: convertPreferredSymbolsToTokens(preferredSymbol, undefined),
@@ -195,6 +238,12 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     roundDecimalString(rawAmountUnitsStr, tokenDecimals),
     tokenDecimals,
   );
+  // Source amount is token-denominated and differs from the destination for
+  // native/cross-chain payments. Preserve the API quote without Number()
+  // coercion so a payment is never silently rounded.
+  const sourceAmountUnitsStr = walletOption?.required
+    ? resolveSourceAmountUnits(walletOption.required)
+    : undefined;
 
   // --------------------------------------------------
   // Preferred payment method (what user will pay with)
@@ -206,9 +255,14 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     preferredChain = walletOption.required.token.chainId;
     preferredTokenAddress = walletOption.required.token.token;
 
-    // Special-case: Solana wallet should pay into Rozo Solana bridge chain
-    if (preferredChain === rozoSolana.chainId) {
+    // The proxy uses 501 locally; Intents quotes native SOL on 900.
+    if (
+      preferredChain === solana.chainId &&
+      walletOption.required.token.symbol === "SOL" &&
+      normalizeSourceTokenAddress(preferredChain, preferredTokenAddress) === solanaSOL.token
+    ) {
       preferredChain = rozoSolana.chainId;
+      preferredTokenAddress = solanaSOL.token;
     }
   } else {
     // When no explicit wallet option is given, default preferred chain/token
@@ -268,6 +322,7 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
     preferredChain,
     preferredTokenAddress,
     toUnits: formatUnits(rawAmountAtomic, tokenDecimals),
+    ...(sourceAmountUnitsStr ? { preferredAmountUnits: sourceAmountUnitsStr } : {}),
     ...(isAbleToIncludeReceiverMemo && payParams.receiverMemo
       ? { receiverMemo: payParams.receiverMemo }
       : {}),
@@ -285,9 +340,14 @@ export function buildCreatePaymentPayload(ctx: CreatePaymentContext): CreateNewP
 /**
  * Minimal wallet-option shape the deposit-address flow fabricates from the
  * selected source option + its fee quote. Only the fields
- * `handleCreateRozoPayment` actually reads (create: required.token +
- * fees.usd; checkout: required.token + required.usd) — balance/minimumRequired
- * are meaningless for deposits (no wallet connected yet) and stay unset.
+ * `handleCreateRozoPayment` / checkout actually read (`required.token`,
+ * `required.usd`, `fees.usd`) — balance/minimumRequired are meaningless for
+ * deposits (no wallet connected yet) and stay unset.
+ *
+ * No `required.amount`: deposits carry no source-token amount, so
+ * `resolveSourceAmountUnits` can only fall back to USD. That is correct for
+ * $1-pegged stablecoins but wrong for native sources, which is why
+ * `payWithDepositAddress` blocks native deposits outright (POS).
  */
 export interface DepositWalletOption {
   required: {
@@ -309,10 +369,7 @@ export function buildDepositWalletOption(
         token: option.token.token,
         symbol: option.token.symbol,
       },
-      usd:
-        fees?.source?.amount != null
-          ? parseFloat(fees.source.amount)
-          : fallbackUsd,
+      usd: fees?.source?.amount != null ? parseFloat(fees.source.amount) : fallbackUsd,
     },
     fees: {
       usd: fees?.source?.fee != null ? parseFloat(fees.source.fee) : 0,
@@ -376,6 +433,24 @@ export function withWalletSourceQuote<T extends RozoPayHydratedOrderWithOrg>(
   };
 }
 
+/**
+ * The stored payment/checkout breakdown, when it already quotes the selected
+ * source token. PaymentBreakdown should render this instead of re-quoting via
+ * getFee: the quote is redundant, and for native sources getFee can return a
+ * different `source.amount` than the payment the wallet will actually sign
+ * (wallet confirmation reads the payment's `source.amount`, never getFee).
+ */
+export function resolveWalletSourceBreakdown(
+  order: WalletSourceQuoteOrder | null | undefined,
+  token: { chainId: number; token: string },
+): FeeResponseData | undefined {
+  const quote = order?.sourceQuote;
+  const breakdown = order?.paymentBreakdown;
+  if (!quote || !breakdown) return undefined;
+  if (!isSamePaymentSource({ source: quote }, token)) return undefined;
+  return breakdown;
+}
+
 /** Amount authorized by payment/checkout, validated against selected source token. */
 export function resolveWalletPaymentAmount(
   order: WalletSourceQuoteOrder,
@@ -387,19 +462,17 @@ export function resolveWalletPaymentAmount(
   }
 
   const token = option.required.token;
-  const normalizeChainId = (chainId: number) => {
-    if (chainId === solana.chainId) return rozoSolana.chainId;
-    if (chainId === stellar.chainId) return rozoStellar.chainId;
-    return chainId;
-  };
-  const normalizeTokenAddress = (address: string) =>
-    address.startsWith("0x") ? getAddress(address) : address;
+  const normalizeChainId = (chainId: number) =>
+    chainId === stellar.chainId ? rozoStellar.chainId : sourceTokenChainId(chainId);
   if (
     normalizeChainId(quote.chainId) !== normalizeChainId(token.chainId) ||
-    normalizeTokenAddress(quote.tokenAddress) !== normalizeTokenAddress(token.token)
+    normalizeSourceTokenAddress(quote.chainId, quote.tokenAddress) !==
+      normalizeSourceTokenAddress(token.chainId, token.token)
   ) {
     throw new Error("[PAY TOKEN] hydrated source quote does not match selected token");
   }
 
-  return parseUnits(quote.amount, token.decimals);
+  const amount = parseUnits(quote.amount, token.decimals);
+  if (amount <= 0n) throw new Error("[PAY TOKEN] hydrated source quote amount must be positive");
+  return amount;
 }
