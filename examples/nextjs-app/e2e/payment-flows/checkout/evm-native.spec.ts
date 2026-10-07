@@ -1,15 +1,16 @@
 /**
- * Payment flow E2E — Checkout (payId): EVM ETH → Stellar (mainnet, real funds).
+ * Payment flow E2E — Checkout (payId): EVM native (ETH / BNB) → Stellar.
  *
- * Same money movement as the Bridge evm-to-stellar flow, but driven through
- * Checkout mode: the order is created server-side via createPayment() first,
- * returning a payId the SDK pays against. Source: EVM wallet via the MetaMask
- * extension (chainwright). Destination: our Stellar wallet (E2E.stellar.address).
+ * Same money movement as the Bridge evm-native flow, but driven through Checkout
+ * mode: the order is created server-side via createPayment() first, returning a
+ * payId the SDK pays against. Source: EVM wallet via the MetaMask extension
+ * (chainwright). Destination: our Stellar wallet (E2E.stellar.address).
  *
- * THIS TEST MOVES REAL MONEY. Skipped unless E2E_EVM_SEED_PHRASE is set.
+ * THIS TEST MOVES REAL MONEY. Each test is skipped unless E2E_EVM_SEED_PHRASE
+ * and E2E_STELLAR_ADDRESS are set.
  *
  * Setup:  cp .env.e2e.example .env.e2e  →  fill in  →  pnpm setup-wallets
- * Run:    pnpm dev &  →  pnpm test:e2e:checkout-evm-native
+ * Run:    pnpm dev &  →  node e2e/run.cjs checkout-evm-native
  */
 import { testWithChainwright } from "chainwright/core"
 import { metamaskFixture } from "chainwright/metamask"
@@ -24,29 +25,32 @@ import {
 
 const test = testWithChainwright(metamaskFixture())
 
-// ponytail: ETH sentinel address from viem/ethAddress (EIP-7528).
-const ETH_SOURCE_OPTION_ID = "8453-0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+// ponytail: native source sentinels — EIP-7528 (viem/ethAddress).
+const ETH_BASE_SOURCE_OPTION_ID =
+  "8453-0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+const BNB_BSC_SOURCE_OPTION_ID = "56-0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 
-test.describe("Checkout (payId): EVM ETH → Stellar (mainnet, real funds)", () => {
-  test.skip(
-    !E2E.evm.seedPhrase || !E2E.stellar.address,
-    "Set E2E_EVM_SEED_PHRASE and E2E_STELLAR_ADDRESS in .env.e2e"
-  )
-
+test.describe("Checkout (payId): EVM native → Stellar (mainnet, real funds)", () => {
   let getPayId: (() => string | undefined) | undefined
+  let route = "EVM native → Stellar (checkout)"
 
   test.afterEach(async ({}, testInfo) => {
     await reportPayment(testInfo, {
       payId: getPayId?.(),
-      route: "EVM ETH → Stellar (checkout)",
+      route,
       status: testInfo.status,
     })
   })
 
-  test("create a payId then pay it with ETH from EVM to Stellar", async ({
+  test("pay a payId with ETH on Base to Stellar", async ({
     page,
     metamask,
   }) => {
+    test.skip(
+      !E2E.evm.seedPhrase || !E2E.stellar.address,
+      "Set E2E_EVM_SEED_PHRASE and E2E_STELLAR_ADDRESS in .env.e2e"
+    )
+    route = "ETH on Base → Stellar (checkout)"
     getPayId = setupPaymentIdCapture(page)
     // Cached MetaMask profile starts locked — unlock before any popup can appear.
     await metamask.unlock()
@@ -60,7 +64,30 @@ test.describe("Checkout (payId): EVM ETH → Stellar (mainnet, real funds)", () 
       amount: "0.11",
     })
     await payInWithMetaMask(page, metamask, {
-      sourceOptionId: ETH_SOURCE_OPTION_ID,
+      sourceOptionId: ETH_BASE_SOURCE_OPTION_ID,
+    })
+    await waitForPayoutCompleted(page)
+  })
+
+  test("pay a payId with BNB on BSC to Stellar", async ({ page, metamask }) => {
+    test.skip(
+      !E2E.evm.seedPhrase || !E2E.stellar.address,
+      "Set E2E_EVM_SEED_PHRASE and E2E_STELLAR_ADDRESS in .env.e2e"
+    )
+    route = "BNB on BSC → Stellar (checkout)"
+    getPayId = setupPaymentIdCapture(page)
+    await metamask.unlock()
+
+    // BNB (BSC) native source through Checkout. Verified viable by dryrun quote
+    // (source BNB@56, zero address); needs BNB funds on BSC.
+    await startCheckoutPayment(page, {
+      destChain: "Stellar",
+      destToken: "USDC",
+      address: E2E.stellar.address!,
+      amount: "0.11",
+    })
+    await payInWithMetaMask(page, metamask, {
+      sourceOptionId: BNB_BSC_SOURCE_OPTION_ID,
     })
     await waitForPayoutCompleted(page)
   })

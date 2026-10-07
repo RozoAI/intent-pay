@@ -1,14 +1,15 @@
 /**
- * Payment flow E2E — Bridge: Solana SOL → EVM (Base) (mainnet, real funds).
+ * Payment flow E2E — Bridge: Solana SOL → destination (mainnet, real funds).
  *
  * Source: Solana wallet via the Phantom extension (chainwright).
- * Destination: our EVM wallet address (E2E.evm.address).
+ * Destinations: Base / Stellar, per test.
  *
- * THIS TEST MOVES REAL MONEY. Skipped unless E2E_SOLANA_SEED_PHRASE is set.
+ * THIS TEST MOVES REAL MONEY. Each test is skipped unless
+ * E2E_SOLANA_SEED_PHRASE (and the destination address) is set.
  *
  * Setup:  set E2E_SOLANA_SEED_PHRASE (Phantom recovery phrase) in .env.e2e, then
  *         build the cached Phantom profile:  pnpm setup-wallets
- * Run:    pnpm dev &  →  pnpm test:e2e:bridge-solana-native
+ * Run:    pnpm dev &  →  node e2e/run.cjs bridge-solana-native
  */
 import { testWithChainwright } from "chainwright/core"
 import { phantomFixture } from "chainwright/phantom"
@@ -27,37 +28,55 @@ const test = testWithChainwright(phantomFixture())
 // Native SOL is the System Program, never the WSOL mint.
 const SOL_SOURCE_OPTION_ID = "501-11111111111111111111111111111111"
 
-test.describe("Bridge: Solana SOL → Base (mainnet, real funds)", () => {
-  test.skip(
-    !E2E.solana.seedPhrase || !E2E.evm.address,
-    "Set E2E_SOLANA_SEED_PHRASE and E2E_EVM_ADDRESS in .env.e2e"
-  )
-
+test.describe("Bridge: Solana SOL → destination (mainnet, real funds)", () => {
   let getPayId: (() => string | undefined) | undefined
+  let route = "Solana SOL → destination"
 
   test.afterEach(async ({}, testInfo) => {
     await reportPayment(testInfo, {
       payId: getPayId?.(),
-      route: "Solana SOL → EVM (Base)",
+      route,
       status: testInfo.status,
     })
   })
 
-  test("send SOL from Solana to EVM destination", async ({
-    page,
-    phantom,
-    phantomPage,
-  }) => {
+  test("SOL → Base USDC", async ({ page, phantom, phantomPage }) => {
+    test.skip(
+      !E2E.solana.seedPhrase || !E2E.evm.address,
+      "Set E2E_SOLANA_SEED_PHRASE and E2E_EVM_ADDRESS in .env.e2e"
+    )
+    route = "Solana SOL → Base USDC"
     getPayId = setupPaymentIdCapture(page)
     // Cached Phantom profile usually starts unlocked — only unlock if locked.
     await unlockPhantomIfNeeded(phantom, phantomPage)
 
-    // ponytail: native SOL requires ~$1.00 USD minimum. Use 1.05 USDC
-    // (destination amount = USD value) to stay above the threshold with buffer.
+    // ponytail: native SOL requires ~$1.00 USD minimum.
     await startBridgePayment(page, {
       destChain: "Base",
       destToken: "USDC",
       address: E2E.evm.address!,
+      amount: "1.05",
+    })
+    await payInWithPhantom(page, phantom, {
+      sourceOptionId: SOL_SOURCE_OPTION_ID,
+    })
+    await waitForPayoutCompleted(page)
+  })
+
+  test("SOL → Stellar USDC", async ({ page, phantom, phantomPage }) => {
+    test.skip(
+      !E2E.solana.seedPhrase || !E2E.stellar.address,
+      "Set E2E_SOLANA_SEED_PHRASE and E2E_STELLAR_ADDRESS in .env.e2e"
+    )
+    route = "Solana SOL → Stellar USDC"
+    getPayId = setupPaymentIdCapture(page)
+    await unlockPhantomIfNeeded(phantom, phantomPage)
+
+    // Destination variety for a native SOL source (previously only Base).
+    await startBridgePayment(page, {
+      destChain: "Stellar",
+      destToken: "USDC",
+      address: E2E.stellar.address!,
       amount: "1.05",
     })
     await payInWithPhantom(page, phantom, {
