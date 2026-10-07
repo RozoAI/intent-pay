@@ -863,7 +863,8 @@ function CopyableInfo({
       />
       {!isExpired && depAddr?.address && /^0x[0-9a-fA-F]{40}$/.test(depAddr.address) && (
         <AlreadySentHint data-testid="deposit-already-sent">
-          Already sent on another chain? Don&apos;t pay again. We detect it automatically.
+          Already sent USDC/USDT on another chain? Don&apos;t pay again. We detect it
+          automatically. Contact us if it isn&apos;t confirmed within 5 minutes.
         </AlreadySentHint>
       )}
 
