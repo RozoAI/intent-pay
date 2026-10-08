@@ -84,6 +84,20 @@ export default defineConfig({
       timeout: 90_000,
     },
 
+    // ── Wallet-confirmation boundary (NO funds moved) ─────────────────────────
+    // Drives the real MetaMask / Phantom extensions up to the transaction
+    // confirmation popup and then cancels — nothing is ever signed. Reuses the
+    // funded cached profiles only to pass the SDK's balance gate. Headed (the
+    // extensions can't load headless). Standalone: no dependencies, so it runs
+    // alone with `--project=wallet-cancel --no-deps`.
+    {
+      name: "wallet-cancel",
+      testMatch: "**/payment-flows/cancel/*.spec.ts",
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 5 * 60_000,
+    },
+
     // ── EVM → Stellar (real funds) ────────────────────────────────────────────
     // Headed — the MetaMask extension can't load headless. Skipped unless
     // E2E_EVM_SEED_PHRASE is set. Depends on `mocked` so the fast mocked suite

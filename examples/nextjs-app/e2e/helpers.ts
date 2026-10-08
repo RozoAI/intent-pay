@@ -449,6 +449,48 @@ export async function enterDepositAmount(page: Page, amount: string) {
 }
 
 /**
+ * Open the wallet method and connect MetaMask (no token selected yet). Shared
+ * by every MetaMask pay-in variant; the cancel/negative suites also use it to
+ * reach the source-token list without triggering a transaction.
+ */
+export async function connectMetaMask(page: Page, metamask: Metamask) {
+  await page.getByRole("button", { name: /pay with wallet/i }).click()
+  await page.getByRole("button", { name: /metamask/i }).click()
+
+  // Multi-chain wallets show an Ethereum/Solana chain picker — but only when the
+  // payment allows both chains. When only EVM is offered (e.g. some Checkout
+  // payIds) the SDK connects directly and skips this screen, so the pick is
+  // best-effort.
+  await clickIfVisible(page.getByRole("button", { name: /ethereum/i }))
+
+  // chainwright's connectToApp() can throw a benign "target closed" when
+  // MetaMask auto-closes the popup right after Connect (v13.x). The options-list
+  // assertion (in selectSourceToken) is the real proof the wallet connected, so
+  // swallow only that.
+  try {
+    await metamask.connectToApp()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (!/closed/i.test(msg)) throw err
+  }
+}
+
+/**
+ * Select the source token option. Selecting it is what makes the SDK open the
+ * wallet confirmation popup (auto-transfer fires right after selection), so
+ * every caller must be ready for a popup to appear next.
+ *
+ * The source token list can re-render as the connection settles — wait for the
+ * specific option, not just the list container.
+ */
+export async function selectSourceToken(page: Page, sourceOptionId: string) {
+  const sourceOption = page.getByTestId(`rozopay-option-${sourceOptionId}`)
+  await expect(sourceOption).toBeVisible({ timeout: 120_000 })
+  await expect(sourceOption).toBeEnabled({ timeout: 10_000 })
+  await sourceOption.click()
+}
+
+/**
  * Pay in via the MetaMask extension (chainwright): pick wallet + chain, connect,
  * select the source token, and confirm the on-chain transaction.
  *
@@ -461,37 +503,52 @@ export async function payInWithMetaMask(
   metamask: Metamask,
   opts: { sourceOptionId: string; amount?: string }
 ) {
-  await page.getByRole("button", { name: /pay with wallet/i }).click()
-  await page.getByRole("button", { name: /metamask/i }).click()
-
-  // Multi-chain wallets show an Ethereum/Solana chain picker — but only when the
-  // payment allows both chains. When only EVM is offered (e.g. some Checkout
-  // payIds) the SDK connects directly and skips this screen, so the pick is
-  // best-effort.
-  await clickIfVisible(page.getByRole("button", { name: /ethereum/i }))
-
-  // chainwright's connectToApp() can throw a benign "target closed" when
-  // MetaMask auto-closes the popup right after Connect (v13.x). The options-list
-  // assertion below is the real proof the wallet connected, so swallow only that.
-  try {
-    await metamask.connectToApp()
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    if (!/closed/i.test(msg)) throw err
-  }
-
-  // Source token list can re-render as the connection settles — wait for the
-  // specific option, not just the list container.
-  const sourceOption = page.getByTestId(`rozopay-option-${opts.sourceOptionId}`)
-  await expect(sourceOption).toBeVisible({ timeout: 120_000 })
-  await expect(sourceOption).toBeEnabled({ timeout: 10_000 })
-  await sourceOption.click()
+  await connectMetaMask(page, metamask)
+  await selectSourceToken(page, opts.sourceOptionId)
 
   if (opts.amount != null) {
     await enterDepositAmount(page, opts.amount)
   }
 
   await metamask.confirmTransaction()
+}
+
+/**
+ * Drive MetaMask all the way to its transaction-confirmation popup and STOP
+ * there — the transaction is never signed or submitted. Returns the popup page
+ * so the caller can assert on it and reject.
+ *
+ * Use this for cancel/negative coverage: real funds are required to pass the
+ * SDK's balance gate, but none are spent.
+ */
+export async function payInWithMetaMaskToWallet(
+  page: Page,
+  metamask: Metamask,
+  opts: { sourceOptionId: string; amount?: string }
+): Promise<Page> {
+  await connectMetaMask(page, metamask)
+  await selectSourceToken(page, opts.sourceOptionId)
+
+  if (opts.amount != null) {
+    await enterDepositAmount(page, opts.amount)
+  }
+
+  return waitForMetaMaskConfirmation(page, metamask)
+}
+
+/**
+ * Wait until MetaMask's transaction-confirmation popup is showing and its
+ * cancel button is actionable. Returns the popup page; does NOT confirm.
+ */
+export async function waitForMetaMaskConfirmation(
+  page: Page,
+  metamask: Metamask
+): Promise<Page> {
+  const prompt = await metamask.promptPage(page.context())
+  await expect(prompt.getByTestId("confirm-footer-cancel-button")).toBeEnabled({
+    timeout: 60_000,
+  })
+  return prompt
 }
 
 /**
@@ -508,10 +565,32 @@ export async function unlockPhantomIfNeeded(
 }
 
 /**
+ * Open the wallet method and connect Phantom (no token selected yet). Mirrors
+ * connectMetaMask; Phantom is multi-chain, so a chain-selection step appears
+ * after picking the wallet.
+ */
+export async function connectPhantom(page: Page, phantom: Phantom) {
+  await page.getByRole("button", { name: /pay with wallet/i }).click()
+  await page.getByRole("button", { name: /phantom/i }).click()
+  // Phantom supports EVM + Solana → the SDK shows a chain picker, but only when
+  // both chains are offered. Best-effort: skip if it connects directly.
+  await clickIfVisible(page.getByRole("button", { name: /solana/i }))
+
+  // connectToApp() can throw a benign "target closed" when Phantom auto-closes
+  // the popup right after approval. The options-list assertion (in
+  // selectSourceToken) is the real proof the wallet connected, so swallow only
+  // that.
+  try {
+    await phantom.connectToApp()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (!/closed/i.test(msg)) throw err
+  }
+}
+
+/**
  * Pay in via the Phantom extension (chainwright): pick wallet + Solana chain,
  * connect, select the source token, and confirm the on-chain transaction.
- * Mirrors payInWithMetaMask — Phantom is multi-chain, so a chain-selection step
- * appears after picking the wallet.
  *
  * Pass `amount` for Deposit flows: after the token is selected the SDK shows an
  * in-modal amount screen (SOLANA_SELECT_AMOUNT) before the wallet confirmation,
@@ -522,34 +601,124 @@ export async function payInWithPhantom(
   phantom: Phantom,
   opts: { sourceOptionId: string; amount?: string }
 ) {
-  await page.getByRole("button", { name: /pay with wallet/i }).click()
-  await page.getByRole("button", { name: /phantom/i }).click()
-  // Phantom supports EVM + Solana → the SDK shows a chain picker, but only when
-  // both chains are offered. Best-effort: skip if it connects directly.
-  await clickIfVisible(page.getByRole("button", { name: /solana/i }))
-
-  // connectToApp() can throw a benign "target closed" when Phantom auto-closes
-  // the popup right after approval. The options-list assertion below is the real
-  // proof the wallet connected, so swallow only that.
-  try {
-    await phantom.connectToApp()
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    if (!/closed/i.test(msg)) throw err
-  }
-
-  // Source token list can re-render as the connection settles — wait for the
-  // specific option, not just the list container.
-  const sourceOption = page.getByTestId(`rozopay-option-${opts.sourceOptionId}`)
-  await expect(sourceOption).toBeVisible({ timeout: 120_000 })
-  await expect(sourceOption).toBeEnabled({ timeout: 10_000 })
-  await sourceOption.click()
+  await connectPhantom(page, phantom)
+  await selectSourceToken(page, opts.sourceOptionId)
 
   if (opts.amount != null) {
     await enterDepositAmount(page, opts.amount)
   }
 
   await phantom.confirmTransaction()
+}
+
+/**
+ * Drive Phantom all the way to its transaction-confirmation popup and STOP
+ * there — no signature, no submission. Returns the popup page so the caller can
+ * assert on it and reject. Phantom variant of payInWithMetaMaskToWallet.
+ */
+export async function payInWithPhantomToWallet(
+  page: Page,
+  phantom: Phantom,
+  opts: { sourceOptionId: string; amount?: string }
+): Promise<Page> {
+  await connectPhantom(page, phantom)
+  await selectSourceToken(page, opts.sourceOptionId)
+
+  if (opts.amount != null) {
+    await enterDepositAmount(page, opts.amount)
+  }
+
+  return waitForPhantomConfirmation(page, phantom)
+}
+
+/**
+ * Wait until Phantom's transaction-confirmation popup is showing and its cancel
+ * button is actionable. Returns the popup page; does NOT confirm.
+ */
+export async function waitForPhantomConfirmation(
+  page: Page,
+  phantom: Phantom
+): Promise<Page> {
+  const prompt = await phantom.promptPage(page.context())
+  await prompt
+    .getByTestId("approve-transaction")
+    .waitFor({ state: "attached", timeout: 60_000 })
+  await expect(prompt.getByTestId("secondary-button")).toBeEnabled({
+    timeout: 60_000,
+  })
+  return prompt
+}
+
+/**
+ * Reject the pending transaction in the wallet popup (the "user cancelled" bad
+ * case), then assert the SDK landed on its Payment Cancelled state. Never
+ * submits anything.
+ */
+export async function rejectAndExpectCancelled(
+  page: Page,
+  wallet: { rejectTransaction(): Promise<void> }
+) {
+  await wallet.rejectTransaction()
+  await expectPaymentCancelled(page)
+}
+
+/**
+ * The SDK's post-rejection state (`PayWithToken.tsx`, PayState.RequestCancelled):
+ * a "Payment Cancelled" heading and a "Retry Payment" button — and crucially no
+ * completion state.
+ */
+export async function expectPaymentCancelled(page: Page) {
+  // Scope to the modal: the app's event log can also render this text, which
+  // would trip Playwright's strict mode on a page-wide locator.
+  const modal = page.getByTestId("rozopay-modal")
+  await expect(modal.getByText("Payment Cancelled", { exact: true })).toBeVisible(
+    { timeout: 30_000 }
+  )
+  await expect(
+    modal.getByRole("button", { name: /retry payment/i })
+  ).toBeVisible()
+  await expect(
+    modal.getByText("Payment Completed", { exact: true })
+  ).toBeHidden()
+}
+
+/** Click "Retry Payment" after a cancellation; a new wallet popup follows. */
+export async function clickRetryPayment(page: Page) {
+  await page
+    .getByTestId("rozopay-modal")
+    .getByRole("button", { name: /retry payment/i })
+    .click()
+}
+
+/**
+ * Assert the source-token option advertises the expected amount (the SDK formats
+ * it into the option title, e.g. "0.02 USDC on Base"). This is the app-computed
+ * amount the wallet will be asked to sign — asserted without inspecting the
+ * wallet's version-specific DOM.
+ */
+export async function expectSourceAmount(
+  page: Page,
+  sourceOptionId: string,
+  amount: string
+) {
+  const sourceOption = page.getByTestId(`rozopay-option-${sourceOptionId}`)
+  await expect(sourceOption).toBeVisible({ timeout: 120_000 })
+  await expect(sourceOption).toContainText(amount)
+}
+
+/**
+ * Assert the source-token option is disabled with the SDK's low-balance reason
+ * (`Balance too low: …`) — the insufficient-balance bad case. No wallet popup
+ * should ever open for a disabled option.
+ */
+export async function expectSourceInsufficient(
+  page: Page,
+  sourceOptionId: string
+) {
+  const sourceOption = page.getByTestId(`rozopay-option-${sourceOptionId}`)
+  await expect(sourceOption).toBeVisible({ timeout: 120_000 })
+  await expect(sourceOption).toBeDisabled()
+  await expect(sourceOption).toContainText(/balance too low/i)
 }
 
 /**

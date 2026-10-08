@@ -15,6 +15,7 @@ pnpm dev
 # 4. Run tests (separate terminal)
 pnpm test:e2e                      # full suite: mocked → bridge → checkout → deposit
 pnpm test:e2e:mocked               # non-payment tests only (no secrets needed)
+pnpm test:e2e:wallet-cancel        # wallet-confirmation boundary: amount, cancel, retry (no funds moved)
 pnpm test:e2e:stellar-to-evm       # one flow, isolated (--no-deps)
 pnpm test:e2e:checkout-evm-to-solana  # one checkout flow, isolated
 ```
