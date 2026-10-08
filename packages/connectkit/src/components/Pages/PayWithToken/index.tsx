@@ -17,6 +17,10 @@ import {
   PAYMENT_REQUEST_SCOPE,
 } from "../../../utils/paymentRequestScope";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
+import {
+  isInsufficientNativeGasError,
+  noGasTelemetry,
+} from "../../../payment/erc20GasPrecheck";
 import { useAnalytics } from "../../../provider/AnalyticsProvider";
 import { buildFeeQuoteParams, getCachedFee } from "../../../utils/feeCache";
 import { resolveSourceAmountUnits, resolveWalletSourceBreakdown, type WalletSourceQuoteOrder } from "../../../payment/createPaymentPayload";
@@ -38,6 +42,7 @@ enum PayState {
   RequestSuccessful = "Payment Successful",
   WaitingForWallet = "Wallet Confirmation Pending",
   RequestFailed = "Payment Failed",
+  NetworkFeeNeeded = "Network Fee Needed",
 }
 
 const PayWithToken: React.FC = () => {
@@ -71,6 +76,8 @@ const PayWithToken: React.FC = () => {
   const [txURL, setTxURL] = useState<string | undefined>();
   const [feeData, setFeeData] = useState<FeeResponseData | null>(null);
   const [feeLoading, setFeeLoading] = useState(false);
+  const [noGasMessage, setNoGasMessage] = useState<string | null>(null);
+  const [noGasSymbol, setNoGasSymbol] = useState<string | null>(null);
 
   useEffect(() => {
     if (rozoPaymentState === "error") {
@@ -122,7 +129,7 @@ const PayWithToken: React.FC = () => {
   };
 
   const handleTransfer = useCallback(
-    async (option: WalletPaymentOption) => {
+    async (option: WalletPaymentOption, opts?: { skipGasPrecheck?: boolean }) => {
       if (transferInFlightRef.current) {
         log("[PayWithToken] transfer already in flight");
         return;
@@ -254,6 +261,7 @@ const PayWithToken: React.FC = () => {
         }
 
         setFeeData(quoteData);
+        setNoGasMessage(null);
         setPayState(PayState.WaitingForConfirmation);
 
         const result = await payWithToken(
@@ -268,6 +276,7 @@ const PayWithToken: React.FC = () => {
             },
           },
           store as any,
+          opts,
         );
         const completedState = store.getState();
         const canonicalBreakdown =
@@ -319,7 +328,7 @@ const PayWithToken: React.FC = () => {
           const switchSuccessful = await trySwitchingChain(option);
           if (switchSuccessful) {
             try {
-              const retryResult = await payWithToken(option, store as any);
+              const retryResult = await payWithToken(option, store as any, opts);
               setTxURL(
                 getChainExplorerTxUrl(
                   option.required.token.chainId,
@@ -367,6 +376,18 @@ const PayWithToken: React.FC = () => {
               throw retryError;
             }
           }
+        }
+        if (isInsufficientNativeGasError(e)) {
+          // Blocked before the wallet opened: the payer cannot pay the
+          // network fee. Not a payment failure; tell them why.
+          capture(ROZO_EVENTS.PAYMENT_BLOCKED_NO_GAS, {
+            payment_id: rozoPaymentId ?? order?.externalId,
+            ...noGasTelemetry(e.shortfall),
+          });
+          setNoGasMessage(e.message);
+          setNoGasSymbol(e.shortfall.nativeSymbol);
+          setPayState(PayState.NetworkFeeNeeded);
+          return;
         }
         capture(ROZO_EVENTS.PAYMENT_FAILED, {
           payment_id: rozoPaymentId ?? order?.externalId,
@@ -451,7 +472,11 @@ const PayWithToken: React.FC = () => {
         ) : (
           <ModalH1>{payState}</ModalH1>
         )}
-        {(payState !== PayState.RequestCancelled || (feeData && !feeLoading)) && (
+        {payState === PayState.NetworkFeeNeeded && noGasMessage && (
+          <ModalBody>{noGasMessage}</ModalBody>
+        )}
+        {payState !== PayState.NetworkFeeNeeded &&
+          (payState !== PayState.RequestCancelled || (feeData && !feeLoading)) && (
           <PaymentBreakdown
             paymentOption={{
               ...selectedTokenOption,
@@ -471,6 +496,21 @@ const PayWithToken: React.FC = () => {
           <Button onClick={() => handleTransfer(selectedTokenOption)}>
             Retry Payment
           </Button>
+        )}
+        {payState === PayState.NetworkFeeNeeded && (
+          <>
+            <Button variant="primary" onClick={() => handleTransfer(selectedTokenOption)}>
+              I added {noGasSymbol ?? "gas"}, check again
+            </Button>
+            <Button
+              variant="tertiary"
+              onClick={() =>
+                handleTransfer(selectedTokenOption, { skipGasPrecheck: true })
+              }
+            >
+              Try anyway
+            </Button>
+          </>
         )}
         {payState === PayState.RequestFailed && (
           <Button onClick={handleContactClick}>Contact Support</Button>
