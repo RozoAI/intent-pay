@@ -117,7 +117,11 @@ jobs:
       #
       # Intentionally NOT cached with actions/cache: the cache holds the imported
       # seed phrases, and a persisted cache artifact would leak them.
+      #
+      # Skipped for the mocked scope: setup-wallets onboards both wallets from
+      # the seed secrets, which are empty on a secret-free mocked run.
       - name: Build wallet cache
+        if: ${{ (github.event.inputs.scope || 'full') != 'mocked' }}
         working-directory: examples/nextjs-app
         run: xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm run setup-wallets
 
@@ -126,10 +130,27 @@ jobs:
         env:
           SCOPE: ${{ github.event.inputs.scope || 'full' }}
         run: |
-          set -euo pipefail
+          # Deliberately NOT `set -e`: a subset runs several independent flows,
+          # and one failure must not abort the rest (the full run's single
+          # Playwright invocation already reports every failure).
+          set +e
+          set -o pipefail
+
           # xvfb-run gives the headed Chromium a virtual display. Wrapped in a
           # function so the flag is never word-split through a variable.
           xv() { xvfb-run -a "$@"; }
+
+          # Run each project via the runner (--no-deps), continue past failures,
+          # and return non-zero if any failed.
+          run_projects() {
+            local failed=0
+            for p in "$@"; do
+              echo "::group::project $p"
+              xv node e2e/run.cjs "$p" || failed=1
+              echo "::endgroup::"
+            done
+            return "$failed"
+          }
 
           case "$SCOPE" in
             full)
@@ -138,43 +159,37 @@ jobs:
               xv pnpm test:e2e
               ;;
             mocked)
-              # No secrets needed for the mocked suite.
-              SKIP_ENV_VALIDATION=1 xv pnpm test:e2e:mocked
+              # No secrets needed. test:e2e:mocked already sets
+              # SKIP_ENV_VALIDATION=1, and the mocked project is headless — no
+              # xvfb required.
+              pnpm test:e2e:mocked
               ;;
             bridge)
-              for p in evm-to-stellar stellar-to-evm stellar-to-solana \
-                       solana-to-stellar solana-to-evm evm-to-solana \
-                       bridge-evm-native bridge-solana-native bridge-stellar-native; do
-                xv node e2e/run.cjs "$p"
-              done
+              run_projects evm-to-stellar stellar-to-evm stellar-to-solana \
+                solana-to-stellar solana-to-evm evm-to-solana \
+                bridge-evm-native bridge-solana-native bridge-stellar-native
               ;;
             checkout)
-              for p in checkout-evm-to-stellar checkout-evm-to-solana \
-                       checkout-stellar-to-evm checkout-stellar-to-solana \
-                       checkout-solana-to-stellar checkout-solana-to-evm \
-                       checkout-evm-native checkout-solana-native \
-                       checkout-stellar-native; do
-                xv node e2e/run.cjs "$p"
-              done
+              run_projects checkout-evm-to-stellar checkout-evm-to-solana \
+                checkout-stellar-to-evm checkout-stellar-to-solana \
+                checkout-solana-to-stellar checkout-solana-to-evm \
+                checkout-evm-native checkout-solana-native \
+                checkout-stellar-native
               ;;
             merchant)
-              for p in merchant-evm merchant-solana merchant-stellar \
-                       merchant-evm-native merchant-solana-native \
-                       merchant-stellar-native merchant-polygon-native \
-                       merchant-evm-pay-to-address \
-                       merchant-evm-native-pay-to-address \
-                       merchant-solana-pay-to-address; do
-                xv node e2e/run.cjs "$p"
-              done
+              run_projects merchant-evm merchant-solana merchant-stellar \
+                merchant-evm-native merchant-solana-native \
+                merchant-stellar-native merchant-polygon-native \
+                merchant-evm-pay-to-address \
+                merchant-evm-native-pay-to-address \
+                merchant-solana-pay-to-address
               ;;
             deposit)
-              for p in deposit-stellar-to-evm deposit-stellar-to-solana \
-                       deposit-evm-to-stellar deposit-evm-to-solana \
-                       deposit-solana-to-stellar deposit-solana-to-evm \
-                       deposit-evm-native deposit-solana-native \
-                       deposit-stellar-native; do
-                xv node e2e/run.cjs "$p"
-              done
+              run_projects deposit-stellar-to-evm deposit-stellar-to-solana \
+                deposit-evm-to-stellar deposit-evm-to-solana \
+                deposit-solana-to-stellar deposit-solana-to-evm \
+                deposit-evm-native deposit-solana-native \
+                deposit-stellar-native
               ;;
             *)
               echo "Unknown scope: $SCOPE" >&2
@@ -182,15 +197,22 @@ jobs:
               ;;
           esac
 
-      # Failure-only. WARNING: a Playwright trace embeds page state, which for the
-      # Stellar flows includes the injected secret key. On a PUBLIC repo, download
-      # and delete this artifact immediately, or drop the trace in the config.
+      # Failure-only, and deliberately EXCLUDES test-results/: a Playwright trace
+      # embeds page state, which for the Stellar flows includes the injected
+      # secret key, and the always-on video records every run. `test-results/`
+      # holds both (traces + videos + failure screenshots), so it is not uploaded
+      # — the HTML report summarises pass/fail without carrying the trace. Keep
+      # retention short as defence in depth.
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-chainwright-report
-          path: |
-            examples/nextjs-app/playwright-report
-            examples/nextjs-app/test-results
-          retention-days: 7
+          path: examples/nextjs-app/playwright-report
+          retention-days: 1
+
+      # The runner is ephemeral, but the wallet cache holds the imported seed
+      # phrases — wipe it rather than leave it for a later step to publish.
+      - name: Scrub wallet cache
+        if: always()
+        run: rm -rf examples/nextjs-app/.wallet-cache examples/nextjs-app/test-results
