@@ -321,6 +321,21 @@ const PayWithToken: React.FC = () => {
         // Abort = user navigated away (Back / reset). Not a payment failure.
         if (isAbortError(e)) return;
 
+        // Blocked before the wallet opened: the payer cannot pay the network
+        // fee. Not a payment failure; tell them why.
+        const showNoGas = (err: unknown): boolean => {
+          if (!isInsufficientNativeGasError(err)) return false;
+          capture(ROZO_EVENTS.PAYMENT_BLOCKED_NO_GAS, {
+            payment_id: rozoPaymentId ?? order?.externalId,
+            ...noGasTelemetry(err.shortfall),
+          });
+          setNoGasMessage(err.message);
+          setNoGasSymbol(err.shortfall.nativeSymbol);
+          setPayState(PayState.NetworkFeeNeeded);
+          return true;
+        };
+        if (showNoGas(e)) return;
+
         if (e?.name === "ConnectorChainMismatchError") {
           // Workaround for Rainbow wallet bug -- user is able to switch chain without
           // the wallet updating the chain ID for wagmi.
@@ -369,6 +384,7 @@ const PayWithToken: React.FC = () => {
               }
               return; // Payment handled after switching chain
             } catch (retryError) {
+              if (showNoGas(retryError)) return;
               console.error(
                 "Failed to pay with token after switching chain",
                 retryError,
@@ -376,18 +392,6 @@ const PayWithToken: React.FC = () => {
               throw retryError;
             }
           }
-        }
-        if (isInsufficientNativeGasError(e)) {
-          // Blocked before the wallet opened: the payer cannot pay the
-          // network fee. Not a payment failure; tell them why.
-          capture(ROZO_EVENTS.PAYMENT_BLOCKED_NO_GAS, {
-            payment_id: rozoPaymentId ?? order?.externalId,
-            ...noGasTelemetry(e.shortfall),
-          });
-          setNoGasMessage(e.message);
-          setNoGasSymbol(e.shortfall.nativeSymbol);
-          setPayState(PayState.NetworkFeeNeeded);
-          return;
         }
         capture(ROZO_EVENTS.PAYMENT_FAILED, {
           payment_id: rozoPaymentId ?? order?.externalId,
