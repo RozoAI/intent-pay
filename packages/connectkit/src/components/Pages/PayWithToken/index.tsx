@@ -17,7 +17,10 @@ import {
   PAYMENT_REQUEST_SCOPE,
 } from "../../../utils/paymentRequestScope";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
+import { resolveChainObject } from "../../../defaultConfig";
 import {
+  formatWalletNoGasMessage,
+  isInsufficientFundsError,
   isInsufficientNativeGasError,
   noGasTelemetry,
 } from "../../../payment/erc20GasPrecheck";
@@ -50,6 +53,7 @@ const PayWithToken: React.FC = () => {
   const { triggerResize, paymentState, setRoute, log } = usePayContext();
   const {
     payWithToken,
+    precheckErc20WalletGas,
     setSenderAddress,
     selectedTokenOption,
     walletPaymentOptions,
@@ -87,8 +91,14 @@ const PayWithToken: React.FC = () => {
   }, [rozoPaymentState]);
 
   const setPayState = (state: PayState) => {
-    if (state === payState) return;
-    setPayStateInner(state);
+    // Compare against the *current* state inside the updater, not the `payState`
+    // closed over by render. `handleTransfer` is memoized with a short dep list,
+    // so it can hold a `setPayState` from an older render; guarding on that
+    // stale value silently dropped real transitions (e.g. NetworkFeeNeeded after
+    // a wallet-rejected retry), leaving the UI stuck on "Waiting for
+    // Confirmation". React bails out when the updater returns the same value, so
+    // returning `prev` keeps the original no-op-on-equal behaviour.
+    setPayStateInner((prev) => (prev === state ? prev : state));
     log(`[PayWithToken] payState: ${state}`);
     // (trpc as TrpcClient).nav.mutate({
     //   action: "pay-with-token-state",
@@ -136,6 +146,44 @@ const PayWithToken: React.FC = () => {
       }
       transferInFlightRef.current = true;
       let attemptId: string | undefined;
+
+      // Blocked before the wallet opened: the payer cannot pay the network
+      // fee. Not a payment failure; tell them why.
+      const showNoGas = (err: unknown): boolean => {
+        if (!isInsufficientNativeGasError(err)) return false;
+        capture(ROZO_EVENTS.PAYMENT_BLOCKED_NO_GAS, {
+          payment_id: rozoPaymentId ?? order?.externalId,
+          ...noGasTelemetry(err.shortfall),
+        });
+        setNoGasMessage(err.message);
+        setNoGasSymbol(err.shortfall.nativeSymbol);
+        setPayState(PayState.NetworkFeeNeeded);
+        return true;
+      };
+
+      // The wallet itself rejected the transfer for insufficient native funds.
+      // The lenient precheck cannot model the wallet's maxFeePerGas buffer, so
+      // this is where that gap surfaces. Same treatment, no exact amounts.
+      const showWalletNoGas = (err: unknown): boolean => {
+        if (!isInsufficientFundsError(err)) return false;
+        const nativeSymbol =
+          resolveChainObject(option.required.token.chainId)?.nativeCurrency
+            .symbol ?? "gas";
+        capture(ROZO_EVENTS.PAYMENT_BLOCKED_NO_GAS, {
+          payment_id: rozoPaymentId ?? order?.externalId,
+          chain: option.required.token.chainId,
+          token: option.required.token.symbol,
+          native_symbol: nativeSymbol,
+          source: "wallet_error",
+        });
+        setNoGasMessage(
+          formatWalletNoGasMessage(nativeSymbol, option.required.token.symbol),
+        );
+        setNoGasSymbol(nativeSymbol);
+        setPayState(PayState.NetworkFeeNeeded);
+        return true;
+      };
+
       try {
         // Read the freshest order straight from the store instead of the React
       // closure snapshot. For payId mode this is the getPayment-derived order
@@ -170,6 +218,18 @@ const PayWithToken: React.FC = () => {
               ? String(order.destFinalCallTokenAmount.usd)
               : undefined,
       });
+      // Native-gas precheck runs BEFORE the chain switch so a payer holding no
+      // gas coin never sees a switch/transfer wallet popup. Reads use an
+      // explicit chainId, so they do not need the wallet on the target chain.
+      if (!opts?.skipGasPrecheck) {
+        try {
+          await precheckErc20WalletGas(option);
+        } catch (precheckError) {
+          if (showNoGas(precheckError)) return;
+          throw precheckError;
+        }
+      }
+
       // Switch chain if necessary
       setPayState(PayState.PreparingTransaction);
       const switchChain = await trySwitchingChain(option);
@@ -321,20 +381,8 @@ const PayWithToken: React.FC = () => {
         // Abort = user navigated away (Back / reset). Not a payment failure.
         if (isAbortError(e)) return;
 
-        // Blocked before the wallet opened: the payer cannot pay the network
-        // fee. Not a payment failure; tell them why.
-        const showNoGas = (err: unknown): boolean => {
-          if (!isInsufficientNativeGasError(err)) return false;
-          capture(ROZO_EVENTS.PAYMENT_BLOCKED_NO_GAS, {
-            payment_id: rozoPaymentId ?? order?.externalId,
-            ...noGasTelemetry(err.shortfall),
-          });
-          setNoGasMessage(err.message);
-          setNoGasSymbol(err.shortfall.nativeSymbol);
-          setPayState(PayState.NetworkFeeNeeded);
-          return true;
-        };
         if (showNoGas(e)) return;
+        if (showWalletNoGas(e)) return;
 
         if (e?.name === "ConnectorChainMismatchError") {
           // Workaround for Rainbow wallet bug -- user is able to switch chain without
@@ -385,6 +433,7 @@ const PayWithToken: React.FC = () => {
               return; // Payment handled after switching chain
             } catch (retryError) {
               if (showNoGas(retryError)) return;
+              if (showWalletNoGas(retryError)) return;
               console.error(
                 "Failed to pay with token after switching chain",
                 retryError,

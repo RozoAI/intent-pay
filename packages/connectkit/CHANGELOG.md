@@ -16,8 +16,27 @@ All notable changes to `@rozoai/intent-pay` (connectkit) are documented in this 
   `auxiliaryFunds` are never blocked, and "Try anyway" bypasses it.
 - `payWithToken` accepts an optional third `{ skipGasPrecheck?: boolean }`
   argument (backward compatible).
+- The native-gas precheck now runs **before** the wallet chain switch, so a
+  payer with no gas coin no longer sees a chain-switch (or transfer) wallet
+  prompt at all. Every balance / gas-price / bytecode read passes an explicit
+  `chainId`, so it does not need the wallet on the target chain.
+- A wallet-side "insufficient funds for gas" rejection is now classified
+  (`isInsufficientFundsError`, walking viem's nested `cause` chain) and routed
+  to the same "Network Fee Needed" screen with an explanatory message, instead
+  of a silent "Payment Cancelled". This covers the gap the lenient precheck
+  cannot: wallets apply a larger `maxFeePerGas` buffer than `eth_gasPrice`.
+- `PayWithToken` state transitions no longer go through a stale `payState`
+  closure guard. That guard could silently drop a transition (e.g. back to
+  "Network Fee Needed") when `handleTransfer` held a `setPayState` from an older
+  render, leaving the UI stuck on "Waiting for Confirmation".
 
 ### Changed
+
+- `PaymentState` exposes `precheckErc20WalletGas(walletOption)`, and
+  `payment/erc20GasPrecheck` takes an optional `debug` sink so the SDK's `log`
+  can trace why a check passed, was skipped (fail open) or blocked. Also
+  exports `isInsufficientFundsError` and `formatWalletNoGasMessage`. All
+  additive and backward compatible.
 
 - `hydrateOrder` and `hydrateOrderRozo` on `UseRozoPay` accept an optional third
   `feeType?: FeeType` parameter. The parameter is optional and backward

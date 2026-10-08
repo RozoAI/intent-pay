@@ -5,6 +5,8 @@ import {
   fetchNativeUsdPrice,
   findErc20GasShortfall,
   formatNoGasMessage,
+  formatWalletNoGasMessage,
+  isInsufficientFundsError,
   InsufficientNativeGasError,
   isInsufficientNativeGasError,
   MIN_TX_GAS,
@@ -135,6 +137,108 @@ describe("findErc20GasShortfall", () => {
     expect(
       await findErc20GasShortfall(deps({ getGasPrice: async () => 0n }), ETH_PARAMS),
     ).toBeNull();
+  });
+});
+
+describe("isInsufficientFundsError", () => {
+  // Shape from the 2026-10-07 Ethereum USDT case: viem nests the real error
+  // four `cause` levels below the surface error.
+  const nested = () => {
+    const rpc = Object.assign(new Error("RPC submit: Insufficient funds to pay for gas fees and value for a transaction"), {
+      name: "InternalRpcError",
+    });
+    const funds = Object.assign(
+      new Error(
+        "The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+      ),
+      { name: "InsufficientFundsError", cause: rpc },
+    );
+    const exec = Object.assign(new Error("transaction execution failed"), {
+      name: "TransactionExecutionError",
+      cause: funds,
+    });
+    const reverted = Object.assign(new Error("The contract function \"transfer\" reverted"), {
+      name: "ContractFunctionRevertedError",
+      cause: exec,
+    });
+    return Object.assign(new Error("ContractFunctionExecutionError"), {
+      name: "ContractFunctionExecutionError",
+      cause: reverted,
+    });
+  };
+
+  it("detects the nested viem insufficient-funds chain", () => {
+    expect(isInsufficientFundsError(nested())).toBe(true);
+  });
+
+  it("detects a bare InsufficientFundsError and an RPC message", () => {
+    expect(isInsufficientFundsError(Object.assign(new Error("x"), { name: "InsufficientFundsError" }))).toBe(true);
+    expect(
+      isInsufficientFundsError(new Error("RPC submit: Insufficient funds to pay for gas fees")),
+    ).toBe(true);
+  });
+
+  it("does not misfire on unrelated or empty errors", () => {
+    expect(isInsufficientFundsError(undefined)).toBe(false);
+    expect(isInsufficientFundsError(new Error("User rejected the request"))).toBe(false);
+    expect(
+      isInsufficientFundsError(
+        Object.assign(new Error("estimateGas failed"), { name: "ContractFunctionExecutionError" }),
+      ),
+    ).toBe(false);
+  });
+
+  it("builds a wallet-side no-gas message", () => {
+    expect(formatWalletNoGasMessage("ETH", "USDT")).toBe(
+      "Your wallet doesn't have enough ETH to pay the network fee for this USDT transfer. Add a little ETH, then try again.",
+    );
+  });
+});
+
+describe("debug trace", () => {
+  const collect = () => {
+    const lines: string[] = [];
+    return { lines, debug: (m: string) => lines.push(m) };
+  };
+
+  it("traces the block decision with amounts", async () => {
+    const { lines, debug } = collect();
+    await findErc20GasShortfall(deps({ debug }), ETH_PARAMS);
+    expect(lines.some((l) => l.includes("BLOCK"))).toBe(true);
+    expect(lines.some((l) => l.includes("balance=0"))).toBe(true);
+  });
+
+  it("traces each fail-open skip reason", async () => {
+    const contract = collect();
+    await findErc20GasShortfall(deps({ getPayerCode: async () => "0x6080", debug: contract.debug }), ETH_PARAMS);
+    expect(contract.lines.some((l) => l.includes("contract account"))).toBe(true);
+
+    const rpc = collect();
+    await findErc20GasShortfall(
+      deps({
+        getNativeBalance: async () => {
+          throw new Error("rpc down");
+        },
+        debug: rpc.debug,
+      }),
+      ETH_PARAMS,
+    );
+    expect(rpc.lines.some((l) => l.includes("RPC read failed"))).toBe(true);
+  });
+
+  it("traces the fast-path pass without calling estimateGas", async () => {
+    const { lines, debug } = collect();
+    const estimate = vi.fn(async () => 50_000n);
+    await findErc20GasShortfall(
+      deps({
+        getNativeBalance: async () => ERC20_TRANSFER_GAS_FALLBACK * 2n * GWEI,
+        estimateTransferGas: estimate,
+        debug,
+      }),
+      ETH_PARAMS,
+    );
+    expect(estimate).not.toHaveBeenCalled();
+    expect(lines.some((l) => l.includes("estimateGas skipped"))).toBe(true);
   });
 });
 

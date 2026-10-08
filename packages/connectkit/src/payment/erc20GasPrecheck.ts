@@ -58,6 +58,37 @@ export function isInsufficientNativeGasError(e: unknown): e is InsufficientNativ
   );
 }
 
+/**
+ * True when a wallet/RPC error means the payer could not cover the network fee
+ * even though the lenient precheck let the call through — the wallet applies a
+ * larger `maxFeePerGas` buffer than `eth_gasPrice`, which the precheck
+ * deliberately does not model (blocking on the worst case would false-block).
+ *
+ * viem nests the real error several `cause` levels deep
+ * (ContractFunctionExecutionError -> ContractFunctionRevertedError ->
+ *  TransactionExecutionError -> InsufficientFundsError), so walk the chain.
+ */
+export function isInsufficientFundsError(e: unknown): boolean {
+  let cur: unknown = e;
+  for (let depth = 0; cur != null && depth < 12; depth++) {
+    const name = (cur as { name?: string }).name;
+    if (name === "InsufficientFundsError") return true;
+    const message = (cur as { message?: string }).message ?? "";
+    if (/insufficient funds/i.test(message)) return true;
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
+/** Message for a wallet-reported insufficient-funds failure, where no exact
+ * balance/required numbers are available (the wallet computed the fee itself). */
+export function formatWalletNoGasMessage(
+  nativeSymbol: string,
+  tokenSymbol: string,
+): string {
+  return `Your wallet doesn't have enough ${nativeSymbol} to pay the network fee for this ${tokenSymbol} transfer. Add a little ${nativeSymbol}, then try again.`;
+}
+
 /** Wallet capabilities (EIP-5792) that mean someone else may pay gas. */
 export function walletMaySponsorGas(chainCapabilities: unknown): boolean {
   if (!chainCapabilities || typeof chainCapabilities !== "object") return false;
@@ -72,6 +103,8 @@ export interface Erc20GasPrecheckDeps {
   estimateTransferGas: () => Promise<bigint>;
   /** Bytecode at the payer address ("0x" / undefined for a plain EOA). */
   getPayerCode: () => Promise<string | undefined>;
+  /** Optional trace sink. Pure module never logs on its own. */
+  debug?: (message: string) => void;
 }
 
 export interface Erc20GasPrecheckParams {
@@ -90,6 +123,9 @@ export async function findErc20GasShortfall(
   deps: Erc20GasPrecheckDeps,
   params: Erc20GasPrecheckParams,
 ): Promise<Omit<NativeGasShortfall, "gasEstimateUsd"> | null> {
+  const debug = deps.debug ?? (() => {});
+  const tag = `${params.chainName} ${params.tokenSymbol}`;
+
   let nativeBalance: bigint;
   let gasPrice: bigint;
   let code: string | undefined;
@@ -99,34 +135,73 @@ export async function findErc20GasShortfall(
       deps.getGasPrice(),
       deps.getPayerCode(),
     ]);
-  } catch {
+  } catch (e) {
+    debug(
+      `[gas-precheck] ${tag}: skip — RPC read failed (${(e as Error)?.message ?? e}). Fail open.`,
+    );
     return null;
   }
+
+  debug(
+    `[gas-precheck] ${tag}: nativeBalance=${nativeBalance} gasPrice=${gasPrice} payerCode=${
+      code && code !== "0x" ? `contract(${code.slice(0, 10)}…)` : "eoa"
+    }`,
+  );
 
   // Contract accounts (Safe, smart wallets, EIP-7702 delegations) may have
   // gas paid by a signer, bundler or paymaster: their own balance proves
   // nothing.
-  if (code && code !== "0x") return null;
-  if (gasPrice <= 0n) return null;
+  if (code && code !== "0x") {
+    debug(`[gas-precheck] ${tag}: skip — payer is a contract account. Fail open.`);
+    return null;
+  }
+  if (gasPrice <= 0n) {
+    debug(`[gas-precheck] ${tag}: skip — chain reports gasPrice 0. Fail open.`);
+    return null;
+  }
 
   // Cheap exit before the extra RPC round trip: if the balance already
   // covers the fallback gas, it covers any realistic transfer.
-  if (nativeBalance >= ERC20_TRANSFER_GAS_FALLBACK * gasPrice) return null;
+  const fallbackFee = ERC20_TRANSFER_GAS_FALLBACK * gasPrice;
+  if (nativeBalance >= fallbackFee) {
+    debug(
+      `[gas-precheck] ${tag}: pass — balance ${nativeBalance} >= fallback ${fallbackFee} (${ERC20_TRANSFER_GAS_FALLBACK} gas × ${gasPrice}). estimateGas skipped.`,
+    );
+    return null;
+  }
+
+  debug(
+    `[gas-precheck] ${tag}: balance ${nativeBalance} < fallback ${fallbackFee} — measuring exact gas.`,
+  );
 
   let gas: bigint;
+  let estimated = true;
   try {
     gas = await deps.estimateTransferGas();
     if (gas < MIN_TX_GAS) gas = MIN_TX_GAS;
-  } catch {
+  } catch (e) {
     // Unknown cost: only block if the balance cannot even cover a bare
     // transaction.
+    estimated = false;
     gas = MIN_TX_GAS;
+    debug(
+      `[gas-precheck] ${tag}: estimateGas failed (${(e as Error)?.message ?? e}) — using ${MIN_TX_GAS} intrinsic fallback.`,
+    );
   }
 
   const requiredFee = gas * gasPrice;
-  if (nativeBalance >= requiredFee) return null;
+  debug(
+    `[gas-precheck] ${tag}: required=${requiredFee} (gas=${gas}${estimated ? "" : " fallback"} × ${gasPrice}) vs balance=${nativeBalance}`,
+  );
+  if (nativeBalance >= requiredFee) {
+    debug(`[gas-precheck] ${tag}: pass — balance covers required fee.`);
+    return null;
+  }
 
-  return { ...params, nativeBalance, requiredFee };
+  debug(
+    `[gas-precheck] ${tag}: BLOCK — balance ${nativeBalance} < required ${requiredFee}.`,
+  );
+  return { ...params, nativeBalance, requiredFee }; 
 }
 
 const ALTERNATIVE_CHAINS: { chainId: number; label: string }[] = [

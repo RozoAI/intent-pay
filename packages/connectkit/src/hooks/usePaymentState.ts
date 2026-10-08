@@ -206,6 +206,9 @@ export interface PaymentState {
     store: Store<PaymentState, PaymentEvent>,
     options?: { skipGasPrecheck?: boolean },
   ) => Promise<{ txHash: Hex; success: boolean }>;
+  /** Throw `InsufficientNativeGasError` when the payer cannot cover the ERC20
+   * network fee. Call before any wallet interaction. Fails open. */
+  precheckErc20WalletGas: (walletOption: WalletPaymentOption) => Promise<void>;
   payWithExternal: (option: ExternalPaymentOptions) => Promise<string>;
   payWithDepositAddress: (
     option: DepositAddressPaymentOptionMetadata,
@@ -833,6 +836,98 @@ export function usePaymentState({
     }
   };
 
+  /**
+   * Pre-flight native-gas check for an ERC20 wallet payment. Throws
+   * `InsufficientNativeGasError` when the payer provably cannot cover the
+   * network fee, otherwise resolves. Fails open (see payment/erc20GasPrecheck).
+   *
+   * Every read passes an explicit `chainId`, so this is safe to run before the
+   * wallet has been switched to the target chain — which is the point: block
+   * *before* the switch prompt, so a payer holding no native coin never sees a
+   * wallet popup at all.
+   *
+   * `transfer` is only used to make `estimateGas` simulate a realistic calldata
+   * shape. ERC20 transfer gas is independent of recipient and amount, so
+   * callers that do not have the hydrated quote yet may omit it.
+   */
+  const precheckErc20WalletGas = async (
+    walletOption: WalletPaymentOption,
+    transfer?: { recipient: string; amount: bigint },
+  ): Promise<void> => {
+    const gasTag = `[PAY ERC20 GAS] ${walletOption.required.token.symbol}@${walletOption.required.token.chainId}`;
+    if (ethWalletAddress == null) {
+      log(`${gasTag}: skip — no wallet address.`);
+      return;
+    }
+    const chainId = walletOption.required.token.chainId;
+    // Native sources have their own spendable check in payWithToken.
+    if (isNativeToken(walletOption.required.token.token)) {
+      log(`${gasTag}: skip — native source, checked in payWithToken.`);
+      return;
+    }
+    // While capabilities are loading we cannot tell a sponsored smart wallet
+    // from a plain EOA, so fail open.
+    if (capabilitiesPending) {
+      log(`${gasTag}: skip — wallet capabilities still loading. Fail open.`);
+      return;
+    }
+    const chainObject = resolveChainObject(chainId);
+    if (chainObject == null) {
+      log(`${gasTag}: skip — unknown chain ${chainId}. Fail open.`);
+      return;
+    }
+    const chainCapabilities = walletCapabilities?.[chainId];
+    if (walletMaySponsorGas(chainCapabilities)) {
+      log(`${gasTag}: skip — wallet advertises gas sponsorship. Fail open.`);
+      return;
+    }
+
+    const sender = getAddress(ethWalletAddress);
+    const tokenAddress = getAddress(walletOption.required.token.token);
+    log(`${gasTag}: checking native gas for sender ${sender}.`);
+    const shortfall = await findErc20GasShortfall(
+      {
+        debug: (message) => log(message),
+        getNativeBalance: async () =>
+          (await getBalance(wagmiConfig, { address: sender, chainId })).value,
+        getGasPrice: () => getGasPrice(wagmiConfig, { chainId }),
+        getPayerCode: () => getBytecode(wagmiConfig, { address: sender, chainId }),
+        estimateTransferGas: () =>
+          estimateGas(wagmiConfig, {
+            account: sender,
+            to: tokenAddress,
+            chainId,
+            data: encodeFunctionData({
+              abi: erc20Abi,
+              functionName: "transfer",
+              args: [getAddress(transfer?.recipient ?? sender), transfer?.amount ?? 0n],
+            }),
+          }),
+      },
+      {
+        chainId,
+        chainName: chainObject.name,
+        nativeSymbol: chainObject.nativeCurrency.symbol,
+        nativeDecimals: chainObject.nativeCurrency.decimals,
+        tokenSymbol: walletOption.required.token.symbol,
+      },
+    );
+    if (shortfall) {
+      const price = await fetchNativeUsdPrice(shortfall.nativeSymbol);
+      const gasEstimateUsd = feeToUsd(
+        shortfall.requiredFee,
+        shortfall.nativeDecimals,
+        price,
+      );
+      log(
+        `${gasTag}: BLOCKED — need ~${formatUnits(shortfall.requiredFee, shortfall.nativeDecimals)} ${shortfall.nativeSymbol}` +
+          `${gasEstimateUsd != null ? ` ($${gasEstimateUsd.toFixed(2)})` : ""}, hold ${formatUnits(shortfall.nativeBalance, shortfall.nativeDecimals)} ${shortfall.nativeSymbol}.`,
+      );
+      throw new InsufficientNativeGasError({ ...shortfall, gasEstimateUsd });
+    }
+    log(`${gasTag}: ok — enough native gas.`);
+  };
+
   /** Commit to a token + amount = initiate payment. */
   const payWithToken = async (
     walletOption: WalletPaymentOption,
@@ -1074,50 +1169,13 @@ export function usePaymentState({
 
           // Native-gas precheck: don't open the wallet for a transfer the
           // payer cannot pay the network fee for. Fails open (see module).
-          const chainObject = resolveChainObject(required.token.chainId);
-          // While wallet capabilities are still loading we cannot tell a
-          // sponsored smart wallet from a plain EOA, so fail open.
-          if (
-            !options?.skipGasPrecheck &&
-            !capabilitiesPending &&
-            chainObject != null &&
-            !walletMaySponsorGas(chainCapabilities)
-          ) {
-            const sender = getAddress(ethWalletAddress);
-            const chainId = required.token.chainId;
-            const shortfall = await findErc20GasShortfall(
-              {
-                getNativeBalance: async () =>
-                  (await getBalance(wagmiConfig, { address: sender, chainId })).value,
-                getGasPrice: () => getGasPrice(wagmiConfig, { chainId }),
-                getPayerCode: () => getBytecode(wagmiConfig, { address: sender, chainId }),
-                estimateTransferGas: () =>
-                  estimateGas(wagmiConfig, {
-                    account: sender,
-                    to: tokenAddress!,
-                    chainId,
-                    data: encodeFunctionData({
-                      abi: erc20Abi,
-                      functionName: "transfer",
-                      args: [getAddress(destinationAddress), paymentAmount],
-                    }),
-                  }),
-              },
-              {
-                chainId,
-                chainName: chainObject.name,
-                nativeSymbol: chainObject.nativeCurrency.symbol,
-                nativeDecimals: chainObject.nativeCurrency.decimals,
-                tokenSymbol: required.token.symbol,
-              },
-            );
-            if (shortfall) {
-              const price = await fetchNativeUsdPrice(shortfall.nativeSymbol);
-              throw new InsufficientNativeGasError({
-                ...shortfall,
-                gasEstimateUsd: feeToUsd(shortfall.requiredFee, shortfall.nativeDecimals, price),
-              });
-            }
+          // PayWithToken normally runs this earlier, before the chain switch;
+          // this call keeps the hook safe for direct callers.
+          if (!options?.skipGasPrecheck) {
+            await precheckErc20WalletGas(walletOption, {
+              recipient: destinationAddress,
+              amount: paymentAmount,
+            });
           }
 
           if (supportsDataSuffix) {
@@ -2158,6 +2216,7 @@ export function usePaymentState({
     setSelectedDepositAddressOption,
     setChosenUsd,
     payWithToken,
+    precheckErc20WalletGas,
     payWithExternal,
     payWithDepositAddress,
     payWithSolanaToken,
