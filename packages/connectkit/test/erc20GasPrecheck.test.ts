@@ -158,7 +158,7 @@ describe("message and telemetry", () => {
 
   it("explains the missing gas with a USD estimate and alternatives", () => {
     expect(formatNoGasMessage(shortfall)).toBe(
-      "Your wallet has no ETH to pay the network fee (about $0.26 needed). Add a little ETH, or pay with USDC on Base / BNB / Polygon instead.",
+      "Your wallet has no ETH to pay the network fee (about $0.26 needed). Add a little ETH, or pay with USDC on Base / BNB / Polygon from a wallet that holds a few cents of that chain's gas coin.",
     );
   });
 
@@ -171,7 +171,7 @@ describe("message and telemetry", () => {
     });
     expect(msg).toContain("doesn't have enough ETH");
     expect(msg).toContain("about 0.00010 ETH needed");
-    expect(msg).toContain("USDC on BNB / Polygon instead");
+    expect(msg).toContain("USDC on BNB / Polygon from a wallet");
   });
 
   it("carries the shortfall on a recognisable error", () => {

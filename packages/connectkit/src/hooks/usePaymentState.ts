@@ -1075,8 +1075,11 @@ export function usePaymentState({
           // Native-gas precheck: don't open the wallet for a transfer the
           // payer cannot pay the network fee for. Fails open (see module).
           const chainObject = resolveChainObject(required.token.chainId);
+          // While wallet capabilities are still loading we cannot tell a
+          // sponsored smart wallet from a plain EOA, so fail open.
           if (
             !options?.skipGasPrecheck &&
+            !capabilitiesPending &&
             chainObject != null &&
             !walletMaySponsorGas(chainCapabilities)
           ) {

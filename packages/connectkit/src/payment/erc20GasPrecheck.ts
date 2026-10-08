@@ -156,7 +156,7 @@ export function formatNoGasMessage(s: NativeGasShortfall): string {
   const alternatives = ALTERNATIVE_CHAINS.filter((c) => c.chainId !== s.chainId)
     .map((c) => c.label)
     .join(" / ");
-  return `Your wallet ${has} to pay the network fee (${needed}). Add a little ${sym}, or pay with USDC on ${alternatives} instead.`;
+  return `Your wallet ${has} to pay the network fee (${needed}). Add a little ${sym}, or pay with USDC on ${alternatives} from a wallet that holds a few cents of that chain's gas coin.`;
 }
 
 /** Telemetry payload: amounts only, never addresses. */
