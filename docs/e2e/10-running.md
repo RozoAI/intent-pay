@@ -36,6 +36,10 @@ A CI run with no wallet secrets will only execute the `mocked` project, which
 is safe and requires no secrets. Add wallet secrets as CI environment variables
 only when you intentionally want to run real-funds flows.
 
+For the full GitHub Actions workflow — xvfb, the Chainwright cache-build step,
+required secrets, funded-wallet requirements, and the security model — see
+[12-ci.md](./12-ci.md).
+
 ---
 
 ## Running a single flow

@@ -22,6 +22,7 @@ Covers EVM, Solana, and Stellar source chains using [Playwright](https://playwri
 | [09-test-ids.md](./09-test-ids.md)                   | SDK `data-testid` reference                            |
 | [10-running.md](./10-running.md)                     | CLI commands, CI setup                                 |
 | [11-troubleshooting.md](./11-troubleshooting.md)     | Gotchas table + security checklist                     |
+| [12-ci.md](./12-ci.md)                               | GitHub Actions workflow: requirements, secrets, setup  |
 
 ## Quick start
 

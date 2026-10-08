@@ -1,0 +1,196 @@
+# Chainwright real-funds E2E — MAINNET. NOT a PR gate.
+#
+# Why a dedicated workflow instead of the shared `fe-gate` reusable workflow:
+#   1. Browser extensions (MetaMask, Phantom) do NOT load in headless Chromium,
+#      so the real-funds projects run headed. A CI runner has no display, so the
+#      whole job must run under `xvfb-run` (virtual framebuffer).
+#   2. It needs the Chainwright cache-build step (`setup-wallets`) before tests.
+#   3. It needs seed-phrase / secret-key secrets, which the fe-gate reusable
+#      workflow cannot receive (its only secret is a NEXT_PUBLIC_ dotenv blob).
+#   4. The full matrix is one linear `dependencies` chain (39 projects, up to
+#      10 min each). fe-gate caps jobs at 20 min; we need up to 360.
+#
+# It spends REAL funds on every run, so it is NOT wired to `pull_request`.
+# Triggers: manual (workflow_dispatch) + a nightly schedule.
+#
+# Setup required once, in the repo: Settings → Secrets and variables → Actions
+#   secrets: E2E_EVM_SEED_PHRASE, E2E_EVM_WALLET_PASSWORD, E2E_EVM_ADDRESS,
+#            E2E_STELLAR_SECRET, E2E_STELLAR_ADDRESS,
+#            E2E_SOLANA_SEED_PHRASE, E2E_SOLANA_WALLET_PASSWORD,
+#            E2E_SOLANA_ADDRESS, E2E_MERCHANT_APP_ID
+#   vars (optional): E2E_AMOUNT (defaults to 0.02)
+
+name: e2e-chainwright
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: "Which projects to run"
+        type: choice
+        default: full
+        options:
+          - full
+          - mocked
+          - bridge
+          - checkout
+          - merchant
+          - deposit
+  schedule:
+    # 01:00 WIB (18:00 UTC). Full matrix, every night.
+    - cron: "0 18 * * *"
+
+# Real-funds runs must never overlap — concurrent runs draw from the SAME
+# source wallets, which would collide on nonces / balances.
+concurrency:
+  group: e2e-chainwright
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-22.04
+    # GitHub-hosted runner hard cap. The full chain is sequential (workers: 1 in
+    # e2e/playwright.config.ts) because every flow spends from the same wallets.
+    timeout-minutes: 360
+
+    env:
+      CI: "1"
+      # Tells playwright.config.ts to boot the dev server (NEXT_PUBLIC_E2E=1) for
+      # the run — the headless Stellar signer is only wired when that flag is set.
+      E2E_START_SERVER: "1"
+      BASE_URL: "http://localhost:3000"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install xvfb (headed browser needs a virtual display)
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Install Playwright browsers
+        run: pnpm --filter examples/nextjs-app exec playwright install --with-deps chromium
+
+      # Write the E2E env file. The values come from repo secrets, so they are
+      # masked in logs. `.env.e2e` is already gitignored (examples/nextjs-app).
+      - name: Write .env.e2e
+        working-directory: examples/nextjs-app
+        env:
+          E2E_AMOUNT: ${{ vars.E2E_AMOUNT }}
+          E2E_EVM_SEED_PHRASE: ${{ secrets.E2E_EVM_SEED_PHRASE }}
+          E2E_EVM_WALLET_PASSWORD: ${{ secrets.E2E_EVM_WALLET_PASSWORD }}
+          E2E_EVM_ADDRESS: ${{ secrets.E2E_EVM_ADDRESS }}
+          E2E_STELLAR_SECRET: ${{ secrets.E2E_STELLAR_SECRET }}
+          E2E_STELLAR_ADDRESS: ${{ secrets.E2E_STELLAR_ADDRESS }}
+          E2E_SOLANA_SEED_PHRASE: ${{ secrets.E2E_SOLANA_SEED_PHRASE }}
+          E2E_SOLANA_WALLET_PASSWORD: ${{ secrets.E2E_SOLANA_WALLET_PASSWORD }}
+          E2E_SOLANA_ADDRESS: ${{ secrets.E2E_SOLANA_ADDRESS }}
+          E2E_MERCHANT_APP_ID: ${{ secrets.E2E_MERCHANT_APP_ID }}
+        run: |
+          cat > .env.e2e <<EOF
+          E2E_AMOUNT="${E2E_AMOUNT:-0.02}"
+          E2E_EVM_SEED_PHRASE="${E2E_EVM_SEED_PHRASE}"
+          E2E_EVM_WALLET_PASSWORD="${E2E_EVM_WALLET_PASSWORD}"
+          E2E_EVM_ADDRESS="${E2E_EVM_ADDRESS}"
+          E2E_STELLAR_SECRET="${E2E_STELLAR_SECRET}"
+          E2E_STELLAR_ADDRESS="${E2E_STELLAR_ADDRESS}"
+          E2E_SOLANA_SEED_PHRASE="${E2E_SOLANA_SEED_PHRASE}"
+          E2E_SOLANA_WALLET_PASSWORD="${E2E_SOLANA_WALLET_PASSWORD}"
+          E2E_SOLANA_ADDRESS="${E2E_SOLANA_ADDRESS}"
+          E2E_MERCHANT_APP_ID="${E2E_MERCHANT_APP_ID}"
+          EOF
+
+      # Chainwright cache-build: imports the seed phrases into cached MetaMask /
+      # Phantom profiles under `.wallet-cache/`. cwd must be examples/nextjs-app —
+      # the cache path is resolved relative to process.cwd().
+      #
+      # Intentionally NOT cached with actions/cache: the cache holds the imported
+      # seed phrases, and a persisted cache artifact would leak them.
+      - name: Build wallet cache
+        working-directory: examples/nextjs-app
+        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm run setup-wallets
+
+      - name: Run Chainwright E2E
+        working-directory: examples/nextjs-app
+        env:
+          SCOPE: ${{ github.event.inputs.scope || 'full' }}
+        run: |
+          set -euo pipefail
+          # xvfb-run gives the headed Chromium a virtual display. Wrapped in a
+          # function so the flag is never word-split through a variable.
+          xv() { xvfb-run -a "$@"; }
+
+          case "$SCOPE" in
+            full)
+              # Full suite via the config: mocked → every real-funds project, in
+              # the dependency order declared in e2e/playwright.config.ts.
+              xv pnpm test:e2e
+              ;;
+            mocked)
+              # No secrets needed for the mocked suite.
+              SKIP_ENV_VALIDATION=1 xv pnpm test:e2e:mocked
+              ;;
+            bridge)
+              for p in evm-to-stellar stellar-to-evm stellar-to-solana \
+                       solana-to-stellar solana-to-evm evm-to-solana \
+                       bridge-evm-native bridge-solana-native bridge-stellar-native; do
+                xv node e2e/run.cjs "$p"
+              done
+              ;;
+            checkout)
+              for p in checkout-evm-to-stellar checkout-evm-to-solana \
+                       checkout-stellar-to-evm checkout-stellar-to-solana \
+                       checkout-solana-to-stellar checkout-solana-to-evm \
+                       checkout-evm-native checkout-solana-native \
+                       checkout-stellar-native; do
+                xv node e2e/run.cjs "$p"
+              done
+              ;;
+            merchant)
+              for p in merchant-evm merchant-solana merchant-stellar \
+                       merchant-evm-native merchant-solana-native \
+                       merchant-stellar-native merchant-polygon-native \
+                       merchant-evm-pay-to-address \
+                       merchant-evm-native-pay-to-address \
+                       merchant-solana-pay-to-address; do
+                xv node e2e/run.cjs "$p"
+              done
+              ;;
+            deposit)
+              for p in deposit-stellar-to-evm deposit-stellar-to-solana \
+                       deposit-evm-to-stellar deposit-evm-to-solana \
+                       deposit-solana-to-stellar deposit-solana-to-evm \
+                       deposit-evm-native deposit-solana-native \
+                       deposit-stellar-native; do
+                xv node e2e/run.cjs "$p"
+              done
+              ;;
+            *)
+              echo "Unknown scope: $SCOPE" >&2
+              exit 1
+              ;;
+          esac
+
+      # Failure-only. WARNING: a Playwright trace embeds page state, which for the
+      # Stellar flows includes the injected secret key. On a PUBLIC repo, download
+      # and delete this artifact immediately, or drop the trace in the config.
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-chainwright-report
+          path: |
+            examples/nextjs-app/playwright-report
+            examples/nextjs-app/test-results
+          retention-days: 7
