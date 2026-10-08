@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.60] - 2026-10-08
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**: Precheck native gas before ERC20 wallet payments &nbsp;-&nbsp; by @shawnmuggle [<samp>(b7b93d9d)</samp>](https://github.com/RozoAI/intent-pay/commit/b7b93d9d)
+- **e2e**: Repair the /bridge page gate broken by the Playwright pin &nbsp;-&nbsp; by @akbarsaputrait [<samp>(c7587bb3)</samp>](https://github.com/RozoAI/intent-pay/commit/c7587bb3)
+
+---
+
 ## [0.1.59] - 2026-10-07
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
