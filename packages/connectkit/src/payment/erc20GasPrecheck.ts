@@ -19,8 +19,13 @@ import { formatUnits } from "viem";
  *   worst case). Only block when the balance cannot cover even that.
  */
 
-/** A plain ERC20 transfer costs ~35k-65k gas; used when estimateGas fails. */
+/** A plain ERC20 transfer costs ~35k-65k gas. A balance covering this much
+ * gas is treated as sufficient without calling estimateGas. */
 export const ERC20_TRANSFER_GAS_FALLBACK = 65_000n;
+
+/** Intrinsic gas of any EVM transaction: a proven lower bound, used when
+ * estimateGas fails so an RPC hiccup can never manufacture a shortfall. */
+export const MIN_TX_GAS = 21_000n;
 
 export interface NativeGasShortfall {
   chainId: number;
@@ -111,9 +116,11 @@ export async function findErc20GasShortfall(
   let gas: bigint;
   try {
     gas = await deps.estimateTransferGas();
-    if (gas <= 0n) gas = ERC20_TRANSFER_GAS_FALLBACK;
+    if (gas < MIN_TX_GAS) gas = MIN_TX_GAS;
   } catch {
-    gas = ERC20_TRANSFER_GAS_FALLBACK;
+    // Unknown cost: only block if the balance cannot even cover a bare
+    // transaction.
+    gas = MIN_TX_GAS;
   }
 
   const requiredFee = gas * gasPrice;

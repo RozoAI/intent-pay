@@ -7,6 +7,7 @@ import {
   formatNoGasMessage,
   InsufficientNativeGasError,
   isInsufficientNativeGasError,
+  MIN_TX_GAS,
   noGasTelemetry,
   walletMaySponsorGas,
   type Erc20GasPrecheckDeps,
@@ -72,16 +73,23 @@ describe("findErc20GasShortfall", () => {
     expect(s).toBeNull();
   });
 
-  it("falls back to a fixed gas limit when estimateGas throws", async () => {
-    const s = await findErc20GasShortfall(
-      deps({
-        estimateTransferGas: async () => {
-          throw new Error("execution reverted");
-        },
-      }),
-      ETH_PARAMS,
-    );
-    expect(s!.requiredFee).toBe(ERC20_TRANSFER_GAS_FALLBACK * 2n * GWEI);
+  it("uses the 21k intrinsic-gas lower bound when estimateGas throws", async () => {
+    const failing = async () => {
+      throw new Error("rpc hiccup");
+    };
+    const s = await findErc20GasShortfall(deps({ estimateTransferGas: failing }), ETH_PARAMS);
+    expect(s!.requiredFee).toBe(MIN_TX_GAS * 2n * GWEI);
+    // Balance that covers 60k gas but not the 65k fast-path: must NOT block
+    // just because the estimate failed.
+    expect(
+      await findErc20GasShortfall(
+        deps({
+          estimateTransferGas: failing,
+          getNativeBalance: async () => 60_000n * 2n * GWEI,
+        }),
+        ETH_PARAMS,
+      ),
+    ).toBeNull();
   });
 
   it("fails open when balance or gas price cannot be read", async () => {
