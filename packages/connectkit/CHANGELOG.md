@@ -4,6 +4,19 @@ All notable changes to `@rozoai/intent-pay` (connectkit) are documented in this 
 
 ## [Unreleased]
 
+### Fixed
+
+- ERC20 (USDC/USDT) wallet payments on EVM chains now check that the payer
+  holds enough native coin (ETH/BNB/POL/HYPE) for the network fee before the
+  wallet opens. When it is short, the payment page explains why ("Your wallet
+  has no ETH to pay the network fee (about $X needed)...") instead of a bare
+  "Retry Payment", and emits `payment_blocked_no_gas` (amounts only, no
+  addresses). The check fails open: RPC errors, contract accounts (Safe, smart
+  wallets, EIP-7702) and wallets advertising `paymasterService` /
+  `auxiliaryFunds` are never blocked, and "Try anyway" bypasses it.
+- `payWithToken` accepts an optional third `{ skipGasPrecheck?: boolean }`
+  argument (backward compatible).
+
 ### Changed
 
 - `hydrateOrder` and `hydrateOrderRozo` on `UseRozoPay` accept an optional third

@@ -18,6 +18,11 @@ export const PAYMENT_EVENTS = {
   PAYMENT_SUBMITTED: "payment_submitted",
   PAYMENT_COMPLETED: "payment_completed",
   PAYMENT_FAILED: "payment_failed",
+  /** ERC20 payment stopped before the wallet opened because the payer lacks
+   * native coin for the network fee. Props: chain, chain_name, token,
+   * native_symbol, native_balance, gas_estimate_native, gas_estimate_usd.
+   * No addresses. */
+  PAYMENT_BLOCKED_NO_GAS: "payment_blocked_no_gas",
   PAYMENT_VALIDATION_ERROR: "payment_validation_error",
   PAYMENT_CANCELLED: "payment_cancelled",
   PAYMENT_NO_TOKENS_AVAILABLE: "payment_no_tokens_available",

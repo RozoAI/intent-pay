@@ -44,7 +44,15 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { erc20Abi, formatUnits, getAddress, Hex, hexToBytes, parseUnits } from "viem";
+import {
+  encodeFunctionData,
+  erc20Abi,
+  formatUnits,
+  getAddress,
+  Hex,
+  hexToBytes,
+  parseUnits,
+} from "viem";
 import {
   useAccount,
   useCapabilities,
@@ -55,7 +63,7 @@ import {
   useWriteContract,
 } from "wagmi";
 import { useWriteContracts } from "wagmi/experimental";
-import { estimateGas, getBalance, getGasPrice } from "wagmi/actions";
+import { estimateGas, getBalance, getBytecode, getGasPrice } from "wagmi/actions";
 import {
   convertPreferredSymbolsToTokens,
   getSourcePaymentToken,
@@ -103,6 +111,13 @@ import {
 } from "../payment/createPaymentPayload";
 import { shouldRecoverEvmWalletConnectTx } from "../payment/shouldRecoverEvmWalletConnectTx";
 import { assertNativeSpendable } from "../payment/nativeSpendable";
+import {
+  feeToUsd,
+  fetchNativeUsdPrice,
+  findErc20GasShortfall,
+  InsufficientNativeGasError,
+  walletMaySponsorGas,
+} from "../payment/erc20GasPrecheck";
 import { waitForPaymentSourceTxHash } from "../payment/waitForPaymentSourceTxHash";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
 import { useAnalytics } from "../provider/AnalyticsProvider";
@@ -189,6 +204,7 @@ export interface PaymentState {
   payWithToken: (
     walletOption: WalletPaymentOption,
     store: Store<PaymentState, PaymentEvent>,
+    options?: { skipGasPrecheck?: boolean },
   ) => Promise<{ txHash: Hex; success: boolean }>;
   payWithExternal: (option: ExternalPaymentOptions) => Promise<string>;
   payWithDepositAddress: (
@@ -821,6 +837,7 @@ export function usePaymentState({
   const payWithToken = async (
     walletOption: WalletPaymentOption,
     store: Store<PaymentState, PaymentEvent>,
+    options?: { skipGasPrecheck?: boolean },
   ): Promise<{ txHash: Hex; success: boolean }> => {
     assert(ethWalletAddress != null, `[PAY TOKEN] null ethWalletAddress when paying on ethereum`);
     assert(
@@ -1054,6 +1071,54 @@ export function usePaymentState({
             hydratedOrder as WalletSourceQuoteOrder,
             walletOption,
           );
+
+          // Native-gas precheck: don't open the wallet for a transfer the
+          // payer cannot pay the network fee for. Fails open (see module).
+          const chainObject = resolveChainObject(required.token.chainId);
+          // While wallet capabilities are still loading we cannot tell a
+          // sponsored smart wallet from a plain EOA, so fail open.
+          if (
+            !options?.skipGasPrecheck &&
+            !capabilitiesPending &&
+            chainObject != null &&
+            !walletMaySponsorGas(chainCapabilities)
+          ) {
+            const sender = getAddress(ethWalletAddress);
+            const chainId = required.token.chainId;
+            const shortfall = await findErc20GasShortfall(
+              {
+                getNativeBalance: async () =>
+                  (await getBalance(wagmiConfig, { address: sender, chainId })).value,
+                getGasPrice: () => getGasPrice(wagmiConfig, { chainId }),
+                getPayerCode: () => getBytecode(wagmiConfig, { address: sender, chainId }),
+                estimateTransferGas: () =>
+                  estimateGas(wagmiConfig, {
+                    account: sender,
+                    to: tokenAddress!,
+                    chainId,
+                    data: encodeFunctionData({
+                      abi: erc20Abi,
+                      functionName: "transfer",
+                      args: [getAddress(destinationAddress), paymentAmount],
+                    }),
+                  }),
+              },
+              {
+                chainId,
+                chainName: chainObject.name,
+                nativeSymbol: chainObject.nativeCurrency.symbol,
+                nativeDecimals: chainObject.nativeCurrency.decimals,
+                tokenSymbol: required.token.symbol,
+              },
+            );
+            if (shortfall) {
+              const price = await fetchNativeUsdPrice(shortfall.nativeSymbol);
+              throw new InsufficientNativeGasError({
+                ...shortfall,
+                gasEstimateUsd: feeToUsd(shortfall.requiredFee, shortfall.nativeDecimals, price),
+              });
+            }
+          }
 
           if (supportsDataSuffix) {
             if (!walletClient) throw new Error("No walletClient available");
