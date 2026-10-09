@@ -721,6 +721,37 @@ export async function expectSourceInsufficient(
   await expect(sourceOption).toContainText(/balance too low/i)
 }
 
+/** True when the source option is rendered disabled (e.g. "Balance too low"). */
+export async function sourceTokenDisabled(
+  page: Page,
+  sourceOptionId: string
+): Promise<boolean> {
+  const sourceOption = page.getByTestId(`rozopay-option-${sourceOptionId}`)
+  await expect(sourceOption).toBeVisible({ timeout: 120_000 })
+  return sourceOption.isDisabled()
+}
+
+/**
+ * Stream the app's own console output into the Playwright log. The SDK prints
+ * every `PayWithToken` state transition (`[PayWithToken] payState: …`), which is
+ * exactly what a CI failure needs to show where the payment stopped — without
+ * the trace artifact (deliberately not uploaded, since a Stellar trace embeds
+ * the injected secret key).
+ */
+export function logAppConsole(page: Page) {
+  page.on("console", (msg) => {
+    const text = msg.text()
+    if (
+      /\[PayWithToken\]|payState|precheck|insufficient|NetworkFee|switch(ing)? chain|route/i.test(
+        text
+      )
+    ) {
+      console.log(`[app:${msg.type()}] ${text}`)
+    }
+  })
+  page.on("pageerror", (err) => console.log(`[app:pageerror] ${err.message}`))
+}
+
 /**
  * Choose which Stellar wallet the in-page headless signer uses, by injecting
  * its secret key before the app loads. Lets a test pick any pool wallet as the

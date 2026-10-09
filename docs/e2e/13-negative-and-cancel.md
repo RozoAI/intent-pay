@@ -89,12 +89,23 @@ chainwright path **without spending**, so it is the safe way to smoke-test the C
 pipeline. Trigger it from **Actions → e2e-chainwright → Run workflow → scope:
 wallet-cancel**. It still needs `.env.e2e` secrets and a built wallet cache.
 
+## Diagnostics
+
+`logAppConsole(page)` streams the SDK's own `[PayWithToken] payState: …`
+transitions into the Playwright log. The cancel specs call it in a
+`beforeEach`, so a CI failure shows **where** the payment stopped without needing
+the trace artifact (which the workflow deliberately does not upload).
+
 ## Known limitations
 
 - **Stellar is not covered.** Its headless in-page signer has no wallet popup to
   cancel; cancellation there is closing the modal, already covered by the mocked
   suite.
 - **Requires funded wallets** to clear the balance gate (by design — see above).
+  If the Solana source wallet (the address derived from `E2E_SOLANA_SEED_PHRASE`,
+  i.e. `E2E_SOLANA_ADDRESS`) holds less USDC than `E2E_AMOUNT`, the Solana specs
+  **skip** with an explicit reason instead of failing — fund that address to
+  enable them.
 - **Retry-after-cancel** depends on the wallet choosing to close its popup on
   rejection (it does for MetaMask and Phantom); if a wallet keeps it open, the
   second `promptPage()` may resurface the same page.

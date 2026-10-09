@@ -24,6 +24,7 @@ import {
   connectMetaMask,
   expectSourceAmount,
   expectSourceInsufficient,
+  logAppConsole,
   payInWithMetaMaskToWallet,
   rejectAndExpectCancelled,
   startBridgePayment,
@@ -50,6 +51,9 @@ test.describe("Wallet boundary: EVM via MetaMask (mainnet, no funds moved)", () 
     !E2E.evm.seedPhrase || !E2E.stellar.address,
     "Set E2E_EVM_SEED_PHRASE and E2E_STELLAR_ADDRESS in .env.e2e"
   )
+
+  // Surface the SDK's own state transitions in the CI log (see logAppConsole).
+  test.beforeEach(({ page }) => logAppConsole(page))
 
   test("source option shows the configured amount before the wallet opens", async ({
     page,

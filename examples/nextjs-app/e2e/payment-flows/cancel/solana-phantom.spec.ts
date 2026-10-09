@@ -20,8 +20,10 @@ import {
   clickRetryPayment,
   connectPhantom,
   expectSourceAmount,
-  payInWithPhantomToWallet,
+  logAppConsole,
   rejectAndExpectCancelled,
+  selectSourceToken,
+  sourceTokenDisabled,
   startBridgePayment,
   unlockPhantomIfNeeded,
   waitForPhantomConfirmation,
@@ -42,6 +44,25 @@ test.describe("Wallet boundary: Solana via Phantom (mainnet, no funds moved)", (
     "Set E2E_SOLANA_SEED_PHRASE and E2E_EVM_ADDRESS in .env.e2e"
   )
 
+  test.beforeEach(({ page }) => logAppConsole(page))
+
+  // Connect Phantom, then stop early (skipped, not failed) if the Solana source
+  // wallet is underfunded — the source option renders disabled and no wallet
+  // popup can ever open. Fund E2E_SOLANA_ADDRESS with USDC on Solana to make
+  // these tests run for real.
+  async function connectAndRequireFunded(
+    page: import("@playwright/test").Page,
+    phantom: import("chainwright/phantom").Phantom
+  ) {
+    await connectPhantom(page, phantom)
+    if (await sourceTokenDisabled(page, E2E.solana.sourceOptionId)) {
+      test.skip(
+        true,
+        "Solana source wallet is underfunded (USDC < E2E_AMOUNT) — fund E2E_SOLANA_ADDRESS to run this."
+      )
+    }
+  }
+
   test("source option shows the configured amount before the wallet opens", async ({
     page,
     phantom,
@@ -61,12 +82,12 @@ test.describe("Wallet boundary: Solana via Phantom (mainnet, no funds moved)", (
   }) => {
     await unlockPhantomIfNeeded(phantom, phantomPage)
     await startBridgePayment(page, { ...DEST, amount: E2E.amount })
+    await connectAndRequireFunded(page, phantom)
 
-    const prompt = await payInWithPhantomToWallet(page, phantom, {
-      sourceOptionId: E2E.solana.sourceOptionId,
-    })
+    await selectSourceToken(page, E2E.solana.sourceOptionId)
+    const prompt = await waitForPhantomConfirmation(page, phantom)
     // Confirmation popup is up — the Approve button is present (Cancel is
-    // enabled — asserted inside payInWithPhantomToWallet).
+    // enabled — asserted inside waitForPhantomConfirmation).
     await expect(prompt.getByTestId("primary-button")).toBeVisible()
 
     await rejectAndExpectCancelled(page, phantom)
@@ -79,10 +100,10 @@ test.describe("Wallet boundary: Solana via Phantom (mainnet, no funds moved)", (
   }) => {
     await unlockPhantomIfNeeded(phantom, phantomPage)
     await startBridgePayment(page, { ...DEST, amount: E2E.amount })
+    await connectAndRequireFunded(page, phantom)
 
-    await payInWithPhantomToWallet(page, phantom, {
-      sourceOptionId: E2E.solana.sourceOptionId,
-    })
+    await selectSourceToken(page, E2E.solana.sourceOptionId)
+    await waitForPhantomConfirmation(page, phantom)
     await rejectAndExpectCancelled(page, phantom)
 
     await clickRetryPayment(page)
