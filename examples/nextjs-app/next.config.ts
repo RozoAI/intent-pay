@@ -1,6 +1,14 @@
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
+  // React StrictMode's dev-only effect double-invoke (setup → cleanup → setup)
+  // cancels the SDK's auto-transfer timer in PayWithToken: the first effect run
+  // schedules the 100ms transfer timeout and sets `autoTransferOrderRef`, the
+  // StrictMode cleanup clears that timeout, and the second run returns early on
+  // the now-set ref — so the wallet request is never made. Disabled here so the
+  // E2E (and local dev) exercise the same single-invoke path as a production
+  // build. Remove once the SDK effect is StrictMode-safe.
+  reactStrictMode: false,
   transpilePackages: ["@rozoai/intent-pay"],
   async headers() {
     return [
