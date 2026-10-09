@@ -738,17 +738,34 @@ export async function sourceTokenDisabled(
  * the trace artifact (deliberately not uploaded, since a Stellar trace embeds
  * the injected secret key).
  */
+const NOISE_RE =
+  /fonts\.|googleapis|gstatic|posthog|intercom|coinbase\.com|walletconnect|reown|localhost|_next\/|favicon/
+
 export function logAppConsole(page: Page) {
   page.on("console", (msg) => console.log(`[app:${msg.type()}] ${msg.text()}`))
   page.on("pageerror", (err) => console.log(`[app:pageerror] ${err.message}`))
-  page.on("requestfailed", (req) =>
-    console.log(
-      `[net:failed] ${req.method()} ${req.url()} — ${req.failure()?.errorText}`
-    )
-  )
+  // Every non-noise request: shows the chain-RPC calls the gas precheck makes
+  // (or their absence, which means the transfer never started).
+  page.on("request", (req) => {
+    const url = req.url()
+    if (NOISE_RE.test(url)) return
+    let where = url
+    try {
+      const u = new URL(url)
+      where = `${u.host}${u.pathname}`
+    } catch {
+      /* keep raw */
+    }
+    console.log(`[req] ${req.method()} ${where}`)
+  })
+  page.on("requestfailed", (req) => {
+    const url = req.url()
+    if (NOISE_RE.test(url)) return
+    console.log(`[net:failed] ${req.method()} ${url} — ${req.failure()?.errorText}`)
+  })
   page.on("response", (res) => {
     const url = res.url()
-    if (url.includes("intentapiv4.rozo.ai")) {
+    if (/rozo\.ai|solana|horizon|stellar/i.test(url)) {
       console.log(`[net] ${res.status()} ${res.request().method()} ${url}`)
     }
   })
