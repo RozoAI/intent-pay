@@ -32,6 +32,7 @@ on:
         options:
           - full
           - mocked
+          - wallet-cancel
           - bridge
           - checkout
           - merchant
@@ -163,6 +164,13 @@ jobs:
               # SKIP_ENV_VALIDATION=1, and the mocked project is headless — no
               # xvfb required.
               pnpm test:e2e:mocked
+              ;;
+            wallet-cancel)
+              # Wallet-confirmation boundary: drives the real wallets to the
+              # confirmation popup and cancels — NO funds moved. Exercises the
+              # full xvfb + setup-wallets + chainwright path without spending,
+              # so it is the safe way to smoke-test this workflow.
+              xv node e2e/run.cjs wallet-cancel
               ;;
             bridge)
               run_projects evm-to-stellar stellar-to-evm stellar-to-solana \

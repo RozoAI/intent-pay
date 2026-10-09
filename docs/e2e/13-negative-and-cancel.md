@@ -83,11 +83,11 @@ Uses the standard `.env.e2e` (see `02-setup.md`). One optional override:
 
 ## CI
 
-**Not wired into the nightly real-funds workflow** (`e2e-chainwright.yml`), which
-spends real funds. This suite is safe to run anywhere, but it still needs the
-wallet cache + secrets and a headed browser (xvfb), so it is a manual/local run
-for now. To add it to the nightly job, add a `wallet-cancel` case to the `scope`
-switch that runs `xvfb-run -a node e2e/run.cjs wallet-cancel`.
+Not part of the nightly real-funds scope, but wired into the workflow as its own
+`scope: wallet-cancel` input — it exercises the full xvfb + `setup-wallets` +
+chainwright path **without spending**, so it is the safe way to smoke-test the CI
+pipeline. Trigger it from **Actions → e2e-chainwright → Run workflow → scope:
+wallet-cancel**. It still needs `.env.e2e` secrets and a built wallet cache.
 
 ## Known limitations
 
