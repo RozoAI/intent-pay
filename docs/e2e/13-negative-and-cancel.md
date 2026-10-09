@@ -91,18 +91,21 @@ wallet-cancel**. It still needs `.env.e2e` secrets and a built wallet cache.
 
 ## Why the example app disables React StrictMode
 
-`examples/nextjs-app/next.config.ts` sets `reactStrictMode: false`. The SDK's
-auto-transfer effect in `PayWithToken` is **not StrictMode-safe**: the first
-dev effect run schedules the 100 ms transfer timeout and sets
-`autoTransferOrderRef`, StrictMode's cleanup then clears that timeout, and the
-second run returns early on the now-set ref — so the wallet request is never
-made. Symptom: the modal reaches `PayWithToken` and then goes silent (no
-`payState` transition, no chain-RPC call, no popup). Disabling StrictMode makes
-dev behave like a production build. Remove the flag once the SDK effect moves
-the ref assignment inside the timeout.
+The SDK's auto-transfer effect in `PayWithToken` was **not StrictMode-safe**:
+the first dev effect run scheduled the 100 ms transfer timeout and claimed
+`autoTransferOrderRef`, StrictMode's cleanup then cleared that timeout, and the
+second run returned early on the now-claimed ref — so the wallet request was
+never made. Symptom: the modal reaches `PayWithToken` and then goes silent (no
+`payState` transition, no chain-RPC call, no popup).
 
-Because the example app links the **published** `@rozoai/intent-pay`, this
-workaround lives at the app layer, not in the SDK source.
+**Root fix:** `packages/connectkit/src/components/Pages/PayWithToken/index.tsx`
+now claims the order **inside** the timeout, so the re-armed timer in
+StrictMode's second effect run still starts the transfer.
+
+`examples/nextjs-app/next.config.ts` still sets `reactStrictMode: false` because
+the example resolves the **published** `@rozoai/intent-pay` (pnpm links it from
+the `.pnpm` store, not the workspace), so it does not pick up the in-tree fix
+until a new version is published and pinned. Remove the flag then.
 
 ## Diagnostics
 

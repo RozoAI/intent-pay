@@ -472,9 +472,16 @@ const PayWithToken: React.FC = () => {
     const currentOrder = currentState.type !== "idle" ? currentState.order : undefined;
     const orderKey = currentOrder?.externalId ?? String(currentOrder?.id ?? "");
     if (!orderKey || autoTransferOrderRef.current === orderKey) return;
-    autoTransferOrderRef.current = orderKey;
 
     const transferTimeout = setTimeout(() => {
+      // Claim the order only when the transfer actually starts. React StrictMode
+      // (dev) runs this effect setup → cleanup → setup: the first run schedules
+      // this timer, the cleanup clears it, and the second run must be allowed to
+      // re-schedule it. Claiming the order before the timer made the second run
+      // bail out on the guard, so the wallet request was never made and the
+      // modal stalled on "Preparing Transaction".
+      if (autoTransferOrderRef.current === orderKey) return;
+      autoTransferOrderRef.current = orderKey;
       handleTransfer(selectedTokenOption);
     }, 100);
     return () => {
