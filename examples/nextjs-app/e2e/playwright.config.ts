@@ -64,8 +64,10 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         baseURL: process.env.BASE_URL || "http://localhost:3000",
         headless: true,
-        actionTimeout: 10_000,
-        navigationTimeout: 15_000,
+        // Next dev compiles each route on first hit; on a cold CI runner that can
+        // exceed 15s and make page.goto time out. Give CI more headroom.
+        actionTimeout: process.env.CI ? 30_000 : 10_000,
+        navigationTimeout: process.env.CI ? 60_000 : 15_000,
         trace: "on-first-retry",
         screenshot: "only-on-failure",
         video: "retain-on-failure",
