@@ -660,6 +660,16 @@ export async function rejectAndExpectCancelled(
 ) {
   await wallet.rejectTransaction()
   await expectPaymentCancelled(page)
+
+  // Close the rejected MetaMask/Phantom popup. MetaMask keeps the rejected
+  // notification window around; on a retry it reloads that same window, so
+  // chainwright's promptPage() finds the stale page and its locator then dies
+  // with "Target page ... has been closed". Closing it forces a fresh popup.
+  for (const p of page.context().pages()) {
+    if (p.url().includes("notification.html")) {
+      await p.close().catch(() => {})
+    }
+  }
 }
 
 /**
@@ -741,33 +751,21 @@ export async function sourceTokenDisabled(
 const NOISE_RE =
   /fonts\.|googleapis|gstatic|posthog|intercom|coinbase\.com|walletconnect|reown|localhost|_next\/|favicon/
 
+/** Console lines worth keeping in CI — the SDK's payment state machine. */
+const APP_LOG_RE =
+  /\[PayWithToken\]|payState|Failed to pay|Order not initialized|precheck|Insufficient|NetworkFee/
+
 export function logAppConsole(page: Page) {
-  page.on("console", (msg) => console.log(`[app:${msg.type()}] ${msg.text()}`))
-  page.on("pageerror", (err) => console.log(`[app:pageerror] ${err.message}`))
-  // Every non-noise request: shows the chain-RPC calls the gas precheck makes
-  // (or their absence, which means the transfer never started).
-  page.on("request", (req) => {
-    const url = req.url()
-    if (NOISE_RE.test(url)) return
-    let where = url
-    try {
-      const u = new URL(url)
-      where = `${u.host}${u.pathname}`
-    } catch {
-      /* keep raw */
+  page.on("console", (msg) => {
+    if (msg.type() === "error" || APP_LOG_RE.test(msg.text())) {
+      console.log(`[app:${msg.type()}] ${msg.text()}`)
     }
-    console.log(`[req] ${req.method()} ${where}`)
   })
+  page.on("pageerror", (err) => console.log(`[app:pageerror] ${err.message}`))
   page.on("requestfailed", (req) => {
     const url = req.url()
     if (NOISE_RE.test(url)) return
     console.log(`[net:failed] ${req.method()} ${url} — ${req.failure()?.errorText}`)
-  })
-  page.on("response", (res) => {
-    const url = res.url()
-    if (/rozo\.ai|solana|horizon|stellar/i.test(url)) {
-      console.log(`[net] ${res.status()} ${res.request().method()} ${url}`)
-    }
   })
 }
 

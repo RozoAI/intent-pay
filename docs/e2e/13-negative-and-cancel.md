@@ -89,6 +89,21 @@ chainwright path **without spending**, so it is the safe way to smoke-test the C
 pipeline. Trigger it from **Actions → e2e-chainwright → Run workflow → scope:
 wallet-cancel**. It still needs `.env.e2e` secrets and a built wallet cache.
 
+## Why the example app disables React StrictMode
+
+`examples/nextjs-app/next.config.ts` sets `reactStrictMode: false`. The SDK's
+auto-transfer effect in `PayWithToken` is **not StrictMode-safe**: the first
+dev effect run schedules the 100 ms transfer timeout and sets
+`autoTransferOrderRef`, StrictMode's cleanup then clears that timeout, and the
+second run returns early on the now-set ref — so the wallet request is never
+made. Symptom: the modal reaches `PayWithToken` and then goes silent (no
+`payState` transition, no chain-RPC call, no popup). Disabling StrictMode makes
+dev behave like a production build. Remove the flag once the SDK effect moves
+the ref assignment inside the timeout.
+
+Because the example app links the **published** `@rozoai/intent-pay`, this
+workaround lives at the app layer, not in the SDK source.
+
 ## Diagnostics
 
 `logAppConsole(page)` streams the SDK's own `[PayWithToken] payState: …`
