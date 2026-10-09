@@ -739,17 +739,19 @@ export async function sourceTokenDisabled(
  * the injected secret key).
  */
 export function logAppConsole(page: Page) {
-  page.on("console", (msg) => {
-    const text = msg.text()
-    if (
-      /\[PayWithToken\]|payState|precheck|insufficient|NetworkFee|switch(ing)? chain|route/i.test(
-        text
-      )
-    ) {
-      console.log(`[app:${msg.type()}] ${text}`)
+  page.on("console", (msg) => console.log(`[app:${msg.type()}] ${msg.text()}`))
+  page.on("pageerror", (err) => console.log(`[app:pageerror] ${err.message}`))
+  page.on("requestfailed", (req) =>
+    console.log(
+      `[net:failed] ${req.method()} ${req.url()} — ${req.failure()?.errorText}`
+    )
+  )
+  page.on("response", (res) => {
+    const url = res.url()
+    if (url.includes("intentapiv4.rozo.ai")) {
+      console.log(`[net] ${res.status()} ${res.request().method()} ${url}`)
     }
   })
-  page.on("pageerror", (err) => console.log(`[app:pageerror] ${err.message}`))
 }
 
 /**
