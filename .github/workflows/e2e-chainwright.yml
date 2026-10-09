@@ -1,0 +1,274 @@
+# Chainwright real-funds E2E — MAINNET. NOT a PR gate.
+#
+# Why a dedicated workflow instead of the shared `fe-gate` reusable workflow:
+#   1. Browser extensions (MetaMask, Phantom) do NOT load in headless Chromium,
+#      so the real-funds projects run headed. A CI runner has no display, so the
+#      whole job must run under `xvfb-run` (virtual framebuffer).
+#   2. It needs the Chainwright cache-build step (`setup-wallets`) before tests.
+#   3. It needs seed-phrase / secret-key secrets, which the fe-gate reusable
+#      workflow cannot receive (its only secret is a NEXT_PUBLIC_ dotenv blob).
+#   4. The full matrix is one linear `dependencies` chain (39 projects, up to
+#      10 min each). fe-gate caps jobs at 20 min; we need up to 360.
+#
+# It spends REAL funds, so it is NOT wired to `pull_request`.
+#
+# Safe by default — real funds run ONLY when explicitly enabled:
+#   - nightly (schedule): `full` only when vars.E2E_ENABLED == 'true' AND the
+#     seed secret is present; otherwise `mocked` (secret-free).
+#   - manual (dispatch):  the chosen `scope` (default `mocked`).
+# So merging this workflow before the secrets exist cannot spend anything and
+# cannot fail the nightly — it just runs the mocked suite.
+#
+# Setup required once, in the repo: Settings → Secrets and variables → Actions
+#   secrets: E2E_EVM_SEED_PHRASE, E2E_EVM_WALLET_PASSWORD, E2E_EVM_ADDRESS,
+#            E2E_STELLAR_SECRET, E2E_STELLAR_ADDRESS,
+#            E2E_SOLANA_SEED_PHRASE, E2E_SOLANA_WALLET_PASSWORD,
+#            E2E_SOLANA_ADDRESS, E2E_MERCHANT_APP_ID
+#   vars: E2E_ENABLED = 'true' to let the nightly run real funds (requires the
+#         secrets above; leave unset to keep the nightly on `mocked`)
+#         E2E_AMOUNT (optional, defaults to 0.02)
+
+name: e2e-chainwright
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: "Which projects to run"
+        type: choice
+        default: mocked
+        options:
+          - full
+          - mocked
+          - wallet-cancel
+          - bridge
+          - checkout
+          - merchant
+          - deposit
+  schedule:
+    # 01:00 WIB (18:00 UTC). Runs `mocked` unless vars.E2E_ENABLED == 'true' and
+    # the seed secret is present — see the "Resolve scope" step. The nightly
+    # never spends while the toggle is off.
+    - cron: "0 18 * * *"
+
+# Real-funds runs must never overlap — concurrent runs draw from the SAME
+# source wallets, which would collide on nonces / balances.
+concurrency:
+  group: e2e-chainwright
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-22.04
+    # GitHub-hosted runner hard cap. The full chain is sequential (workers: 1 in
+    # e2e/playwright.config.ts) because every flow spends from the same wallets.
+    timeout-minutes: 360
+
+    env:
+      CI: "1"
+      # Tells playwright.config.ts to boot the dev server (NEXT_PUBLIC_E2E=1) for
+      # the run — the headless Stellar signer is only wired when that flag is set.
+      E2E_START_SERVER: "1"
+      BASE_URL: "http://localhost:3000"
+      # Real-funds toggle + secret-presence marker. `secrets` cannot be used in
+      # an `if:`, so both are mapped to env and evaluated in "Resolve scope".
+      E2E_ENABLED: ${{ vars.E2E_ENABLED }}
+      E2E_SEED_MARKER: ${{ secrets.E2E_EVM_SEED_PHRASE }}
+
+    steps:
+      # Decide the effective scope. Any non-mocked scope needs real secrets, so a
+      # scheduled run escalates to `full` only when the toggle is on AND a seed
+      # is present; otherwise it stays on the secret-free mocked suite.
+      - name: Resolve scope
+        id: scope
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ "${E2E_ENABLED}" = "true" ] && [ -n "${E2E_SEED_MARKER}" ]; then
+              echo "scope=full" >> "$GITHUB_OUTPUT"
+              echo "Scheduled run: E2E_ENABLED=true and a seed secret is set → full."
+            else
+              echo "scope=mocked" >> "$GITHUB_OUTPUT"
+              echo "Scheduled run: real funds not enabled → mocked (no secrets)."
+            fi
+          else
+            echo "scope=${{ github.event.inputs.scope || 'mocked' }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install xvfb (headed browser needs a virtual display)
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Install Playwright browsers
+        run: pnpm --filter examples/nextjs-app exec playwright install --with-deps chromium
+
+      # Write the E2E env file. The values come from repo secrets, so they are
+      # masked in logs. `.env.e2e` is already gitignored (examples/nextjs-app).
+      - name: Write .env.e2e
+        working-directory: examples/nextjs-app
+        env:
+          E2E_AMOUNT: ${{ vars.E2E_AMOUNT }}
+          E2E_EVM_SEED_PHRASE: ${{ secrets.E2E_EVM_SEED_PHRASE }}
+          E2E_EVM_WALLET_PASSWORD: ${{ secrets.E2E_EVM_WALLET_PASSWORD }}
+          E2E_EVM_ADDRESS: ${{ secrets.E2E_EVM_ADDRESS }}
+          E2E_STELLAR_SECRET: ${{ secrets.E2E_STELLAR_SECRET }}
+          E2E_STELLAR_ADDRESS: ${{ secrets.E2E_STELLAR_ADDRESS }}
+          E2E_SOLANA_SEED_PHRASE: ${{ secrets.E2E_SOLANA_SEED_PHRASE }}
+          E2E_SOLANA_WALLET_PASSWORD: ${{ secrets.E2E_SOLANA_WALLET_PASSWORD }}
+          E2E_SOLANA_ADDRESS: ${{ secrets.E2E_SOLANA_ADDRESS }}
+          E2E_MERCHANT_APP_ID: ${{ secrets.E2E_MERCHANT_APP_ID }}
+        run: |
+          # Write with printf, not an unquoted heredoc: a secret containing a
+          # backtick or $(...) would otherwise be command-substituted at write
+          # time. printf takes each value as a literal argument, so nothing in it
+          # is re-evaluated. (Values are mnemonics / hex / base58 and never
+          # contain a double quote, so no further escaping is needed.)
+          {
+            printf 'E2E_AMOUNT="%s"\n' "${E2E_AMOUNT:-0.02}"
+            printf 'E2E_EVM_SEED_PHRASE="%s"\n' "$E2E_EVM_SEED_PHRASE"
+            printf 'E2E_EVM_WALLET_PASSWORD="%s"\n' "$E2E_EVM_WALLET_PASSWORD"
+            printf 'E2E_EVM_ADDRESS="%s"\n' "$E2E_EVM_ADDRESS"
+            printf 'E2E_STELLAR_SECRET="%s"\n' "$E2E_STELLAR_SECRET"
+            printf 'E2E_STELLAR_ADDRESS="%s"\n' "$E2E_STELLAR_ADDRESS"
+            printf 'E2E_SOLANA_SEED_PHRASE="%s"\n' "$E2E_SOLANA_SEED_PHRASE"
+            printf 'E2E_SOLANA_WALLET_PASSWORD="%s"\n' "$E2E_SOLANA_WALLET_PASSWORD"
+            printf 'E2E_SOLANA_ADDRESS="%s"\n' "$E2E_SOLANA_ADDRESS"
+            printf 'E2E_MERCHANT_APP_ID="%s"\n' "$E2E_MERCHANT_APP_ID"
+          } > .env.e2e
+
+      # Chainwright cache-build: imports the seed phrases into cached MetaMask /
+      # Phantom profiles under `.wallet-cache/`. cwd must be examples/nextjs-app —
+      # the cache path is resolved relative to process.cwd().
+      #
+      # Intentionally NOT cached with actions/cache: the cache holds the imported
+      # seed phrases, and a persisted cache artifact would leak them.
+      #
+      # Skipped for the mocked scope: setup-wallets onboards both wallets from
+      # the seed secrets, which are empty on a secret-free mocked run.
+      - name: Build wallet cache
+        if: steps.scope.outputs.scope != 'mocked'
+        working-directory: examples/nextjs-app
+        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm run setup-wallets
+
+      - name: Run Chainwright E2E
+        working-directory: examples/nextjs-app
+        env:
+          SCOPE: ${{ steps.scope.outputs.scope }}
+        run: |
+          # Deliberately NOT `set -e`: a subset runs several independent flows,
+          # and one failure must not abort the rest (the full run's single
+          # Playwright invocation already reports every failure).
+          set +e
+          set -o pipefail
+
+          # xvfb-run gives the headed Chromium a virtual display. Wrapped in a
+          # function so the flag is never word-split through a variable.
+          xv() { xvfb-run -a "$@"; }
+
+          # Run each project via the runner (--no-deps), continue past failures,
+          # and return non-zero if any failed.
+          run_projects() {
+            local failed=0
+            for p in "$@"; do
+              echo "::group::project $p"
+              xv node e2e/run.cjs "$p" || failed=1
+              echo "::endgroup::"
+            done
+            return "$failed"
+          }
+
+          case "$SCOPE" in
+            full)
+              # Full suite via the config: mocked → every real-funds project, in
+              # the dependency order declared in e2e/playwright.config.ts.
+              xv pnpm test:e2e
+              ;;
+            mocked)
+              # No secrets needed. test:e2e:mocked already sets
+              # SKIP_ENV_VALIDATION=1, and the mocked project is headless — no
+              # xvfb required.
+              pnpm test:e2e:mocked
+              ;;
+            wallet-cancel)
+              # Wallet-confirmation boundary: drives the real wallets to the
+              # confirmation popup and cancels — NO funds moved. Exercises the
+              # full xvfb + setup-wallets + chainwright path without spending,
+              # so it is the safe way to smoke-test this workflow.
+              xv node e2e/run.cjs wallet-cancel
+              ;;
+            bridge)
+              run_projects evm-to-stellar stellar-to-evm stellar-to-solana \
+                solana-to-stellar solana-to-evm evm-to-solana \
+                bridge-evm-native bridge-solana-native bridge-stellar-native
+              ;;
+            checkout)
+              run_projects checkout-evm-to-stellar checkout-evm-to-solana \
+                checkout-stellar-to-evm checkout-stellar-to-solana \
+                checkout-solana-to-stellar checkout-solana-to-evm \
+                checkout-evm-native checkout-solana-native \
+                checkout-stellar-native
+              ;;
+            merchant)
+              run_projects merchant-evm merchant-solana merchant-stellar \
+                merchant-evm-native merchant-solana-native \
+                merchant-stellar-native merchant-polygon-native \
+                merchant-evm-pay-to-address \
+                merchant-evm-native-pay-to-address \
+                merchant-solana-pay-to-address
+              ;;
+            deposit)
+              run_projects deposit-stellar-to-evm deposit-stellar-to-solana \
+                deposit-evm-to-stellar deposit-evm-to-solana \
+                deposit-solana-to-stellar deposit-solana-to-evm \
+                deposit-evm-native deposit-solana-native \
+                deposit-stellar-native
+              ;;
+            *)
+              echo "Unknown scope: $SCOPE" >&2
+              exit 1
+              ;;
+          esac
+
+      # Drop every attachment before upload. Playwright's HTML reporter is
+      # self-contained: it COPIES attachments (the retain-on-failure trace, the
+      # always-on video, failure screenshots) from test-results/ into
+      # playwright-report/data/. A trace embeds page state, which for the Stellar
+      # flows includes the injected secret key, so excluding test-results/ alone
+      # is NOT enough. Removing data/ leaves the report's names/errors/durations
+      # with no attachment.
+      - name: Strip report attachments
+        if: always()
+        working-directory: examples/nextjs-app
+        run: |
+          rm -rf test-results
+          rm -rf playwright-report/data
+
+      # Failure-only, but now attachment-free (see the strip step above), so it
+      # is safe to publish even on a public repo. Short retention anyway.
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-chainwright-report
+          path: examples/nextjs-app/playwright-report
+          retention-days: 1
+
+      # The runner is ephemeral, but the wallet cache holds the imported seed
+      # phrases — wipe it rather than leave it around.
+      - name: Scrub wallet cache
+        if: always()
+        run: rm -rf examples/nextjs-app/.wallet-cache

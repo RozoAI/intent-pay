@@ -15,6 +15,7 @@ pnpm dev
 # 4. Run tests (separate terminal)
 pnpm test:e2e                      # full suite: mocked → bridge → checkout → deposit
 pnpm test:e2e:mocked               # non-payment tests only (no secrets needed)
+pnpm test:e2e:wallet-cancel        # wallet-confirmation boundary: amount, cancel, retry (no funds moved)
 pnpm test:e2e:stellar-to-evm       # one flow, isolated (--no-deps)
 pnpm test:e2e:checkout-evm-to-solana  # one checkout flow, isolated
 ```
@@ -35,6 +36,10 @@ test.skip(!E2E.evm.seedPhrase, "E2E_EVM_SEED_PHRASE not set")
 A CI run with no wallet secrets will only execute the `mocked` project, which
 is safe and requires no secrets. Add wallet secrets as CI environment variables
 only when you intentionally want to run real-funds flows.
+
+For the full GitHub Actions workflow — xvfb, the Chainwright cache-build step,
+required secrets, funded-wallet requirements, and the security model — see
+[12-ci.md](./12-ci.md).
 
 ---
 

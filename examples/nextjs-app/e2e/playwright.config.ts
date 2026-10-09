@@ -64,8 +64,10 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         baseURL: process.env.BASE_URL || "http://localhost:3000",
         headless: true,
-        actionTimeout: 10_000,
-        navigationTimeout: 15_000,
+        // Next dev compiles each route on first hit; on a cold CI runner that can
+        // exceed 15s and make page.goto time out. Give CI more headroom.
+        actionTimeout: process.env.CI ? 30_000 : 10_000,
+        navigationTimeout: process.env.CI ? 60_000 : 15_000,
         trace: "on-first-retry",
         screenshot: "only-on-failure",
         video: "retain-on-failure",
@@ -82,6 +84,20 @@ export default defineConfig({
       use: { ...realFundsUse, headless: true },
       retries: 0,
       timeout: 90_000,
+    },
+
+    // ── Wallet-confirmation boundary (NO funds moved) ─────────────────────────
+    // Drives the real MetaMask / Phantom extensions up to the transaction
+    // confirmation popup and then cancels — nothing is ever signed. Reuses the
+    // funded cached profiles only to pass the SDK's balance gate. Headed (the
+    // extensions can't load headless). Standalone: no dependencies, so it runs
+    // alone with `--project=wallet-cancel --no-deps`.
+    {
+      name: "wallet-cancel",
+      testMatch: "**/payment-flows/cancel/*.spec.ts",
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 5 * 60_000,
     },
 
     // ── EVM → Stellar (real funds) ────────────────────────────────────────────

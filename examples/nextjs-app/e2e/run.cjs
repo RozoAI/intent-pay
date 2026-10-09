@@ -38,6 +38,8 @@
 // Order matches playwright.config.ts dependency chain.
 const PROJECTS = [
   "mocked",
+  // wallet-confirmation boundary (no funds moved)
+  "wallet-cancel",
   // bridge
   "evm-to-stellar",
   "stellar-to-evm",
