@@ -99,18 +99,23 @@ jobs:
           E2E_SOLANA_ADDRESS: ${{ secrets.E2E_SOLANA_ADDRESS }}
           E2E_MERCHANT_APP_ID: ${{ secrets.E2E_MERCHANT_APP_ID }}
         run: |
-          cat > .env.e2e <<EOF
-          E2E_AMOUNT="${E2E_AMOUNT:-0.02}"
-          E2E_EVM_SEED_PHRASE="${E2E_EVM_SEED_PHRASE}"
-          E2E_EVM_WALLET_PASSWORD="${E2E_EVM_WALLET_PASSWORD}"
-          E2E_EVM_ADDRESS="${E2E_EVM_ADDRESS}"
-          E2E_STELLAR_SECRET="${E2E_STELLAR_SECRET}"
-          E2E_STELLAR_ADDRESS="${E2E_STELLAR_ADDRESS}"
-          E2E_SOLANA_SEED_PHRASE="${E2E_SOLANA_SEED_PHRASE}"
-          E2E_SOLANA_WALLET_PASSWORD="${E2E_SOLANA_WALLET_PASSWORD}"
-          E2E_SOLANA_ADDRESS="${E2E_SOLANA_ADDRESS}"
-          E2E_MERCHANT_APP_ID="${E2E_MERCHANT_APP_ID}"
-          EOF
+          # Write with printf, not an unquoted heredoc: a secret containing a
+          # backtick or $(...) would otherwise be command-substituted at write
+          # time. printf takes each value as a literal argument, so nothing in it
+          # is re-evaluated. (Values are mnemonics / hex / base58 and never
+          # contain a double quote, so no further escaping is needed.)
+          {
+            printf 'E2E_AMOUNT="%s"\n' "${E2E_AMOUNT:-0.02}"
+            printf 'E2E_EVM_SEED_PHRASE="%s"\n' "$E2E_EVM_SEED_PHRASE"
+            printf 'E2E_EVM_WALLET_PASSWORD="%s"\n' "$E2E_EVM_WALLET_PASSWORD"
+            printf 'E2E_EVM_ADDRESS="%s"\n' "$E2E_EVM_ADDRESS"
+            printf 'E2E_STELLAR_SECRET="%s"\n' "$E2E_STELLAR_SECRET"
+            printf 'E2E_STELLAR_ADDRESS="%s"\n' "$E2E_STELLAR_ADDRESS"
+            printf 'E2E_SOLANA_SEED_PHRASE="%s"\n' "$E2E_SOLANA_SEED_PHRASE"
+            printf 'E2E_SOLANA_WALLET_PASSWORD="%s"\n' "$E2E_SOLANA_WALLET_PASSWORD"
+            printf 'E2E_SOLANA_ADDRESS="%s"\n' "$E2E_SOLANA_ADDRESS"
+            printf 'E2E_MERCHANT_APP_ID="%s"\n' "$E2E_MERCHANT_APP_ID"
+          } > .env.e2e
 
       # Chainwright cache-build: imports the seed phrases into cached MetaMask /
       # Phantom profiles under `.wallet-cache/`. cwd must be examples/nextjs-app —
@@ -205,12 +210,22 @@ jobs:
               ;;
           esac
 
-      # Failure-only, and deliberately EXCLUDES test-results/: a Playwright trace
-      # embeds page state, which for the Stellar flows includes the injected
-      # secret key, and the always-on video records every run. `test-results/`
-      # holds both (traces + videos + failure screenshots), so it is not uploaded
-      # — the HTML report summarises pass/fail without carrying the trace. Keep
-      # retention short as defence in depth.
+      # Drop every attachment before upload. Playwright's HTML reporter is
+      # self-contained: it COPIES attachments (the retain-on-failure trace, the
+      # always-on video, failure screenshots) from test-results/ into
+      # playwright-report/data/. A trace embeds page state, which for the Stellar
+      # flows includes the injected secret key, so excluding test-results/ alone
+      # is NOT enough. Removing data/ leaves the report's names/errors/durations
+      # with no attachment.
+      - name: Strip report attachments
+        if: always()
+        working-directory: examples/nextjs-app
+        run: |
+          rm -rf test-results
+          rm -rf playwright-report/data
+
+      # Failure-only, but now attachment-free (see the strip step above), so it
+      # is safe to publish even on a public repo. Short retention anyway.
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
@@ -220,7 +235,7 @@ jobs:
           retention-days: 1
 
       # The runner is ephemeral, but the wallet cache holds the imported seed
-      # phrases — wipe it rather than leave it for a later step to publish.
+      # phrases — wipe it rather than leave it around.
       - name: Scrub wallet cache
         if: always()
-        run: rm -rf examples/nextjs-app/.wallet-cache examples/nextjs-app/test-results
+        run: rm -rf examples/nextjs-app/.wallet-cache
