@@ -29,9 +29,9 @@ import {
 
 const test = testWithChainwright(metamaskFixture())
 
-// ponytail: merchant amounts are in local currency (RM). 5.00 RM ≈ $1.10, in
-// line with the ~$1 budget and above the USDT route minimum.
-const USDT_AMOUNT_LOCAL_RM = "5.00"
+// ponytail: merchant amounts are in local currency (RM). 1.50 RM ≈ $0.38,
+// above the USDT route minimum and within the throwaway-wallet budget.
+const USDT_AMOUNT_LOCAL_RM = "1.50"
 
 test.describe("Merchant (payId): BSC USDT → merchant (mainnet, real funds)", () => {
   test.skip(
