@@ -20,9 +20,16 @@ for (const file of [".env.e2e", ".env.local", ".env"]) {
   if (existsSync(file)) process.loadEnvFile(file)
 }
 
-// Base USDC — default EVM source token option id (rozopay-option-{chainId}-{token}).
+// Source token option ids — the SDK renders each wallet balance as
+// `rozopay-option-{chainId}-{token}` (see e2e/helpers.ts selectSourceToken).
+// Base USDC is the default EVM source; the USDT ids cover the non-USDC paths.
 const BASE_USDC_OPTION_ID = "8453-0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 const SOLANA_USDC_OPTION_ID = "501-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+// Solana USDT: the widget presents the native SPL mint on chainId 501 (the
+// Intents settlement chain is 900/rozoSolana, but the wallet option keeps 501).
+const SOLANA_USDT_OPTION_ID = "501-Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
+// BSC USDT (BEP-20). Only offered when the EVM wallet actually holds USDT on BSC.
+const BSC_USDT_OPTION_ID = "56-0x55d398326f99059fF775485246999027B3197955"
 const TEMP_PASSWORD = "TempE2ePassword123!"
 
 export const E2E = {
@@ -63,6 +70,11 @@ export const E2E = {
     address: process.env.E2E_EVM_ADDRESS,
     /** Source token to pay FROM when this wallet is the source (default Base USDC). */
     sourceOptionId: process.env.E2E_EVM_SOURCE_OPTION_ID ?? BASE_USDC_OPTION_ID,
+    /**
+     * BSC USDT source option (BEP-20). Used by the BSC USDT specs; requires the
+     * wallet to hold USDT on BSC (plus BNB for gas) or the option won't render.
+     */
+    bscUsdtSourceOptionId: BSC_USDT_OPTION_ID,
   },
 
   /** Stellar wallet — driven by an in-page headless signer (no extension). */
@@ -92,6 +104,11 @@ export const E2E = {
     /** Source token to pay FROM (rozopay-option-{chainId}-{mint}). Default = Solana USDC. */
     sourceOptionId:
       process.env.E2E_SOLANA_SOURCE_OPTION_ID ?? SOLANA_USDC_OPTION_ID,
+    /**
+     * Solana USDT source option (SPL mint on chainId 501). Used by the Solana
+     * USDT specs; requires the wallet to hold USDT or the option won't render.
+     */
+    usdtSourceOptionId: SOLANA_USDT_OPTION_ID,
   },
 
   /**

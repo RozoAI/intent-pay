@@ -492,5 +492,49 @@ export default defineConfig({
       retries: 0,
       timeout: 10 * 60_000,
     },
+
+    // ── Checkout (payId): Solana USDT → EVM (real funds, non-USDC source) ─────
+    // Same checkout money movement as checkout-solana-to-evm, but pays with the
+    // non-USDC stablecoin. The wallet must hold USDT; the option only renders
+    // when the proxy sees a balance.
+    {
+      name: "checkout-solana-usdt-to-evm",
+      testMatch: "**/payment-flows/checkout/solana-usdt-to-evm.spec.ts",
+      dependencies: ["deposit-stellar-native"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Checkout (payId): BSC USDT → EVM (real funds, non-USDC source) ────────
+    // BSC USDT (BEP-20) source; needs USDT + BNB gas on BSC.
+    {
+      name: "checkout-bsc-usdt-to-evm",
+      testMatch: "**/payment-flows/checkout/bsc-usdt-to-evm.spec.ts",
+      dependencies: ["checkout-solana-usdt-to-evm"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Merchant: Solana USDT → merchant (real funds, non-USDC source) ────────
+    {
+      name: "merchant-solana-usdt",
+      testMatch: "**/payment-flows/merchant/solana-usdt.spec.ts",
+      dependencies: ["checkout-bsc-usdt-to-evm"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
+    // ── Merchant: BSC USDT → merchant (real funds, non-USDC source) ───────────
+    {
+      name: "merchant-bsc-usdt",
+      testMatch: "**/payment-flows/merchant/bsc-usdt.spec.ts",
+      dependencies: ["merchant-solana-usdt"],
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
   ],
 })
