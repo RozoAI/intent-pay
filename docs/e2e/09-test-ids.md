@@ -29,7 +29,13 @@ and in any custom helpers. The pay-in helpers in `07-helpers.md` already rely on
 ```
 Base USDC   →  rozopay-option-8453-0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 Solana USDC →  rozopay-option-501-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+Solana USDT →  rozopay-option-501-Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
+BSC USDT    →  rozopay-option-56-0x55d398326f99059fF775485246999027B3197955
 ```
+
+> Solana stablecoins are shown on native Solana (`chainId 501`); the Intents
+> settlement chain is `900` (rozoSolana). BSC is `chainId 56`. See
+> [14-coverage-matrix.md](./14-coverage-matrix.md) for the full source matrix.
 
 ---
 

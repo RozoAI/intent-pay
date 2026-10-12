@@ -177,6 +177,26 @@ export async function openModal(page: Page) {
   })
 }
 
+/**
+ * Open the payId (Checkout / Merchant) modal, tolerating an auto-open.
+ *
+ * The checkout page auto-opens the modal as soon as `paymentId` is set (see
+ * CheckoutMode's auto-open effect) — consistently on the production build, where
+ * the custom button mounts before the 100ms timer fires. An unconditional
+ * "Pay Now" click then races the modal overlay and times out. Wait briefly for
+ * the auto-open and only fall back to an explicit click when it did not happen
+ * (e.g. a slow dev server).
+ */
+async function openPayIdModal(page: Page) {
+  const modal = page.getByTestId("rozopay-modal")
+  await modal.waitFor({ state: "visible", timeout: 2_000 }).catch(() => {})
+  if (await modal.isVisible()) {
+    await expect(modal).toBeVisible()
+    return
+  }
+  await openModal(page)
+}
+
 /** Close modal via Escape key */
 export async function closeModalEscape(page: Page) {
   await page.keyboard.press("Escape")
@@ -260,7 +280,17 @@ export async function startCheckoutPayment(
     timeout: 30_000,
   })
   await expect(page.getByText(/payment id:/i)).toBeVisible()
-  await openModal(page)
+  await openPayIdModal(page)
+
+  // SELECT_METHOD wires each wallet's chain options (e.g. Phantom's Solana
+  // adapter) only AFTER the payId's order loads — showSolanaPaymentMethod gates
+  // on pay.order != null, and the order round-trips getPayment() async. Click
+  // "Pay with wallet" before that lands and the chain picker is missing, so
+  // Phantom connects EVM-only with no Solana option. "Pay with Stellar" is gated
+  // on the same loaded order — the sentinel startMerchantCheckout also waits on.
+  await expect(
+    page.getByRole("button", { name: /pay with stellar/i })
+  ).toBeVisible({ timeout: 30_000 })
 }
 
 type MerchantCreateOpts = {
@@ -311,7 +341,7 @@ async function openMerchantModal(page: Page, payId: string) {
   await page.getByRole("button", { name: /^use$/i }).click()
 
   await expect(page.getByText(/payment id:/i)).toBeVisible({ timeout: 10_000 })
-  await openModal(page)
+  await openPayIdModal(page)
 }
 
 /**

@@ -219,11 +219,13 @@ jobs:
               run_projects checkout-evm-to-stellar checkout-evm-to-solana \
                 checkout-stellar-to-evm checkout-stellar-to-solana \
                 checkout-solana-to-stellar checkout-solana-to-evm \
+                checkout-solana-usdt-to-evm checkout-bsc-usdt-to-evm \
                 checkout-evm-native checkout-solana-native \
                 checkout-stellar-native
               ;;
             merchant)
               run_projects merchant-evm merchant-solana merchant-stellar \
+                merchant-solana-usdt merchant-bsc-usdt \
                 merchant-evm-native merchant-solana-native \
                 merchant-stellar-native merchant-polygon-native \
                 merchant-evm-pay-to-address \

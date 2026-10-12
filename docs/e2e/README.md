@@ -24,6 +24,7 @@ Covers EVM, Solana, and Stellar source chains using [Playwright](https://playwri
 | [11-troubleshooting.md](./11-troubleshooting.md)     | Gotchas table + security checklist                     |
 | [12-ci.md](./12-ci.md)                               | GitHub Actions workflow: requirements, secrets, setup  |
 | [13-negative-and-cancel.md](./13-negative-and-cancel.md) | Wallet-confirmation boundary: amount, user cancel, retry, insufficient |
+| [14-coverage-matrix.md](./14-coverage-matrix.md)     | Source token/chain × mode coverage; known gaps          |
 
 ## Quick start
 

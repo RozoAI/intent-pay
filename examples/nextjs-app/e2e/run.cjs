@@ -82,6 +82,11 @@ const PROJECTS = [
   "deposit-evm-native",
   "deposit-solana-native",
   "deposit-stellar-native",
+  // non-USDC stablecoin sources (USDT on Solana/BSC)
+  "checkout-solana-usdt-to-evm",
+  "checkout-bsc-usdt-to-evm",
+  "merchant-solana-usdt",
+  "merchant-bsc-usdt",
 ]
 
 const { spawnSync } = require("child_process")
