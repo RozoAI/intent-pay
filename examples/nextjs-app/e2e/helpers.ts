@@ -259,6 +259,7 @@ export async function startCheckoutPayment(
     destToken: string
     address: string
     amount: string
+    exactOut?: boolean
   }
 ) {
   await gotoMode(page, "checkout")
@@ -268,6 +269,7 @@ export async function startCheckoutPayment(
     address: opts.address,
     amount: opts.amount,
   })
+  if (opts.exactOut) await selectRadixOption(page, "Fee Type", "Exact output")
   await page.getByRole("button", { name: /confirm/i }).click()
 
   // Confirm reveals "Create Payment"; clicking it calls the createPayment() API

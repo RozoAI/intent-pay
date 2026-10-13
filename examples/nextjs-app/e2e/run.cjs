@@ -59,6 +59,8 @@ const PROJECTS = [
   "checkout-solana-to-evm",
   "checkout-evm-native",
   "checkout-solana-native",
+  "checkout-evm-native-to-base",
+  "checkout-solana-native-to-base",
   "checkout-stellar-native",
   // merchant
   "merchant-evm",

@@ -22,11 +22,19 @@ import {
 } from "../../helpers"
 
 const test = testWithChainwright(metamaskFixture())
+// OpenRouter uses USD; other configured merchant fixtures use local RM.
+const merchantAmount = E2E.merchant.appId === "merchant_openrouter"
+  ? { amountLocal: "1.10", currencyLocal: "USD" }
+  : { amountLocal: "5.00", currencyLocal: E2E.merchant.currencyLocal }
 
 // ponytail: native source sentinels — EIP-7528 (viem/ethAddress).
 const ETH_BASE_SOURCE_OPTION_ID =
   "8453-0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 const BNB_BSC_SOURCE_OPTION_ID = "56-0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+const ETH_ARBITRUM_SOURCE_OPTION_ID =
+  "42161-0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+const ETH_MAINNET_SOURCE_OPTION_ID =
+  "1-0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 
 test.describe("Merchant (payId): EVM native → merchant (mainnet, real funds)", () => {
   // Captured mid-test so the afterEach report has the payId even if a later
@@ -51,17 +59,55 @@ test.describe("Merchant (payId): EVM native → merchant (mainnet, real funds)",
     // Cached MetaMask profile starts locked — unlock before any popup can appear.
     await metamask.unlock()
 
-    // ponytail: native ETH on Base requires ~$0.10 USD minimum. Merchant amount
-    // is in local currency (RM); 0.50 RM ≈ $0.11-$0.13 USD, safely above threshold.
+    // Merchant amount is in RM; 5.00 RM ≈ $1.10-$1.25 USD.
     payId = await startMerchantCheckout(page, {
       apiUrl: E2E.merchant.apiUrl,
       appId: E2E.merchant.appId!,
-      amountLocal: "0.50",
-      currencyLocal: E2E.merchant.currencyLocal,
+      ...merchantAmount,
       source: { chainId: "8453", tokenSymbol: "ETH" },
     })
     await payInWithMetaMask(page, metamask, {
       sourceOptionId: ETH_BASE_SOURCE_OPTION_ID,
+    })
+    await waitForPayoutCompleted(page)
+  })
+
+  test("ETH on Arbitrum → merchant", async ({ page, metamask }) => {
+    test.skip(
+      !E2E.merchant.appId || !E2E.evm.seedPhrase,
+      "Set E2E_MERCHANT_APP_ID and E2E_EVM_SEED_PHRASE in .env.e2e"
+    )
+    route = "ETH on Arbitrum → merchant"
+    await metamask.unlock()
+
+    payId = await startMerchantCheckout(page, {
+      apiUrl: E2E.merchant.apiUrl,
+      appId: E2E.merchant.appId!,
+      ...merchantAmount,
+      source: { chainId: "42161", tokenSymbol: "ETH" },
+    })
+    await payInWithMetaMask(page, metamask, {
+      sourceOptionId: ETH_ARBITRUM_SOURCE_OPTION_ID,
+    })
+    await waitForPayoutCompleted(page)
+  })
+
+  test("ETH on Ethereum → merchant", async ({ page, metamask }) => {
+    test.skip(
+      !E2E.merchant.appId || !E2E.evm.seedPhrase,
+      "Set E2E_MERCHANT_APP_ID and E2E_EVM_SEED_PHRASE in .env.e2e"
+    )
+    route = "ETH on Ethereum → merchant"
+    await metamask.unlock()
+
+    payId = await startMerchantCheckout(page, {
+      apiUrl: E2E.merchant.apiUrl,
+      appId: E2E.merchant.appId!,
+      ...merchantAmount,
+      source: { chainId: "1", tokenSymbol: "ETH" },
+    })
+    await payInWithMetaMask(page, metamask, {
+      sourceOptionId: ETH_MAINNET_SOURCE_OPTION_ID,
     })
     await waitForPayoutCompleted(page)
   })
@@ -79,8 +125,7 @@ test.describe("Merchant (payId): EVM native → merchant (mainnet, real funds)",
     payId = await startMerchantCheckout(page, {
       apiUrl: E2E.merchant.apiUrl,
       appId: E2E.merchant.appId!,
-      amountLocal: "0.50",
-      currencyLocal: E2E.merchant.currencyLocal,
+      ...merchantAmount,
       source: { chainId: "56", tokenSymbol: "BNB" },
     })
     await payInWithMetaMask(page, metamask, {

@@ -288,6 +288,22 @@ export default defineConfig({
       timeout: 10 * 60_000,
     },
 
+    // ── rozoDemo native checkout → Base USDC (standalone real-funds runs) ────
+    {
+      name: "checkout-evm-native-to-base",
+      testMatch: "**/payment-flows/checkout/evm-native-to-base.spec.ts",
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+    {
+      name: "checkout-solana-native-to-base",
+      testMatch: "**/payment-flows/checkout/solana-native-to-base.spec.ts",
+      use: { ...realFundsUse, headless: false },
+      retries: 0,
+      timeout: 10 * 60_000,
+    },
+
     // ── Checkout (payId): Stellar XLM → EVM (real funds, native source) ─────────
     // Currently fixme — SDK blocks native sources in payId mode.
     {
