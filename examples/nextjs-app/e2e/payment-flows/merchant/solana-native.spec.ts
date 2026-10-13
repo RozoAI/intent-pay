@@ -24,6 +24,10 @@ import {
 } from "../../helpers"
 
 const test = testWithChainwright(phantomFixture())
+// OpenRouter uses USD; other configured merchant fixtures use local RM.
+const merchantAmount = E2E.merchant.appId === "merchant_openrouter"
+  ? { amountLocal: "1.10", currencyLocal: "USD" }
+  : { amountLocal: "5.00", currencyLocal: E2E.merchant.currencyLocal }
 
 // Native SOL is the System Program, never the WSOL mint.
 const SOL_SOURCE_OPTION_ID = "501-11111111111111111111111111111111"
@@ -53,14 +57,12 @@ test.describe("Merchant (payId): Solana SOL → merchant (mainnet, real funds)",
   }) => {
     await unlockPhantomIfNeeded(phantom, phantomPage)
 
-    // ponytail: native SOL requires ~$1.00 USD minimum. Merchant amount is in
-    // local currency (RM); 5.00 RM ≈ $1.10-$1.25 USD, safely above threshold.
+    // Merchant amount is in RM; 5.00 RM ≈ $1.10-$1.25 USD.
     payId = await startMerchantCheckout(page, {
       apiUrl: E2E.merchant.apiUrl,
       appId: E2E.merchant.appId!,
-      amountLocal: "5.00",
-      currencyLocal: E2E.merchant.currencyLocal,
-      source: { chainId: "8453", tokenSymbol: "SOL" },
+      ...merchantAmount,
+      source: { chainId: "900", tokenSymbol: "SOL" },
     })
     await payInWithPhantom(page, phantom, {
       sourceOptionId: SOL_SOURCE_OPTION_ID,

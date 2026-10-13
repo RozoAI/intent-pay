@@ -94,6 +94,55 @@ it inside the modal after token selection via `enterDepositAmount`.
 
 ---
 
+## Native coin checkout E2E (rozoDemo)
+
+Standalone checkout specs `checkout-evm-native-to-base` and
+`checkout-solana-native-to-base` create a 1.10 USDC exactOut payment to
+`E2E_EVM_ADDRESS` on Base. They pay from native ETH (Base, Arbitrum, Ethereum),
+BNB (BSC), or SOL and wait for payout completion. Unlike merchant specs, these
+use normal `createPayment()` with example appId `rozoDemo`, **not** merchant
+order endpoint or OpenRouter payout address. Fund each source wallet with enough
+native coin for payment plus gas. From `examples/nextjs-app`:
+
+```sh
+pnpm run build
+pnpm run start
+# In another terminal (with .env.e2e and cached wallets configured):
+node e2e/run.cjs checkout-evm-native-to-base
+node e2e/run.cjs checkout-solana-native-to-base
+```
+
+These specs move real money; use `--grep 'Base ETH'` to run one EVM route.
+
+## Native coin merchant E2E
+
+Merchant native-coin specs live in `examples/nextjs-app/e2e/payment-flows/merchant`.
+They create a merchant payId for approximately $1 in local currency, pay it from
+an opted-in real wallet, and assert `payment_payout_completed` through
+`waitForPayoutCompleted`. These specs move real funds; they stay skipped unless
+both `E2E_MERCHANT_APP_ID` and the matching wallet secret are configured.
+Merchant endpoint must also enable native pay-in for that app and source chain;
+a successful dryrun quote alone does not enable merchant order creation. Current
+production endpoint rejects `merchant_openrouter` native pay-in (`pos_*` only),
+`pos_rozostudio` lacks native pay-in enablement, and `pos_openrouter` is not
+recognized by the configured merchant API yet. Confirm merchant registration,
+native enablement, and Base USDC payout before spending funds.
+
+| Source coin | Spec | Wallet gate |
+| ----------- | ---- | ----------- |
+| ETH on Base, Arbitrum, Ethereum; BNB on BSC | `evm-native.spec.ts` | `E2E_EVM_SEED_PHRASE` |
+| SOL | `solana-native.spec.ts` | `E2E_SOLANA_SEED_PHRASE` |
+
+From `examples/nextjs-app`, configure `.env.e2e`, run `pnpm run build && pnpm run start` in another terminal, then run:
+
+```sh
+node e2e/run.cjs merchant-evm-native
+node e2e/run.cjs merchant-solana-native
+```
+
+Each wallet must hold native coin on selected chain for pay-in and gas. Do not
+run these in routine checks; running them can spend real money.
+
 ## Helper mapping by mode
 
 | Mode     | EVM helper                                                | Solana helper                                            | Stellar helper                                  |
