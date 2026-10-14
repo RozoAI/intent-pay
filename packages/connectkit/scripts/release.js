@@ -27,9 +27,10 @@ const push = flags.includes("--push");
 if (
   !["beta", "latest"].includes(mode) ||
   flags.some((flag) => !["--dry-run", "--push"].includes(flag)) ||
-  (dryRun && push)
+  (dryRun && push) ||
+  (!dryRun && !push)
 ) {
-  console.error("Usage: node scripts/release.js <beta|latest> [--dry-run] [--push]");
+  console.error("Usage: node scripts/release.js <beta|latest> [--dry-run|--push]");
   process.exit(1);
 }
 
@@ -84,6 +85,14 @@ function validateReleaseTarget() {
 }
 
 function getChangelogStartRef(packageName, currentVersion) {
+  const releaseTag = `v${currentVersion}`;
+  try {
+    run(`git rev-parse --verify --quiet ${releaseTag}^{commit}`, { cwd: repoRoot });
+    return releaseTag;
+  } catch {
+    // Older releases may not have a matching tag.
+  }
+
   const publishedGitHead = currentPublishedGitHead(packageName, currentVersion);
   if (publishedGitHead) {
     try {
@@ -161,23 +170,18 @@ pkg.version = nextVersion;
 writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
 if (mode === "latest") addChangelogEntry(nextVersion, changelogStartRef);
 
-// prepublishOnly runs the package build. Forward OTP through npm config without
-// adding it to command output.
-runInherit(`npm publish --tag ${distTag}`, {
-  cwd: pkgRoot,
-  env: process.env.OTP ? { ...process.env, npm_config_otp: process.env.OTP } : process.env,
-});
-
 runInherit(`git add "${pkgPath}"`, { cwd: repoRoot });
 if (mode === "latest") runInherit(`git add "${changelogPath}"`, { cwd: repoRoot });
 runInherit(`git commit -m "chore(release): v${nextVersion}"`, { cwd: repoRoot });
 runInherit(`git tag v${nextVersion}`, { cwd: repoRoot });
-runInherit(`npm view ${pkg.name}@${nextVersion} version`, { cwd: repoRoot });
+runInherit(`git push origin master v${nextVersion}`, { cwd: repoRoot });
 
-if (push) {
-  runInherit(`git push origin master v${nextVersion}`, { cwd: repoRoot });
-} else {
-  console.log(`Run 'git push origin master v${nextVersion}' to push the release commit and tag.`);
-}
+// prepublishOnly runs the package build. The pushed release commit becomes npm's
+// gitHead. Forward OTP through npm config without adding it to command output.
+runInherit(`npm publish --tag ${distTag}`, {
+  cwd: pkgRoot,
+  env: process.env.OTP ? { ...process.env, npm_config_otp: process.env.OTP } : process.env,
+});
+runInherit(`npm view ${pkg.name}@${nextVersion} version`, { cwd: repoRoot });
 
 console.log(`\nDone. Published ${pkg.name}@${nextVersion} (tag: ${distTag}).`);

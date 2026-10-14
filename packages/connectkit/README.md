@@ -199,7 +199,7 @@ Daimo Pay SDK is a fork of [Connectkit](https://github.com/family/connectkit) de
 
 ## Release
 
-Release only from a clean, up-to-date `master`. The release script verifies this, runs lint/tests, bumps the version, publishes, commits, and tags. Stable releases add a `CHANGELOG.md` entry; beta releases do not.
+Release only from a clean, up-to-date `master`. Release requires `--push`: script runs lint/tests, bumps version, commits, tags, pushes commit/tag, then publishes. Stable releases add a `CHANGELOG.md` entry; beta releases do not. Pushing first keeps npm's `gitHead` on release commit and prevents npm publish when Git commit/tag/push fails.
 
 ```sh
 # Validate branch, Git state, npm version, and release plan without changing files.
@@ -212,4 +212,4 @@ OTP=<current TOTP> pnpm run publish:latest -- --push
 OTP=<current TOTP> pnpm run publish:beta -- --push
 ```
 
-Omit `--push` to create the local release commit and tag, then inspect them before manually pushing. `intent-common` is published separately when its source/API changes; publish it before intent-pay and update intent-pay's dependency pin.
+`--dry-run` performs only preflight. Omitting `--push` for non-dry releases is rejected. If `npm publish` fails after Git push, release commit/tag remain on remote but package is not published; verify npm version is absent, then retry `npm publish --tag <beta|latest>` from tagged release commit with `OTP` set. `intent-common` is published separately when its source/API changes; publish it before intent-pay and update intent-pay's dependency pin.
