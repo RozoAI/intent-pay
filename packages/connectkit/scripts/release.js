@@ -11,7 +11,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -50,8 +50,7 @@ function fail(message) {
 
 function packageVersionExists(packageName, version) {
   try {
-    run(`npm view ${packageName}@${version} version --json`);
-    return true;
+    return Boolean(run(`npm view ${packageName}@${version} version --json`));
   } catch (error) {
     const output = `${error.stdout ?? ""}\n${error.stderr ?? ""}`;
     if (/E404|404 Not Found/.test(output)) return false;
@@ -123,7 +122,7 @@ function addChangelogEntry(nextVersion, startRef) {
     .replace(/\n*##### .*View changes on GitHub.*$/m, "")
     .trimEnd();
   const entry = `## [${nextVersion}] - ${today}\n\n${body}\n\n---\n`;
-  run(`rm "${tmpPath}"`, { cwd: repoRoot });
+  rmSync(tmpPath);
 
   const changelog = readFileSync(changelogPath, "utf-8");
   const lines = changelog.split("\n");
