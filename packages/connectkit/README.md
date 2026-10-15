@@ -199,12 +199,23 @@ Daimo Pay SDK is a fork of [Connectkit](https://github.com/family/connectkit) de
 
 ## Release
 
-To publish a new version of `@rozoai/intent-pay`:
+Prepare releases on a clean branch containing current `origin/master`, then merge the generated release commit through a pull request. Script runs lint/tests and updates version; stable releases also add a `CHANGELOG.md` entry. CI is sole npm publisher after a tag on merged `master`.
 
 ```sh
-# Beta release (bumps prerelease version, publishes with `beta` tag)
+# Validate Git state, npm version, and release plan without changing files.
+pnpm run publish:latest -- --dry-run
+
+# Prepare latest release files for a release PR.
+pnpm run publish:latest
+
+# Prepare next beta (patch bump plus beta prerelease) for a release PR.
 pnpm run publish:beta
 
-# Latest release (bumps stable version, updates CHANGELOG, publishes with `latest` tag)
-pnpm run publish:latest
+# After release PR merges, update local master and tag it. CI publishes with latest or beta tag.
+git switch master
+git pull --ff-only origin master
+git tag v<version>
+git push --atomic origin v<version>
 ```
+
+`--dry-run` performs only preflight. Script never commits, tags, pushes, or publishes. CI verifies tag matches package version and targets `master` before publishing; prereleases publish with npm `beta` tag. `intent-common` is published separately when its source/API changes; publish it before intent-pay and update intent-pay's dependency pin.
