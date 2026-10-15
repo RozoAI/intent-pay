@@ -25,11 +25,27 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify release tag
+        run: |
+          version=$(node -p "require('./packages/connectkit/package.json').version")
+          test "${GITHUB_REF_NAME}" = "v${version}"
+          git fetch origin master:refs/remotes/origin/master
+          target=$(git rev-list -n 1 "${GITHUB_REF_NAME}")
+          git merge-base --is-ancestor "${target}" origin/master
+
       - name: Build package
         run: pnpm --filter @rozoai/intent-pay build
 
+      - name: Determine npm dist-tag
+        id: npm
+        run: |
+          version=$(node -p "require('./packages/connectkit/package.json').version")
+          tag=latest
+          [[ "${version}" == *-* ]] && tag=beta
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
       - name: Publish to npm
-        run: pnpm --filter @rozoai/intent-pay publish --access public --no-git-checks
+        run: pnpm --filter @rozoai/intent-pay publish --access public --no-git-checks --tag "${{ steps.npm.outputs.tag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

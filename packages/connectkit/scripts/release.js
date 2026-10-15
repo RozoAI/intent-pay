@@ -3,11 +3,11 @@
  * Release helper for @rozoai/intent-pay.
  *
  * Usage:
- *   node scripts/release.js beta [--dry-run] [--push]
- *   node scripts/release.js latest [--dry-run] [--push]
+ *   node scripts/release.js beta [--dry-run]
+ *   node scripts/release.js latest [--dry-run]
  *
- * Set OTP to publish when npm two-factor auth is enabled. The script forwards
- * it to npm without adding it to command output.
+ * Prepares version and changelog changes for a release PR. CI publishes after
+ * its merged release commit is tagged.
  */
 
 import { execSync } from "node:child_process";
@@ -23,14 +23,8 @@ const changelogPath = path.join(repoRoot, "CHANGELOG.md");
 
 const [mode, ...flags] = process.argv.slice(2);
 const dryRun = flags.includes("--dry-run");
-const push = flags.includes("--push");
-if (
-  !["beta", "latest"].includes(mode) ||
-  flags.some((flag) => !["--dry-run", "--push"].includes(flag)) ||
-  (dryRun && push) ||
-  (!dryRun && !push)
-) {
-  console.error("Usage: node scripts/release.js <beta|latest> [--dry-run|--push]");
+if (!["beta", "latest"].includes(mode) || flags.some((flag) => flag !== "--dry-run")) {
+  console.error("Usage: node scripts/release.js <beta|latest> [--dry-run]");
   process.exit(1);
 }
 
@@ -69,21 +63,30 @@ function currentPublishedGitHead(packageName, version) {
 function validateReleaseTarget() {
   run("git fetch origin master --tags", { cwd: repoRoot });
 
-  if (run("git branch --show-current", { cwd: repoRoot }) !== "master") {
-    fail("current branch must be master");
+  if (run("git branch --show-current", { cwd: repoRoot }) === "master") {
+    fail("prepare releases on a branch and merge them through a pull request");
   }
   if (run("git status --porcelain", { cwd: repoRoot })) {
     fail("working tree must be clean");
   }
   if (
-    run("git rev-parse HEAD", { cwd: repoRoot }) !==
+    run("git merge-base origin/master HEAD", { cwd: repoRoot }) !==
     run("git rev-parse origin/master", { cwd: repoRoot })
   ) {
-    fail("local master must exactly match origin/master");
+    fail("release branch must include origin/master");
   }
 }
 
+function latestStableTag() {
+  const stableTags = run('git tag --list "v[0-9]*" --sort=-v:refname', { cwd: repoRoot })
+    .split("\n")
+    .filter((tag) => tag && !tag.includes("-"));
+  return stableTags[0] ?? "";
+}
+
 function getChangelogStartRef(packageName, currentVersion) {
+  if (currentVersion.includes("-")) return latestStableTag();
+
   const releaseTag = `v${currentVersion}`;
   try {
     run(`git rev-parse --verify --quiet ${releaseTag}^{commit}`, { cwd: repoRoot });
@@ -93,7 +96,7 @@ function getChangelogStartRef(packageName, currentVersion) {
   }
 
   const publishedGitHead = currentPublishedGitHead(packageName, currentVersion);
-  if (publishedGitHead) {
+  if (/^[0-9a-f]{40}$/i.test(publishedGitHead)) {
     try {
       run(`git merge-base --is-ancestor ${publishedGitHead} HEAD`, { cwd: repoRoot });
       return publishedGitHead;
@@ -102,10 +105,7 @@ function getChangelogStartRef(packageName, currentVersion) {
     }
   }
 
-  const stableTags = run('git tag --list "v[0-9]*" --sort=-v:refname', { cwd: repoRoot })
-    .split("\n")
-    .filter((tag) => tag && !tag.includes("-"));
-  return stableTags[0] ?? "";
+  return latestStableTag();
 }
 
 function addChangelogEntry(nextVersion, startRef) {
@@ -140,13 +140,16 @@ const currentVersion = pkg.version;
 const betaMatch = currentVersion.match(/^(\d+\.\d+\.\d+)-beta\.(\d+)$/);
 const core = betaMatch ? betaMatch[1] : currentVersion;
 const betaNum = betaMatch ? Number.parseInt(betaMatch[2], 10) : null;
+const [major, minor, patch] = core.split(".").map(Number);
+const nextStableVersion = `${major}.${minor}.${patch + 1}`;
 const nextVersion =
   mode === "beta"
-    ? `${core}-beta.${betaNum === null ? 1 : betaNum + 1}`
+    ? betaNum === null
+      ? `${nextStableVersion}-beta.1`
+      : `${core}-beta.${betaNum + 1}`
     : betaNum !== null
       ? core
-      : `${core.split(".").slice(0, 2).join(".")}.${Number(core.split(".")[2]) + 1}`;
-const distTag = mode === "beta" ? "beta" : "latest";
+      : nextStableVersion;
 
 validateReleaseTarget();
 if (packageVersionExists(pkg.name, nextVersion)) {
@@ -169,18 +172,4 @@ pkg.version = nextVersion;
 writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
 if (mode === "latest") addChangelogEntry(nextVersion, changelogStartRef);
 
-runInherit(`git add "${pkgPath}"`, { cwd: repoRoot });
-if (mode === "latest") runInherit(`git add "${changelogPath}"`, { cwd: repoRoot });
-runInherit(`git commit -m "chore(release): v${nextVersion}"`, { cwd: repoRoot });
-runInherit(`git tag v${nextVersion}`, { cwd: repoRoot });
-runInherit(`git push origin master v${nextVersion}`, { cwd: repoRoot });
-
-// prepublishOnly runs the package build. The pushed release commit becomes npm's
-// gitHead. Forward OTP through npm config without adding it to command output.
-runInherit(`npm publish --tag ${distTag}`, {
-  cwd: pkgRoot,
-  env: process.env.OTP ? { ...process.env, npm_config_otp: process.env.OTP } : process.env,
-});
-runInherit(`npm view ${pkg.name}@${nextVersion} version`, { cwd: repoRoot });
-
-console.log(`\nDone. Published ${pkg.name}@${nextVersion} (tag: ${distTag}).`);
+console.log(`\nPrepared ${pkg.name}@${nextVersion}. Commit these changes, open a release PR, and tag its merged commit to publish from CI.`);
