@@ -218,6 +218,28 @@ describe("rebroadcastUntilConfirmed", () => {
     ).resolves.toEqual({ status: "confirmed" });
   });
 
+  it("does not declare expiry when the final history lookup fails", async () => {
+    let t = 0;
+    const conn = fakeConnection({ statuses: [null], heights: [201] });
+    conn.getSignatureStatuses.mockImplementation(async (_s: string[], cfg?: any) => {
+      if (cfg?.searchTransactionHistory) throw new Error("rpc timeout");
+      return { context: { slot: 0 }, value: [null] };
+    });
+    await expect(
+      rebroadcastUntilConfirmed({
+        connection: conn as any,
+        rawTransaction: RAW,
+        signature: SIG,
+        lastValidBlockHeight: 200,
+        sleep: async (ms) => {
+          t += ms;
+        },
+        now: () => t,
+        maxWaitMs: 10_000,
+      }),
+    ).resolves.toEqual({ status: "unknown" });
+  });
+
   it("never declares expiry when the validity height is unknown (wallet swapped blockhash)", async () => {
     let t = 0;
     const conn = fakeConnection({ statuses: [null], heights: [10_000] });

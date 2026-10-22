@@ -235,14 +235,24 @@ export async function rebroadcastUntilConfirmed(params: {
       // Blockhash expired as of a finalized block: the tx can no longer be
       // included. One last full-history lookup closes the race where it
       // landed between our polls.
-      const { value } = await connection.getSignatureStatuses([signature], {
-        searchTransactionHistory: true,
-      });
-      const status = value[0];
-      const settled = settledStatus(status);
-      if (settled === "failed" && status) failOnChain(status);
-      if (status) return { status: "confirmed" };
-      throw new SolanaTransactionExpiredError(signature);
+      let history: SignatureStatus | null | undefined;
+      let historyKnown = false;
+      try {
+        const { value } = await connection.getSignatureStatuses([signature], {
+          searchTransactionHistory: true,
+        });
+        history = value[0];
+        historyKnown = true;
+      } catch (error) {
+        // Outcome unknown: never turn an RPC failure into "please retry".
+        log("[PAY SOLANA] history lookup error (ignored)", error);
+      }
+      if (historyKnown) {
+        const settled = settledStatus(history);
+        if (settled === "failed" && history) failOnChain(history);
+        if (history) return { status: "confirmed" };
+        throw new SolanaTransactionExpiredError(signature);
+      }
     }
 
     if (now() - startedAt >= maxWaitMs) {
