@@ -112,6 +112,13 @@ import {
 import { shouldRecoverEvmWalletConnectTx } from "../payment/shouldRecoverEvmWalletConnectTx";
 import { assertNativeSpendable } from "../payment/nativeSpendable";
 import {
+  estimatePriorityFeeMicroLamports,
+  priorityFeeInstructions,
+  rebroadcastUntilConfirmed,
+  SOLANA_CU_LIMIT_DEFAULT,
+  SOLANA_CU_LIMIT_WITH_ATA_CREATE,
+} from "../payment/solanaSend";
+import {
   feeToUsd,
   fetchNativeUsdPrice,
   findErc20GasShortfall,
@@ -226,6 +233,7 @@ export interface PaymentState {
       amount: bigint;
       memo?: string;
     },
+    options?: { onSigned?: (txHash: string) => void },
   ) => Promise<{ txHash: string; success: boolean }>;
   payWithStellarToken: (
     walletPaymentOption: WalletPaymentOption,
@@ -1341,6 +1349,7 @@ export function usePaymentState({
       amount: bigint;
       memo?: string;
     },
+    options?: { onSigned?: (txHash: string) => void },
   ): Promise<{ txHash: string; success: boolean }> => {
     try {
       log?.("[PAY SOLANA] Starting Solana payment transaction", {
@@ -1399,6 +1408,8 @@ export function usePaymentState({
       }
 
       const transferAmount = rozoPayment.amount;
+      let createsRecipientAta = false;
+      const writableAccounts: PublicKey[] = [fromKey, toKey];
       if (isNativeToken(walletPaymentOption.required.token.token)) {
         instructions.push(
           SystemProgram.transfer({
@@ -1412,8 +1423,10 @@ export function usePaymentState({
         const senderTokenAccount = await getAssociatedTokenAddress(mintAddress, fromKey);
         const recipientTokenAccount = await getAssociatedTokenAddress(mintAddress, toKey);
         const recipientTokenInfo = await connection.getAccountInfo(recipientTokenAccount);
+        writableAccounts.splice(1, 1, senderTokenAccount, recipientTokenAccount);
 
         if (!recipientTokenInfo) {
+          createsRecipientAta = true;
           instructions.push(
             createAssociatedTokenAccountInstruction(
               payerPublicKey,
@@ -1449,10 +1462,24 @@ export function usePaymentState({
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
       log("[PAY SOLANA] Got blockhash:", blockhash);
 
+      // Priority fee: without it congested leaders can drop the tx and it
+      // never lands (2026-10-20 incident). Placed first in the tx.
+      const priorityFeeMicroLamports = await estimatePriorityFeeMicroLamports(
+        connection,
+        writableAccounts,
+      );
+      const computeUnitLimit = createsRecipientAta
+        ? SOLANA_CU_LIMIT_WITH_ATA_CREATE
+        : SOLANA_CU_LIMIT_DEFAULT;
+      log("[PAY SOLANA] Priority fee", { priorityFeeMicroLamports, computeUnitLimit });
+
       const transaction = new Transaction();
       transaction.recentBlockhash = blockhash;
       transaction.lastValidBlockHeight = lastValidBlockHeight;
       transaction.feePayer = payerPublicKey;
+      priorityFeeInstructions(computeUnitLimit, priorityFeeMicroLamports).forEach((ix) =>
+        transaction.add(ix),
+      );
       instructions.forEach((instruction) => transaction.add(instruction));
 
       if (isNativeToken(walletPaymentOption.required.token.token)) {
@@ -1476,8 +1503,40 @@ export function usePaymentState({
         }),
       );
 
-      log("[PAY SOLANA] Sending transaction to wallet for signing...");
       const tx = Transaction.from(bs58.decode(serializedTransaction));
+
+      // Preferred path: sign in the wallet, then broadcast ourselves and
+      // rebroadcast until confirmed or the blockhash expires. A single
+      // wallet-side broadcast can be silently dropped.
+      if (solanaWallet.signTransaction) {
+        log("[PAY SOLANA] Sending transaction to wallet for signing...");
+        const signed = await solanaWallet.signTransaction(tx);
+        if (!signed.signature) {
+          throw new Error("Wallet returned an unsigned Solana transaction");
+        }
+        const txHash = bs58.encode(signed.signature);
+        // If the wallet swapped the blockhash we no longer know its exact
+        // expiry; a fresh lastValidBlockHeight is an upper bound, so we can
+        // only wait longer, never report expiry early.
+        const validUntil =
+          signed.recentBlockhash === blockhash
+            ? lastValidBlockHeight
+            : (await connection.getLatestBlockhash("confirmed")).lastValidBlockHeight;
+        log("[PAY SOLANA] Signed. Broadcasting:", txHash);
+        options?.onSigned?.(txHash);
+        const outcome = await rebroadcastUntilConfirmed({
+          connection,
+          rawTransaction: signed.serialize(),
+          signature: txHash,
+          lastValidBlockHeight: validUntil,
+          log,
+        });
+        log("[PAY SOLANA] Broadcast outcome:", outcome.status, txHash);
+        return { txHash, success: true };
+      }
+
+      // Fallback for wallets without signTransaction: wallet broadcasts once.
+      log("[PAY SOLANA] Sending transaction to wallet (sign and send)...");
       const txHash = await solanaWallet.sendTransaction(tx, connection);
       log("[PAY SOLANA] Transaction sent! Hash:", txHash);
       return { txHash: txHash, success: true };

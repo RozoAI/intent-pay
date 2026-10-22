@@ -33,6 +33,10 @@ import {
   PAYMENT_REQUEST_SCOPE,
 } from "../../../../utils/paymentRequestScope";
 import { ROZO_EVENTS } from "../../../../lib/analytics/events";
+import {
+  isSolanaTransactionExpiredError,
+  SOLANA_TX_EXPIRED_MESSAGE,
+} from "../../../../payment/solanaSend";
 import { useAnalytics } from "../../../../provider/AnalyticsProvider";
 import { buildFeeQuoteParams, getCachedFee } from "../../../../utils/feeCache";
 import Button from "../../../Common/Button";
@@ -60,6 +64,7 @@ enum PayState {
   RequestingPayment = "Waiting for Confirmation",
   ProcessingPayment = "Processing Payment",
   RequestCancelled = "Payment Cancelled",
+  RequestExpired = "Payment Did Not Go Through",
   RequestFailed = "Payment Failed",
   RequestSuccessful = "Payment Successful",
   WaitingForWallet = "Wallet Confirmation Pending",
@@ -537,6 +542,9 @@ const PayWithSolanaToken: React.FC = () => {
             },
           },
           paymentData,
+          {
+            onSigned: () => setPayState(PayState.ProcessingPayment),
+          },
         );
         log(
           "[PAY SOLANA] Result",
@@ -607,14 +615,21 @@ const PayWithSolanaToken: React.FC = () => {
         const errorMessage =
           parseErrorMessage(error);
         const isRejected = errorMessage.includes("rejected");
+        const isExpired = isSolanaTransactionExpiredError(error);
         capture(ROZO_EVENTS.PAYMENT_FAILED, {
           payment_id: resolvedPaymentId ?? rozoPaymentId,
-          error_message: isRejected
-            ? "user_rejected"
-            : (errorMessage ?? "unknown_error"),
+          error_message: isExpired
+            ? "tx_expired"
+            : isRejected
+              ? "user_rejected"
+              : (errorMessage ?? "unknown_error"),
           source_chain: rozoSolana.chainId,
         });
-        if (isRejected) {
+        if (isExpired) {
+          // Signed but never landed before the blockhash expired: no funds
+          // moved, so offer an in-modal retry instead of hanging.
+          setPayState(PayState.RequestExpired);
+        } else if (isRejected) {
           // User rejected in-wallet — keep them in-modal with a Retry affordance.
           setPayState(PayState.RequestCancelled);
         } else {
@@ -734,7 +749,12 @@ const PayWithSolanaToken: React.FC = () => {
           feeData={feeData}
           feeLoading={feeLoading}
         />
-        {payState === PayState.RequestCancelled && !isLoading && (
+        {payState === PayState.RequestExpired && (
+          <ModalBody>{SOLANA_TX_EXPIRED_MESSAGE}</ModalBody>
+        )}
+        {(payState === PayState.RequestCancelled ||
+          payState === PayState.RequestExpired) &&
+          !isLoading && (
           <Button
             onClick={() => handleTransfer(selectedSolanaTokenOption, true)}
           >
