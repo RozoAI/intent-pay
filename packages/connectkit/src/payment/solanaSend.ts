@@ -113,10 +113,17 @@ type ConfirmConnection = Pick<
 
 export type RebroadcastResult = { status: "confirmed" } | { status: "unknown" };
 
-/** Errors from the first send that do not mean the transaction is bad. */
-function isBenignSendError(error: unknown): boolean {
+/**
+ * Only a preflight simulation failure proves the RPC rejected the tx without
+ * forwarding it. Transport errors (timeout, dropped connection, 429) are
+ * ambiguous: the tx may already be in flight, so we must keep polling rather
+ * than report failure (a retry could then pay twice). "Blockhash not found"
+ * and "already processed" are RPC lag / duplicate cases, also not fatal.
+ */
+export function isDefinitiveSendRejection(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
-  return /already been processed|blockhash not found/i.test(msg);
+  if (/already been processed|blockhash not found/i.test(msg)) return false;
+  return /simulation failed/i.test(msg);
 }
 
 function settledStatus(
@@ -151,7 +158,12 @@ export async function rebroadcastUntilConfirmed(params: {
   connection: ConfirmConnection;
   rawTransaction: Uint8Array;
   signature: string;
-  lastValidBlockHeight: number;
+  /**
+   * Last block height at which the signed blockhash is valid. `null` when it
+   * is unknown (e.g. the wallet replaced our blockhash): expiry is then never
+   * declared and the loop ends confirmed or `unknown`.
+   */
+  lastValidBlockHeight: number | null;
   intervalMs?: number;
   maxWaitMs?: number;
   sleep?: (ms: number) => Promise<void>;
@@ -188,7 +200,7 @@ export async function rebroadcastUntilConfirmed(params: {
         maxRetries: 0,
       });
     } catch (error) {
-      if (first && !isBenignSendError(error)) throw error;
+      if (first && isDefinitiveSendRejection(error)) throw error;
       log("[PAY SOLANA] rebroadcast send error (ignored)", error);
     }
     first = false;
@@ -207,13 +219,19 @@ export async function rebroadcastUntilConfirmed(params: {
     }
 
     let finalizedHeight: number | null = null;
-    try {
-      finalizedHeight = await connection.getBlockHeight("finalized");
-    } catch (error) {
-      log("[PAY SOLANA] block height poll error (ignored)", error);
+    if (lastValidBlockHeight != null) {
+      try {
+        finalizedHeight = await connection.getBlockHeight("finalized");
+      } catch (error) {
+        log("[PAY SOLANA] block height poll error (ignored)", error);
+      }
     }
 
-    if (finalizedHeight != null && finalizedHeight > lastValidBlockHeight) {
+    if (
+      lastValidBlockHeight != null &&
+      finalizedHeight != null &&
+      finalizedHeight > lastValidBlockHeight
+    ) {
       // Blockhash expired as of a finalized block: the tx can no longer be
       // included. One last full-history lookup closes the race where it
       // landed between our polls.

@@ -1515,13 +1515,10 @@ export function usePaymentState({
           throw new Error("Wallet returned an unsigned Solana transaction");
         }
         const txHash = bs58.encode(signed.signature);
-        // If the wallet swapped the blockhash we no longer know its exact
-        // expiry; a fresh lastValidBlockHeight is an upper bound, so we can
-        // only wait longer, never report expiry early.
-        const validUntil =
-          signed.recentBlockhash === blockhash
-            ? lastValidBlockHeight
-            : (await connection.getLatestBlockhash("confirmed")).lastValidBlockHeight;
+        // If the wallet swapped the blockhash we cannot prove when it expires,
+        // so never report expiry (null): rebroadcast, then hand off to the
+        // normal confirmation wait.
+        const validUntil = signed.recentBlockhash === blockhash ? lastValidBlockHeight : null;
         log("[PAY SOLANA] Signed. Broadcasting:", txHash);
         options?.onSigned?.(txHash);
         const outcome = await rebroadcastUntilConfirmed({

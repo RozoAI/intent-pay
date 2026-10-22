@@ -169,7 +169,7 @@ describe("rebroadcastUntilConfirmed", () => {
 
   it("rejects immediately on a real preflight error", async () => {
     const conn = fakeConnection({
-      firstSendError: new Error("Simulation failed: insufficient funds"),
+      firstSendError: new Error("Simulation failed. Message: insufficient funds"),
       heights: [100],
     });
     await expect(
@@ -199,6 +199,42 @@ describe("rebroadcastUntilConfirmed", () => {
         sleep: noSleep,
       }),
     ).resolves.toEqual({ status: "confirmed" });
+  });
+
+  it("keeps polling after an ambiguous transport error on the first send", async () => {
+    const conn = fakeConnection({
+      firstSendError: new Error("failed to fetch: network timeout"),
+      statuses: [null, { err: null, confirmationStatus: "confirmed" }],
+      heights: [100],
+    });
+    await expect(
+      rebroadcastUntilConfirmed({
+        connection: conn as any,
+        rawTransaction: RAW,
+        signature: SIG,
+        lastValidBlockHeight: 200,
+        sleep: noSleep,
+      }),
+    ).resolves.toEqual({ status: "confirmed" });
+  });
+
+  it("never declares expiry when the validity height is unknown (wallet swapped blockhash)", async () => {
+    let t = 0;
+    const conn = fakeConnection({ statuses: [null], heights: [10_000] });
+    await expect(
+      rebroadcastUntilConfirmed({
+        connection: conn as any,
+        rawTransaction: RAW,
+        signature: SIG,
+        lastValidBlockHeight: null,
+        sleep: async (ms) => {
+          t += ms;
+        },
+        now: () => t,
+        maxWaitMs: 10_000,
+      }),
+    ).resolves.toEqual({ status: "unknown" });
+    expect(conn.getBlockHeight).not.toHaveBeenCalled();
   });
 
   it("hands off (unknown) instead of claiming failure when expiry cannot be proven", async () => {
