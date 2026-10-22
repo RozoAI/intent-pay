@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.62] - 2026-10-22
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**:
+  - Make PayWithToken auto-transfer StrictMode-safe &nbsp;-&nbsp; by @akbarsaputrait [<samp>(bd6c7)</samp>](https://github.com/RozoAI/intent-pay/commit/bd6c7c23)
+- **examples**:
+  - Disable React StrictMode so the SDK auto-transfer fires in dev/E2E &nbsp;-&nbsp; by @akbarsaputrait [<samp>(f95e2)</samp>](https://github.com/RozoAI/intent-pay/commit/f95e2341)
+- **release**:
+  - Publish after git push &nbsp;-&nbsp; by @akbarsaputrait [<samp>(1fde2)</samp>](https://github.com/RozoAI/intent-pay/commit/1fde24c0)
+  - Handle missing npm versions &nbsp;-&nbsp; by @akbarsaputrait [<samp>(0af9d)</samp>](https://github.com/RozoAI/intent-pay/commit/0af9db7d)
+  - Publish from CI &nbsp;-&nbsp; by @akbarsaputrait [<samp>(ca5dc)</samp>](https://github.com/RozoAI/intent-pay/commit/ca5dce3f)
+- **solana**:
+  - Priority fee + rebroadcast until confirmed, explicit retry on expiry &nbsp;-&nbsp; by @shawnmuggle and **Claude Opus 5.5** in https://github.com/RozoAI/intent-pay/issues/108 [<samp>(718b3)</samp>](https://github.com/RozoAI/intent-pay/commit/718b3675)
+
+---
+
+
 ## [0.1.60] - 2026-10-08
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
