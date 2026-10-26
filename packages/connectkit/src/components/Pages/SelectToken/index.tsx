@@ -83,6 +83,36 @@ export default function SelectToken() {
   const { optionsList, isLoading, refreshOptions } =
     useTokenOptions(effectiveTokenMode);
 
+  // Deposit-address exit from the empty state. Mirrors the gates SelectMethod
+  // applies to "Pay to address" (not a Stellar-only merchant, options exist or
+  // are loading) plus the ExternalChains check SelectAnotherMethodButton uses,
+  // evaluated against the payment options actually in force (payId mode has
+  // no payParams, so paymentState.paymentOptions alone is always undefined).
+  const { effectivePaymentOptions, depositAddressOptions } = paymentState;
+  const canUseDepositAddress = useMemo(() => {
+    if (connectedWalletOnly) return false;
+    if (
+      effectivePaymentOptions != null &&
+      !effectivePaymentOptions.includes(ExternalPaymentOptions.ExternalChains)
+    ) {
+      return false;
+    }
+    const isOnlyStellar =
+      effectivePaymentOptions != null &&
+      effectivePaymentOptions.length === 1 &&
+      effectivePaymentOptions.includes(ExternalPaymentOptions.Stellar);
+    if (isOnlyStellar) return false;
+    return (
+      depositAddressOptions.loading ||
+      (depositAddressOptions.options?.length ?? 0) > 0
+    );
+  }, [
+    connectedWalletOnly,
+    effectivePaymentOptions,
+    depositAddressOptions.loading,
+    depositAddressOptions.options,
+  ]);
+
   const isAnotherMethodButtonVisible = useMemo(
     () => !connectedWalletOnly,
     [connectedWalletOnly]
@@ -226,11 +256,7 @@ export default function SelectToken() {
           preferredChains={paymentState.sourcePreference.preferredChains}
           canShowAllTokens={paymentState.sourcePreference.canRelax}
           onShowAllTokens={paymentState.sourcePreference.relax}
-          canUseDepositAddress={
-            !connectedWalletOnly &&
-            (paymentOptions == null ||
-              paymentOptions.includes(ExternalPaymentOptions.ExternalChains))
-          }
+          canUseDepositAddress={canUseDepositAddress}
           onUseDepositAddress={() =>
             setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_CHAIN, {
               event: "click-no-tokens-deposit-address",

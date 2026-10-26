@@ -198,6 +198,10 @@ export interface PaymentState {
   solanaPaymentEligible: boolean;
   stellarPaymentEligible: boolean;
   paymentOptions: ExternalPaymentOptionsString[] | undefined;
+  /// Payment options actually in force: button payParams, else payId-mode
+  /// button props, else the order's own metadata (same chain as
+  /// externalPaymentOptions.filterIds). Undefined means everything allowed.
+  effectivePaymentOptions: ExternalPaymentOptionsString[] | undefined;
   walletPaymentOptions: ReturnType<typeof useWalletPaymentOptions>;
   solanaPaymentOptions: ReturnType<typeof useSolanaPaymentOptions>;
   stellarPaymentOptions: ReturnType<typeof useStellarPaymentOptions>;
@@ -2273,6 +2277,9 @@ export function usePaymentState({
     stellarPaymentEligible,
     selectedWallet,
     paymentOptions,
+    effectivePaymentOptions:
+      effectivePaymentOptions ??
+      (pay.order?.metadata.payer?.paymentOptions as ExternalPaymentOptionsString[] | undefined),
     externalPaymentOptions,
     selectedWalletDeepLink,
     walletPaymentOptions,
