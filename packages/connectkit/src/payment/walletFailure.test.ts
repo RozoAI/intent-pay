@@ -120,12 +120,15 @@ describe("copy", () => {
     const msg = walletFailureMessage(f, "Phantom");
     expect(msg).toContain("Phantom returned an internal error");
     expect(msg).not.toContain("contract function");
+    // Never promise the payer that nothing was broadcast; we cannot know that.
+    expect(msg?.toLowerCase()).not.toContain("nothing was charged");
+    expect(msg).toContain("wait for it to confirm");
     expect(walletFailureTitle(f)).toBe("Wallet Could Not Send");
   });
 
   it("falls back to 'Your wallet' and stays silent for user rejections", () => {
     expect(walletFailureMessage(classifyWalletFailure(new Error("x")), "")).toContain(
-      "Your wallet could not complete",
+      "Your wallet did not complete",
     );
     expect(
       walletFailureMessage(classifyWalletFailure({ code: 4001, message: "User rejected" })),

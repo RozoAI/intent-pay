@@ -123,7 +123,11 @@ export function walletFailureTitle(failure: WalletFailure | null): string | null
   return null;
 }
 
-/** One payer-facing sentence. Never the raw viem text. */
+/**
+ * Payer-facing copy. Never the raw viem text, and never a promise that nothing
+ * was broadcast: a -32603 or "Unexpected error" proves the wallet failed, not
+ * that no transaction left it, so the copy tells the payer to check the wallet.
+ */
 export function walletFailureMessage(
   failure: WalletFailure | null,
   walletName?: string | null,
@@ -132,10 +136,10 @@ export function walletFailureMessage(
   const wallet = walletName?.trim() || "Your wallet";
   switch (failure.kind) {
     case "wallet_internal":
-      return `${wallet} returned an internal error before the transaction was sent. Nothing was charged. You can pay another way below.`;
+      return `${wallet} returned an internal error and this page did not receive a transaction. If your wallet shows one as sent, wait for it to confirm before paying again; otherwise you can pay another way below.`;
     case "user_rejected":
       return null;
     default:
-      return `${wallet} could not complete this transaction. Nothing was charged.`;
+      return `${wallet} did not complete this transaction. If your wallet shows one as sent, wait for it to confirm before paying again.`;
   }
 }

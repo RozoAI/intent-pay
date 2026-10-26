@@ -96,6 +96,10 @@ const PayWithToken: React.FC = () => {
   // Drives the "Pay another way" exit (see payment/walletFailure.ts).
   const [lastFailure, setLastFailure] = useState<WalletFailure | null>(null);
   const failureCountRef = useRef(0);
+  // handleTransfer is memoized with a short dep list; read the live wallet
+  // identity through refs so the failure event never labels a stale wallet.
+  const walletRef = useRef({ address, connector, wagmiConfig });
+  walletRef.current = { address, connector, wagmiConfig };
 
   useEffect(() => {
     if (rozoPaymentState === "error") {
@@ -462,31 +466,39 @@ const PayWithToken: React.FC = () => {
         setPayState(PayState.RequestCancelled);
         console.error("Failed to pay with token", e);
         // Label the payer's account type (EOA / EIP-7702 / contract) so a
-        // wallet-side failure can be triaged from the event alone. Read after
-        // the UI state is set; a failed read is "unknown", never blocking.
-        let payerCode: string | null | undefined;
-        try {
-          payerCode = address
-            ? await getBytecode(wagmiConfig, {
-                address: getAddress(address),
-                chainId: option.required.token.chainId,
-              })
-            : undefined;
-        } catch {
-          payerCode = undefined;
-        }
-        capture(ROZO_EVENTS.PAYMENT_FAILED, {
-          payment_id: rozoPaymentId ?? order?.externalId,
-          error_message: failure.message,
-          source_chain: option.required.token.chainId,
-          source_token: option.required.token.symbol,
-          failure_kind: failure.kind,
-          rpc_error_code: failure.rpcCode,
-          consecutive_failures: failureCountRef.current,
-          sender_account_type: classifyPayerCode(payerCode),
-          wallet_id: connector?.id,
-          wallet_name: connector?.name,
-        });
+        // wallet-side failure can be triaged from the event alone. Telemetry
+        // only: not awaited (the finally below must release the attempt lock
+        // right away so Retry works), capped at 5 s, failed read = "unknown".
+        const wallet = walletRef.current;
+        const failureCount = failureCountRef.current;
+        void (async () => {
+          let payerCode: string | null | undefined;
+          try {
+            payerCode = wallet.address
+              ? await Promise.race([
+                  getBytecode(wallet.wagmiConfig, {
+                    address: getAddress(wallet.address),
+                    chainId: option.required.token.chainId,
+                  }),
+                  new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 5_000)),
+                ])
+              : undefined;
+          } catch {
+            payerCode = undefined;
+          }
+          capture(ROZO_EVENTS.PAYMENT_FAILED, {
+            payment_id: rozoPaymentId ?? order?.externalId,
+            error_message: failure.message,
+            source_chain: option.required.token.chainId,
+            source_token: option.required.token.symbol,
+            failure_kind: failure.kind,
+            rpc_error_code: failure.rpcCode,
+            consecutive_failures: failureCount,
+            sender_account_type: classifyPayerCode(payerCode),
+            wallet_id: wallet.connector?.id,
+            wallet_name: wallet.connector?.name,
+          });
+        })();
       }
       } finally {
         if (attemptId) releasePaymentAttempt(attemptId);
