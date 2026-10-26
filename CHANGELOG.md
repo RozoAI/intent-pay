@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.63] - 2026-10-26
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- **connectkit**:
+  - Empty wallet state now offers "Show all coins in this wallet" (relaxes button-level chain / symbol preference, keeps merchant limits) and "Send from an exchange or another wallet" (deposit-address flow) exits; refresh becomes a secondary link; new `no_tokens_exit_clicked` analytics event &nbsp;-&nbsp; by @shawnmuggle and **Claude** in https://github.com/RozoAI/intent-pay/pull/110 [<samp>(cf6d1)</samp>](https://github.com/RozoAI/intent-pay/commit/cf6d1499)
+
+---
+
 ## [0.1.62] - 2026-10-22
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
