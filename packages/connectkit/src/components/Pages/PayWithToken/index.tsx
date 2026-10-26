@@ -4,9 +4,10 @@ import {
   getChainExplorerTxUrl,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
-import { formatUnits } from "viem";
+import { formatUnits, getAddress } from "viem";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useAccount, useChainId, useSwitchChain } from "wagmi";
+import { useAccount, useChainId, useConfig, useSwitchChain } from "wagmi";
+import { getBytecode } from "wagmi/actions";
 import { ROUTES } from "../../../constants/routes";
 import { useContactSupport } from "../../../hooks/useContactSupport";
 import { usePayContext } from "../../../hooks/usePayContext";
@@ -17,6 +18,14 @@ import {
   PAYMENT_REQUEST_SCOPE,
 } from "../../../utils/paymentRequestScope";
 import { ROZO_EVENTS } from "../../../lib/analytics/events";
+import {
+  classifyPayerCode,
+  classifyWalletFailure,
+  shouldPromotePayAnotherWay,
+  walletFailureMessage,
+  walletFailureTitle,
+  type WalletFailure,
+} from "../../../payment/walletFailure";
 import { resolveChainObject } from "../../../defaultConfig";
 import {
   formatWalletNoGasMessage,
@@ -63,7 +72,8 @@ const PayWithToken: React.FC = () => {
     setWalletPaymentState,
   } = paymentState;
   const { switchChainAsync } = useSwitchChain();
-  const { address } = useAccount();
+  const { address, connector } = useAccount();
+  const wagmiConfig = useConfig();
   const {
     store,
     setPaymentUnpaid,
@@ -82,6 +92,10 @@ const PayWithToken: React.FC = () => {
   const [feeLoading, setFeeLoading] = useState(false);
   const [noGasMessage, setNoGasMessage] = useState<string | null>(null);
   const [noGasSymbol, setNoGasSymbol] = useState<string | null>(null);
+  // Last wallet-send failure and how many in a row for the selected option.
+  // Drives the "Pay another way" exit (see payment/walletFailure.ts).
+  const [lastFailure, setLastFailure] = useState<WalletFailure | null>(null);
+  const failureCountRef = useRef(0);
 
   useEffect(() => {
     if (rozoPaymentState === "error") {
@@ -442,13 +456,37 @@ const PayWithToken: React.FC = () => {
             }
           }
         }
-        capture(ROZO_EVENTS.PAYMENT_FAILED, {
-          payment_id: rozoPaymentId ?? order?.externalId,
-          error_message: (e as Error)?.message ?? "unknown_error",
-          source_chain: option.required.token.chainId,
-        });
+        const failure = classifyWalletFailure(e);
+        failureCountRef.current += 1;
+        setLastFailure(failure);
         setPayState(PayState.RequestCancelled);
         console.error("Failed to pay with token", e);
+        // Label the payer's account type (EOA / EIP-7702 / contract) so a
+        // wallet-side failure can be triaged from the event alone. Read after
+        // the UI state is set; a failed read is "unknown", never blocking.
+        let payerCode: string | null | undefined;
+        try {
+          payerCode = address
+            ? await getBytecode(wagmiConfig, {
+                address: getAddress(address),
+                chainId: option.required.token.chainId,
+              })
+            : undefined;
+        } catch {
+          payerCode = undefined;
+        }
+        capture(ROZO_EVENTS.PAYMENT_FAILED, {
+          payment_id: rozoPaymentId ?? order?.externalId,
+          error_message: failure.message,
+          source_chain: option.required.token.chainId,
+          source_token: option.required.token.symbol,
+          failure_kind: failure.kind,
+          rpc_error_code: failure.rpcCode,
+          consecutive_failures: failureCountRef.current,
+          sender_account_type: classifyPayerCode(payerCode),
+          wallet_id: connector?.id,
+          wallet_name: connector?.name,
+        });
       }
       } finally {
         if (attemptId) releasePaymentAttempt(attemptId);
@@ -466,6 +504,8 @@ const PayWithToken: React.FC = () => {
   }, [pendingPaymentAttemptId, payState]);
 
   useEffect(() => {
+    failureCountRef.current = 0;
+    setLastFailure(null);
     if (!selectedTokenOption) return;
 
     const currentState = store.getState();
@@ -502,6 +542,25 @@ const PayWithToken: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payState]);
 
+  const promotePayAnotherWay = shouldPromotePayAnotherWay(
+    lastFailure,
+    failureCountRef.current,
+  );
+  const failureMessage = walletFailureMessage(lastFailure, connector?.name);
+  // Manual transfer to a one-time deposit address: the wallet's own send UI
+  // takes over, which is the path that worked for the 2026-10-26 payer whose
+  // wallet refused every dapp-initiated eth_sendTransaction.
+  const handlePayAnotherWay = () => {
+    capture(ROZO_EVENTS.PAYMENT_METHOD_SELECTED, {
+      field: "fallback",
+      value: "deposit_address",
+      failure_kind: lastFailure?.kind,
+      consecutive_failures: failureCountRef.current,
+      source_chain: selectedTokenOption?.required.token.chainId,
+    });
+    setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_CHAIN);
+  };
+
   if (selectedTokenOption == null) {
     return <PageContent></PageContent>;
   }
@@ -530,7 +589,14 @@ const PayWithToken: React.FC = () => {
             </Link>
           </ModalH1>
         ) : (
-          <ModalH1>{payState}</ModalH1>
+          <ModalH1>
+            {payState === PayState.RequestCancelled
+              ? (walletFailureTitle(lastFailure) ?? payState)
+              : payState}
+          </ModalH1>
+        )}
+        {payState === PayState.RequestCancelled && failureMessage && (
+          <ModalBody>{failureMessage}</ModalBody>
         )}
         {payState === PayState.NetworkFeeNeeded && noGasMessage && (
           <ModalBody>{noGasMessage}</ModalBody>
@@ -552,10 +618,25 @@ const PayWithToken: React.FC = () => {
             feeLoading={feeLoading}
           />
         )}
-        {payState === PayState.RequestCancelled && (
-          <Button onClick={() => handleTransfer(selectedTokenOption)}>
-            Retry Payment
-          </Button>
+        {payState === PayState.RequestCancelled && promotePayAnotherWay && (
+          <>
+            <Button variant="primary" onClick={handlePayAnotherWay}>
+              Pay another way
+            </Button>
+            <Button variant="secondary" onClick={() => handleTransfer(selectedTokenOption)}>
+              Retry Payment
+            </Button>
+          </>
+        )}
+        {payState === PayState.RequestCancelled && !promotePayAnotherWay && (
+          <>
+            <Button onClick={() => handleTransfer(selectedTokenOption)}>
+              Retry Payment
+            </Button>
+            <Button variant="tertiary" onClick={handlePayAnotherWay}>
+              Pay another way
+            </Button>
+          </>
         )}
         {payState === PayState.NetworkFeeNeeded && (
           <>
