@@ -26,6 +26,10 @@ export const PAYMENT_EVENTS = {
   PAYMENT_VALIDATION_ERROR: "payment_validation_error",
   PAYMENT_CANCELLED: "payment_cancelled",
   PAYMENT_NO_TOKENS_AVAILABLE: "payment_no_tokens_available",
+  /** Payer clicked an exit on the SelectToken empty state. Props: exit
+   * ("show_all_tokens" | "deposit_address" | "refresh"),
+   * preferred_token_symbols, preferred_chain_ids. */
+  NO_TOKENS_EXIT_CLICKED: "no_tokens_exit_clicked",
 } as const;
 
 export const GLOBAL_EVENTS = {
