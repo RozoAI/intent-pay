@@ -32,6 +32,7 @@ import {
   rozoStellarUSDT0,
   solana,
   stellar,
+  Token,
   WalletPaymentOption,
   writeRozoPayOrderID,
 } from "@rozoai/intent-common";
@@ -102,7 +103,6 @@ import { ROZO_EVENTS } from "../lib/analytics/events";
 import {
   buildCreatePaymentPayload,
   buildDepositWalletOption,
-  derivePayIdPreferredTokens,
   resolveDepositSourceAmount,
   resolveSourceAmountUnits,
   resolveWalletPaymentAmount,
@@ -127,6 +127,10 @@ import {
 } from "../payment/erc20GasPrecheck";
 import { waitForPaymentSourceTxHash } from "../payment/waitForPaymentSourceTxHash";
 import { PaymentEvent, PayParams } from "../payment/paymentFsm";
+import {
+  hasRelaxableSourcePreference,
+  resolvePayIdSourcePreference,
+} from "../payment/resolvePayIdSourcePreference";
 import { useAnalytics } from "../provider/AnalyticsProvider";
 import { useStellar } from "../provider/StellarContextProvider";
 import { Store } from "../stateStore";
@@ -155,6 +159,16 @@ export interface PaymentState {
   removeButtonProps: (key: string) => void;
   /// Current payId (for payId mode buttons) to look up buttonProps
   currentPayId: string | undefined;
+
+  /// Effective source-token preference (payParams or payId-derived) and the
+  /// payer-facing relaxation of the button-level narrowing.
+  sourcePreference: {
+    preferredTokens: Token[] | undefined;
+    preferredChains: number[] | undefined;
+    relaxed: boolean;
+    canRelax: boolean;
+    relax: () => void;
+  };
 
   /// Modal options
   connectedWalletOnly: boolean;
@@ -389,6 +403,18 @@ export function usePaymentState({
   // Derive buttonProps for the current payId (payId mode) or undefined (appId mode)
   const buttonProps = currentPayId ? buttonPropsMap.get(currentPayId) : undefined;
 
+  // Payer-initiated relaxation of the button-level source preference
+  // (preferredChains / preferredSymbol / preferredTokens) from the SelectToken
+  // empty state. Merchant paymentOptions and the destination-derived floor stay.
+  // Resets whenever the payId changes.
+  const [sourcePreferenceRelaxed, setSourcePreferenceRelaxed] = useState(false);
+  useEffect(() => {
+    setSourcePreferenceRelaxed(false);
+  }, [currentPayId]);
+  const relaxSourcePreference = useCallback(() => setSourcePreferenceRelaxed(true), []);
+  const canRelaxSourcePreference =
+    !sourcePreferenceRelaxed && currentPayId != null && hasRelaxableSourcePreference(buttonProps);
+
   // Ref to store latest payParams synchronously to avoid stale closures
   const currPayParamsRef = useRef<PayParams>();
 
@@ -569,23 +595,11 @@ export function usePaymentState({
     // override or narrow that derivation.
     if (pay.order && pay.order.destFinalCallTokenAmount) {
       const destSymbol = pay.order.destFinalCallTokenAmount.token.symbol;
-      const derived = derivePayIdPreferredTokens(destSymbol, buttonProps?.preferredSymbol);
-      const preferredSymbol = derived.preferredSymbol;
-      let preferredTokens = buttonProps?.preferredTokens ?? derived.preferredTokens;
-      const preferredChains = buttonProps?.preferredChains;
-
-      // Narrow to the requested chains when given. Intersect rather than
-      // replace outright so an unsupported/mistyped chain ID can't silently
-      // empty the token list — falls back to the full derived set instead.
-      if (preferredChains && preferredChains.length > 0 && preferredTokens) {
-        const narrowed = preferredTokens.filter((t) => {
-          const chainIds = [t.chainId];
-          if (t.chainId === solana.chainId) chainIds.push(rozoSolana.chainId);
-          if (t.chainId === stellar.chainId) chainIds.push(rozoStellar.chainId);
-          return chainIds.some((id) => preferredChains.includes(id));
-        });
-        if (narrowed.length > 0) preferredTokens = narrowed;
-      }
+      const { preferredSymbol, preferredTokens, preferredChains } = resolvePayIdSourcePreference(
+        destSymbol,
+        buttonProps,
+        sourcePreferenceRelaxed,
+      );
 
       return {
         toChain: pay.order.destFinalCallTokenAmount.token.chainId,
@@ -601,7 +615,7 @@ export function usePaymentState({
     }
 
     return undefined;
-  }, [stableAppId, currPayParams, pay.order, buttonProps]);
+  }, [stableAppId, currPayParams, pay.order, buttonProps, sourcePreferenceRelaxed]);
 
   // UI state. Selection for external payment (Binance, etc) vs wallet payment.
   const externalPaymentOptions = useExternalPaymentOptions({
@@ -2231,6 +2245,13 @@ export function usePaymentState({
     setPayId,
     setPayParams,
     payParams: currPayParams,
+    sourcePreference: {
+      preferredTokens: stablePayParams?.preferredTokens,
+      preferredChains: stablePayParams?.preferredChains,
+      relaxed: sourcePreferenceRelaxed,
+      canRelax: canRelaxSourcePreference,
+      relax: relaxSourcePreference,
+    },
     suggestedSource: stablePayParams?.suggestedSource,
     tokenMode,
     tokenModeExplicit,

@@ -1,4 +1,4 @@
-import { ExternalPaymentOptions, Token } from "@rozoai/intent-common";
+import { ExternalPaymentOptions, getChainName, Token } from "@rozoai/intent-common";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { injected, useAccount } from "wagmi";
@@ -24,6 +24,7 @@ import {
 import { OptionsList } from "../../Common/OptionsList";
 import { OrderHeader } from "../../Common/OrderHeader";
 import SelectAnotherMethodButton from "../../Common/SelectAnotherMethodButton";
+import styled from "../../../styles/styled";
 
 export default function SelectToken() {
   const { isMobile } = useIsMobile();
@@ -122,7 +123,7 @@ export default function SelectToken() {
       !isLoading && isEmptyOptionsList && !noConnectedWallet;
     if (shouldShowEmpty && !noTokensReportedRef.current) {
       noTokensReportedRef.current = true;
-      const preferred = paymentState.payParams?.preferredTokens;
+      const preferred = paymentState.sourcePreference.preferredTokens;
       capture(ROZO_EVENTS.PAYMENT_NO_TOKENS_AVAILABLE, {
         token_mode: effectiveTokenMode,
         connected_chains: [
@@ -146,7 +147,7 @@ export default function SelectToken() {
     isEvmConnected,
     isSolConnected,
     isStellarConnected,
-    paymentState.payParams?.preferredTokens,
+    paymentState.sourcePreference.preferredTokens,
     capture,
   ]);
 
@@ -221,7 +222,20 @@ export default function SelectToken() {
       {!isLoading && isEmptyOptionsList && !noConnectedWallet && (
         <NoTokensAvailable
           onRefresh={refreshOptions}
-          preferredTokens={paymentState.payParams?.preferredTokens}
+          preferredTokens={paymentState.sourcePreference.preferredTokens}
+          preferredChains={paymentState.sourcePreference.preferredChains}
+          canShowAllTokens={paymentState.sourcePreference.canRelax}
+          onShowAllTokens={paymentState.sourcePreference.relax}
+          canUseDepositAddress={
+            !connectedWalletOnly &&
+            (paymentOptions == null ||
+              paymentOptions.includes(ExternalPaymentOptions.ExternalChains))
+          }
+          onUseDepositAddress={() =>
+            setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_CHAIN, {
+              event: "click-no-tokens-deposit-address",
+            })
+          }
         />
       )}
       {!isLoading && !isConnected && effectiveTokenMode === "all" && (
@@ -247,16 +261,61 @@ function NoConnectedWallet() {
   );
 }
 
-function NoTokensAvailable({
+export function NoTokensAvailable({
   onRefresh,
   preferredTokens,
+  preferredChains,
+  canShowAllTokens,
+  onShowAllTokens,
+  canUseDepositAddress,
+  onUseDepositAddress,
 }: {
   onRefresh: () => Promise<void>;
   preferredTokens?: Token[];
+  preferredChains?: number[];
+  canShowAllTokens: boolean;
+  onShowAllTokens: () => void;
+  canUseDepositAddress: boolean;
+  onUseDepositAddress: () => void;
 }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const { capture } = useAnalytics();
+
+  // Get supported token symbols from preferredTokens if available
+  const supportedSymbols = useMemo(() => {
+    if (preferredTokens && preferredTokens.length > 0) {
+      return Array.from(new Set(preferredTokens.map((pt) => pt.symbol)));
+    }
+    return [];
+  }, [preferredTokens]);
+
+  const chainNames = useMemo(() => {
+    if (!preferredChains || preferredChains.length === 0) return [];
+    return Array.from(
+      new Set(
+        preferredChains
+          .map((id) => {
+            try {
+              return getChainName(id);
+            } catch {
+              return undefined;
+            }
+          })
+          .filter((name): name is string => Boolean(name))
+      )
+    );
+  }, [preferredChains]);
+
+  const captureExit = (exit: "show_all_tokens" | "deposit_address" | "refresh") => {
+    capture(ROZO_EVENTS.NO_TOKENS_EXIT_CLICKED, {
+      exit,
+      preferred_token_symbols: supportedSymbols,
+      preferred_chain_ids: preferredChains ?? [],
+    });
+  };
 
   const handleRefresh = async () => {
+    captureExit("refresh");
     setIsRefreshing(true);
     try {
       await onRefresh();
@@ -266,14 +325,6 @@ function NoTokensAvailable({
       setIsRefreshing(false);
     }
   };
-
-  // Get supported token symbols from preferredTokens if available
-  const supportedSymbols = useMemo(() => {
-    if (preferredTokens && preferredTokens.length > 0) {
-      return Array.from(new Set(preferredTokens.map((pt) => pt.symbol)));
-    }
-    return [];
-  }, [preferredTokens]);
 
   // Format token symbols for display
   const formattedTokens = useMemo(() => {
@@ -286,7 +337,7 @@ function NoTokensAvailable({
     if (supportedSymbols.length === 2) {
       return (
         <>
-          <strong>{supportedSymbols[0]}</strong> and{" "}
+          <strong>{supportedSymbols[0]}</strong> or{" "}
           <strong>{supportedSymbols[1]}</strong>
         </>
       );
@@ -297,10 +348,19 @@ function NoTokensAvailable({
     return (
       <>
         <strong>{firstTwo[0]}</strong>, <strong>{firstTwo[1]}</strong>
-        {remaining > 0 && `, and ${remaining} other${remaining > 1 ? "s" : ""}`}
+        {remaining > 0 && `, or ${remaining} other${remaining > 1 ? "s" : ""}`}
       </>
     );
   }, [supportedSymbols]);
+
+  const formattedChains =
+    chainNames.length === 0
+      ? null
+      : chainNames.length <= 2
+      ? chainNames.join(" or ")
+      : `${chainNames.slice(0, 2).join(", ")}, or ${chainNames.length - 2} other${
+          chainNames.length - 2 > 1 ? "s" : ""
+        }`;
 
   return (
     <ModalContent
@@ -311,7 +371,7 @@ function NoTokensAvailable({
         justifyContent: "center",
         paddingTop: 24,
         paddingBottom: 0,
-        gap: 20,
+        gap: 16,
       }}
     >
       <ModalH1>No tokens available</ModalH1>
@@ -321,22 +381,86 @@ function NoTokensAvailable({
           padding: "0 12px",
         }}
       >
-        We can&apos;t find any supported tokens ({formattedTokens}) in your
-        account on the selected network/chain.
+        We couldn&apos;t find {formattedTokens}
+        {formattedChains && (
+          <>
+            {" "}on <strong>{formattedChains}</strong>
+          </>
+        )}{" "}
+        in your connected wallet.
       </ModalBody>
-      <Button
-        variant="secondary"
+      {(canShowAllTokens || canUseDepositAddress) && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            width: "100%",
+            gap: 8,
+          }}
+        >
+          {canShowAllTokens && (
+            <Button
+              variant="primary"
+              style={{ margin: 0 }}
+              onClick={() => {
+                captureExit("show_all_tokens");
+                onShowAllTokens();
+              }}
+            >
+              Show all coins in this wallet
+            </Button>
+          )}
+          {canUseDepositAddress && (
+            <Button
+              variant={canShowAllTokens ? "secondary" : "primary"}
+              style={{ margin: 0 }}
+              onClick={() => {
+                captureExit("deposit_address");
+                onUseDepositAddress();
+              }}
+            >
+              Send from an exchange or another wallet
+            </Button>
+          )}
+        </div>
+      )}
+      <RefreshLink
+        type="button"
         onClick={handleRefresh}
         disabled={isRefreshing}
-        waiting={isRefreshing}
-        icon={<RetryIcon />}
-        iconPosition="left"
+        aria-busy={isRefreshing}
       >
-        {isRefreshing ? "Refreshing..." : "Refresh Balance"}
-      </Button>
+        <RetryIcon />
+        {isRefreshing ? "Refreshing..." : "Refresh balance"}
+      </RefreshLink>
     </ModalContent>
   );
 }
+
+const RefreshLink = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ck-body-color-muted);
+  cursor: pointer;
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+  &:hover:not(:disabled) {
+    color: var(--ck-body-color);
+    text-decoration: underline;
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+`;
 
 function ConnectButton() {
   const { connect } = useConnect();
