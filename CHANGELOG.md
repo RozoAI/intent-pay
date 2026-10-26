@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.64] - 2026-10-27
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**:
+  - Pay-with-token failure state: a wallet-side JSON-RPC internal error (-32603) is now titled "Wallet Could Not Send" with plain copy instead of "Payment Cancelled" plus raw viem text; a "Pay another way" button routes to the deposit-address flow (primary on wallet-internal errors or after 2 consecutive failures, otherwise tertiary); `payment_failed` gains `failure_kind`, `rpc_error_code`, `consecutive_failures`, `sender_account_type` (eoa / eip7702 / contract / unknown), `wallet_id`, `wallet_name` &nbsp;-&nbsp; by @shawnmuggle and **Claude** in https://github.com/RozoAI/intent-pay/pull/112 [<samp>(07c5b)</samp>](https://github.com/RozoAI/intent-pay/commit/07c5b5e1)
+
+---
+
 ## [0.1.63] - 2026-10-26
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
