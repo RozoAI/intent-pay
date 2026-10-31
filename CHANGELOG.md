@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.65] - 2026-10-31
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- **connectkit**:
+  - Deposit QR encodes the bare address by default, so exchange withdraw screens can scan it; an "Advanced QR" checkbox switches to the full payment URI (network, token, amount) for self-custody wallets. Orders with a memo keep the full URI and get no toggle &nbsp;-&nbsp; by @shawnmuggle and **Claude** in https://github.com/RozoAI/intent-pay/pull/114 [<samp>(ff273)</samp>](https://github.com/RozoAI/intent-pay/commit/ff2739bf)
+
+---
+
 ## [0.1.64] - 2026-10-27
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
