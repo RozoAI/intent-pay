@@ -71,6 +71,25 @@ type DepositAddr = {
   isStellarClassic?: boolean;
 };
 
+/**
+ * What the deposit QR encodes. Default: the bare address, which every wallet
+ * and exchange app can scan (exchange withdraw screens reject EIP-681 /
+ * Solana Pay URIs). "Advanced" encodes the full payment URI (network, token,
+ * amount) for self-custody wallets. Orders with a memo always use the full
+ * URI: a scan of the bare address would drop the memo and lose the payment.
+ * Founder 2026-10-31: "default is only show address. advanced show the advance qr".
+ */
+export function depositQrHasAdvanced(depAddr: Pick<DepositAddr, "address" | "uri" | "memo">): boolean {
+  return !!depAddr.address && !!depAddr.uri && depAddr.uri !== depAddr.address && !depAddr.memo;
+}
+export function depositQrValue(
+  depAddr: Pick<DepositAddr, "address" | "uri" | "memo">,
+  advanced: boolean,
+): string | undefined {
+  if (!depositQrHasAdvanced(depAddr)) return depAddr.uri ?? depAddr.address;
+  return advanced ? depAddr.uri : depAddr.address;
+}
+
 type Underpayment = {
   unitsPaid: string;
   coin: string;
@@ -692,6 +711,7 @@ export function DepositAddressInfo({
 
   const [remainingS, totalS] = useCountdown(depAddr?.expirationS);
   const isExpired = depAddr?.expirationS != null && remainingS === 0;
+  const [advancedQr, setAdvancedQr] = useState(false);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(triggerResize, [isExpired, depAddr.uri]);
@@ -741,7 +761,22 @@ export function DepositAddressInfo({
         </LogoRow>
       ) : (
         <QRWrap>
-          <CustomQRCode value={depAddr.uri} contentPadding={24} size={200} image={logoElement} />
+          <CustomQRCode
+            value={depositQrValue(depAddr, advancedQr)}
+            contentPadding={24}
+            size={200}
+            image={logoElement}
+          />
+          {depositQrHasAdvanced(depAddr) && (
+            <QrModeToggle data-testid="deposit-qr-advanced">
+              <input
+                type="checkbox"
+                checked={advancedQr}
+                onChange={(e) => setAdvancedQr(e.target.checked)}
+              />
+              <span>Advanced QR: include network and amount (self-custody wallets)</span>
+            </QrModeToggle>
+          )}
           {depAddr.onlyOn ? (
             <OnlyOnHint role="note" data-testid="deposit-only-on">
               {`Send ${depAddr.onlyOn} only`}
@@ -772,6 +807,22 @@ const LogoRow = styled.div`
 const QRWrap = styled.div`
   margin: 0 auto;
   width: 280px;
+`;
+
+const QrModeToggle = styled.label`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ck-body-color-muted);
+  cursor: pointer;
+  input {
+    margin: 0;
+    cursor: pointer;
+  }
 `;
 
 // Wrong-chain guard: names the one network + token this address accepts.
