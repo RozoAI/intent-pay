@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
 
-import { DepositAddressInfo } from "./index";
+import { DepositAddressInfo, depositQrHasAdvanced, depositQrValue } from "./index";
 
 it("labels deposit addresses with their source token and network", () => {
   const html = renderToStaticMarkup(
@@ -67,4 +67,20 @@ it("keeps the network line but makes no cross-chain promise for non-EVM addresse
 it("drops the already-sent line once the address has expired", () => {
   const html = render({ address: evmAddr, coins: "USDC Base", onlyOn: "USDC on Base" }, true);
   expect(html).not.toContain("Already sent USDC/USDT on another chain?");
+});
+
+it("deposit QR defaults to the bare address; advanced encodes the full payment URI", () => {
+  const uri = `ethereum:0x55d398326f99059fF775485246999027B3197955@56/transfer?address=${evmAddr}&uint256=10610000000000000000`;
+  const d = { address: evmAddr, uri };
+  expect(depositQrHasAdvanced(d)).toBe(true);
+  expect(depositQrValue(d, false)).toBe(evmAddr);
+  expect(depositQrValue(d, true)).toBe(uri);
+  expect(render(d)).toContain('data-testid="deposit-qr-advanced"');
+});
+
+it("orders with a memo always encode the full URI and offer no address-only QR", () => {
+  const d = { address: "GABC", uri: "web+stellar:pay?destination=GABC&memo=123", memo: "123" };
+  expect(depositQrHasAdvanced(d)).toBe(false);
+  expect(depositQrValue(d, false)).toBe(d.uri);
+  expect(render({ ...d, isStellarClassic: true })).not.toContain('data-testid="deposit-qr-advanced"');
 });
