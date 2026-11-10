@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.66] - 2026-11-10
+
+### &nbsp;&nbsp;&nbsp;🚀 Features
+
+- **connectkit**:
+  - Pay-with-token failed state: a wallet whose own RPC node is unreachable ("RPC endpoint not found or unavailable", -32603) now gets the title "Wallet Network Unavailable" and copy that points to another wallet, an exchange or another network; `classifyWalletFailure` returns `rpcUnavailable`, and `payment_failed` plus the fallback `payment_method_selected` event carry `rpc_unavailable`. The fallback button reads "Pay from another wallet or exchange" for every failure kind. The failed-state title, body and both buttons follow the payer's language (host's explicit `options.language`, else browser languages, else English) in en, ru, zh, zh-TW, es, ja, ko, id, pt-BR, vi and ms; the rest of the modal is unchanged &nbsp;-&nbsp; by @shawnmuggle and **Claude** in https://github.com/RozoAI/intent-pay/pull/116 [<samp>(0379b)</samp>](https://github.com/RozoAI/intent-pay/commit/0379b5ee)
+
+---
+
 ## [0.1.65] - 2026-10-31
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
