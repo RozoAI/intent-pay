@@ -27,6 +27,8 @@
  *   the payment path, it only labels the event.
  */
 
+import { failedStateCopy } from "./walletFailureCopy";
+
 export type WalletFailureKind = "user_rejected" | "wallet_internal" | "other";
 
 export interface WalletFailure {
@@ -35,12 +37,26 @@ export interface WalletFailure {
   rpcCode: number | null;
   /** Original message, unchanged, for telemetry and the support prefill. */
   message: string;
+  /**
+   * Sub-case of `wallet_internal`: the wallet's own RPC node for this chain
+   * was unreachable (2026-11-09: MetaMask's Infura Polygon endpoint, "RPC
+   * endpoint not found or unavailable"). Always false for other kinds.
+   */
+  rpcUnavailable: boolean;
 }
 
 /** EIP-1193 user rejection. */
 const USER_REJECTED_CODE = 4001;
 /** JSON-RPC internal error: the provider itself failed, not the chain. */
 const INTERNAL_RPC_CODE = -32603;
+
+/**
+ * Explicit "the wallet's node is down" wording only. Deliberately narrow:
+ * Phantom's bare "Unexpected error" must not match, and neither must a
+ * generic "unavailable" that is not about an endpoint.
+ */
+const RPC_UNAVAILABLE_PATTERN =
+  /\brpc endpoint\b[^.\n]{0,40}\b(not found|unavailable)\b|\bendpoint\b[^.\n]{0,40}\bunavailable\b/;
 
 /**
  * After this many consecutive failures of the same wallet option in one
@@ -82,17 +98,22 @@ export function classifyWalletFailure(err: unknown): WalletFailure {
     rpcCode === USER_REJECTED_CODE ||
     /user rejected|user denied|rejected the request|user cancel/.test(text)
   ) {
-    return { kind: "user_rejected", rpcCode, message };
+    return { kind: "user_rejected", rpcCode, message, rpcUnavailable: false };
   }
 
   if (
     rpcCode === INTERNAL_RPC_CODE ||
     /\bunexpected error\b|internal (json-?rpc )?error|internal error/.test(text)
   ) {
-    return { kind: "wallet_internal", rpcCode, message };
+    return {
+      kind: "wallet_internal",
+      rpcCode,
+      message,
+      rpcUnavailable: RPC_UNAVAILABLE_PATTERN.test(text),
+    };
   }
 
-  return { kind: "other", rpcCode, message };
+  return { kind: "other", rpcCode, message, rpcUnavailable: false };
 }
 
 /** EIP-7702 delegation designator prefix (EIP-7702 §"Delegation Designation"). */
@@ -117,29 +138,22 @@ export function shouldPromotePayAnotherWay(
   return consecutiveFailures >= PAY_ANOTHER_WAY_PRIMARY_AFTER_FAILURES;
 }
 
-/** Title shown above the failed state. */
+/** English title for a wallet-internal failure (null otherwise). See walletFailureCopy.ts. */
 export function walletFailureTitle(failure: WalletFailure | null): string | null {
-  if (failure?.kind === "wallet_internal") return "Wallet Could Not Send";
-  return null;
+  if (failure?.kind !== "wallet_internal") return null;
+  return failedStateCopy(failure, { language: "en", networkName: "" }).title;
 }
 
 /**
- * Payer-facing copy. Never the raw viem text, and never a promise that nothing
- * was broadcast: a -32603 or "Unexpected error" proves the wallet failed, not
- * that no transaction left it, so the copy tells the payer to check the wallet.
+ * English payer-facing body. Never the raw viem text, and never a promise that
+ * nothing was broadcast: a -32603 or "Unexpected error" proves the wallet
+ * failed, not that no transaction left it, so the copy tells the payer to
+ * check the wallet. Localized variants live in walletFailureCopy.ts.
  */
 export function walletFailureMessage(
   failure: WalletFailure | null,
   walletName?: string | null,
+  networkName = "selected",
 ): string | null {
-  if (!failure) return null;
-  const wallet = walletName?.trim() || "Your wallet";
-  switch (failure.kind) {
-    case "wallet_internal":
-      return `${wallet} returned an internal error and this page did not receive a transaction. If your wallet shows one as sent, wait for it to confirm before paying again; otherwise you can pay another way below.`;
-    case "user_rejected":
-      return null;
-    default:
-      return `${wallet} did not complete this transaction. If your wallet shows one as sent, wait for it to confirm before paying again.`;
-  }
+  return failedStateCopy(failure, { language: "en", walletName, networkName }).body;
 }

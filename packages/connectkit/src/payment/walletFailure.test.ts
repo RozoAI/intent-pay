@@ -85,6 +85,59 @@ describe("classifyWalletFailure", () => {
   });
 });
 
+/**
+ * Shape of the 2026-11-09 MetaMask failure: its own Polygon RPC (Infura) was
+ * unreachable, surfaced by viem as a "transfer reverted" over a -32603.
+ */
+function metaMaskRpcUnavailableError() {
+  const reason =
+    "RPC 0x89 Infura eth_sendRawTransaction: RPC endpoint not found or unavailable.";
+  const rpc = Object.assign(new Error(reason), { code: -32603, details: reason });
+  return Object.assign(
+    new Error(`The contract function "transfer" reverted with the following reason:\n${reason}`),
+    {
+      name: "ContractFunctionExecutionError",
+      shortMessage: `The contract function "transfer" reverted with the following reason:\n${reason}`,
+      cause: rpc,
+    },
+  );
+}
+
+describe("classifyWalletFailure rpcUnavailable", () => {
+  it("reads the 2026-11-09 MetaMask Infura error as wallet_internal + rpcUnavailable", () => {
+    const f = classifyWalletFailure(metaMaskRpcUnavailableError());
+    expect(f.kind).toBe("wallet_internal");
+    expect(f.rpcCode).toBe(-32603);
+    expect(f.rpcUnavailable).toBe(true);
+  });
+
+  it("keeps Phantom's bare 'Unexpected error' as wallet_internal without rpcUnavailable", () => {
+    const f = classifyWalletFailure(viemWrappedInternalError());
+    expect(f.kind).toBe("wallet_internal");
+    expect(f.rpcUnavailable).toBe(false);
+  });
+
+  it("keeps 4001 as user_rejected and never flags rpcUnavailable outside wallet_internal", () => {
+    const rejected = classifyWalletFailure(
+      Object.assign(new Error("User rejected the request."), { code: 4001 }),
+    );
+    expect(rejected.kind).toBe("user_rejected");
+    expect(rejected.rpcUnavailable).toBe(false);
+    // Endpoint wording without a wallet-internal signal stays "other".
+    const other = classifyWalletFailure(new Error("RPC endpoint not found or unavailable"));
+    expect(other.kind).toBe("other");
+    expect(other.rpcUnavailable).toBe(false);
+  });
+
+  it("does not match unrelated 'unavailable' text", () => {
+    const f = classifyWalletFailure(
+      Object.assign(new Error("Service unavailable, try later"), { code: -32603 }),
+    );
+    expect(f.kind).toBe("wallet_internal");
+    expect(f.rpcUnavailable).toBe(false);
+  });
+});
+
 describe("classifyPayerCode", () => {
   it("labels empty code as eoa, 0xef0100 as eip7702, other code as contract", () => {
     expect(classifyPayerCode("0x")).toBe("eoa");

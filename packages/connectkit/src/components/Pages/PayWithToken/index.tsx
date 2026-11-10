@@ -1,6 +1,7 @@
 import {
   FeeResponseData,
   getCanonicalDestination,
+  getChainName,
   getChainExplorerTxUrl,
   WalletPaymentOption,
 } from "@rozoai/intent-common";
@@ -22,10 +23,13 @@ import {
   classifyPayerCode,
   classifyWalletFailure,
   shouldPromotePayAnotherWay,
-  walletFailureMessage,
-  walletFailureTitle,
   type WalletFailure,
 } from "../../../payment/walletFailure";
+import {
+  failedStateCopy,
+  readBrowserLanguages,
+  resolveFailureCopyLanguage,
+} from "../../../payment/walletFailureCopy";
 import { resolveChainObject } from "../../../defaultConfig";
 import {
   formatWalletNoGasMessage,
@@ -59,7 +63,7 @@ enum PayState {
 
 const PayWithToken: React.FC = () => {
   const walletChainId = useChainId();
-  const { triggerResize, paymentState, setRoute, log } = usePayContext();
+  const { triggerResize, paymentState, setRoute, log, hostLanguage } = usePayContext();
   const {
     payWithToken,
     precheckErc20WalletGas,
@@ -96,6 +100,10 @@ const PayWithToken: React.FC = () => {
   // Drives the "Pay another way" exit (see payment/walletFailure.ts).
   const [lastFailure, setLastFailure] = useState<WalletFailure | null>(null);
   const failureCountRef = useRef(0);
+  // Browser languages for the failed-state copy, read after mount so the
+  // server render never depends on `navigator` (see walletFailureCopy.ts).
+  const [browserLanguages, setBrowserLanguages] = useState<string[]>([]);
+  useEffect(() => setBrowserLanguages(readBrowserLanguages()), []);
   // handleTransfer is memoized with a short dep list; read the live wallet
   // identity through refs so the failure event never labels a stale wallet.
   const walletRef = useRef({ address, connector, wagmiConfig });
@@ -492,6 +500,7 @@ const PayWithToken: React.FC = () => {
             source_chain: option.required.token.chainId,
             source_token: option.required.token.symbol,
             failure_kind: failure.kind,
+            rpc_unavailable: failure.rpcUnavailable,
             rpc_error_code: failure.rpcCode,
             consecutive_failures: failureCount,
             sender_account_type: classifyPayerCode(payerCode),
@@ -558,7 +567,11 @@ const PayWithToken: React.FC = () => {
     lastFailure,
     failureCountRef.current,
   );
-  const failureMessage = walletFailureMessage(lastFailure, connector?.name);
+  const failedCopy = failedStateCopy(lastFailure, {
+    language: resolveFailureCopyLanguage(hostLanguage, browserLanguages),
+    walletName: connector?.name,
+    networkName: getChainName(selectedTokenOption?.required.token.chainId ?? 0),
+  });
   // Manual transfer to a one-time deposit address: the wallet's own send UI
   // takes over, which is the path that worked for the 2026-10-26 payer whose
   // wallet refused every dapp-initiated eth_sendTransaction.
@@ -567,6 +580,7 @@ const PayWithToken: React.FC = () => {
       field: "fallback",
       value: "deposit_address",
       failure_kind: lastFailure?.kind,
+      rpc_unavailable: lastFailure?.rpcUnavailable ?? false,
       consecutive_failures: failureCountRef.current,
       source_chain: selectedTokenOption?.required.token.chainId,
     });
@@ -602,13 +616,11 @@ const PayWithToken: React.FC = () => {
           </ModalH1>
         ) : (
           <ModalH1>
-            {payState === PayState.RequestCancelled
-              ? (walletFailureTitle(lastFailure) ?? payState)
-              : payState}
+            {payState === PayState.RequestCancelled ? failedCopy.title : payState}
           </ModalH1>
         )}
-        {payState === PayState.RequestCancelled && failureMessage && (
-          <ModalBody>{failureMessage}</ModalBody>
+        {payState === PayState.RequestCancelled && failedCopy.body && (
+          <ModalBody>{failedCopy.body}</ModalBody>
         )}
         {payState === PayState.NetworkFeeNeeded && noGasMessage && (
           <ModalBody>{noGasMessage}</ModalBody>
@@ -633,20 +645,20 @@ const PayWithToken: React.FC = () => {
         {payState === PayState.RequestCancelled && promotePayAnotherWay && (
           <>
             <Button variant="primary" onClick={handlePayAnotherWay}>
-              Pay another way
+              {failedCopy.payFromAnotherWallet}
             </Button>
             <Button variant="secondary" onClick={() => handleTransfer(selectedTokenOption)}>
-              Retry Payment
+              {failedCopy.retryPayment}
             </Button>
           </>
         )}
         {payState === PayState.RequestCancelled && !promotePayAnotherWay && (
           <>
             <Button onClick={() => handleTransfer(selectedTokenOption)}>
-              Retry Payment
+              {failedCopy.retryPayment}
             </Button>
             <Button variant="tertiary" onClick={handlePayAnotherWay}>
-              Pay another way
+              {failedCopy.payFromAnotherWallet}
             </Button>
           </>
         )}

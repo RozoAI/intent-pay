@@ -69,6 +69,13 @@ export type PayContextValue = {
   setStellarConnector: React.Dispatch<React.SetStateAction<StellarWalletName | undefined>>;
   /** Global options, across all pay buttons and payments. */
   options?: RozoPayContextOptions;
+  /**
+   * The language the host passed in `options.language`, before the provider
+   * merged in its "en-US" default; undefined when the host did not set one.
+   * Lets copy that may follow the browser language (the PayWithToken failed
+   * state) tell an explicit choice apart from the default.
+   */
+  hostLanguage?: string;
   /** Loads a payment, then shows the modal to complete payment. */
   showPayment: (modalOptions: RozoPayModalOptions) => Promise<void>;
   /** Payment status & callbacks. */
