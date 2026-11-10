@@ -441,6 +441,7 @@ const RozoPayUIProvider = ({
     onConnect,
     // Other configuration
     options: opts,
+    hostLanguage: options?.language,
     errorMessage,
     onSuccess,
     confirmationMessage,
