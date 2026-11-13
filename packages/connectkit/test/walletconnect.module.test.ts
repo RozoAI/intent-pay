@@ -108,6 +108,7 @@ describe("WalletConnectModule", () => {
     ).resolves.toEqual({
       signedTxXdr: "transaction-xdr",
       submitted: true,
+      submissionStatus: "success",
     });
     expect(requestMock).toHaveBeenCalledWith({
       topic: "test-topic",
@@ -117,5 +118,75 @@ describe("WalletConnectModule", () => {
         params: { xdr: "transaction-xdr" },
       },
     });
+  });
+
+  async function startModule() {
+    const mod = await import("../src/utils/stellar/walletconnect.module.js");
+    const module = new mod.WalletConnectModule({
+      projectId: "test-project-id",
+      name: "Test",
+      description: "Test",
+      url: "https://test.example",
+      icons: [],
+      network: "Public Global Stellar Network ; September 2015",
+    });
+    await vi.waitFor(() => expect(createAppKitMock).toHaveBeenCalled());
+    module.setSession("test-topic");
+    return module;
+  }
+
+  const submitOpts = {
+    networkPassphrase: "Public Global Stellar Network ; September 2015",
+    submit: true,
+  };
+
+  it.each([
+    ["missing status", {}],
+    ["undefined response", undefined],
+    ["unexpected status", { status: "error" }],
+  ])(
+    "reports outcome unknown instead of throwing on %s",
+    async (_label, response) => {
+      requestMock.mockResolvedValueOnce(response);
+      const module = await startModule();
+      await expect(
+        module.signTransaction("transaction-xdr", submitOpts),
+      ).resolves.toEqual({
+        signedTxXdr: "transaction-xdr",
+        submitted: false,
+        submissionStatus: "unknown",
+      });
+    },
+  );
+
+  it("reports pending as not submitted", async () => {
+    requestMock.mockResolvedValueOnce({ status: "pending" });
+    const module = await startModule();
+    await expect(
+      module.signTransaction("transaction-xdr", submitOpts),
+    ).resolves.toMatchObject({ submitted: false, submissionStatus: "pending" });
+  });
+
+  it("treats a non-rejection wallet error as outcome unknown", async () => {
+    requestMock.mockRejectedValueOnce({
+      code: -1,
+      message: "Horizon request timed out",
+    });
+    const module = await startModule();
+    await expect(
+      module.signTransaction("transaction-xdr", submitOpts),
+    ).resolves.toMatchObject({ submitted: false, submissionStatus: "unknown" });
+  });
+
+  it.each([
+    [{ code: 5000, message: "User rejected." }],
+    [{ code: -4, message: "The user rejected this request." }],
+    [{ code: 1, message: "User cancelled the request" }],
+  ])("still throws on an explicit user rejection %o", async (error) => {
+    requestMock.mockRejectedValueOnce(error);
+    const module = await startModule();
+    await expect(
+      module.signTransaction("transaction-xdr", submitOpts),
+    ).rejects.toMatchObject({ message: error.message });
   });
 });
