@@ -27,7 +27,9 @@ import SelectAnotherMethodButton from "../../Common/SelectAnotherMethodButton";
 import styled from "../../../styles/styled";
 import {
   getOtherWalletBalances,
+  getOtherWalletFamilies,
   OtherWalletBalance,
+  refreshWithOtherWallets,
   WalletFamily,
 } from "../../../utils/otherWalletBalance";
 
@@ -178,6 +180,28 @@ export default function SelectToken() {
     ]
   );
 
+  // "Refresh balance" must also refetch the other connected wallets: their
+  // balances feed the hint above, and useTokenOptions only refreshes its own
+  // mode (e.g. a payer who tops up Solana while the list is EVM-only).
+  const refreshAllBalances = () =>
+    refreshWithOtherWallets(
+      refreshOptions,
+      getOtherWalletFamilies({
+        mode: effectiveTokenMode,
+        connected: {
+          evm: isEvmConnected,
+          solana: isSolConnected,
+          stellar: isStellarConnected,
+        },
+        paymentOptions,
+      }),
+      {
+        evm: () => paymentState.walletPaymentOptions.refreshOptions(),
+        solana: () => paymentState.solanaPaymentOptions.refreshOptions(),
+        stellar: () => paymentState.stellarPaymentOptions.refreshOptions(),
+      }
+    );
+
   // Prevent showing "Insufficient balance" too quickly to avoid flickering
   const isEmptyOptionsList = useMemo(() => {
     return !isLoading && isConnected && optionsList.length === 0;
@@ -303,7 +327,7 @@ export default function SelectToken() {
       )}
       {!isLoading && isEmptyOptionsList && !noConnectedWallet && (
         <NoTokensAvailable
-          onRefresh={refreshOptions}
+          onRefresh={refreshAllBalances}
           preferredTokens={paymentState.sourcePreference.preferredTokens}
           preferredChains={paymentState.sourcePreference.preferredChains}
           canShowAllTokens={paymentState.sourcePreference.canRelax}

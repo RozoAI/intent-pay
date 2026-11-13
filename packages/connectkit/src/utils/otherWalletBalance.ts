@@ -31,6 +31,35 @@ function isFamilyAllowed(family: WalletFamily, paymentOptions?: readonly string[
   return paymentOptions.includes(WALLET_PAYMENT_OPTIONS[family]);
 }
 
+/**
+ * Connected wallets of other families whose balances feed
+ * getOtherWalletBalances, i.e. the ones "Refresh balance" must also refetch
+ * (the token list only refreshes its own mode).
+ */
+export function getOtherWalletFamilies({
+  mode,
+  connected,
+  paymentOptions,
+}: {
+  mode: WalletFamily | "all";
+  connected: Record<WalletFamily, boolean>;
+  paymentOptions?: readonly string[];
+}): WalletFamily[] {
+  if (mode === "all") return [];
+  return (["evm", "solana", "stellar"] as const).filter(
+    (family) => family !== mode && connected[family] && isFamilyAllowed(family, paymentOptions),
+  );
+}
+
+/** Refresh the listed mode plus every other connected wallet family, in parallel. */
+export async function refreshWithOtherWallets(
+  refreshCurrent: () => Promise<unknown>,
+  otherFamilies: WalletFamily[],
+  refreshers: Record<WalletFamily, () => Promise<unknown>>,
+): Promise<void> {
+  await Promise.all([refreshCurrent(), ...otherFamilies.map((family) => refreshers[family]())]);
+}
+
 function summarize(
   family: WalletFamily,
   option: WalletPaymentOption,
@@ -73,11 +102,8 @@ export function getOtherWalletBalances({
   paymentOptions?: readonly string[];
   isDepositFlow: boolean;
 }): OtherWalletBalance[] {
-  if (mode === "all") return [];
-  const families: WalletFamily[] = ["evm", "solana", "stellar"];
   const best: { usd: number; summary: OtherWalletBalance }[] = [];
-  for (const family of families) {
-    if (family === mode || !connected[family] || !isFamilyAllowed(family, paymentOptions)) continue;
+  for (const family of getOtherWalletFamilies({ mode, connected, paymentOptions })) {
     const held = (options[family] ?? []).filter((o) => o.balance.usd > 0);
     if (held.length === 0) continue;
     const pick = [...held].sort(

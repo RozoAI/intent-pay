@@ -1,6 +1,10 @@
 import { baseUSDC, rozoSolanaUSDC, Token, WalletPaymentOption } from "@rozoai/intent-common";
-import { describe, expect, it } from "vitest";
-import { getOtherWalletBalances } from "../src/utils/otherWalletBalance";
+import { describe, expect, it, vi } from "vitest";
+import {
+  getOtherWalletBalances,
+  getOtherWalletFamilies,
+  refreshWithOtherWallets,
+} from "../src/utils/otherWalletBalance";
 
 const asPayToken = (t: Token) => ({ ...t, usd: 1, priceFromUsd: 1, displayDecimals: 2 }) as any;
 
@@ -97,5 +101,40 @@ describe("getOtherWalletBalances", () => {
       options: { evm: [], solana: [option(rozoSolanaUSDC, 5, 0)], stellar: [] },
     });
     expect(res[0].required).toBeUndefined();
+  });
+});
+
+describe("Refresh balance also refetches other connected wallets", () => {
+  it("lists only connected, allowed families other than the listed mode", () => {
+    const connected = { evm: true, solana: true, stellar: true };
+    expect(getOtherWalletFamilies({ mode: "evm", connected })).toEqual(["solana", "stellar"]);
+    expect(
+      getOtherWalletFamilies({ mode: "evm", connected: { ...connected, stellar: false } }),
+    ).toEqual(["solana"]);
+    expect(
+      getOtherWalletFamilies({ mode: "evm", connected, paymentOptions: ["Ethereum", "Solana"] }),
+    ).toEqual(["solana"]);
+    expect(getOtherWalletFamilies({ mode: "all", connected })).toEqual([]);
+  });
+
+  it("refetches the Solana wallet when the list is EVM-only (top-up mid-session)", async () => {
+    const current = vi.fn(async () => {});
+    const refreshers = {
+      evm: vi.fn(async () => {}),
+      solana: vi.fn(async () => {}),
+      stellar: vi.fn(async () => {}),
+    };
+    await refreshWithOtherWallets(
+      current,
+      getOtherWalletFamilies({
+        mode: "evm",
+        connected: { evm: true, solana: true, stellar: false },
+      }),
+      refreshers,
+    );
+    expect(current).toHaveBeenCalledTimes(1);
+    expect(refreshers.solana).toHaveBeenCalledTimes(1);
+    expect(refreshers.evm).not.toHaveBeenCalled();
+    expect(refreshers.stellar).not.toHaveBeenCalled();
   });
 });
