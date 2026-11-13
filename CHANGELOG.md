@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.68] - 2026-11-13
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**:
+  - Wallet deeplinks open on the order's chain when it is known: Trust Wallet uses `coin_id=501` for Solana orders instead of always `60` (Ethereum). (#120)
+  - The empty token list now explains the other connected wallet's balance (e.g. "Your Solana wallet has 10.27 USDC; this payment needs 10.61 USDC") and offers to pay from it; "Refresh balance" also refreshes that wallet. (#120)
+
 ## [0.1.67] - 2026-11-13
 
 ### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
