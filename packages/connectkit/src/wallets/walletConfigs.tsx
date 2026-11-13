@@ -1,5 +1,6 @@
 import Logos from "../assets/logos";
 import { ROZO_INVOICE_URL } from "../constants/rozoConfig";
+import { DeeplinkChainFamily } from "./deeplinkChain";
 
 // TODO: Change the URL to Rozo Pay when the APP is ready
 // Infer in-wallet payment URL from environment.
@@ -22,6 +23,17 @@ function getRozoPayUrl(payId: string, appId?: string) {
 function getEncodedRozoPayUrl(payId: string, appId?: string) {
   const url = getRozoPayUrl(payId, appId);
   return encodeURIComponent(url);
+}
+
+/**
+ * Trust Wallet `open_url` takes a SLIP-44 `coin_id` selecting the account the
+ * dApp browser opens with (60 = Ethereum, 501 = Solana; see
+ * https://github.com/trustwallet/tw-agent-skills/blob/main/skills/sdk/references/trust-developer.md
+ * and wallet-core registry.json). EVM stays on 60 and lets the dApp switch
+ * networks; Stellar has no documented dApp-browser support, so it keeps 60.
+ */
+export function trustCoinId(chainFamily?: DeeplinkChainFamily): number {
+  return chainFamily === "solana" ? 501 : 60;
 }
 
 export type WalletConfigProps = {
@@ -65,11 +77,16 @@ export type WalletConfigProps = {
     ref,
     appId,
     customDeeplink,
+    chainFamily,
   }: {
     payId: string;
     ref?: string;
     appId?: string;
     customDeeplink?: string;
+    // Chain family the order is pinned to (see resolveDeeplinkChainFamily).
+    // Wallets with a documented chain parameter open on it; undefined keeps
+    // each wallet's default.
+    chainFamily?: DeeplinkChainFamily;
   }) => string;
   // To sort mobile wallets to show in the connector list
   showInMobileConnectors?: boolean;
@@ -360,13 +377,15 @@ export const walletConfigs: {
       ref,
       appId,
       customDeeplink,
+      chainFamily,
     }: {
       payId: string;
       ref?: string;
       appId?: string;
       customDeeplink?: string;
+      chainFamily?: DeeplinkChainFamily;
     }) => {
-      return `trust://open_url?coin_id=60&url=${
+      return `trust://open_url?coin_id=${trustCoinId(chainFamily)}&url=${
         customDeeplink ?? getRozoPayUrl(payId, appId)
       }`;
     },

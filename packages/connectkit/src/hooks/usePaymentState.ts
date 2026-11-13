@@ -138,6 +138,7 @@ import { createPaymentFailureError, parseErrorMessage } from "../utils/errorPars
 import { detectPlatform } from "../utils/platform";
 import { TrpcClient } from "../utils/trpc";
 import { WalletConfigProps } from "../wallets/walletConfigs";
+import { DeeplinkChainFamily, resolveDeeplinkChainFamily } from "../wallets/deeplinkChain";
 import { useDepositAddressOptions } from "./useDepositAddressOptions";
 import { useExternalPaymentOptions } from "./useExternalPaymentOptions";
 import useIsMobile from "./useIsMobile";
@@ -270,6 +271,8 @@ export interface PaymentState {
     amountUsd?: number;
     customDeeplink?: string;
   }) => void;
+  /// Chain family the order is pinned to, for chain-aware wallet deeplinks.
+  walletDeeplinkChainFamily: DeeplinkChainFamily | undefined;
   senderEnsName: string | undefined;
   setTxHash: (txHash: string) => void;
   txHash: string | undefined;
@@ -1981,6 +1984,19 @@ export function usePaymentState({
 
   const { isIOS } = useIsMobile();
 
+  // Open the wallet's in-app browser on the chain family the order is already
+  // pinned to (e.g. Trust on Solana for a Solana-only invoice).
+  const walletDeeplinkChainFamily = useMemo(
+    () =>
+      resolveDeeplinkChainFamily({
+        preferredChains: stablePayParams?.preferredChains,
+        paymentOptions: effectivePaymentOptions,
+        orderPreferredChainId:
+          pay.order?.preferredChainId != null ? Number(pay.order.preferredChainId) : null,
+      }),
+    [stablePayParams?.preferredChains, effectivePaymentOptions, pay.order?.preferredChainId],
+  );
+
   const openInWalletBrowser = ({
     wallet,
     amountUsd,
@@ -2022,6 +2038,7 @@ export function usePaymentState({
       // in the invoice deeplink instead of dropping it (missingAppId on invoice).
       appId: stableAppId,
       customDeeplink,
+      chainFamily: walletDeeplinkChainFamily,
     });
 
     // If we are in IOS, we don't open the deeplink in a new window, because it
@@ -2307,6 +2324,7 @@ export function usePaymentState({
     payWithSolanaTokenRozo,
     payWithStellarToken,
     openInWalletBrowser,
+    walletDeeplinkChainFamily,
     senderEnsName: senderEnsName ?? undefined,
     txHash,
     setTxHash,
