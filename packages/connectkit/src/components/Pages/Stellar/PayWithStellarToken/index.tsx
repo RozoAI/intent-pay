@@ -60,6 +60,13 @@ import {
 } from "../../../../utils/token";
 import { waitForPaymentSourceTxHash } from "../../../../payment/waitForPaymentSourceTxHash";
 import { WALLET_CONNECT_ID } from "../../../../utils/stellar/walletconnect.module";
+import { resolveStellarSubmissionOutcome } from "../../../../payment/resolveStellarSubmissionOutcome";
+import {
+  CONFIRMED_ENTRY_TTL_MS,
+  clearPendingStellarSubmission,
+  readPendingStellarSubmissions,
+  savePendingStellarSubmission,
+} from "../../../../payment/stellarPendingSubmission";
 
 enum PayState {
   PreparingTransaction = "Preparing Transaction",
@@ -69,13 +76,21 @@ enum PayState {
   RequestFailed = "Payment Failed",
   RequestSuccessful = "Payment Successful",
   WaitingForWallet = "Wallet Confirmation Pending",
+  OutcomeUnknown = "Payment Status Unknown",
+  PreviousPaymentConfirmed = "Previous Payment Confirmed",
 }
 
 // A WalletConnect SIGN_AND_SUBMIT can report "pending" before broadcasting,
-// or the pending submission may later fail. We can't safely resubmit
-// locally (the wallet already attempted it), so we bound how long we poll
-// the backend for the observed source tx hash before surfacing a failure.
-const PENDING_SUBMISSION_TIMEOUT_MS = 60_000;
+// the pending submission may later fail, and some wallets broadcast but
+// answer with no/unexpected status or an error ("unknown"). We can't safely
+// resubmit locally (the wallet already attempted it) and must not let the
+// user sign a second transaction while the first may still land, so we
+// resolve the outcome on chain: the tx hash is computed from the XDR we sent
+// and looked up on Horizon until the tx's max_time has provably passed (see
+// resolveStellarSubmissionOutcome), racing the backend's observed source tx
+// hash. If neither proves an outcome we show "status unknown" with no retry.
+// The unresolved tx is persisted per source account (stellarPendingSubmission)
+// so re-entering checkout must resolve it on chain before signing again.
 
 const PayWithStellarToken: React.FC = () => {
   const { triggerResize, paymentState, setRoute, log } = usePayContext();
@@ -115,6 +130,7 @@ const PayWithStellarToken: React.FC = () => {
   const submitButtonRef = useRef<HTMLButtonElement>(null);
   const paymentAttemptIdRef = useRef<string | undefined>();
   const signingRef = useRef(false);
+  const previousConfirmedTxRef = useRef<string | undefined>();
   const autoTransferOrderRef = useRef<string | null>(null);
   // Dedupes the payId fetch+checkout across overlapping handleTransfer calls
   // (e.g. the auto-transfer effect firing twice in quick succession). Claimed
@@ -680,12 +696,16 @@ const PayWithStellarToken: React.FC = () => {
         // submitting a Stellar transaction, not on every modal mount.
         const { Networks, TransactionBuilder } = await import("@stellar/stellar-sdk");
         const activePaymentId = rozoPaymentId ?? order?.externalId;
-        const finishSubmission = (txHash: string) => {
+        const finishSubmission = (
+          txHash: string,
+          extra?: Record<string, unknown>,
+        ) => {
           capture(ROZO_EVENTS.PAYMENT_SUBMITTED, {
             payment_id: activePaymentId,
             tx_hash: txHash,
             source_chain: rozoStellar.chainId,
             token_symbol: selectedStellarTokenOption?.required.token.symbol,
+            ...extra,
           });
           try {
             sessionStorage.setItem(
@@ -707,19 +727,273 @@ const PayWithStellarToken: React.FC = () => {
           }, 1000);
         };
 
-        const signingPromise = stellarKit.signTransaction(signedTx, {
-          address: stellarPublicKey,
-          networkPassphrase: Networks.PUBLIC,
-          submit: stellarConnector?.id === WALLET_CONNECT_ID,
-        });
-        let signedTransaction: Awaited<typeof signingPromise> & {
-          submitted?: boolean;
+        const isWalletConnect = stellarConnector?.id === WALLET_CONNECT_ID;
+        // The hash does not depend on signatures, so the XDR we hand to the
+        // wallet identifies the transaction it may broadcast.
+        const sentTx = TransactionBuilder.fromXDR(signedTx, Networks.PUBLIC);
+        const sentTxHash = Array.from(sentTx.hash())
+          .map((byte) => byte.toString(16).padStart(2, "0"))
+          .join("");
+        const sentTimeBounds =
+          "innerTransaction" in sentTx
+            ? sentTx.innerTransaction.timeBounds
+            : sentTx.timeBounds;
+        const sentMaxTime = Number(sentTimeBounds?.maxTime ?? 0);
+
+        const resolveOnChain = (
+          txHash: string,
+          maxTime: number,
+          signal?: AbortSignal,
+        ) =>
+          resolveStellarSubmissionOutcome({
+            txHash,
+            maxTime,
+            signal,
+            lookupTx: async (hash) => {
+              try {
+                const record = await stellarServer
+                  .transactions()
+                  .transaction(hash)
+                  .call();
+                return { found: true, successful: record.successful === true };
+              } catch (error: any) {
+                if (
+                  error?.response?.status === 404 ||
+                  error?.name === "NotFoundError"
+                ) {
+                  return { found: false };
+                }
+                throw error;
+              }
+            },
+            latestLedgerCloseTime: async () => {
+              const page = await stellarServer
+                .ledgers()
+                .order("desc")
+                .limit(1)
+                .call();
+              const closedAt = page.records[0]?.closed_at;
+              return closedAt ? Date.parse(closedAt) / 1000 : Number.NaN;
+            },
+          });
+
+        const reportUnresolved = (
+          kind: "failed" | "expired" | "unknown",
+          txHash: string,
+          walletStatus: string | undefined,
+        ) => {
+          // Definite failure (failed on chain, or provably never included)
+          // or still unknown. Either way drop the old XDR so nothing can
+          // resubmit it.
+          setSignedTx(undefined);
+          capture(ROZO_EVENTS.PAYMENT_FAILED, {
+            payment_id: attemptId,
+            error_message:
+              kind === "unknown"
+                ? "wallet_submission_outcome_unknown"
+                : "payment_unsuccessful",
+            submission_outcome:
+              kind === "failed"
+                ? "failed_on_chain"
+                : kind === "expired"
+                  ? "expired_not_on_chain"
+                  : "outcome_unknown",
+            wallet_status: walletStatus,
+            tx_hash: txHash,
+            source_chain: rozoStellar.chainId,
+          });
+          setPayState(
+            kind === "unknown" ? PayState.OutcomeUnknown : PayState.RequestFailed,
+          );
         };
 
-        if (
-          stellarConnector?.id === WALLET_CONNECT_ID &&
-          activePaymentId
-        ) {
+        const markConfirmed = (txHash: string, walletStatus?: string) => {
+          // Only after an unknown wallet status: keep the record after the
+          // on-chain success so a later checkout from this account must be
+          // acknowledged before it can pay again.
+          if (stellarPublicKey) {
+            savePendingStellarSubmission(stellarPublicKey, {
+              txHash,
+              maxTime: sentMaxTime,
+              paymentId: attemptId,
+              walletStatus,
+              confirmed: true,
+              recordedAt: Date.now(),
+            });
+          }
+        };
+        const showPreviousPaymentConfirmed = (
+          txHash: string,
+          previousPaymentId: string | undefined,
+        ) => {
+          setSignedTx(undefined);
+          previousConfirmedTxRef.current = txHash;
+          setTxURL(getChainExplorerTxUrl(rozoStellar.chainId, txHash));
+          capture(ROZO_EVENTS.PAYMENT_FAILED, {
+            payment_id: attemptId,
+            error_message: "previous_payment_confirmed_on_chain",
+            submission_outcome: "unknown_resolved_on_chain",
+            previous_payment_id: previousPaymentId,
+            tx_hash: txHash,
+            source_chain: rozoStellar.chainId,
+          });
+          setPayState(PayState.PreviousPaymentConfirmed);
+        };
+
+        // Never request a new signature from an account whose previous
+        // wallet submission is unresolved (it may already be on chain) or
+        // recently confirmed for another order, unless the user explicitly
+        // acknowledged it ("Pay again" clears the record).
+        const pendingRecords = stellarPublicKey
+          ? readPendingStellarSubmissions(stellarPublicKey)
+          : [];
+        let resolvedPending = false;
+        for (const pending of pendingRecords) {
+          if (!stellarPublicKey) break;
+          if (
+            pending.confirmed &&
+            Date.now() - pending.recordedAt > CONFIRMED_ENTRY_TTL_MS
+          ) {
+            clearPendingStellarSubmission(stellarPublicKey, pending.txHash);
+            continue;
+          }
+          let priorKind: "success" | "failed" | "expired" | "unknown";
+          if (pending.confirmed) {
+            priorKind = "success";
+          } else {
+            resolvedPending = true;
+            setIsLoading(true);
+            setPayState(PayState.ProcessingPayment);
+            const prior = await resolveOnChain(pending.txHash, pending.maxTime);
+            priorKind = prior.kind;
+            log?.(
+              `[PAY STELLAR] Previous unresolved submission ${pending.txHash} resolved as ${prior.kind}`,
+            );
+          }
+          if (priorKind === "unknown") {
+            reportUnresolved("unknown", pending.txHash, pending.walletStatus);
+            return;
+          }
+          if (priorKind === "success") {
+            savePendingStellarSubmission(stellarPublicKey, {
+              ...pending,
+              confirmed: true,
+              recordedAt: pending.confirmed ? pending.recordedAt : Date.now(),
+            });
+            if (pending.paymentId === attemptId) {
+              finishSubmission(pending.txHash, {
+                wallet_status: pending.walletStatus,
+                submission_outcome: "unknown_resolved_on_chain",
+              });
+              return;
+            }
+            // The earlier payment from this account landed for another
+            // order. Stop here so the user does not pay twice.
+            showPreviousPaymentConfirmed(pending.txHash, pending.paymentId);
+            return;
+          }
+          // failed / expired: that tx can never land.
+          clearPendingStellarSubmission(stellarPublicKey, pending.txHash);
+        }
+        if (resolvedPending) {
+          setIsLoading(false);
+          setPayState(PayState.WaitingForConfirmation);
+        }
+
+        const resolveWalletConnectOutcome = async (
+          walletStatus: string | undefined,
+          backendHashPromise?: Promise<{ txHash: string }>,
+          signal?: AbortSignal,
+        ) => {
+          setIsLoading(true);
+          setPayState(PayState.ProcessingPayment);
+          if (stellarPublicKey) {
+            savePendingStellarSubmission(stellarPublicKey, {
+              txHash: sentTxHash,
+              maxTime: sentMaxTime,
+              paymentId: attemptId,
+              walletStatus,
+              recordedAt: Date.now(),
+            });
+          }
+          const horizonOutcome = resolveOnChain(sentTxHash, sentMaxTime, signal);
+          const outcome = backendHashPromise
+            ? await Promise.race([
+                horizonOutcome,
+                backendHashPromise.then(({ txHash: backendHash }) => ({
+                  kind: "backend" as const,
+                  txHash: backendHash,
+                })),
+              ])
+            : await horizonOutcome;
+
+          log?.(
+            `[PAY STELLAR] WalletConnect status "${walletStatus}" resolved as ${outcome.kind}: ${outcome.txHash}`,
+          );
+          if (outcome.kind === "unknown") {
+            // Keep the persisted entry: the next attempt must resolve it.
+            reportUnresolved("unknown", outcome.txHash, walletStatus);
+            return;
+          }
+          if (outcome.kind === "success" || outcome.kind === "backend") {
+            markConfirmed(outcome.txHash, walletStatus);
+            finishSubmission(outcome.txHash, {
+              wallet_status: walletStatus,
+              submission_outcome:
+                outcome.kind === "success"
+                  ? "unknown_resolved_on_chain"
+                  : "unknown_resolved_by_api",
+            });
+            return;
+          }
+          // failed / expired: the tx can never land.
+          if (stellarPublicKey) {
+            clearPendingStellarSubmission(stellarPublicKey, sentTxHash);
+          }
+          reportUnresolved(outcome.kind, outcome.txHash, walletStatus);
+        };
+
+        // WalletConnect signs AND broadcasts in the wallet, so the tx may land
+        // even if this page closes before the wallet answers. Record it
+        // before the request so a later attempt resolves it on chain first.
+        const clearSentPending = () => {
+          if (isWalletConnect && stellarPublicKey) {
+            // Never drop a record the API or chain already confirmed.
+            clearPendingStellarSubmission(
+              stellarPublicKey,
+              sentTxHash,
+              undefined,
+              { keepConfirmed: true },
+            );
+          }
+        };
+        if (isWalletConnect && stellarPublicKey) {
+          savePendingStellarSubmission(stellarPublicKey, {
+            txHash: sentTxHash,
+            maxTime: sentMaxTime,
+            paymentId: attemptId,
+            walletStatus: "requested",
+            recordedAt: Date.now(),
+          });
+        }
+        const signingPromise = stellarKit
+          .signTransaction(signedTx, {
+            address: stellarPublicKey,
+            networkPassphrase: Networks.PUBLIC,
+            submit: isWalletConnect,
+          })
+          .catch((error: unknown) => {
+            // The module only throws before the request is sent or on an
+            // explicit user rejection: nothing was broadcast.
+            clearSentPending();
+            throw error;
+          });
+        let signedTransaction: Awaited<typeof signingPromise> & {
+          submitted?: boolean;
+          submissionStatus?: string;
+        };
+
+        if (isWalletConnect && activePaymentId) {
           const pollingController = new AbortController();
           const backendHashPromise = waitForPaymentSourceTxHash(
             activePaymentId,
@@ -738,6 +1012,7 @@ const PayWithStellarToken: React.FC = () => {
               signingPromise.then((transaction) => ({
                 transaction: transaction as Awaited<typeof signingPromise> & {
                   submitted?: boolean;
+                  submissionStatus?: string;
                 },
               })),
               backendHashPromise,
@@ -747,37 +1022,44 @@ const PayWithStellarToken: React.FC = () => {
               log?.(
                 `[PAY STELLAR] Recovered WalletConnect tx hash from payment API: ${result.txHash}`,
               );
+              // The API saw this order's payment, but the wallet has not
+              // answered yet and may never confirm. Keep a confirmed record
+              // until the wallet itself reports success, so a lost wallet
+              // response still needs acknowledgement before paying again.
+              markConfirmed(result.txHash, "api");
+              signingPromise
+                .then((transaction) => {
+                  if (
+                    stellarPublicKey &&
+                    (transaction as { submitted?: boolean }).submitted === true
+                  ) {
+                    clearPendingStellarSubmission(
+                      stellarPublicKey,
+                      result.txHash,
+                    );
+                    clearPendingStellarSubmission(stellarPublicKey, sentTxHash);
+                  }
+                })
+                .catch(() => {});
               finishSubmission(result.txHash);
               return;
             }
 
             // The wallet's SIGN_AND_SUBMIT returned before the backend saw a
             // hash. If it reported "success" (submitted:true), trust it.
-            // If it reported "pending" (submitted:false) or the wallet's
-            // own submission failed, do NOT fall through to local
-            // resubmission — WalletConnect already attempted the broadcast
-            // and signedTxXdr here is not a locally-resubmittable
-            // transaction. Keep polling the backend for the source tx hash,
-            // bounded by a timeout, and only then report success;
-            // otherwise surface a timeout/failure.
+            // If it reported "pending", an unexpected/missing status, or a
+            // non-rejection error (submitted:false), do NOT fall through to
+            // local resubmission: WalletConnect already attempted the
+            // broadcast and signedTxXdr here is not a locally-resubmittable
+            // transaction. Resolve the outcome on Horizon by hash while still
+            // racing the backend's source tx hash; never offer a plain retry
+            // while the first transaction may still land.
             if (!result.transaction.submitted) {
-              const backendResult = await Promise.race([
+              await resolveWalletConnectOutcome(
+                result.transaction.submissionStatus,
                 backendHashPromise,
-                new Promise<never>((_, reject) => {
-                  setTimeout(() => {
-                    pollingController.abort();
-                    reject(
-                      new Error(
-                        "Timed out waiting for the transaction to be confirmed after a pending status from the wallet.",
-                      ),
-                    );
-                  }, PENDING_SUBMISSION_TIMEOUT_MS);
-                }),
-              ]);
-              log?.(
-                `[PAY STELLAR] Recovered WalletConnect tx hash from payment API after pending status: ${backendResult.txHash}`,
+                pollingController.signal,
               );
-              finishSubmission(backendResult.txHash);
               return;
             }
             signedTransaction = result.transaction;
@@ -796,7 +1078,15 @@ const PayWithStellarToken: React.FC = () => {
           const txHash = Array.from(submittedTx.hash())
             .map((byte) => byte.toString(16).padStart(2, "0"))
             .join("");
+          clearSentPending();
           finishSubmission(txHash);
+          return;
+        }
+
+        if (isWalletConnect) {
+          // Same as above, without a payment id to poll the backend with.
+          // signedTxXdr is the unsigned XDR here, never resubmit it locally.
+          await resolveWalletConnectOutcome(signedTransaction.submissionStatus);
           return;
         }
 
@@ -1021,6 +1311,39 @@ const PayWithStellarToken: React.FC = () => {
           >
             Retry Payment
           </Button>
+        )}
+        {payState === PayState.OutcomeUnknown && (
+          <>
+            <ModalBody>
+              We could not confirm whether your wallet sent this payment. Check
+              your wallet activity before paying again so you are not charged
+              twice.
+            </ModalBody>
+            <Button onClick={handleContactClick}>Contact Support</Button>
+          </>
+        )}
+        {payState === PayState.PreviousPaymentConfirmed && (
+          <>
+            <ModalBody>
+              An earlier payment from this wallet was confirmed on chain. To
+              avoid paying twice, check with the merchant before paying again.
+            </ModalBody>
+            <Button onClick={handleContactClick}>Contact Support</Button>
+            <Button
+              onClick={() => {
+                // Explicit user acknowledgement: start an independent payment.
+                const txHash = previousConfirmedTxRef.current;
+                if (stellarPublicKey && txHash) {
+                  clearPendingStellarSubmission(stellarPublicKey, txHash);
+                }
+                previousConfirmedTxRef.current = undefined;
+                setTxURL(undefined);
+                handleTransfer(selectedStellarTokenOption);
+              }}
+            >
+              Pay Again Anyway
+            </Button>
+          </>
         )}
         {payState === PayState.RequestFailed && (
           <>

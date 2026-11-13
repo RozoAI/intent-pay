@@ -21,6 +21,29 @@ declare const window: Window &
 
 export const WALLET_CONNECT_ID = "wallet_connect";
 
+/**
+ * Result of a WalletConnect sign-and-submit request. "unknown" means the
+ * wallet may or may not have broadcast the transaction (missing/unexpected
+ * status, or a non-rejection error after the request was sent).
+ */
+export type WalletConnectSubmitStatus = "success" | "pending" | "unknown";
+
+/**
+ * True only for an explicit user rejection: WalletConnect USER_REJECTED
+ * (5000), the Stellar WalletConnect namespace rejection code (-4), or a
+ * message that says the user rejected/denied/cancelled.
+ */
+export function isWalletConnectUserRejection(error: {
+  code?: unknown;
+  message?: unknown;
+}): boolean {
+  if (error.code === 5000 || error.code === -4) return true;
+  const message = typeof error.message === "string" ? error.message : "";
+  return /\buser\b.*\b(reject|rejected|denied|declined|cancel|cancelled|canceled)\b/i.test(
+    message,
+  );
+}
+
 const PUBLIC_NETWORK_NAME = "Public Global Stellar Network ; September 2015";
 const WC_SESSION_PATHS_KEY = "rozo_wc_session_paths";
 
@@ -312,14 +335,22 @@ export class WalletConnectModule implements ModuleInterface {
     signedTxXdr: string;
     signerAddress?: string;
     submitted?: boolean;
+    submissionStatus?: WalletConnectSubmitStatus;
   }> {
     if (opts?.submit) {
       const { status } = await this.signAndSubmitTransaction(xdr, opts);
       // Only "success" means the wallet confirmed broadcast. "pending" means
-      // submission is still in flight or may fail — do not claim submitted
-      // or the caller will derive a hash from the XDR and treat it as final
-      // before Horizon/the backend has actually accepted the transaction.
-      return { signedTxXdr: xdr, submitted: status === "success" };
+      // submission is still in flight or may fail, and "unknown" means the
+      // wallet may or may not have broadcast. Do not claim submitted for
+      // either, or the caller will derive a hash from the XDR and treat it as
+      // final before Horizon/the backend has actually accepted the
+      // transaction. The caller must resolve the outcome on chain before it
+      // lets the user sign again.
+      return {
+        signedTxXdr: xdr,
+        submitted: status === "success",
+        submissionStatus: status,
+      };
     }
 
     await this.runChecks();
@@ -362,7 +393,7 @@ export class WalletConnectModule implements ModuleInterface {
   async signAndSubmitTransaction(
     xdr: string,
     opts?: { networkPassphrase?: string; address?: string },
-  ): Promise<{ status: "success" | "pending" }> {
+  ): Promise<{ status: WalletConnectSubmitStatus }> {
     await this.runChecks();
 
     const targetPath =
@@ -382,26 +413,38 @@ export class WalletConnectModule implements ModuleInterface {
         ? WalletConnectTargetChain.PUBLIC
         : WalletConnectTargetChain.TESTNET;
 
-    const result = await this.signClient
-      .request<{ status: string }>({
+    // From here on the request may have reached the wallet, and the wallet
+    // may already have broadcast the transaction even if its response is an
+    // error or lacks a status (seen in production: the tx landed on chain
+    // while the response had no `status`). Only an explicit user rejection
+    // proves nothing was signed; everything else is "unknown" and the caller
+    // must check Horizon before allowing a new signature.
+    let result: { status?: unknown } | null | undefined;
+    try {
+      result = await this.signClient.request<{ status?: unknown }>({
         topic: targetPath.topic,
         chainId,
         request: {
           method: WalletConnectAllowedMethods.SIGN_AND_SUBMIT,
           params: { xdr },
         },
-      })
-      .catch((e: unknown) => {
-        throw parseError(e as Error);
       });
-
-    if (result.status !== "success" && result.status !== "pending") {
-      throw parseError(
-        new Error(`Unexpected status from wallet: ${result.status}`),
+    } catch (e: unknown) {
+      const parsed = parseError(e as Error);
+      if (isWalletConnectUserRejection(parsed)) throw parsed;
+      console.warn(
+        "[WalletConnect] sign-and-submit error, outcome unknown:",
+        parsed,
       );
+      return { status: "unknown" };
     }
 
-    return { status: result.status };
+    const status = result?.status;
+    if (status === "success" || status === "pending") return { status };
+    console.warn(
+      `[WalletConnect] Unexpected status from wallet: ${String(status)}, outcome unknown`,
+    );
+    return { status: "unknown" };
   }
 
   async signAuthEntry(): Promise<{
