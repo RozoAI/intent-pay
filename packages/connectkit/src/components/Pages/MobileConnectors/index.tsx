@@ -147,6 +147,7 @@ const MobileConnectors: React.FC = () => {
       ref,
       appId,
       customDeeplink: order?.metadata?.customDeeplinkUrl,
+      chainFamily: paymentState.walletDeeplinkChainFamily,
     });
 
     // Open via <a> tag click — works inside direct user gesture on iOS Safari

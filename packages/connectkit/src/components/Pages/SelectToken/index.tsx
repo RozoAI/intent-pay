@@ -25,6 +25,13 @@ import { OptionsList } from "../../Common/OptionsList";
 import { OrderHeader } from "../../Common/OrderHeader";
 import SelectAnotherMethodButton from "../../Common/SelectAnotherMethodButton";
 import styled from "../../../styles/styled";
+import {
+  getOtherWalletBalances,
+  getOtherWalletFamilies,
+  OtherWalletBalance,
+  refreshWithOtherWallets,
+  WalletFamily,
+} from "../../../utils/otherWalletBalance";
 
 export default function SelectToken() {
   const { isMobile } = useIsMobile();
@@ -139,6 +146,62 @@ export default function SelectToken() {
     connector,
   ]);
 
+  // Balances in connected wallets of another family than the list shows
+  // (e.g. Solana USDC while the list is EVM-only), from already-fetched options.
+  const otherWalletBalances = useMemo(
+    () =>
+      effectiveTokenMode === "all"
+        ? []
+        : getOtherWalletBalances({
+            mode: effectiveTokenMode,
+            connected: {
+              evm: isEvmConnected,
+              solana: isSolConnected,
+              stellar: isStellarConnected,
+            },
+            options: {
+              evm: paymentState.walletPaymentOptions.options,
+              solana: paymentState.solanaPaymentOptions.options,
+              stellar: paymentState.stellarPaymentOptions.options,
+            },
+            paymentOptions,
+            isDepositFlow: paymentState.isDepositFlow,
+          }),
+    [
+      effectiveTokenMode,
+      isEvmConnected,
+      isSolConnected,
+      isStellarConnected,
+      paymentState.walletPaymentOptions.options,
+      paymentState.solanaPaymentOptions.options,
+      paymentState.stellarPaymentOptions.options,
+      paymentOptions,
+      paymentState.isDepositFlow,
+    ]
+  );
+
+  // "Refresh balance" must also refetch the other connected wallets: their
+  // balances feed the hint above, and useTokenOptions only refreshes its own
+  // mode (e.g. a payer who tops up Solana while the list is EVM-only).
+  const refreshAllBalances = () =>
+    refreshWithOtherWallets(
+      refreshOptions,
+      getOtherWalletFamilies({
+        mode: effectiveTokenMode,
+        connected: {
+          evm: isEvmConnected,
+          solana: isSolConnected,
+          stellar: isStellarConnected,
+        },
+        paymentOptions,
+      }),
+      {
+        evm: () => paymentState.walletPaymentOptions.refreshOptions(),
+        solana: () => paymentState.solanaPaymentOptions.refreshOptions(),
+        stellar: () => paymentState.stellarPaymentOptions.refreshOptions(),
+      }
+    );
+
   // Prevent showing "Insufficient balance" too quickly to avoid flickering
   const isEmptyOptionsList = useMemo(() => {
     return !isLoading && isConnected && optionsList.length === 0;
@@ -165,6 +228,18 @@ export default function SelectToken() {
           .join(","),
         preferred_token_symbols: preferred?.map((t) => t.symbol) ?? [],
         preferred_token_count: preferred?.length ?? 0,
+        // Rounded amounts and families only, never addresses.
+        other_wallet_balances: otherWalletBalances.map((b) => ({
+          family: b.family,
+          chain: b.label,
+          symbol: b.symbol,
+          balance: Number(b.balance),
+          required: b.required != null ? Number(b.required) : null,
+          sufficient: b.sufficient,
+        })),
+        insufficient_balance:
+          otherWalletBalances.length > 0 &&
+          otherWalletBalances.every((b) => !b.sufficient),
       });
     } else if (!shouldShowEmpty) {
       noTokensReportedRef.current = false;
@@ -178,6 +253,7 @@ export default function SelectToken() {
     isSolConnected,
     isStellarConnected,
     paymentState.sourcePreference.preferredTokens,
+    otherWalletBalances,
     capture,
   ]);
 
@@ -251,11 +327,13 @@ export default function SelectToken() {
       )}
       {!isLoading && isEmptyOptionsList && !noConnectedWallet && (
         <NoTokensAvailable
-          onRefresh={refreshOptions}
+          onRefresh={refreshAllBalances}
           preferredTokens={paymentState.sourcePreference.preferredTokens}
           preferredChains={paymentState.sourcePreference.preferredChains}
           canShowAllTokens={paymentState.sourcePreference.canRelax}
           onShowAllTokens={paymentState.sourcePreference.relax}
+          otherWalletBalance={otherWalletBalances[0]}
+          onUseOtherWallet={(family) => paymentState.setTokenMode(family)}
           canUseDepositAddress={canUseDepositAddress}
           onUseDepositAddress={() =>
             setRoute(ROUTES.SELECT_DEPOSIT_ADDRESS_CHAIN, {
@@ -295,12 +373,17 @@ export function NoTokensAvailable({
   onShowAllTokens,
   canUseDepositAddress,
   onUseDepositAddress,
+  otherWalletBalance,
+  onUseOtherWallet,
 }: {
   onRefresh: () => Promise<void>;
   preferredTokens?: Token[];
   preferredChains?: number[];
   canShowAllTokens: boolean;
   onShowAllTokens: () => void;
+  /** Best balance in a connected wallet of another chain family, if any. */
+  otherWalletBalance?: OtherWalletBalance;
+  onUseOtherWallet?: (family: WalletFamily) => void;
   canUseDepositAddress: boolean;
   onUseDepositAddress: () => void;
 }) {
@@ -332,7 +415,9 @@ export function NoTokensAvailable({
     );
   }, [preferredChains]);
 
-  const captureExit = (exit: "show_all_tokens" | "deposit_address" | "refresh") => {
+  const captureExit = (
+    exit: "show_all_tokens" | "deposit_address" | "refresh" | "other_wallet"
+  ) => {
     capture(ROZO_EVENTS.NO_TOKENS_EXIT_CLICKED, {
       exit,
       preferred_token_symbols: supportedSymbols,
@@ -400,21 +485,66 @@ export function NoTokensAvailable({
         gap: 16,
       }}
     >
-      <ModalH1>No tokens available</ModalH1>
+      <ModalH1>
+        {otherWalletBalance && !otherWalletBalance.sufficient
+          ? "Insufficient balance"
+          : "No tokens available"}
+      </ModalH1>
       <ModalBody
         style={{
           margin: "0 auto",
           padding: "0 12px",
         }}
       >
-        We couldn&apos;t find {formattedTokens}
-        {formattedChains && (
+        {otherWalletBalance && !otherWalletBalance.sufficient ? (
           <>
-            {" "}on <strong>{formattedChains}</strong>
+            Your {otherWalletBalance.label} wallet has{" "}
+            <strong>
+              {otherWalletBalance.balance} {otherWalletBalance.symbol}
+            </strong>
+            {otherWalletBalance.required != null && (
+              <>
+                ; this payment needs{" "}
+                <strong>
+                  {otherWalletBalance.required} {otherWalletBalance.symbol}
+                </strong>
+              </>
+            )}
+            .
           </>
-        )}{" "}
-        in your connected wallet.
+        ) : (
+          <>
+            We couldn&apos;t find {formattedTokens}
+            {formattedChains && (
+              <>
+                {" "}on <strong>{formattedChains}</strong>
+              </>
+            )}{" "}
+            in your connected wallet.
+            {otherWalletBalance && (
+              <>
+                {" "}Your {otherWalletBalance.label} wallet has{" "}
+                <strong>
+                  {otherWalletBalance.balance} {otherWalletBalance.symbol}
+                </strong>
+                .
+              </>
+            )}
+          </>
+        )}
       </ModalBody>
+      {otherWalletBalance?.sufficient && onUseOtherWallet && (
+        <Button
+          variant="primary"
+          style={{ margin: 0, width: "100%" }}
+          onClick={() => {
+            captureExit("other_wallet");
+            onUseOtherWallet(otherWalletBalance.family);
+          }}
+        >
+          Pay from {otherWalletBalance.label} wallet
+        </Button>
+      )}
       {(canShowAllTokens || canUseDepositAddress) && (
         <div
           style={{
@@ -426,7 +556,7 @@ export function NoTokensAvailable({
         >
           {canShowAllTokens && (
             <Button
-              variant="primary"
+              variant={otherWalletBalance?.sufficient ? "secondary" : "primary"}
               style={{ margin: 0 }}
               onClick={() => {
                 captureExit("show_all_tokens");
