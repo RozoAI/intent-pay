@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.67] - 2026-11-13
+
+### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes
+
+- **connectkit**:
+  - Stellar WalletConnect sign-and-submit: a wallet response with a missing or unrecognised status (or a non-rejection error after the request was sent) is no longer reported as a failed payment with a retry. The transaction hash is derived from the XDR that was sent and checked on Horizon: found and successful continues as paid, found and failed is a real failure, and not found only becomes retryable after a Horizon ledger closes later than the transaction's max time. When the outcome stays unknown the modal shows "Payment Status Unknown" with a support button and no retry. Before signing a new transaction the payer account's earlier unresolved submissions are re-checked on chain, and a later confirmed one requires an explicit "Pay Again Anyway". `payment_submitted` and `payment_failed` carry `submission_outcome` and `wallet_status`. Fixes a double payment where the wallet had already broadcast the first transaction &nbsp;-&nbsp; by @shawnmuggle and **Claude** in https://github.com/RozoAI/intent-pay/pull/118 [<samp>(51bf1)</samp>](https://github.com/RozoAI/intent-pay/commit/51bf1034)
+
+---
+
 ## [0.1.66] - 2026-11-10
 
 ### &nbsp;&nbsp;&nbsp;🚀 Features
